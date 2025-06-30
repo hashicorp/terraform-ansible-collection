@@ -103,10 +103,6 @@ outputs:
       type: str
       returned: always
       description: The status of the configuration version (pending, errored, uploaded, etc)
-    value:
-      type: str
-      returned: always
-      description: The value of the output as interpolated by Terraform
   type: string
   description: A status of the archive state.
   returned: when state is archive
