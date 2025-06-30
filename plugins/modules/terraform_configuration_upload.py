@@ -28,7 +28,6 @@ options:
   state:
     description: The action to be performed.
     type: str
-    state: present
 """
 
 
