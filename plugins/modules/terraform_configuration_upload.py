@@ -28,7 +28,7 @@ options:
   state:
     description: The action to be performed.
     type: str
-    state: present/absent
+    state: present
 """
 
 
@@ -44,7 +44,7 @@ RETURN = r"""
 outputs:
   type: str
   description: A status of the upload state.
-  returned: when state is prsent
+  returned: when state is present
   contains:
     status:
       type: str
