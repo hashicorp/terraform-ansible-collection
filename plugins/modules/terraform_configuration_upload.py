@@ -20,11 +20,9 @@ options:
     description: The URL to which the configuration file will be uploaded.
     type: str
     required: false
-    state: present
   file_path:
     description: The path to the configuration file to be uploaded
     type: path
-    state: present
   state:
     description: The action to be performed.
     type: str
