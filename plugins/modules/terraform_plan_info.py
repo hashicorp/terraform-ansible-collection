@@ -14,21 +14,36 @@ description:
   - This module retrieves information about a Terraform execution plan from HashiCorp Terraform Cloud/Enterprise.
   - It can be used to check plan status, resource changes, and execution details.
   - Supports both Terraform Cloud and Terraform Enterprise deployments.
+  - Plan information can be retrieved using either a plan ID or a run ID.
 options:
   plan_id:
     description:
       - The ID of the plan to retrieve information for.
       - Plan IDs can be found in the relationships.plan property of a run object.
+      - When provided, the module will use the /plans/:id endpoint.
+      - Mutually exclusive with run_id.
     type: str
     aliases: ['id']
+  run_id:
+    description:
+      - The ID of the run whose plan information should be retrieved.
+      - When provided, the module will use the /runs/:id/plan endpoint.
+      - Mutually exclusive with plan_id.
+    type: str
 extends_documentation_fragment:
   - hashicorp.terraform.auth
 """
 
 EXAMPLES = r"""
-- name: Retrieve plan information
+- name: Retrieve plan information using plan ID
   hashicorp.terraform.terraform_plan_info:
-    plan_id: "plan-8F5JFydVYAmtTjET"
+    plan_id: <your-plan_id>
+    token: "{{ tf_token }}"
+  register: plan_result
+
+- name: Retrieve plan information using run ID
+  hashicorp.terraform.terraform_plan_info:
+    run_id: <your-run_id>
     token: "{{ tf_token }}"
   register: plan_result
 
