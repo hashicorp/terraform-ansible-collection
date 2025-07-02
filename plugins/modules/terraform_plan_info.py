@@ -49,7 +49,7 @@ EXAMPLES = r"""
 
 - name: Access detailed plan via JSON output URL
   uri:
-    url: "{{ tf_hostname }}{{ plan_result.plan_info.links.json_output }}"
+    url: "{{ tf_hostname }}{{ plan_result.plan_info.links['json_output'] }}"
     headers:
       Authorization: "Bearer {{ tf_token }}"
   when: plan_result.plan_info.has_changes
