@@ -180,7 +180,6 @@ class ClientMixin:
 
         Args:
             path (str): The API endpoint path to retrieve data from.
-            query_params (dict, optional): Dictionary of query parameters to include in the request.
 
         Returns:
             dict: The response data from the API.
