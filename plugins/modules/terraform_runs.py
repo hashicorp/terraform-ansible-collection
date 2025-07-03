@@ -44,11 +44,6 @@ options:
         type: bool
         required: false
         default: false
-    is_destroy:
-        description: Whether to create a destroy plan
-        type: bool
-        required: false
-        default: false
     run:
         description: The ID of the run to apply/cancel.
         type: str
@@ -58,6 +53,11 @@ options:
         type: bool
         required: false
         default: false
+    target-addrs:
+        description: A list of target addresses to apply the run to.
+        type: list
+        elements: str
+        required: false
     state:
         description: The state of the run to manage.
         type: str
