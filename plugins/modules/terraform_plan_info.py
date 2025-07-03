@@ -7,7 +7,7 @@
 
 DOCUMENTATION = r"""
 ---
-module: plan_info
+module: terraform_plan_info
 version_added: "1.0.0"
 short_description: Retrieve information about Terraform Cloud/Enterprise plans
 description:
