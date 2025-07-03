@@ -19,12 +19,17 @@ options:
   upload_url:
     description: The URL to which the configuration file will be uploaded.
     type: str
+    required: true
   file_path:
     description: The path to the configuration file to be uploaded
     type: path
     required: true
   state:
     description: The action to be performed.
+    type: str
+    required: true
+  configuration_version_id:
+    description: The configuration version ID to which the upload corresponds to.
     type: str
     required: true
 """
@@ -36,6 +41,7 @@ EXAMPLES = r"""
     state: present
     file_path: <path-to-the-configuration-file>
     upload_url: <configuration-version-upload-url>
+    configuration_version_id: <id-of-the-configuration-version>
 """
 
 RETURN = r"""
