@@ -66,3 +66,4 @@ class TestTerraformModuleUtil:
         assert "tf_validate_certs" in auth_spec
         assert auth_spec["tf_validate_certs"]["required"] is True
         assert "fallback" in auth_spec["tf_validate_certs"]
+
