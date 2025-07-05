@@ -6,11 +6,12 @@
 
 import re
 import json
+from typing import Optional, Dict, Any, Callable, List, Union
+
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible.errors import AnsibleError
 from ansible.module_utils.urls import Request
 from ansible.module_utils.six.moves.http_cookiejar import CookieJar
-from typing import Optional, Dict, Any, Callable, List, Union
 from .exceptions import (
     TerraformTokenNotFoundError,
     TerraformHostnameNotFoundError,
@@ -19,6 +20,7 @@ from .exceptions import (
 
 
 class TerraformModule(AnsibleModule):
+    """TerraformModule extends AnsibleModule with authentication parameters."""
     AUTH_ARGSPEC = dict(
         tf_token=dict(
             required=False,
@@ -48,7 +50,6 @@ class TerraformModule(AnsibleModule):
         required_if=None,
         required_by=None,
     ):
-        """Initialize the module updating argspec with auth params."""
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)
         super().__init__(
             argument_spec,
@@ -187,7 +188,6 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
-        pass
 
     @make_request
     def post(self, path: str, data: Dict[str, Any]) -> Any:
@@ -204,7 +204,6 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
-        pass
 
     @make_request
     def put(self, path: str, data: Dict[str, Any]) -> Any:
@@ -220,7 +219,6 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
-        pass
 
     @make_request
     def delete(self, path: str) -> None:
@@ -237,10 +235,11 @@ class ClientMixin:
             None
 
         """
-        pass
 
 
 class TerraformClient(ClientMixin):
+    """Client for interacting with Terraform Cloud/Enterprise API."""
+    
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = kwargs.get("tf_hostname", "app.terraform.io")
         self._token: str = (
