@@ -223,6 +223,23 @@ class ClientMixin:
         pass
 
     @make_request
+    def patch(self, path: str, data: Dict[str, Any]) -> Any:
+        """
+        Send a PATCH request to the specified API endpoint.
+
+        Args:
+            path (str): The API endpoint path where the data should be sent.
+            data (dict): The data payload to be sent in the request body.
+
+        Returns:
+            Response: The response object resulting from the PATCH request.
+
+        Raises:
+            AnsibleError: If the request fails due to network or server error.
+        """
+        pass
+
+    @make_request
     def delete(self, path: str) -> None:
         """
         Deletes the specified resource at the given path.
