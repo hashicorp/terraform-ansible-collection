@@ -214,6 +214,27 @@ class TestClientMixin:
             data='{"name": "test"}',
         )
 
+    def test_make_request_decorator_patch_with_data(self):
+        """Test make_request decorator with PATCH method and data."""
+        client = self.MockClient()
+
+        # Mock session
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.read.return_value = b'{"id": "123", "name": "updated"}'
+
+        client.session.open.return_value = mock_response
+
+        test_data = {"name": "updated"}
+        result = client.patch("/test/123", test_data)
+
+        assert result == {"id": "123", "name": "updated"}
+        client.session.open.assert_called_once_with(
+            "PATCH",
+            "https://api.terraform.io/api/v2/test/123",
+            data='{"name": "updated"}',
+        )
+
     def test_make_request_decorator_error_response(self):
         """Test make_request decorator with error response."""
         client = self.MockClient()
@@ -469,4 +490,5 @@ class TestTerraformClient:
         assert hasattr(client, "get")
         assert hasattr(client, "post")
         assert hasattr(client, "put")
+        assert hasattr(client, "patch")
         assert hasattr(client, "delete")

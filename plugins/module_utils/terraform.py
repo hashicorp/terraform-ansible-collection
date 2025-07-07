@@ -6,12 +6,11 @@
 
 import re
 import json
-from typing import Optional, Dict, Any, Callable, List, Union
-
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible.errors import AnsibleError
 from ansible.module_utils.urls import Request
 from ansible.module_utils.six.moves.http_cookiejar import CookieJar
+from typing import Optional, Dict, Any, Callable, List, Union
 from .exceptions import (
     TerraformTokenNotFoundError,
     TerraformHostnameNotFoundError,
@@ -20,7 +19,6 @@ from .exceptions import (
 
 
 class TerraformModule(AnsibleModule):
-    """TerraformModule extends AnsibleModule with authentication parameters."""
     AUTH_ARGSPEC = dict(
         tf_token=dict(
             required=False,
@@ -50,6 +48,7 @@ class TerraformModule(AnsibleModule):
         required_if=None,
         required_by=None,
     ):
+        """Initialize the module updating argspec with auth params."""
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)
         super().__init__(
             argument_spec,
@@ -71,8 +70,7 @@ class ClientMixin:
     This can be used to extend the TerraformClient class with additional methods.
     """
 
-    def sanitize_response(self, response: Union[Dict[str, Any], List[Any]],
-                          keys_to_include: List[str]) -> Any:
+    def sanitize_response(self, response: Union[Dict[str, Any], List[Any]], keys_to_include: List[str]) -> Any:
         """
         Sanitize the response by retaining only specified keys, recursively.
 
@@ -88,20 +86,20 @@ class ClientMixin:
             result = {}
             for k, v in response.items():
                 if k in keys_to_include:
-                    result[k] = (self.sanitize_response(v, keys_to_include)
-                                 if isinstance(v, (dict, list)) else v)
+                    result[k] = self.sanitize_response(v, keys_to_include) if isinstance(v, (dict, list)) else v
                 elif isinstance(v, (dict, list)):
                     nested = self.sanitize_response(v, keys_to_include)
                     if nested:
                         result[k] = nested
             return result or None
 
-        if isinstance(response, list):
+        elif isinstance(response, list):
             filtered = [self.sanitize_response(item, keys_to_include) for item in response]
             filtered = [item for item in filtered if item]
             return filtered or None
 
-        return response
+        else:
+            return response
 
     def dict_to_json(self, data: Dict) -> str:
         """
@@ -116,7 +114,7 @@ class ClientMixin:
         try:
             return json.dumps(data)
         except TypeError as e:
-            raise AnsibleError(f"Failed to convert data to JSON: {e}") from e
+            raise AnsibleError(f"Failed to convert data to JSON: {e}")
 
     def json_to_dict(self, json_str: Union[bytes, str]) -> Dict[str, Any]:
         """
@@ -131,13 +129,12 @@ class ClientMixin:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            raise AnsibleError(f"Failed to decode JSON string: {e}") from e
+            raise AnsibleError(f"Failed to decode JSON string: {e}")
 
     @staticmethod
     def make_request(function: Callable):
         """Decorator to handle API requests and responses."""
-        def wrapper(self, path: str, data: Optional[Dict[str, Any]] = None,
-                    **kwargs: Any) -> Any:
+        def wrapper(self, path: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
             """
             Wrapper function to make API requests.
 
@@ -190,6 +187,7 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
+        pass
 
     @make_request
     def post(self, path: str, data: Dict[str, Any]) -> Any:
@@ -206,6 +204,7 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
+        pass
 
     @make_request
     def put(self, path: str, data: Dict[str, Any]) -> Any:
@@ -213,7 +212,7 @@ class ClientMixin:
 
         Args:
             path (str): The API endpoint path where the data should be sent.
-            data (dict, optional): The data payload to be sent in the request body.
+            data (dict, optional): The data payload to be sent in the request body. Defaults to None.
 
         Returns:
             Response: The response object resulting from the PUT request.
@@ -221,6 +220,24 @@ class ClientMixin:
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
+        pass
+
+    @make_request
+    def patch(self, path: str, data: Dict[str, Any]) -> Any:
+        """
+        Send a PATCH request to the specified API endpoint.
+
+        Args:
+            path (str): The API endpoint path where the data should be sent.
+            data (dict): The data payload to be sent in the request body.
+
+        Returns:
+            Response: The response object resulting from the PATCH request.
+
+        Raises:
+            AnsibleError: If the request fails due to network or server error.
+        """
+        pass
 
     @make_request
     def delete(self, path: str) -> None:
@@ -237,11 +254,10 @@ class ClientMixin:
             None
 
         """
+        pass
 
 
 class TerraformClient(ClientMixin):
-    """Client for interacting with Terraform Cloud/Enterprise API."""
-
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = kwargs.get("tf_hostname", "app.terraform.io")
         self._token: str = (
@@ -286,22 +302,20 @@ class TerraformClient(ClientMixin):
         """
         Placeholder for reading the Terraform token from a config file.
         """
-        # Implement logic to read from ~/.terraformrc or
-        # ~/.terraform.d/credentials.tfrc.json if needed        return None
+        # Implement logic to read from ~/.terraformrc or ~/.terraform.d/credentials.tfrc.json if needed
+        pass
 
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
         if not self._token:
             raise TerraformTokenNotFoundError(
-                "Terraform token not found. Set the TFE_TOKEN environment variable "
-                "or pass it as an argument."
+                "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
             )
-        if not self.hostname:
+        elif not self.hostname:
             raise TerraformHostnameNotFoundError(
-                "Terraform hostname not found. Set the TF_HOSTNAME environment variable "
-                "or pass it as an argument."
+                "Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument."
             )
-        if self.hostname.startswith("http://") and self.verify:
+        elif self.hostname.startswith("http://") and self.verify:
             raise TerraformSSLValidationError(
                 "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), "
                 "but the URL starts with 'http://' (non-secure)"
