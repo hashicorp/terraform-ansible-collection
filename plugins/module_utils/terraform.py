@@ -148,7 +148,7 @@ class ClientMixin:
             if not path.startswith("/"):
                 path = f"/{path}"
 
-            if method in ["POST", "PUT", "DELETE"] and data:
+            if method in ["POST", "PUT", "DELETE", "PATCH"] and data:
                 data = self.dict_to_json(data)
 
             url = f"{self.base_url}{path}"
