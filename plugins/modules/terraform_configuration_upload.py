@@ -31,7 +31,6 @@ options:
   configuration_version_id:
     description: The configuration version ID to which the upload corresponds to.
     type: str
-    required: true
 """
 
 
