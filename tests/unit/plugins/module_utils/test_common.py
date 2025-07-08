@@ -6,10 +6,8 @@
 import pytest
 import json
 from unittest.mock import Mock, patch, MagicMock
-from ansible.module_utils.six.moves.http_cookiejar import CookieJar
 
 from ansible.errors import AnsibleError
-from ansible.module_utils.urls import Request
 
 import sys
 import os
@@ -51,18 +49,13 @@ class TestTerraformModuleUtil:
         """Test the structure of AUTH_ARGSPEC."""
         auth_spec = TerraformModule.AUTH_ARGSPEC
 
-        # Check tf_token
         assert "tf_token" in auth_spec
         assert auth_spec["tf_token"]["required"] is False
         assert "fallback" in auth_spec["tf_token"]
-
-        # Check tf_hostname
         assert "tf_hostname" in auth_spec
         assert auth_spec["tf_hostname"]["required"] is False
         assert auth_spec["tf_hostname"]["default"] == "app.terraform.io"
         assert "fallback" in auth_spec["tf_hostname"]
-
-        # Check tf_validate_certs
         assert "tf_validate_certs" in auth_spec
         assert auth_spec["tf_validate_certs"]["required"] is True
         assert "fallback" in auth_spec["tf_validate_certs"]
@@ -76,6 +69,7 @@ class TestClientMixin:
         def __init__(self):
             self.base_url = "https://api.terraform.io/api/v2"
             self.session = Mock()
+            self.session.headers = {"Content-Type": "application/vnd.api+json"}
 
     def test_sanitize_response_dict_with_included_keys(self):
         """Test sanitizing dict response with keys to include."""
@@ -134,7 +128,6 @@ class TestClientMixin:
     def test_dict_to_json_invalid_data(self):
         """Test converting invalid data to JSON raises AnsibleError."""
         mixin = ClientMixin()
-        # Create object that can't be JSON serialized
         data = {"key": set([1, 2, 3])}
 
         with pytest.raises(AnsibleError, match="Failed to convert data to JSON"):
@@ -179,72 +172,77 @@ class TestClientMixin:
         client = self.MockClient()
 
         mock_response = Mock()
-        mock_response.status = 200
-        mock_response.read.return_value = b'{"data": "test"}'
+        mock_response.status_code = 200
+        mock_response.content = b'{"data": "test"}'
 
-        client.session.open.return_value = mock_response
+        client.session.request.return_value = mock_response
 
         result = client.get("/test")
 
-        assert result == {"data": "test"}
-        client.session.open.assert_called_once_with(
+        assert result == {"status": 200, "data": {"data": "test"}}
+        client.session.request.assert_called_once_with(
             "GET",
             "https://api.terraform.io/api/v2/test",
             data=None,
         )
 
-    def test_make_request_decorator_post_with_data(self):
-        """Test make_request decorator with POST method and data."""
+    def test_make_request_decorator_data_conversion_methods(self):
+        """Test make_request decorator with data conversion methods (POST, PUT, PATCH, DELETE)."""
         client = self.MockClient()
 
-        # Mock session
         mock_response = Mock()
-        mock_response.status = 201
-        mock_response.read.return_value = b'{"id": "123"}'
+        mock_response.status_code = 201
+        mock_response.content = b'{"id": "123"}'
 
-        client.session.open.return_value = mock_response
+        client.session.request.return_value = mock_response
 
         test_data = {"name": "test"}
+        
+        # Test POST
         result = client.post("/test", test_data)
-
-        assert result == {"id": "123"}
-        client.session.open.assert_called_once_with(
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_with(
             "POST",
             "https://api.terraform.io/api/v2/test",
             data='{"name": "test"}',
         )
 
-    def test_make_request_decorator_patch_with_data(self):
-        """Test make_request decorator with PATCH method and data."""
-        client = self.MockClient()
+        # Test PUT
+        result = client.put("/test", test_data)
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_with(
+            "PUT",
+            "https://api.terraform.io/api/v2/test",
+            data='{"name": "test"}',
+        )
 
-        # Mock session
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.read.return_value = b'{"id": "123", "name": "updated"}'
-
-        client.session.open.return_value = mock_response
-
-        test_data = {"name": "updated"}
-        result = client.patch("/test/123", test_data)
-
-        assert result == {"id": "123", "name": "updated"}
-        client.session.open.assert_called_once_with(
+        # Test PATCH
+        result = client.patch("/test", test_data)
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_with(
             "PATCH",
-            "https://api.terraform.io/api/v2/test/123",
-            data='{"name": "updated"}',
+            "https://api.terraform.io/api/v2/test",
+            data='{"name": "test"}',
+        )
+
+        # Test DELETE
+        result = client.delete("/test")
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_with(
+            "DELETE",
+            "https://api.terraform.io/api/v2/test",
+            data=None,
         )
 
     def test_make_request_decorator_error_response(self):
         """Test make_request decorator with error response."""
         client = self.MockClient()
 
-        # Mock session
         mock_response = Mock()
-        mock_response.status = 404
+        mock_response.status_code = 404
         mock_response.reason = "Not Found"
 
-        client.session.open.return_value = mock_response
+        client.session.request.return_value = mock_response
 
         with pytest.raises(AnsibleError, match="Failed to GET /test: Not Found \\(404\\)"):
             client.get("/test")
@@ -253,33 +251,31 @@ class TestClientMixin:
         """Test make_request decorator with keys_to_include parameter."""
         client = self.MockClient()
 
-        # Mock session
         mock_response = Mock()
-        mock_response.status = 200
-        mock_response.read.return_value = b'{"id": "123", "name": "test", "secret": "hidden"}'
+        mock_response.status_code = 200
+        mock_response.content = b'{"id": "123", "name": "test", "secret": "hidden"}'
 
-        client.session.open.return_value = mock_response
+        client.session.request.return_value = mock_response
 
         result = client.get("/test", keys_to_include=["id", "name"])
 
-        assert result == {"id": "123", "name": "test"}
-        assert "secret" not in result
+        assert result == {"status": 200, "data": {"id": "123", "name": "test"}}
+        assert "secret" not in result["data"]
 
     def test_make_request_decorator_path_normalization(self):
         """Test make_request decorator normalizes paths."""
         client = self.MockClient()
 
-        # Mock session
         mock_response = Mock()
-        mock_response.status = 200
-        mock_response.read.return_value = b'{"data": "test"}'
+        mock_response.status_code = 200
+        mock_response.content = b'{"data": "test"}'
 
-        client.session.open.return_value = mock_response
+        client.session.request.return_value = mock_response
 
         # Test path without leading slash
         client.get("test")
 
-        client.session.open.assert_called_once_with(
+        client.session.request.assert_called_once_with(
             "GET",
             "https://api.terraform.io/api/v2/test",
             data=None,
@@ -289,11 +285,12 @@ class TestClientMixin:
 class TestTerraformClient:
     """Test cases for TerraformClient class."""
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_init_with_token(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_with_token(self, mock_session):
         """Test TerraformClient initialization with token."""
-        mock_request_instance = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
@@ -302,13 +299,14 @@ class TestTerraformClient:
         assert client.hostname == "app.terraform.io"
         assert client._token == "test-token"
         assert client.verify is True
-        assert client.session == mock_request_instance
+        assert client.session == mock_session_instance
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_init_custom_hostname(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_custom_hostname(self, mock_session):
         """Test TerraformClient initialization with custom hostname."""
-        mock_request_instance = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="custom.terraform.io", tf_validate_certs=True
@@ -317,12 +315,12 @@ class TestTerraformClient:
         assert client.hostname == "custom.terraform.io"
         assert client.base_url == "https://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_init_with_http_url(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_with_http_url(self, mock_session):
         """Test TerraformClient initialization with HTTP URL."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token",
@@ -332,11 +330,12 @@ class TestTerraformClient:
 
         assert client.base_url == "http://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_init_with_https_url(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_with_https_url(self, mock_session):
         """Test TerraformClient initialization with HTTPS URL."""
-        mock_request_instance = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="https://custom.terraform.io", tf_validate_certs=True
@@ -344,12 +343,12 @@ class TestTerraformClient:
 
         assert client.base_url == "https://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_headers_default(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_headers_default(self, mock_session):
         """Test TerraformClient sets default headers."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
@@ -359,14 +358,14 @@ class TestTerraformClient:
             "Authorization": "Bearer test-token",
             "Content-Type": "application/vnd.api+json",
         }
-        mock_request_instance.headers.update.assert_called_with(expected_headers)
+        mock_session_instance.headers.update.assert_called_with(expected_headers)
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_headers_custom(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_headers_custom(self, mock_session):
         """Test TerraformClient with custom headers."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         custom_headers = {"User-Agent": "test-agent"}
         client = TerraformClient(
@@ -377,14 +376,14 @@ class TestTerraformClient:
         )
 
         expected_headers = {"Authorization": "Bearer test-token"}
-        mock_request_instance.headers.update.assert_called_with(expected_headers)
+        mock_session_instance.headers.update.assert_called_with(expected_headers)
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_headers_with_auth(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_headers_with_auth(self, mock_session):
         """Test TerraformClient with custom headers including auth."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         custom_headers = {"Authorization": "Bearer custom-token"}
         client = TerraformClient(
@@ -394,8 +393,8 @@ class TestTerraformClient:
             headers=custom_headers,
         )
 
-        # Should not add auth header if already present
-        mock_request_instance.headers.update.assert_not_called()
+        # Should only call headers.update once with custom headers, not add default auth
+        mock_session_instance.headers.update.assert_called_once_with(custom_headers)
 
     def test_terraform_client_init_no_token_raises_error(self):
         """Test TerraformClient initialization without token raises error."""
@@ -414,12 +413,12 @@ class TestTerraformClient:
                 tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True
             )
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_session_args(self, mock_request):
-        """Test TerraformClient session arguments."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_session_creation(self, mock_session):
+        """Test TerraformClient session creation."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token",
@@ -428,28 +427,16 @@ class TestTerraformClient:
             timeout=20,
         )
 
-        expected_args = {
-            "timeout": 20,
-            "validate_certs": True,
-            "headers": {},
-            "cookies": mock_request.call_args[1]["cookies"],
-            "follow_redirects": True,
-        }
+        # Check that session was created
+        mock_session.assert_called_once()
+        assert client.session == mock_session_instance
 
-        # Check that Request was called with expected arguments
-        mock_request.assert_called_once()
-        call_args = mock_request.call_args[1]
-        assert call_args["timeout"] == 20
-        assert call_args["validate_certs"] is True
-        assert call_args["follow_redirects"] is True
-        assert isinstance(call_args["cookies"], CookieJar)
-
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_get_token_from_config_file(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_get_token_from_config_file(self, mock_session):
         """Test TerraformClient _get_token_from_config_file method."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
@@ -459,12 +446,12 @@ class TestTerraformClient:
         result = client._get_token_from_config_file()
         assert result is None
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_pre_checks_called(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_pre_checks_called(self, mock_session):
         """Test TerraformClient pre_checks method is called during initialization."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         with patch.object(TerraformClient, "pre_checks") as mock_pre_checks:
             client = TerraformClient(
@@ -472,12 +459,12 @@ class TestTerraformClient:
             )
             mock_pre_checks.assert_called_once()
 
-    @patch("plugins.module_utils.common.Request")
-    def test_terraform_client_inheritance(self, mock_request):
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_inheritance(self, mock_session):
         """Test TerraformClient inherits from ClientMixin."""
-        mock_request_instance = Mock()
-        mock_request_instance.headers = Mock()
-        mock_request.return_value = mock_request_instance
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
         client = TerraformClient(
             tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
