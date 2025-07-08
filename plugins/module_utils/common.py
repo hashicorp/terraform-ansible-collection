@@ -417,7 +417,7 @@ class ArchivistClient(ClientMixin):
         Raises:
             AnsibleError: If the request fails due to network or server error.
         """
-        response = self.session.put(
+        response = self.put(
             f"{self.base_url}/{path}",
             data=data,
             headers={"Content-Type": "application/octet-stream"},
