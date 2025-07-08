@@ -9,13 +9,12 @@ import json
 import requests
 from requests.packages.urllib3.util.retry import Retry
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible.errors import TerraformError
+from ansible.errors import AnsibleError
 from typing import Optional, Dict, Any, Callable, List, Union
 from .exceptions import (
-    TerraformError,
     TerraformTokenNotFoundError,
     TerraformHostnameNotFoundError,
-    TerraformSSLValidationError,
+    TerraformSSLValidationError
 )
 
 
@@ -115,7 +114,7 @@ class ClientMixin:
         try:
             return json.dumps(data)
         except TypeError as e:
-            raise TerraformError(f"Failed to convert data to JSON: {e}")
+            raise AnsibleError(f"Failed to convert data to JSON: {e}")
 
     def json_to_dict(self, json_str: Union[bytes, str]) -> Dict[str, Any]:
         """
@@ -130,7 +129,7 @@ class ClientMixin:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            raise TerraformError(f"Failed to decode JSON string: {e}")
+            raise AnsibleError(f"Failed to decode JSON string: {e}")
 
     @staticmethod
     def make_request(function: Callable):
@@ -164,7 +163,7 @@ class ClientMixin:
             status = getattr(response, "status_code", 200)
             if status < 200 or status >= 300:
                 reason = getattr(response, "reason", "Unknown error")
-                raise TerraformError(
+                raise AnsibleError(
                     f"Failed to {method} {path}: {reason} ({status})"
                 )
 
@@ -191,7 +190,7 @@ class ClientMixin:
             Response: The response object resulting from the HEAD request.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         pass
 
@@ -207,7 +206,7 @@ class ClientMixin:
             dict: The response data from the API.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         pass
 
@@ -224,7 +223,7 @@ class ClientMixin:
             Response: The response object resulting from the POST request.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         pass
 
@@ -240,7 +239,7 @@ class ClientMixin:
             Response: The response object resulting from the PUT request.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         pass
 
@@ -257,7 +256,7 @@ class ClientMixin:
             Response: The response object resulting from the PATCH request.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         pass
 
@@ -270,7 +269,7 @@ class ClientMixin:
             path (str): The file system path to the file or directory to be deleted.
 
         Raises:
-            TerraformError: If the deletion fails due to network or server error.
+            AnsibleError: If the deletion fails due to network or server error.
 
         Returns:
             None
@@ -416,11 +415,10 @@ class ArchivistClient(ClientMixin):
             dict: The response data from the API.
 
         Raises:
-            TerraformError: If the request fails due to network or server error.
+            AnsibleError: If the request fails due to network or server error.
         """
         response = self.put(
             f"{self.base_url}/{path}",
             data=data,
-,
         )
         return response
