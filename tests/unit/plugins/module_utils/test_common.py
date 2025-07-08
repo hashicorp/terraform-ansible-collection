@@ -3,25 +3,29 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import pytest
 import json
-from unittest.mock import Mock, patch, MagicMock
+import os
+import sys
+
+from typing import Optional
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from ansible.errors import AnsibleError
 
-import sys
-import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 from plugins.module_utils.common import (
-    TerraformModule,
-    TerraformClient,
+    ArchivistClient,
     ClientMixin,
+    TerraformClient,
+    TerraformModule,
 )
 from plugins.module_utils.exceptions import (
-    TerraformTokenNotFoundError,
     TerraformHostnameNotFoundError,
     TerraformSSLValidationError,
+    TerraformTokenNotFoundError,
 )
 
 
@@ -59,6 +63,7 @@ class TestTerraformModuleUtil:
         assert "tf_validate_certs" in auth_spec
         assert auth_spec["tf_validate_certs"]["required"] is True
         assert "fallback" in auth_spec["tf_validate_certs"]
+
 
 class TestClientMixin:
     """Test cases for ClientMixin class."""
@@ -197,7 +202,7 @@ class TestClientMixin:
         client.session.request.return_value = mock_response
 
         test_data = {"name": "test"}
-        
+
         # Test POST
         result = client.post("/test", test_data)
         assert result == {"status": 201, "data": {"id": "123"}}
@@ -479,3 +484,382 @@ class TestTerraformClient:
         assert hasattr(client, "put")
         assert hasattr(client, "patch")
         assert hasattr(client, "delete")
+
+
+class TestArchivistClient:
+    """Test cases for ArchivistClient class."""
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_default_hostname(self, mock_session):
+        """Test ArchivistClient initialization with default hostname."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True)
+
+        assert client.hostname == "archivist.terraform.io"
+        assert client.verify is True
+        assert client.base_url == "https://archivist.terraform.io/v1"
+        assert client.session == mock_session_instance
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_custom_hostname(self, mock_session):
+        """Test ArchivistClient initialization with custom hostname."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_hostname="custom.archivist.io", tf_validate_certs=True)
+
+        assert client.hostname == "custom.archivist.io"
+        assert client.base_url == "https://custom.archivist.io/v1"
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_with_http_url(self, mock_session):
+        """Test ArchivistClient initialization with HTTP URL."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_hostname="http://custom.archivist.io", tf_validate_certs=False)
+
+        assert client.base_url == "http://custom.archivist.io/v1"
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_with_https_url(self, mock_session):
+        """Test ArchivistClient initialization with HTTPS URL."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_hostname="https://custom.archivist.io", tf_validate_certs=True)
+
+        assert client.base_url == "https://custom.archivist.io/v1"
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_headers_default(self, mock_session):
+        """Test ArchivistClient sets default headers."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True)
+
+        expected_headers = {"Content-Type": "application/octet-stream"}
+        mock_session_instance.headers.update.assert_called_with(expected_headers)
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_headers_custom(self, mock_session):
+        """Test ArchivistClient with custom headers."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        custom_headers = {"User-Agent": "test-agent"}
+        client = ArchivistClient(tf_validate_certs=True, headers=custom_headers)
+
+        mock_session_instance.headers.update.assert_called_once_with(custom_headers)
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_session_creation(self, mock_session):
+        """Test ArchivistClient session creation."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True, timeout=20)
+
+        mock_session.assert_called_once()
+        assert client.session == mock_session_instance
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_pre_checks_called(self, mock_session):
+        """Test ArchivistClient pre_checks method is called during initialization."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        with patch.object(ArchivistClient, "pre_checks") as mock_pre_checks:
+            client = ArchivistClient(tf_validate_certs=True)
+            mock_pre_checks.assert_called_once()
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_inheritance(self, mock_session):
+        """Test ArchivistClient inherits from ClientMixin."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True)
+
+        assert hasattr(client, "sanitize_response")
+        assert hasattr(client, "dict_to_json")
+        assert hasattr(client, "json_to_dict")
+        assert hasattr(client, "get")
+        assert hasattr(client, "post")
+        assert hasattr(client, "put")
+        assert hasattr(client, "patch")
+        assert hasattr(client, "delete")
+        assert hasattr(client, "upload_config")
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_upload_config(self, mock_session):
+        """Test ArchivistClient upload_config method."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True)
+
+        mock_response = {"status": 200, "data": {"upload_url": "test-url"}}
+        with patch.object(client, "put", return_value=mock_response) as mock_put:
+            test_data = b"test binary data"
+            result = client.upload_config("test-path", test_data)
+
+            assert result == mock_response
+            mock_put.assert_called_once_with(f"{client.base_url}/test-path", data=test_data)
+
+    def test_archivist_client_init_no_hostname_raises_error(self):
+        """Test ArchivistClient initialization without hostname raises error."""
+        with pytest.raises(TerraformHostnameNotFoundError):
+            ArchivistClient(tf_hostname="", tf_validate_certs=True)
+
+    def test_archivist_client_init_http_with_ssl_validation_raises_error(self):
+        """Test ArchivistClient initialization with HTTP URL and SSL validation raises error."""
+        with pytest.raises(TerraformSSLValidationError):
+            ArchivistClient(tf_hostname="http://archivist.terraform.io", tf_validate_certs=True)
+
+
+class TestClientMixinAdditional:
+    """Additional test cases for ClientMixin class covering missing functionality."""
+
+    class MockClient(ClientMixin):
+        """Mock client class for testing ClientMixin."""
+
+        def __init__(self):
+            self.base_url = "https://api.terraform.io/api/v2"
+            self.session = Mock()
+            self.session.headers = {"Content-Type": "application/vnd.api+json"}
+            self.hostname: Optional[str] = "app.terraform.io"
+            self.verify = True
+            self._token: Optional[str] = "test-token"
+
+    def test_head_method_placeholder(self):
+        """Test head method (placeholder implementation)."""
+        client = self.MockClient()
+
+        result = client.head("/test")
+        assert result is None
+
+    def test_pre_checks_terraform_client_success(self):
+        """Test pre_checks method for TerraformClient with valid configuration."""
+        client = self.MockClient()
+
+        client.pre_checks()
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_pre_checks_archivist_client_success(self, mock_session):
+        """Test pre_checks method for ArchivistClient (no token required)."""
+        from plugins.module_utils.common import ArchivistClient
+
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = ArchivistClient(tf_validate_certs=True)
+        client.pre_checks()
+
+    def test_pre_checks_missing_token_raises_error(self):
+        """Test pre_checks method raises error when token is missing."""
+        client = self.MockClient()
+        client._token = None
+
+        with pytest.raises(TerraformTokenNotFoundError):
+            client.pre_checks()
+
+    def test_pre_checks_missing_hostname_raises_error(self):
+        """Test pre_checks method raises error when hostname is missing."""
+        client = self.MockClient()
+        client.hostname = None
+
+        with pytest.raises(TerraformHostnameNotFoundError):
+            client.pre_checks()
+
+    def test_pre_checks_http_with_ssl_validation_raises_error(self):
+        """Test pre_checks method raises error for HTTP with SSL validation."""
+        client = self.MockClient()
+        client.hostname = "http://app.terraform.io"
+        client.verify = True
+
+        with pytest.raises(TerraformSSLValidationError):
+            client.pre_checks()
+
+    @patch("plugins.module_utils.common.requests.Session")
+    @patch("plugins.module_utils.common.requests.adapters.HTTPAdapter")
+    @patch("plugins.module_utils.common.Retry")
+    def test_create_session_detailed(self, mock_retry, mock_adapter, mock_session):
+        """Test create_session method with detailed configuration."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+        mock_retry_instance = Mock()
+        mock_retry.return_value = mock_retry_instance
+
+        client = self.MockClient()
+
+        session_args = {
+            "base_url": "https://test.terraform.io/api/v2",
+            "headers": {"Custom": "header"},
+            "retries": 5,
+            "timeout": 30,
+            "validate_certs": True,
+        }
+
+        result = client.create_session(**session_args)
+
+        mock_session.assert_called_once()
+        assert result == mock_session_instance
+        assert client.session == mock_session_instance
+
+        mock_retry.assert_called_once_with(
+            total=5,
+            connect=5,
+            read=5,
+            backoff_factor=1,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+            raise_on_status=False,
+        )
+
+        mock_adapter.assert_called_once_with(max_retries=mock_retry_instance)
+        mock_session_instance.mount.assert_called_once_with("https://", mock_adapter_instance)
+
+    @patch("plugins.module_utils.common.requests.Session")
+    @patch("plugins.module_utils.common.requests.adapters.HTTPAdapter")
+    @patch("plugins.module_utils.common.Retry")
+    def test_create_session_http_url(self, mock_retry, mock_adapter, mock_session):
+        """Test create_session method with HTTP URL."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        client = self.MockClient()
+
+        session_args = {
+            "base_url": "http://test.terraform.io/api/v2",
+            "validate_certs": False,
+        }
+
+        result = client.create_session(**session_args)
+
+        assert mock_session_instance.verify is False
+        mock_session_instance.mount.assert_called_once_with("http://", mock_adapter_instance)
+
+    def test_sanitize_response_nested_structures(self):
+        """Test sanitizing response with deeply nested structures."""
+        mixin = ClientMixin()
+        response = {
+            "data": {
+                "id": "123",
+                "attributes": {
+                    "name": "test",
+                    "secret": "hidden",
+                    "nested": {"id": "456", "value": "keep", "private": "remove"},
+                },
+                "relationships": {"parent": {"data": {"id": "789", "type": "parent"}}},
+            }
+        }
+        keys_to_include = ["id", "name", "value", "data", "type"]
+
+        result = mixin.sanitize_response(response, keys_to_include)
+
+        assert result["data"]["id"] == "123"
+        assert result["data"]["attributes"]["name"] == "test"
+        assert result["data"]["attributes"]["nested"]["id"] == "456"
+        assert result["data"]["attributes"]["nested"]["value"] == "keep"
+        assert result["data"]["relationships"]["parent"]["data"]["id"] == "789"
+        assert result["data"]["relationships"]["parent"]["data"]["type"] == "parent"
+        assert "secret" not in result["data"]["attributes"]
+        assert "private" not in result["data"]["attributes"]["nested"]
+
+    def test_sanitize_response_mixed_list_dict(self):
+        """Test sanitizing response with mixed list and dict structures."""
+        mixin = ClientMixin()
+        response = {
+            "items": [
+                {"id": "1", "name": "item1", "secret": "hidden1"},
+                {"id": "2", "name": "item2", "secret": "hidden2"},
+            ],
+            "meta": {"count": 2, "private": "remove"},
+        }
+        keys_to_include = ["id", "name", "count", "items", "meta"]
+
+        result = mixin.sanitize_response(response, keys_to_include)
+
+        assert len(result["items"]) == 2
+        assert result["items"][0]["id"] == "1"
+        assert result["items"][0]["name"] == "item1"
+        assert result["meta"]["count"] == 2
+        assert "secret" not in result["items"][0]
+        assert "private" not in result["meta"]
+
+    def test_make_request_decorator_non_json_response(self):
+        """Test make_request decorator with non-JSON response."""
+        client = self.MockClient()
+        client.session.headers = {"Content-Type": "text/plain"}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b"plain text response"
+
+        client.session.request.return_value = mock_response
+
+        result = client.get("/test")
+
+        assert result == {"status": 200, "data": b"plain text response"}
+
+    def test_make_request_decorator_empty_response(self):
+        """Test make_request decorator with empty response."""
+        client = self.MockClient()
+
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_response.content = b""
+
+        client.session.request.return_value = mock_response
+
+        result = client.get("/test")
+
+        assert result == {"status": 204, "data": b""}
+
+    def test_make_request_decorator_status_edge_cases(self):
+        """Test make_request decorator with edge case status codes."""
+        client = self.MockClient()
+
+        # Test 199 (should fail)
+        mock_response = Mock()
+        mock_response.status_code = 199
+        mock_response.reason = "Unknown"
+        client.session.request.return_value = mock_response
+
+        with pytest.raises(AnsibleError, match="Failed to GET /test: Unknown \\(199\\)"):
+            client.get("/test")
+
+        # Test 300 (should fail)
+        mock_response.status_code = 300
+        mock_response.reason = "Multiple Choices"
+        client.session.request.return_value = mock_response
+
+        with pytest.raises(AnsibleError, match="Failed to GET /test: Multiple Choices \\(300\\)"):
+            client.get("/test")
+
+        # Test 299 (should succeed)
+        mock_response.status_code = 299
+        mock_response.content = b'{"success": true}'
+        client.session.request.return_value = mock_response
+
+        result = client.get("/test")
+        assert result == {"status": 299, "data": {"success": True}}
