@@ -420,6 +420,5 @@ class ArchivistClient(ClientMixin):
         response = self.put(
             f"{self.base_url}/{path}",
             data=data,
-            headers={"Content-Type": "application/octet-stream"},
         )
         return response
