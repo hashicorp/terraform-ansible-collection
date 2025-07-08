@@ -279,7 +279,7 @@ class ClientMixin:
 
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
-        if not self._token:
+        if not isinstance(self, ArchivistClient) and not self._token:
             raise TerraformTokenNotFoundError(
                 "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
             )
