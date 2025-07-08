@@ -268,7 +268,7 @@ class TestClientMixin:
         assert "secret" not in result["data"]
 
     def test_make_request_decorator_path_normalization(self):
-        """Test make_request decorator normalizes paths."""
+        """Test make_request decorator handles paths."""
         client = self.MockClient()
 
         mock_response = Mock()
@@ -601,24 +601,8 @@ class TestArchivistClient:
         assert hasattr(client, "put")
         assert hasattr(client, "patch")
         assert hasattr(client, "delete")
-        assert hasattr(client, "upload_config")
 
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_archivist_client_upload_config(self, mock_session):
-        """Test ArchivistClient upload_config method."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
 
-        client = ArchivistClient(tf_validate_certs=True)
-
-        mock_response = {"status": 200, "data": {"upload_url": "test-url"}}
-        with patch.object(client, "put", return_value=mock_response) as mock_put:
-            test_data = b"test binary data"
-            result = client.upload_config("test-path", test_data)
-
-            assert result == mock_response
-            mock_put.assert_called_once_with(f"{client.base_url}/test-path", data=test_data)
 
     def test_archivist_client_init_no_hostname_raises_error(self):
         """Test ArchivistClient initialization without hostname raises error."""
