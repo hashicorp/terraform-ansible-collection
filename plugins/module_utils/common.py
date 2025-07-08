@@ -402,23 +402,3 @@ class ArchivistClient(ClientMixin):
         if re.match(r"^https?://", self.hostname):
             return f"{self.hostname}/v1"
         return f"https://{self.hostname}/v1"
-
-    def upload_config(self, path: str, data: bytes) -> Any:
-        """
-        Upload a configuration file to the Archivist.
-
-        Args:
-            path (str): The API endpoint path to upload the configuration.
-            data (bytes): The binary data of the configuration file.
-
-        Returns:
-            dict: The response data from the API.
-
-        Raises:
-            AnsibleError: If the request fails due to network or server error.
-        """
-        response = self.put(
-            f"{self.base_url}/{path}",
-            data=data,
-        )
-        return response
