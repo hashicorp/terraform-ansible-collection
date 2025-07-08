@@ -6,10 +6,10 @@
 
 import re
 import json
+import requests
+from requests.packages.urllib3.util.retry import Retry
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible.errors import AnsibleError
-from ansible.module_utils.urls import Request
-from ansible.module_utils.six.moves.http_cookiejar import CookieJar
 from typing import Optional, Dict, Any, Callable, List, Union
 from .exceptions import (
     TerraformTokenNotFoundError,
@@ -133,7 +133,7 @@ class ClientMixin:
 
     @staticmethod
     def make_request(function: Callable):
-        """Decorator to handle API requests and responses."""
+        """Decorator to handle API requests and responses with retry on connection errors."""
         def wrapper(self, path: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
             """
             Wrapper function to make API requests.
@@ -144,34 +144,55 @@ class ClientMixin:
                 **kwargs: Additional keyword arguments for the request.
             """
             method = function.__name__.upper()
+            content_type = self.session.headers.get("Content-Type", "application/vnd.api+json")
 
             if not path.startswith("/"):
                 path = f"/{path}"
 
-            if method in ["POST", "PUT", "DELETE"] and data:
+            if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
             url = f"{self.base_url}{path}"
-            response = self.session.open(
+
+            response = self.session.request(
                 method,
                 url,
                 data=data,
-            )
+                )
 
-            status = getattr(response, "status", 200)
+            status = getattr(response, "status_code", 200)
             if status < 200 or status >= 300:
                 reason = getattr(response, "reason", "Unknown error")
                 raise AnsibleError(
                     f"Failed to {method} {path}: {reason} ({status})"
                 )
 
-            result = self.json_to_dict(response.read())
+            if response.content and content_type.endswith("json"):
+                result = self.json_to_dict(response.content)
+            else:
+                result = response.content
 
             if kwargs.get("keys_to_include"):
-                return self.sanitize_response(result, kwargs["keys_to_include"])
+                result = self.sanitize_response(result, kwargs["keys_to_include"])
 
-            return result
+            return {"status": status,
+                    "data": result}
         return wrapper
+
+    def head(self, path: str) -> Any:
+        """
+        Send a HEAD request to the specified API endpoint.
+
+        Args:
+            path (str): The API endpoint path to send the request to.
+
+        Returns:
+            Response: The response object resulting from the HEAD request.
+
+        Raises:
+            AnsibleError: If the request fails due to network or server error.
+        """
+        pass
 
     @make_request
     def get(self, path: str) -> Any:
@@ -256,6 +277,52 @@ class ClientMixin:
         """
         pass
 
+    def pre_checks(self):
+        """Perform pre-checks to ensure the client is configured correctly."""
+        if not self._token:
+            raise TerraformTokenNotFoundError(
+                "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
+            )
+        elif not self.hostname:
+            raise TerraformHostnameNotFoundError(
+                "Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument."
+            )
+        elif self.hostname.startswith("http://") and self.verify:
+            raise TerraformSSLValidationError(
+                "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), "
+                "but the URL starts with 'http://' (non-secure)"
+            )
+
+    def create_session(self, **kwargs: Any) -> requests.Session:
+        """
+        Create a requests session with the specified parameters.
+        This method can be overridden to customize session creation.
+        """
+        self.session = requests.Session()
+        self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")
+        self.session.headers.update(kwargs.get("headers", {}))
+        self.retries = kwargs.get("retries", 3)
+        self.session.timeout = kwargs.get("timeout", 10)
+        self.retry_strategy = Retry(
+            total=self.retries,
+            connect=self.retries,
+            read=self.retries,
+            backoff_factor=1,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+            raise_on_status=False
+        )
+
+        adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
+
+        if self.url.startswith("https://"):
+            self.session.verify = kwargs.get("validate_certs", True)
+            self.session.mount("https://", adapter)
+        else:
+            self.session.verify = False
+            self.session.mount("http://", adapter)
+        return self.session
+
 
 class TerraformClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
@@ -269,10 +336,11 @@ class TerraformClient(ClientMixin):
             "timeout": kwargs.get("timeout", 10),
             "validate_certs": self.verify,
             "headers": self.headers,
-            "cookies": kwargs.get("cookies", CookieJar()),
             "follow_redirects": kwargs.get("follow_redirects", True),
+            "base_url": self.base_url,
         }
-        self.session: Request = Request(**self.session_args)
+
+        self.session = self.create_session(**self.session_args)
 
         if not self.headers:
             self.session.headers.update(
@@ -305,18 +373,53 @@ class TerraformClient(ClientMixin):
         # Implement logic to read from ~/.terraformrc or ~/.terraform.d/credentials.tfrc.json if needed
         pass
 
-    def pre_checks(self):
-        """Perform pre-checks to ensure the client is configured correctly."""
-        if not self._token:
-            raise TerraformTokenNotFoundError(
-                "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
+
+class ArchivistClient(ClientMixin):
+    def __init__(self, **kwargs: Any) -> None:
+        self.hostname: str = kwargs.get("tf_hostname", "archivist.terraform.io")
+        self.verify: bool = kwargs.get("tf_validate_certs", True)
+        self.headers: Dict[str, str] = kwargs.get("headers", {})
+        self.session_args: Dict[str, Any] = {
+            "timeout": kwargs.get("timeout", 10),
+            "retries": kwargs.get("tf_retries", 3),
+            "validate_certs": self.verify,
+            "headers": self.headers,
+            "follow_redirects": kwargs.get("follow_redirects", True),
+            "base_url": self.base_url,
+        }
+        self.session: requests.Session = self.create_session(**self.session_args)
+        if not self.headers:
+            self.session.headers.update(
+                {
+                    "Content-Type": "application/octet-stream",
+                },
             )
-        elif not self.hostname:
-            raise TerraformHostnameNotFoundError(
-                "Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument."
-            )
-        elif self.hostname.startswith("http://") and self.verify:
-            raise TerraformSSLValidationError(
-                "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), "
-                "but the URL starts with 'http://' (non-secure)"
-            )
+        self.pre_checks()
+
+    @property
+    def base_url(self):
+        """Construct the base URL for the Terraform Archivist API."""
+        if re.match(r"^https?://", self.hostname):
+            return f"{self.hostname}/v1"
+        return f"https://{self.hostname}/v1"
+
+    def upload_config(self, path: str, data: bytes) -> Any:
+        """
+        Upload a configuration file to the Archivist.
+
+        Args:
+            path (str): The API endpoint path to upload the configuration.
+            data (bytes): The binary data of the configuration file.
+
+        Returns:
+            dict: The response data from the API.
+
+        Raises:
+            AnsibleError: If the request fails due to network or server error.
+        """
+        response = self.session.put(
+            f"{self.base_url}/{path}",
+            data=data,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        return response
