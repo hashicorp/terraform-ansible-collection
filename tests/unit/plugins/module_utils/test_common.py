@@ -15,7 +15,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
-from plugins.module_utils.terraform import (
+from plugins.module_utils.common import (
     TerraformModule,
     TerraformClient,
     ClientMixin,
@@ -289,7 +289,7 @@ class TestClientMixin:
 class TestTerraformClient:
     """Test cases for TerraformClient class."""
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_init_with_token(self, mock_request):
         """Test TerraformClient initialization with token."""
         mock_request_instance = Mock()
@@ -304,7 +304,7 @@ class TestTerraformClient:
         assert client.verify is True
         assert client.session == mock_request_instance
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_init_custom_hostname(self, mock_request):
         """Test TerraformClient initialization with custom hostname."""
         mock_request_instance = Mock()
@@ -317,7 +317,7 @@ class TestTerraformClient:
         assert client.hostname == "custom.terraform.io"
         assert client.base_url == "https://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_init_with_http_url(self, mock_request):
         """Test TerraformClient initialization with HTTP URL."""
         mock_request_instance = Mock()
@@ -332,7 +332,7 @@ class TestTerraformClient:
 
         assert client.base_url == "http://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_init_with_https_url(self, mock_request):
         """Test TerraformClient initialization with HTTPS URL."""
         mock_request_instance = Mock()
@@ -344,7 +344,7 @@ class TestTerraformClient:
 
         assert client.base_url == "https://custom.terraform.io/api/v2"
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_headers_default(self, mock_request):
         """Test TerraformClient sets default headers."""
         mock_request_instance = Mock()
@@ -361,7 +361,7 @@ class TestTerraformClient:
         }
         mock_request_instance.headers.update.assert_called_with(expected_headers)
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_headers_custom(self, mock_request):
         """Test TerraformClient with custom headers."""
         mock_request_instance = Mock()
@@ -379,7 +379,7 @@ class TestTerraformClient:
         expected_headers = {"Authorization": "Bearer test-token"}
         mock_request_instance.headers.update.assert_called_with(expected_headers)
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_headers_with_auth(self, mock_request):
         """Test TerraformClient with custom headers including auth."""
         mock_request_instance = Mock()
@@ -414,7 +414,7 @@ class TestTerraformClient:
                 tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True
             )
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_session_args(self, mock_request):
         """Test TerraformClient session arguments."""
         mock_request_instance = Mock()
@@ -444,7 +444,7 @@ class TestTerraformClient:
         assert call_args["follow_redirects"] is True
         assert isinstance(call_args["cookies"], CookieJar)
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_get_token_from_config_file(self, mock_request):
         """Test TerraformClient _get_token_from_config_file method."""
         mock_request_instance = Mock()
@@ -459,7 +459,7 @@ class TestTerraformClient:
         result = client._get_token_from_config_file()
         assert result is None
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_pre_checks_called(self, mock_request):
         """Test TerraformClient pre_checks method is called during initialization."""
         mock_request_instance = Mock()
@@ -472,7 +472,7 @@ class TestTerraformClient:
             )
             mock_pre_checks.assert_called_once()
 
-    @patch("plugins.module_utils.terraform.Request")
+    @patch("plugins.module_utils.common.Request")
     def test_terraform_client_inheritance(self, mock_request):
         """Test TerraformClient inherits from ClientMixin."""
         mock_request_instance = Mock()
