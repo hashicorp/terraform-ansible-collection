@@ -146,13 +146,13 @@ class ClientMixin:
             method = function.__name__.upper()
             content_type = self.session.headers.get("Content-Type", "application/vnd.api+json")
 
-            if not path.startswith("/"):
-                path = f"/{path}"
-
             if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
-            url = f"{self.base_url}{path}"
+            if not re.match(r"^https?://", path):
+                url = f"{self.base_url}{path}"
+            else:
+                url = path
 
             response = self.session.request(
                 method,
