@@ -33,7 +33,7 @@ EXAMPLES = r"""
   hashicorp.terraform.terraform_configuration_info:
     workspace: <your-workspace-id>
 
-- name: Show the configuration 
+- name: Show the configuration
   hashicorp.terraform.terraform_configuration_info:
     configuration_id: <your-configuration-id>
 
