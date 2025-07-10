@@ -24,7 +24,7 @@ options:
     description:
       - The path to the configuration file to be uploaded.
       - This can be the path to the - tar.gz of your configuration directory or a single congfiguration file).
-      - Refer the terraform documentation.
+      - Refer the terraform documentation:
         https://developer.hashicorp.com/terraform/cloud-docs/run/api#pushing-a-new-configuration-version
         which shows the steps and guidelines for creating a tar.gz.
     type: path
