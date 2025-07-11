@@ -601,8 +601,6 @@ class TestArchivistClient:
         assert hasattr(client, "patch")
         assert hasattr(client, "delete")
 
-
-
     def test_archivist_client_init_no_hostname_raises_error(self):
         """Test ArchivistClient initialization without hostname raises error."""
         with pytest.raises(TerraformHostnameNotFoundError):
