@@ -129,9 +129,9 @@ def main():
     warnings = []
     result = {"changed": False, "warnings": warnings}
     params = module.params
-    if params["state"] == "present" and not params.get("workspace"):
+    if params["state"] == "present" and "workspace" not in params:
         module.fail_json(msg="The 'workspace' parameter is required when state is 'present'.")
-    if params["state"] == "absent" and not params.get("archive"):
+    if params["state"] == "absent" and "archive" not in params:
         module.fail_json(msg="The 'archive' parameter is required when state is 'absent'.")
     client = TerraformClient(tf_hostname=params["tf_hostname"], tf_token=params["tf_token"])
     try:
