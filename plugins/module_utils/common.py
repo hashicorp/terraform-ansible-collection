@@ -3,13 +3,9 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-
 import re
 import json
-import requests
-from requests.packages.urllib3.util.retry import Retry
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible.errors import AnsibleError
 from typing import Optional, Dict, Any, Callable, List, Union
 from .exceptions import (
     TerraformTokenNotFoundError,
