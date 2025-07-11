@@ -78,14 +78,10 @@ outputs:
   description: A dictionary of the configuration version details.
   returned: when state is create
   contains:
-    id:
+    configuration_version_id:
       type: str
       returned: always
-      description: ID of the configuration version creted
-    type:
-      type: str
-      returned: always
-      description: The type of the component
+      description: ID of the configuration version created
     upload-url:
       type: str
       returned: always
@@ -94,14 +90,19 @@ outputs:
       type: str
       returned: always
       description: The status of the configuration version (pending, errored, uploaded, etc)
-  type: string
-  description: A status of the archive state.
+  type: dict
+  description: A status of the archive operation.
   returned: when state is archive
   contains:
     status:
       type: str
       returned: always
-      description: The status of the configuration version discard state (successful, failed)
+      description: The status code of the configuration version archive action
+    configuration_version_id:
+        type: str
+        returned: always
+        description: ID of the configuration version created
+
 """
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
@@ -148,6 +149,9 @@ def main():
             }
             config_version = create_config(client, params["workspace"], payload)
             config_version_id = config_version.get("data").get("data", {}).get("id")
+            config_version_status = (
+                config_version.get("data").get("data", {}).get("attributes", {}).get("status")
+            )
             upload_url = (
                 config_version.get("data").get("data", {}).get("attributes", {}).get("upload-url")
             )
@@ -157,6 +161,7 @@ def main():
                     "msg": "Configuration version created successfully.",
                     "configuration_version_id": config_version_id,
                     "upload_url": upload_url,
+                    "configuration_version_status": config_version_status,
                 }
             )
             module.exit_json(**result)
