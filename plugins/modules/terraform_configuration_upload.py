@@ -59,13 +59,82 @@ outputs:
 import tarfile
 import tempfile
 import os
-import q
+import time
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,
     TerraformModule,
     ArchivistClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import upload_config, get_config
+from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import (
+    upload_config,
+    get_config,
+)
+
+
+def validate_and_prepare_tar(file_path, module):
+    """
+    Validates the given file path. If it's a single file and not a tar archive,
+    it creates a temporary tar.gz archive and returns the new path and a flag.
+
+    Returns:
+        (file_path, is_temp_tar)
+    """
+    if os.path.isdir(file_path):
+        module.fail_json(
+            msg=f"The path '{file_path}' is a directory. Please provide a single file or a tar archive."
+        )
+
+    if os.path.isfile(file_path) and not tarfile.is_tarfile(file_path):
+        try:
+            temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
+            os.close(temp_fd)
+            with tarfile.open(temp_tar_path, "w:gz") as tar:
+                arcname = os.path.basename(file_path)
+                tar.add(file_path, arcname=arcname)
+            file_path = temp_tar_path
+        except Exception as e:
+            module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
+
+    if not tarfile.is_tarfile(file_path):
+        module.fail_json(
+            msg=f"The file '{file_path}' is not a valid tar archive. "
+            "Ensure the original file or generated archive is valid."
+        )
+
+    return file_path
+
+
+def upload_configuration_version(client_archivist, params, module, upload_url):
+    try:
+        file_path = params["file_path"]
+        file_path = validate_and_prepare_tar(file_path, module)
+        response = upload_config(client_archivist, upload_url=upload_url, file_path=file_path)
+        if response["status"] != 200:
+            module.fail_json(msg=response["message"])
+        return response["status"]
+
+    except Exception as e:
+        module.fail_json(msg=str(e))
+
+
+def get_configuration_version(client_terraform, params, module, config_version_id):
+    interval = params.get("interval")
+    retries = params.get("retries")
+    try:
+        for attempt in range(retries):
+            config_response = get_config(client_terraform, config_version_id=config_version_id)
+            status = config_response.get("data")["data"]["attributes"]["status"]
+
+            if status == "uploaded":
+                return status
+
+            time.sleep(interval)
+
+        module.fail_json(
+            msg=f"Configuration version status did not reach 'uploaded' after {retries} retries."
+        )
+    except Exception as e:
+        module.fail_json(msg=str(e))
 
 
 def main():
@@ -75,59 +144,39 @@ def main():
             file_path=dict(type="str", required=True),
             state=dict(type="str", required=True),
             upload_url=dict(type="str", required=True),
+            interval=dict(type="int", required=False, default=1),
+            retries=dict(type="int", required=False, default=30),
         ),
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
     params = module.params
-    file_path = params["file_path"]
-    if os.path.isdir(file_path):
-      module.fail_json(
-          msg=f"The path '{file_path}' is a directory. Please provide a single file or a tar archive."
-      )
-
-    is_temp_tar = False
-    if os.path.isfile(file_path) and not tarfile.is_tarfile(file_path):
-        try:
-            temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
-            os.close(temp_fd)  # Close the open fd returned by mkstemp
-            with tarfile.open(temp_tar_path, "w:gz") as tar:
-                arcname = os.path.basename(file_path)
-                tar.add(file_path, arcname=arcname)
-            file_path = temp_tar_path
-            is_temp_tar = True
-        except Exception as e:
-            module.fail_json(msg=f"Failed to create tar.gz from file '{params['file_path']}': {e}")
-
-    # Final validation that it's a tarfile
-    if not tarfile.is_tarfile(file_path):
-        module.fail_json(
-            msg=f"The file '{file_path}' is not a valid tar archive. "
-                "Ensure the original file or generated archive is valid."
+    client_archivist = ArchivistClient(tf_hostname="archivist.terraform.io")
+    client_terraform = TerraformClient(
+        tf_hostname=params["tf_hostname"], tf_token=params["tf_token"]
+    )
+    try:
+        upload_response = upload_configuration_version(
+            client_archivist, params, module, params["upload_url"]
+        )
+        config_status = get_configuration_version(
+            client_terraform, params, module, params["configuration_version_id"]
         )
 
-    client_archivist = ArchivistClient(tf_hostname="archivist.terraform.io")
-    client_terraform = TerraformClient(tf_hostname=params["tf_hostname"], tf_token=params["tf_token"])
-    try:
-        if params["state"] == "present":
-            response = upload_config(client_archivist, upload_url=params["upload_url"],file_path=file_path)
-            q(response)
-            if response["status"] != 200:
-                module.fail_json(msg=response["message"])
-            if params.get('configuration_version_id'):
-              config_response=get_config(client_terraform, config_version_id=params['configuration_version_id'])
-              result.update({"configuration_status":config_response.get("data")['data']['attributes']['status']})
-              result.update(params['configuration_version_id'])
-
-            result.update({
+        result.update(
+            {
                 "changed": True,
-                "upload_response":response,
-            })
+                "upload_response": upload_response,
+                "config_status": config_status,
+                "configuration_version_id": params["configuration_version_id"],
+            }
+        )
 
         module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=str(e))
+
 
 if __name__ == "__main__":
     main()
