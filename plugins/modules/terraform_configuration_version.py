@@ -14,7 +14,7 @@ description:
   - Create/Archive configuration version in Terraform Enterprise/Cloud.
   - If a workspace id is specified and the state is present, this module will create a configuration
     version in the workspace and return the upload url.
-  - If a configuration_version_id is specified and the state is absent, this module will discard the uploaded .tar.gz
+  - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
      file associated with this configuration version. This can only archive the configuration versions that
      were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
      current configuration version for any workspace.
@@ -67,8 +67,7 @@ EXAMPLES = r"""
     provisional: true
 - name: Discard a configuration version
   hashicorp.terraform.terraform_configuration_version:
-    state: absent
-    archive: true
+    state: archive
     configuration_version_id: <configuration-version-id>
 """
 
@@ -165,30 +164,27 @@ def main():
                 }
             )
             module.exit_json(**result)
-        elif params["state"] == "absent":
-            if params["archive"]:
-                try:
+        elif params["state"] == "archive":
+            try:
+                config_version = archive_config(client, params["configuration_version_id"])
 
-                    config_version = archive_config(client, params["configuration_version_id"])
-
-                    result.update(
-                        {
-                            "changed": True,
-                            "msg": "Configuration version archived successfully.",
-                            "configuration_version_id": params["configuration_version_id"],
-                            "full_response": config_version,
-                        }
-                    )
-                    module.exit_json(**result)
-                except Exception as e:
-                    module.fail_json(
-                        msg=str(e),
-                    )
+                result.update(
+                    {
+                        "changed": True,
+                        "msg": "Configuration version archived successfully.",
+                        "configuration_version_id": params["configuration_version_id"],
+                        "full_response": config_version,  # optional: remove if too verbose
+                    }
+                )
                 module.exit_json(**result)
-            elif not params["archive"]:
-                warning_msg = "The value false for param 'archive' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
-                module.fail_json(msg=warning_msg)
-
+            except Exception as e:
+                module.fail_json(
+                    msg=str(e),
+                )
+            module.exit_json(**result)
+        elif params["state"] == "absent":
+            warning_msg = "The value false for param 'archive' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
+            module.fail_json(msg=warning_msg)
     except Exception as e:
         module.fail_json(msg=str(e))
 
