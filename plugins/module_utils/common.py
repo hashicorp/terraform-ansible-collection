@@ -6,16 +6,18 @@
 import json
 import re
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
 try:
     import requests
+    from urllib3.util.retry import Retry
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
+    requests = None
+    Retry = None
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from requests.packages.urllib3.util.retry import Retry
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
@@ -293,10 +295,6 @@ class ClientMixin:
 
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
-
-        if not HAS_REQUESTS:
-            self.module.fail_json(msg="Please install the requests library")
-            
         if not isinstance(self, ArchivistClient) and not self._token:
             raise TerraformTokenNotFoundError(
                 "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
@@ -311,16 +309,19 @@ class ClientMixin:
                 "but the URL starts with 'http://' (non-secure)"
             )
 
-    def create_session(self, **kwargs: Any) -> requests.Session:
+    def create_session(self, **kwargs: Any) -> Any:
         """
         Create a requests session with the specified parameters.
         This method can be overridden to customize session creation.
         """
+        if not HAS_REQUESTS:
+            raise Exception("requests library is required but not available")
+
         self.session = requests.Session()
         self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")
         self.session.headers.update(kwargs.get("headers", {}))
         self.retries = kwargs.get("retries", 3)
-        self.session.timeout = kwargs.get("timeout", 10)
+        self.timeout = kwargs.get("timeout", 10)
         self.retry_strategy = Retry(
             total=self.retries,
             connect=self.retries,
@@ -401,7 +402,7 @@ class ArchivistClient(ClientMixin):
             "follow_redirects": kwargs.get("follow_redirects", True),
             "base_url": self.base_url,
         }
-        self.session: requests.Session = self.create_session(**self.session_args)
+        self.session: Any = self.create_session(**self.session_args)
         if not self.headers:
             self.session.headers.update(
                 {
