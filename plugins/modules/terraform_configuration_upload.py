@@ -84,24 +84,29 @@ def validate_and_prepare_tar(file_path, module):
             msg=f"The path '{file_path}' is a directory. Please provide a single file or a tar archive."
         )
 
-    if os.path.isfile(file_path) and not tarfile.is_tarfile(file_path):
-        try:
-            temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
-            os.close(temp_fd)
-            with tarfile.open(temp_tar_path, "w:gz") as tar:
-                arcname = os.path.basename(file_path)
-                tar.add(file_path, arcname=arcname)
-            file_path = temp_tar_path
-        except Exception as e:
-            module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
+    if os.path.isfile(file_path):
+        if tarfile.is_tarfile(file_path):
+            return file_path
 
-    if not tarfile.is_tarfile(file_path):
-        module.fail_json(
-            msg=f"The file '{file_path}' is not a valid tar archive. "
-            "Ensure the original file or generated archive is valid."
-        )
+        # Only allow .tf and .tf.json files to be tarred
+        if file_path.endswith(".tf") or file_path.endswith(".tf.json"):
+            try:
+                temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
+                os.close(temp_fd)
+                with tarfile.open(temp_tar_path, "w:gz") as tar:
+                    arcname = os.path.basename(file_path)
+                    tar.add(file_path, arcname=arcname)
+                file_path = temp_tar_path
+            except Exception as e:
+                module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
+        else:
+            module.fail_json(
+                msg=f"The file '{file_path}' is not a .tf or .tf.json file and is not a valid tar archive. "
+                "Only .tf/.tf.json files are allowed for single-file uploads."
+            )
 
-    return file_path
+    else:
+        module.fail_json(msg=f"The path '{file_path}' is not a file or recognized archive format.")
 
 
 def upload_configuration_version(client_archivist, params, module, upload_url):
