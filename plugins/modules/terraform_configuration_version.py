@@ -23,7 +23,8 @@ options:
     description:
       - The state the configuration version should be in.
       - Setting `state=present` creates a new configuration-version.
-      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
+      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. 
+        This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
       - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
     default: present
