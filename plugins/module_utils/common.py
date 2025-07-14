@@ -8,7 +8,12 @@ import re
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import requests
+try:
+    import requests
+except ImportError:
+    pass
+
+
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from requests.packages.urllib3.util.retry import Retry
