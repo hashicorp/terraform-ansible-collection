@@ -20,8 +20,14 @@ description:
      current configuration version for any workspace.
 options:
   state:
-    description: The action to be performed for the configuration version.
+    description:
+      - The state the configuration version should be in.
+      - Setting `state=present` creates a new configuration-version.
+      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
+      - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
+    default: present
+    choices: ["present", "absent", "archive"]
     required: true
   organization:
     description:
@@ -38,22 +44,18 @@ options:
       - ID of the workspace for the configuration-version.
       - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
     type: str
-  auto-queue-runs: When true, runs are queued automatically when the configuration version is uploaded.
-    type: boolean
+  auto_queue_runs: When true, runs are queued automatically when the configuration version is uploaded.
+    type: bool
     default: true
   speculative: When true, this configuration version may only be used to create runs which are speculative which cannot be confirmed or applied.
-    type: boolean
+    type: bool
     default: false
   provisional: When true, this configuration version does not immediately become the workspace current configuration version. If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
-    type: boolean
+    type: bool
     default: false
   configuration_version_id:
     description: The id of the configuration version that needs to be archived.
     type: str
-  archive:
-    description: The option states if archive needs to be performed on the configuration version. Since deletion is not a supported
-    option currently, hence this parameter is a required option as it is the only supported option for state 'absent' currently.
-    type: bool
 """
 
 
