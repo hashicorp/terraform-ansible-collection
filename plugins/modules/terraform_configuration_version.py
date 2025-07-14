@@ -23,8 +23,20 @@ options:
     description: The action to be performed for the configuration version.
     type: str
     required: true
+  organization:
+    description:
+      - Name of the organization that the workspace for the configuration-version belongs to.
+      - This is required when `workspace` key is set.
+    type: str
   workspace:
-    description: The workspace id for which the configuration version needs to be created.
+    description:
+      - Name of the workspace for the configuration-version.
+      - When this key is set, `organization` must be specified so that the ID of the workspace can be retrieved.
+    type: str
+  workspace_id:
+    description:
+      - ID of the workspace for the configuration-version.
+      - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
     type: str
   auto-queue-runs: When true, runs are queued automatically when the configuration version is uploaded.
     type: boolean
@@ -52,17 +64,17 @@ EXAMPLES = r"""
     state: present
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     auto-queue-runs: false
 - name: Create a configuration may only be used to create speculative runs
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     speculative: true
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     provisional: true
 - name: Discard a configuration version
@@ -112,6 +124,9 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
     create_config,
     archive_config,
 )
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+    get_workspace,
+)
 
 
 def create_configuration_version(client_terraform, params, module):
@@ -126,7 +141,7 @@ def create_configuration_version(client_terraform, params, module):
                 },
             }
         }
-        config_version = create_config(client_terraform, params["workspace"], payload)
+        config_version = create_config(client_terraform, params["workspace_id"], payload)
         config_version_id = config_version.get("data").get("data", {}).get("id")
         upload_url = (
             config_version.get("data").get("data", {}).get("attributes", {}).get("upload-url")
@@ -139,7 +154,9 @@ def create_configuration_version(client_terraform, params, module):
 def main():
     module = TerraformModule(
         argument_spec=dict(
+            workspace_id=dict(type="str", required=False),
             workspace=dict(type="str", required=False),
+            organization=dict(type="str", required=False),
             state=dict(type="str", required=True),
             configuration_version_id=dict(type="str", required=False),
             auto_queue_runs=dict(type="bool", required=False, default=True),
@@ -152,6 +169,13 @@ def main():
     result = {"changed": False, "warnings": warnings}
     params = module.params
     client = TerraformClient(tf_hostname=params["tf_hostname"], tf_token=params["tf_token"])
+    try:
+        if params["workspace"]:
+            workspace_response = get_workspace(client, params["organization"], params["workspace"])
+            workspace_id = workspace_response.get("data")["data"]["id"]
+            params["workspace_id"] = workspace_id
+    except Exception as e:
+        module.fail_json(msg=str(e))
     try:
         if params["state"] == "present":
             config_version_id, upload_url = create_configuration_version(client, params, module)
