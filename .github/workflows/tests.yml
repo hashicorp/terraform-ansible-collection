@@ -22,7 +22,7 @@ jobs:
   ansible-lint:
     uses: ansible/ansible-content-actions/.github/workflows/ansible_lint.yaml@main
   sanity:
-    uses: ansible/ansible-content-actions/.github/workflows/sanity.yaml@main
+    uses: ansible-network/github_actions/.github/workflows/sanity.yml@main
   unit-galaxy:
     uses: ansible/ansible-content-actions/.github/workflows/unit.yaml@main
   unit-source:
