@@ -113,7 +113,7 @@ def validate_and_prepare_tar(file_path, module):
                 with tarfile.open(temp_tar_path, "w:gz") as tar:
                     arcname = os.path.basename(file_path)
                     tar.add(file_path, arcname=arcname)
-                file_path = temp_tar_path
+                return temp_tar_path
             except Exception as e:
                 module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
         else:
