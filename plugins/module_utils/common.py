@@ -8,7 +8,11 @@ import re
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import requests
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from requests.packages.urllib3.util.retry import Retry
@@ -289,6 +293,10 @@ class ClientMixin:
 
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
+
+        if not HAS_REQUESTS:
+            self.module.fail_json(msg="Please install the requests library")
+            
         if not isinstance(self, ArchivistClient) and not self._token:
             raise TerraformTokenNotFoundError(
                 "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
