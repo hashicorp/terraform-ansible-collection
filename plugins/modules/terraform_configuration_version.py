@@ -15,16 +15,28 @@ description:
   - If a workspace id is specified and the state is present, this module will create a configuration
     version in the workspace and return the upload url.
   - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
-    file associated with this configuration version. This can only archive the configuration versions that
-    were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
-    current configuration version for any workspace.
+     file associated with this configuration version. This can only archive the configuration versions that
+     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
+     current configuration version for any workspace.
 options:
   state:
     description: The action to be performed for the configuration version.
     type: str
     required: true
+  organization:
+    description:
+      - Name of the organization that the workspace for the configuration-version belongs to.
+      - This is required when `workspace` key is set.
+    type: str
   workspace:
-    description: The workspace id for which the configuration version needs to be created.
+    description:
+      - Name of the workspace for the configuration-version.
+      - When this key is set, `organization` must be specified so that the ID of the workspace can be retrieved.
+    type: str
+  workspace_id:
+    description:
+      - ID of the workspace for the configuration-version.
+      - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
     type: str
   auto-queue-runs: When true, runs are queued automatically when the configuration version is uploaded.
     type: boolean
@@ -52,17 +64,17 @@ EXAMPLES = r"""
     state: present
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     auto-queue-runs: false
 - name: Create a configuration may only be used to create speculative runs
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     speculative: true
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.terraform_configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     provisional: true
 - name: Discard a configuration version
