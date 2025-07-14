@@ -1,2 +1,6 @@
 ---
 requires_ansible: ">=2.16.0"
+requires:
+  - name: requests
+    version: ">=2.0.0"
+
