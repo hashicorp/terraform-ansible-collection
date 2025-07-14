@@ -14,11 +14,10 @@ description:
   - Create/Archive configuration version in Terraform Enterprise/Cloud.
   - If a workspace id is specified and the state is present, this module will create a configuration
     version in the workspace and return the upload url.
-  - If a configuration_version_id is specified and the state is absent, this module will discard the uploaded .tar.gz
-     file associated with this configuration version. This can only archive the configuration versions that
-     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
-     current configuration version for any workspace.
-
+  - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
+    file associated with this configuration version. This can only archive the configuration versions that
+    were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
+    current configuration version for any workspace.
 options:
   state:
     description: The action to be performed for the configuration version.
@@ -43,7 +42,6 @@ options:
     description: The option states if archive needs to be performed on the configuration version. Since deletion is not a supported
     option currently, hence this parameter is a required option as it is the only supported option for state 'absent' currently.
     type: bool
-
 """
 
 
@@ -69,8 +67,7 @@ EXAMPLES = r"""
     provisional: true
 - name: Discard a configuration version
   hashicorp.terraform.terraform_configuration_version:
-    state: absent
-    archive: true
+    state: archive
     configuration_version_id: <configuration-version-id>
 """
 
@@ -80,14 +77,10 @@ outputs:
   description: A dictionary of the configuration version details.
   returned: when state is create
   contains:
-    id:
+    configuration_version_id:
       type: str
       returned: always
-      description: ID of the configuration version creted
-    type:
-      type: str
-      returned: always
-      description: The type of the component
+      description: ID of the configuration version created
     upload-url:
       type: str
       returned: always
@@ -96,12 +89,16 @@ outputs:
       type: str
       returned: always
       description: The status of the configuration version (pending, errored, uploaded, etc)
-  type: string
-  description: A status of the archive state.
+  type: dict
+  description: A status of the archive operation.
   returned: when state is archive
   contains:
     status:
       type: str
       returned: always
-      description: The status of the configuration version discard state (successful, failed)
+      description: The status code of the configuration version archive action
+    configuration_version_id:
+        type: str
+        returned: always
+        description: ID of the configuration version created
 """
