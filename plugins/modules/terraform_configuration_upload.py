@@ -56,6 +56,8 @@ EXAMPLES = r"""
     file_path: <path-to-the-configuration-file>
     upload_url: <configuration-version-upload-url>
     configuration_version_id: <id-of-the-configuration-version>
+    interval: 1
+    retries: 20
 """
 
 RETURN = r"""
