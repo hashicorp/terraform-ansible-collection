@@ -11,14 +11,16 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import requests
+    from requests.packages.urllib3.util.retry import Retry
     REQUESTS_IMP_ERR = None
 except ImportError:
+    requests = None
+    Retry = None
     REQUESTS_IMP_ERR = traceback.format_exc()
 
 
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from requests.packages.urllib3.util.retry import Retry
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
