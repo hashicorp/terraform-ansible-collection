@@ -5,13 +5,15 @@
 
 import json
 import re
+import traceback
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import requests
+    REQUESTS_IMP_ERR = None
 except ImportError:
-    pass
+    REQUESTS_IMP_ERR = traceback.format_exc()
 
 
 
