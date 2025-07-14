@@ -20,8 +20,15 @@ description:
      current configuration version for any workspace.
 options:
   state:
-    description: The action to be performed for the configuration version.
+    description:
+      - The state the configuration version should be in.
+      - Setting `state=present` creates a new configuration-version.
+      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. 
+        This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
+      - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
+    default: present
+    choices: ["present", "absent", "archive"]
     required: true
   organization:
     description:
@@ -50,10 +57,6 @@ options:
   configuration_version_id:
     description: The id of the configuration version that needs to be archived.
     type: str
-  archive:
-    description: The option states if archive needs to be performed on the configuration version. Since deletion is not a supported
-    option currently, hence this parameter is a required option as it is the only supported option for state 'absent' currently.
-    type: bool
 """
 
 
