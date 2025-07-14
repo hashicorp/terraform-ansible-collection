@@ -21,16 +21,31 @@ options:
     type: str
     required: true
   file_path:
-    description: The path to the configuration file to be uploaded
-    type: path
-    required: true
+   description:
+    - Path to the configuration file that should be uploaded for the configuration version.
+    - This can be a single `.tf` file or a tarball (`.tar.gz`) containing configuration-related files. When a single file `.tf` file is provided, the module creates a tarball and then uploads it to Archivist.
+    - This file will be read from the Ansible 'host' context and not the 'controller' context.
+  type: str
   state:
-    description: The action to be performed.
+    description: The state the upload in configuration version should be in.
     type: str
     required: true
   configuration_version_id:
-    description: The configuration version ID to which the upload corresponds to.
-    type: str
+   description:
+    - The ID of an configuration version.
+  type: str
+  interval:
+   description:
+    - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
+    - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+    - This works in conjunction with the `retries` parameter.
+  type: int
+  default: 1
+  retries:
+   description:
+    - Specifies the number of retries to perform while waiting for the `status` of a newly created configuration to be `uploaded`.
+    - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+    - This works in conjunction with the `interval` parameter.
 """
 
 
