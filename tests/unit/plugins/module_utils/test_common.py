@@ -672,7 +672,7 @@ class TestClientMixinAdditional:
         session_args = {
             "base_url": "https://test.terraform.io/api/v2",
             "headers": {"Custom": "header"},
-            "retries": 5,
+            "tf_max_retries": 5,
             "timeout": 30,
             "validate_certs": True,
         }

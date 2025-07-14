@@ -11,6 +11,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import requests
+    import requests.adapters
+
     from urllib3.util.retry import Retry
 
     HAS_REQUESTS = True
@@ -19,8 +21,7 @@ except ImportError:
     requests = None
     Retry = None
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-
+from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
@@ -43,6 +44,11 @@ class TerraformModule(AnsibleModule):
         tf_validate_certs=dict(
             required=True,
             fallback=(env_fallback, ["TF_VALIDATE_CERTS"]),
+        ),
+        tf_max_retries=dict(
+            required=False,
+            type="int",
+            fallback=(env_fallback, ["TF_MAX_RETRIES"]),
         ),
     )
 
@@ -317,25 +323,28 @@ class ClientMixin:
         Create a requests session with the specified parameters.
         This method can be overridden to customize session creation.
         """
-        if not HAS_REQUESTS:
-            raise Exception("requests library is required but not available")
+        if not HAS_REQUESTS or not requests or not Retry:
+            raise Exception(missing_required_lib("requests"))
 
         self.session = requests.Session()
         self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")
         self.session.headers.update(kwargs.get("headers", {}))
-        self.retries = kwargs.get("retries", 3)
+        self.retries = kwargs.get("tf_max_retries", 3)
         self.timeout = kwargs.get("timeout", 10)
-        self.retry_strategy = Retry(
-            total=self.retries,
-            connect=self.retries,
-            read=self.retries,
-            backoff_factor=1,
-            status_forcelist=[500, 502, 503, 504],
-            allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-            raise_on_status=False,
-        )
 
-        adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
+        if self.retries and self.retries > 0:
+            self.retry_strategy = Retry(
+                total=self.retries,
+                connect=self.retries,
+                read=self.retries,
+                backoff_factor=1,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+                raise_on_status=False,
+            )
+            adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
+        else:
+            adapter = requests.adapters.HTTPAdapter()
 
         if self.url.startswith("https://"):
             self.session.verify = kwargs.get("validate_certs", True)
@@ -354,6 +363,7 @@ class TerraformClient(ClientMixin):
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
             "timeout": kwargs.get("timeout", 10),
+            "tf_max_retries": kwargs.get("tf_max_retries"),
             "validate_certs": self.verify,
             "headers": self.headers,
             "follow_redirects": kwargs.get("follow_redirects", True),
@@ -399,7 +409,7 @@ class ArchivistClient(ClientMixin):
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
             "timeout": kwargs.get("timeout", 10),
-            "retries": kwargs.get("tf_retries", 3),
+            "tf_max_retries": kwargs.get("tf_max_retries"),
             "validate_certs": self.verify,
             "headers": self.headers,
             "follow_redirects": kwargs.get("follow_redirects", True),
