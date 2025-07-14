@@ -5,22 +5,23 @@
 
 import json
 import re
-import traceback
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import requests
-    from requests.packages.urllib3.util.retry import Retry
-    REQUESTS_IMP_ERR = None
+    HAS_REQUESTS = True
 except ImportError:
-    requests = None
-    Retry = None
-    REQUESTS_IMP_ERR = traceback.format_exc()
-
-
+    HAS_REQUESTS = False
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
+
+try:
+    import urllib3
+    from urllib3.util.retry import Retry
+    urllib3.disable_warnings()
+except ImportError:
+    Retry = None
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
