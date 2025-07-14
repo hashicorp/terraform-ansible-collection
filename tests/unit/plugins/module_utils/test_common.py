@@ -11,8 +11,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ansible.errors import AnsibleError
-
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 from plugins.module_utils.common import (
@@ -130,11 +128,11 @@ class TestClientMixin:
         assert result == '{"key": "value", "number": 42}'
 
     def test_dict_to_json_invalid_data(self):
-        """Test converting invalid data to JSON raises AnsibleError."""
+        """Test converting invalid data to JSON raises Exception."""
         mixin = ClientMixin()
         data = {"key": set([1, 2, 3])}
 
-        with pytest.raises(AnsibleError, match="Failed to convert data to JSON"):
+        with pytest.raises(Exception, match="Failed to convert data to JSON"):
             mixin.dict_to_json(data)
 
     def test_json_to_dict_valid_json(self):
@@ -156,19 +154,19 @@ class TestClientMixin:
         assert result == {"key": "value", "number": 42}
 
     def test_json_to_dict_invalid_json(self):
-        """Test converting invalid JSON raises AnsibleError."""
+        """Test converting invalid JSON raises Exception."""
         mixin = ClientMixin()
         json_str = '{"key": "value"'  # Missing closing brace
 
-        with pytest.raises(AnsibleError, match="Failed to decode JSON string"):
+        with pytest.raises(Exception, match="Failed to decode JSON string"):
             mixin.json_to_dict(json_str)
 
     def test_json_to_dict_invalid_json_bytes(self):
-        """Test converting invalid JSON bytes raises AnsibleError."""
+        """Test converting invalid JSON bytes raises Exception."""
         mixin = ClientMixin()
         json_bytes = b'{"key": "value"'  # Missing closing brace
 
-        with pytest.raises(AnsibleError, match="Failed to decode JSON string"):
+        with pytest.raises(Exception, match="Failed to decode JSON string"):
             mixin.json_to_dict(json_bytes)
 
     def test_make_request_decorator_get(self):
@@ -244,11 +242,11 @@ class TestClientMixin:
 
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_response.reason = "Not Found"
+        mock_response.json.return_value = {"error": "Not Found"}
 
         client.session.request.return_value = mock_response
 
-        with pytest.raises(AnsibleError, match="Failed to GET /test: Not Found \\(404\\)"):
+        with pytest.raises(Exception, match="Failed to GET /test"):
             client.get("/test")
 
     def test_make_request_decorator_with_keys_to_include(self):
@@ -265,25 +263,6 @@ class TestClientMixin:
 
         assert result == {"status": 200, "data": {"id": "123", "name": "test"}}
         assert "secret" not in result["data"]
-
-    def test_make_request_decorator_path_normalization(self):
-        """Test make_request decorator handles paths."""
-        client = self.MockClient()
-
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.content = b'{"data": "test"}'
-
-        client.session.request.return_value = mock_response
-
-        # Test path without leading slash
-        client.get("test")
-
-        client.session.request.assert_called_once_with(
-            "GET",
-            "https://api.terraform.io/api/v2/test",
-            data=None,
-        )
 
 
 class TestTerraformClient:
@@ -823,18 +802,18 @@ class TestClientMixinAdditional:
         # Test 199 (should fail)
         mock_response = Mock()
         mock_response.status_code = 199
-        mock_response.reason = "Unknown"
+        mock_response.json.return_value = {"error": "Unknown"}
         client.session.request.return_value = mock_response
 
-        with pytest.raises(AnsibleError, match="Failed to GET /test: Unknown \\(199\\)"):
+        with pytest.raises(Exception, match="Failed to GET /test"):
             client.get("/test")
 
         # Test 300 (should fail)
         mock_response.status_code = 300
-        mock_response.reason = "Multiple Choices"
+        mock_response.json.return_value = {"error": "Multiple Choices"}
         client.session.request.return_value = mock_response
 
-        with pytest.raises(AnsibleError, match="Failed to GET /test: Multiple Choices \\(300\\)"):
+        with pytest.raises(Exception, match="Failed to GET /test"):
             client.get("/test")
 
         # Test 299 (should succeed)

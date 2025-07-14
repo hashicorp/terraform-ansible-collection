@@ -175,8 +175,7 @@ class ClientMixin:
 
             status = getattr(response, "status_code", 200)
             if status < 200 or status >= 300:
-                reason = getattr(response, "reason", "Unknown error")
-                raise Exception(f"Failed to {method} {path}: {reason} ({status})")
+                raise Exception(f"Failed to {method} {path}: {response.json()}")
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
