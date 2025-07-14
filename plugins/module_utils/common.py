@@ -8,20 +8,10 @@ import re
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    import requests
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
+import requests
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-
-try:
-    import urllib3
-    from urllib3.util.retry import Retry
-    urllib3.disable_warnings()
-except ImportError:
-    Retry = None
+from requests.packages.urllib3.util.retry import Retry
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
