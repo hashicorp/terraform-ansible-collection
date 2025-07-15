@@ -1,4 +1,6 @@
 # Hashicorp Terraform Collection
+[![Codecov](https://codecov.io/gh/ansible-automation-platform/hashicorp.terraform
+/branch/main/graph/badge.svg)](https://codecov.io/gh/ansible-automation-platform/hashicorp.terraform)
 
 This repository contains the `hashicorp.terraform` Ansible Collection.
 
