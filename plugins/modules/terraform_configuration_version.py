@@ -11,18 +11,18 @@ module: terraform_configuartion_version
 version_added: 1.0.0
 short_description: Create configuration version in Terraform Enterprise/Cloud.
 description:
-  - Create/Archive configuration version in Terraform Enterprise/Cloud.
-  - If a workspace id is specified and the state is present, this module will create a configuration
-    version in the workspace and return the upload url.
+  - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
+  - If a workspace and file_path is specified and the state is present, this module will create a configuration
+    version in the workspace and upload the file to it.
   - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
-     file associated with this configuration version. This can only archive the configuration versions that
-     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
-     current configuration version for any workspace.
+    file associated with this configuration version. This can only archive the configuration versions that
+    were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
+    current configuration version for any workspace.
 options:
   state:
     description:
       - The state the configuration version should be in.
-      - Setting `state=present` creates a new configuration-version.
+      - Setting `state=present` creates a new configuration-version and upload to it.
       - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. 
         This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
       - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
@@ -57,6 +57,27 @@ options:
   configuration_version_id:
     description: The id of the configuration version that needs to be archived.
     type: str
+  file_path:
+    description:
+      - Path to the configuration file that should be uploaded for the configuration version.
+      - This can be a single `.tf` file or a tarball (`.tar.gz`) containing configuration-related files. When a single file `.tf` file is provided, the module creates a tarball and then uploads it to Archivist.
+      - This file will be read from the Ansible 'host' context and not the 'controller' context.
+    type: str
+  interval:
+    description:
+      - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
+      - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+      - This works in conjunction with the `retries` parameter.
+    type: int
+    default: 1
+  retries:
+    description:
+      - Specifies the number of retries to perform while waiting for the `status` of a newly created configuration to be `uploaded`.
+      - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+      - This works in conjunction with the `interval` parameter.
+    type: int
+    default: 30
+    
 """
 
 
@@ -442,7 +463,7 @@ def main():
                 )
             module.exit_json(**result)
         elif params["state"] == "absent":
-            warning_msg = "The value false for param 'archive' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
+            warning_msg = "The value 'absent' for param 'state' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
             module.fail_json(msg=warning_msg)
 
     except Exception as e:
