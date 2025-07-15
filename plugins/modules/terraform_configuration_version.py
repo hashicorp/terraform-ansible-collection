@@ -447,16 +447,16 @@ def main():
                     client_terraform, params["configuration_version_id"]
                 )
 
-                if config_version.get("status") == 200:
-                    result.update(
-                        {
-                            "changed": True,
-                            "msg": "Configuration version archived successfully.",
-                            "configuration_version_id": params["configuration_version_id"],
-                            "full_response": config_version,  # optional: remove if too verbose
-                        }
-                    )
-                    module.exit_json(**result)
+
+                result.update(
+                    {
+                        "changed": True,
+                        "msg": "Configuration version archived successfully.",
+                        "configuration_version_id": params["configuration_version_id"],
+                        "full_response": config_version,  # optional: remove if too verbose
+                    }
+                )
+                module.exit_json(**result)
             except Exception as e:
                 module.fail_json(
                     msg=str(e),
