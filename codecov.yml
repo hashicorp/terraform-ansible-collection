@@ -14,5 +14,3 @@ coverage:
       default:
         target: 73%
         informational: true
-
-
