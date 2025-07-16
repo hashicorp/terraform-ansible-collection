@@ -33,8 +33,6 @@ jobs:
       collection_pre_install: >-
         git+https://github.com/ansible-collections/ansible.utils.git
 
-
-
   all_green:
     if: ${{ always() }}
     needs:

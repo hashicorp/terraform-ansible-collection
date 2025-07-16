@@ -37,7 +37,10 @@ jobs:
       - name: Run tests with coverage
         run: |
           # Generate coverage report for source code only (plugins directory)
-          python -m pytest tests/ --cov=plugins --cov-report=xml:code.cov --cov-report=term-missing || echo "No pytest tests found, creating empty coverage file"
+          python -m pytest tests/ --cov=plugins \
+            --cov-report=xml:code.cov \
+            --cov-report=term-missing || \
+            echo "No pytest tests found, creating empty coverage file"
           # Ensure coverage file exists even if no tests run
           if [ ! -f code.cov ]; then
             echo '<?xml version="1.0" encoding="UTF-8"?><coverage></coverage>' > code.cov
