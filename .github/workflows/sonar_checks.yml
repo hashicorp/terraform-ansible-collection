@@ -1,4 +1,4 @@
-name: SonarCube Static Scans (PR)
+name: SonarCube Scans (PR)
 
 on:
   pull_request:
@@ -36,8 +36,8 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # Generate coverage report - adapt this to your test structure
-          python -m pytest tests/ --cov=plugins --cov-report=xml:code.cov || echo "No pytest tests found, creating empty coverage file"
+          # Generate coverage report for source code only (plugins directory)
+          python -m pytest tests/ --cov=plugins --cov-report=xml:code.cov --cov-report=term-missing || echo "No pytest tests found, creating empty coverage file"
           # Ensure coverage file exists even if no tests run
           if [ ! -f code.cov ]; then
             echo '<?xml version="1.0" encoding="UTF-8"?><coverage></coverage>' > code.cov
