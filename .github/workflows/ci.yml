@@ -64,20 +64,6 @@ jobs:
             echo '<?xml version="1.0" encoding="UTF-8"?><coverage></coverage>' > code.cov
           fi
 
-      - name: Upload Code Coverage Report from Unit Tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: code.cov
-
-      - name: Save off PR Number
-        run: echo "PR ${{ github.event.number }}" > pr_number.txt
-
-      - name: Upload PR Number
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr_number
-          path: pr_number.txt
 
       - name: SonarCube Static Scans (on push)
         uses: SonarSource/sonarqube-scan-action@v5.2.0

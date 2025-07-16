@@ -1,19 +1,20 @@
 name: SonarCube Static Scans (PR)
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
-permissions: read-all
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  security-events: write
 
 jobs:
   sonarcloud:
-    name: SonarCube Static Scans (PR)
+    name: SonarCube Scans (PR)
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
 
     steps:
       - name: Checkout Code
@@ -21,48 +22,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch Code Coverage Report
-        uses: actions/download-artifact@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          name: coverage-report
-          path: .
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
+          python-version: '3.11'
 
-      - name: Fetch PR Number
-        uses: actions/download-artifact@v4
-        with:
-          name: pr_number
-          path: .
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-
-      - name: Extract PR Number
+      - name: Install dependencies
         run: |
-          cat pr_number.txt
-          echo $(head -n1 pr_number.txt | awk '{print $2}')
-          echo "PR_NUMBER=$(head -n1 pr_number.txt | awk '{print $2}')" >> $GITHUB_ENV
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f test-requirements.txt ]; then pip install -r test-requirements.txt; fi
 
-      - name: Get Additional PR Information
-        uses: octokit/request-action@v2.x
-        id: pr_info
-        with:
-          route: GET /repos/{repo}/pulls/{number}
-          repo: ${{ github.event.repository.full_name }}
-          number: ${{ env.PR_NUMBER }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set Additional PR Information
+      - name: Run tests with coverage
         run: |
-          echo "PR_BASE=${{ fromJson(steps.pr_info.outputs.data).base.ref }}" >> $GITHUB_ENV
-          echo "PR_HEAD=${{ fromJson(steps.pr_info.outputs.data).head.ref }}" >> $GITHUB_ENV
-
-      - name: Checkout Code for PR
-        run: |
-          gh pr checkout ${{ env.PR_NUMBER }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Generate coverage report - adapt this to your test structure
+          python -m pytest tests/ --cov=plugins --cov-report=xml:code.cov || echo "No pytest tests found, creating empty coverage file"
+          # Ensure coverage file exists even if no tests run
+          if [ ! -f code.cov ]; then
+            echo '<?xml version="1.0" encoding="UTF-8"?><coverage></coverage>' > code.cov
+          fi
 
       - name: SonarCube Scan
         uses: SonarSource/sonarqube-scan-action@v5.2.0
@@ -71,7 +50,7 @@ jobs:
         with:
           args: >
             -Dsonar.python.coverage.reportPaths=code.cov
-            -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
-            -Dsonar.pullrequest.key=${{ env.PR_NUMBER }}
-            -Dsonar.pullrequest.branch=${{ env.PR_HEAD }}
-            -Dsonar.pullrequest.base=${{ env.PR_BASE }}
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha }}
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
+            -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
