@@ -63,6 +63,7 @@ options:
       - This can be a single `.tf` file or a tarball (`.tar.gz`) containing configuration-related files. When a single file `.tf` file is provided, the module creates a tarball and then uploads it to Archivist.
       - This file will be read from the Ansible 'host' context and not the 'controller' context.
     type: str
+    required: true
   interval:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
@@ -82,25 +83,29 @@ options:
 
 
 EXAMPLES = r"""
-- name: Create a configuration version
+- name: Create and upload to a configuration version
   hashicorp.terraform.terraform_configuration_version:
     workspace: <your-workspace-id>
     state: present
-- name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
+    file_path: <path-to-your-configuration-file>
+- name: Create and upload to a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.terraform_configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     auto-queue-runs: false
-- name: Create a configuration may only be used to create speculative runs
+    file_path: <path-to-your-configuration-file>
+- name: Create and upload to a configuration may only be used to create speculative runs
   hashicorp.terraform.terraform_configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     speculative: true
-- name: Create a configuration version that will not immediately become the workspace current configuration version
+    file_path: <path-to-your-configuration-file>
+- name: Create and upload to a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.terraform_configuration_version:
-    workspace_id: <your-workspace-id>
+    workspace_id: <your-workspace-id-file>
     state: present
     provisional: true
+    file_path: <path-to-your-file>
 - name: Discard a configuration version
   hashicorp.terraform.terraform_configuration_version:
     state: archive
@@ -198,7 +203,7 @@ def validate_and_prepare_tar(file_path: str, module: Any) -> str:
                 module.fail_json(msg=f"Bad gzip file")
 
         # Only allow .tf and .tf.json files to be tarred
-        if file_path.endswith(".tf") or file_path.endswith(".tf.json"):
+        elif file_path.endswith(".tf") or file_path.endswith(".tf.json"):
             try:
                 temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
                 os.close(temp_fd)
@@ -210,8 +215,7 @@ def validate_and_prepare_tar(file_path: str, module: Any) -> str:
                 module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
         else:
             module.fail_json(
-                msg=f"The file '{file_path}' is not a .tf or .tf.json file and is not a valid tar archive. "
-                "Only .tf/.tf.json files are allowed for single-file uploads."
+                msg=f"The file '{file_path}' is neither a .tf/.tf.json file nor a valid tar.gz archive. "
             )
 
     else:
@@ -353,7 +357,7 @@ def main():
             provisional=dict(type="bool", required=False, default=False),
             archive=dict(type="bool", required=False, default=False),
             upload=dict(type="bool", required=False, default=False),
-            file_path=dict(type="str", required=False),
+            file_path=dict(type="str", required=True),
             upload_url=dict(type="str", required=False),
             interval=dict(type="int", required=False, default=1),
             retries=dict(type="int", required=False, default=30),
@@ -380,73 +384,36 @@ def main():
         module.fail_json(msg=str(e))
 
     try:
-        if params["state"] == "present" and not params["file_path"]:
-
-            config_version_id, upload_url = create_configuration_version(
-                client_terraform, params, module
-            )
-            result.update(
-                {
-                    "changed": True,
-                    "msg": "Configuration version created successfully.",
-                    "configuration_version_id": config_version_id,
-                    "upload_url": upload_url,
-                }
-            )
-            module.exit_json(**result)
-        elif params["state"] == "present" and params["file_path"]:
-            if params["configuration_version_id"] and params["upload_url"]:
-                try:
-                    upload_response = upload_configuration_version(
-                        client_archivist, params, module, params["upload_url"]
-                    )
-                    config_status = get_configuration_version(
-                        client_terraform, params, module, params["configuration_version_id"]
-                    )
-
-                    result.update(
-                        {
-                            "changed": True,
-                            "upload_response": upload_response,
-                            "config_status": config_status,
-                        }
-                    )
-
-                    module.exit_json(**result)
-
-                except Exception as e:
-                    module.fail_json(msg=str(e))
-            else:
+        if params["state"] == "present" and params["file_path"]:
+            try:
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
                 )
-                try:
-                    upload_response = upload_configuration_version(
-                        client_archivist, params, module, upload_url
-                    )
-                    config_status = get_configuration_version(
-                        client_terraform, params, module, config_version_id
-                    )
+                upload_response = upload_configuration_version(
+                    client_archivist, params, module, upload_url
+                )
+                config_status = get_configuration_version(
+                    client_terraform, params, module, config_version_id
+                )
 
-                    result.update(
-                        {
-                            "changed": True,
-                            "configuration_version_id": config_version_id,
-                            "upload_response": upload_response,
-                            "config_status": config_status,
-                        }
-                    )
-                    module.exit_json(**result)
+                result.update(
+                    {
+                        "changed": True,
+                        "configuration_version_id": config_version_id,
+                        "upload_response": upload_response,
+                        "config_status": config_status,
+                    }
+                )
+                module.exit_json(**result)
 
-                except Exception as e:
-                    module.fail_json(msg=str(e))
+            except Exception as e:
+                module.fail_json(msg=str(e))
 
         elif params["state"] == "archive":
             try:
                 config_version = archive_config(
                     client_terraform, params["configuration_version_id"]
                 )
-
 
                 result.update(
                     {
