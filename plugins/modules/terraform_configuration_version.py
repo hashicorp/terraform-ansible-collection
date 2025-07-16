@@ -12,7 +12,7 @@ version_added: 1.0.0
 short_description: Create configuration version in Terraform Enterprise/Cloud.
 description:
   - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
-  - If a workspace and file_path is specified and the state is present, this module will create a configuration
+  - If a workspace and configuration_files_path is specified and the state is present, this module will create a configuration
     version in the workspace and upload the file to it.
   - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
     file associated with this configuration version. This can only archive the configuration versions that
@@ -57,7 +57,7 @@ options:
   configuration_version_id:
     description: The id of the configuration version that needs to be archived.
     type: str
-  file_path:
+  configuration_files_path:
     description:
       - Path to the configuration file that should be uploaded for the configuration version.
       - This can be a single `.tf` file or a tarball (`.tar.gz`) containing configuration-related files. When a single file `.tf` file is provided, the module creates a tarball and then uploads it to Archivist.
@@ -87,25 +87,25 @@ EXAMPLES = r"""
   hashicorp.terraform.terraform_configuration_version:
     workspace: <your-workspace-id>
     state: present
-    file_path: <path-to-your-configuration-file>
+    configuration_files_path: <path-to-your-configuration-files>
 - name: Create and upload to a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.terraform_configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     auto-queue-runs: false
-    file_path: <path-to-your-configuration-file>
+    configuration_files_path: <path-to-your-configuration-file>
 - name: Create and upload to a configuration may only be used to create speculative runs
   hashicorp.terraform.terraform_configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     speculative: true
-    file_path: <path-to-your-configuration-file>
+    configuration_files_path: <path-to-your-configuration-file>
 - name: Create and upload to a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.terraform_configuration_version:
     workspace_id: <your-workspace-id-file>
     state: present
     provisional: true
-    file_path: <path-to-your-file>
+    configuration_files_path: <path-to-your-file>
 - name: Discard a configuration version
   hashicorp.terraform.terraform_configuration_version:
     state: archive
@@ -165,7 +165,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def validate_and_prepare_tar(file_path: str, module: Any) -> str:
+def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
     """
     Validates and prepares the given path for upload.
 
@@ -175,51 +175,51 @@ def validate_and_prepare_tar(file_path: str, module: Any) -> str:
     - Other file types are rejected.
 
     Args:
-        file_path (str): The file or directory path to validate and prepare.
+        configuration_files_path (str): The file or directory path to validate and prepare.
         module (Any): Ansible module object used for error handling (fail_json).
 
     Returns:
         str: A path to the prepared tar.gz file or the original valid file.
     """
-    if os.path.isdir(file_path):
+    if os.path.isdir(configuration_files_path):
         try:
             temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
             os.close(temp_fd)
             with tarfile.open(temp_tar_path, "w:gz") as tar:
-                for item in os.listdir(file_path):
-                    item_path = os.path.join(file_path, item)
+                for item in os.listdir(configuration_files_path):
+                    item_path = os.path.join(configuration_files_path, item)
                     tar.add(item_path, arcname=item)
             return temp_tar_path
         except Exception as e:
-            module.fail_json(msg=f"Failed to create tar.gz from directory '{file_path}': {e}")
+            module.fail_json(msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}")
 
-    if os.path.isfile(file_path):
-        if tarfile.is_tarfile(file_path):
+    if os.path.isfile(configuration_files_path):
+        if tarfile.is_tarfile(configuration_files_path):
             try:
-                with gzip.open(file_path, "rb") as f:
+                with gzip.open(configuration_files_path, "rb") as f:
                     f.read(1)
-                return file_path
+                return configuration_files_path
             except Exception as e:
                 module.fail_json(msg=f"Bad gzip file")
 
         # Only allow .tf and .tf.json files to be tarred
-        elif file_path.endswith(".tf") or file_path.endswith(".tf.json"):
+        elif configuration_files_path.endswith(".tf") or configuration_files_path.endswith(".tf.json"):
             try:
                 temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
                 os.close(temp_fd)
                 with tarfile.open(temp_tar_path, "w:gz") as tar:
-                    arcname = os.path.basename(file_path)
-                    tar.add(file_path, arcname=arcname)
+                    arcname = os.path.basename(configuration_files_path)
+                    tar.add(configuration_files_path, arcname=arcname)
                 return temp_tar_path
             except Exception as e:
-                module.fail_json(msg=f"Failed to create tar.gz from file '{file_path}': {e}")
+                module.fail_json(msg=f"Failed to create tar.gz from file '{configuration_files_path}': {e}")
         else:
             module.fail_json(
-                msg=f"The file '{file_path}' is neither a .tf/.tf.json file nor a valid tar.gz archive. "
+                msg=f"The file '{configuration_files_path}' is neither a .tf/.tf.json file nor a valid tar.gz archive. "
             )
 
     else:
-        module.fail_json(msg=f"The path '{file_path}' is not a file or recognized archive format.")
+        module.fail_json(msg=f"The path '{configuration_files_path}' is not a file or recognized archive format.")
 
 
 def create_configuration_version(
@@ -281,7 +281,7 @@ def upload_configuration_version(
     Args:
         client_archivist (Any): Client instance used to perform the upload.
         params (dict): Dictionary containing parameters including:
-            - file_path (str): Path to the file or directory to upload.
+            - configuration_files_path (str): Path to the file or directory to upload.
         module (Any): Ansible module object for error handling (fail_json).
         upload_url (str): Pre-signed upload URL for the configuration version.
 
@@ -292,9 +292,9 @@ def upload_configuration_version(
         module.fail_json: If file preparation fails, or the upload fails with a non-200 status.
     """
     try:
-        file_path = params["file_path"]
-        file_path = validate_and_prepare_tar(file_path, module)
-        response = upload_config(client_archivist, upload_url=upload_url, file_path=file_path)
+        configuration_files_path = params["configuration_files_path"]
+        configuration_files_path = validate_and_prepare_tar(configuration_files_path, module)
+        response = upload_config(client_archivist, upload_url=upload_url, configuration_files_path=configuration_files_path)
         if response["status"] != 200:
             module.fail_json(msg=response["message"])
         return response["status"]
@@ -357,7 +357,7 @@ def main():
             provisional=dict(type="bool", required=False, default=False),
             archive=dict(type="bool", required=False, default=False),
             upload=dict(type="bool", required=False, default=False),
-            file_path=dict(type="str", required=True),
+            configuration_files_path=dict(type="str", required=True),
             upload_url=dict(type="str", required=False),
             interval=dict(type="int", required=False, default=1),
             retries=dict(type="int", required=False, default=30),
@@ -384,7 +384,7 @@ def main():
         module.fail_json(msg=str(e))
 
     try:
-        if params["state"] == "present" and params["file_path"]:
+        if params["state"] == "present" and params["configuration_files_path"]:
             try:
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module

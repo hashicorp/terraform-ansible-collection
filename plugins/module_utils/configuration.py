@@ -25,10 +25,10 @@ def archive_config(client: TerraformClient, config_version_id: str):
         raise
 
 
-def upload_config(client: ArchivistClient, upload_url: str, file_path: str):
+def upload_config(client: ArchivistClient, upload_url: str, configuration_files_path: str):
 
     try:
-        with open(file_path, "rb") as f:
+        with open(configuration_files_path, "rb") as f:
             if re.match(r"^https?://", client.base_url) and "/object" in upload_url:
                 return client.put(f"{upload_url}", f)
             return client.put(f"/object/{upload_url}", f)
