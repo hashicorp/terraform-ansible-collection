@@ -357,7 +357,7 @@ def main():
             provisional=dict(type="bool", required=False, default=False),
             archive=dict(type="bool", required=False, default=False),
             upload=dict(type="bool", required=False, default=False),
-            configuration_files_path=dict(type="str", required=True),
+            configuration_files_path=dict(type="str", required=False),
             upload_url=dict(type="str", required=False),
             interval=dict(type="int", required=False, default=1),
             retries=dict(type="int", required=False, default=30),
@@ -371,10 +371,10 @@ def main():
         module.fail_json(msg="The 'archive' parameter is required when state is 'absent'.")
     client_archivist = ArchivistClient(tf_hostname="archivist.terraform.io")
     client_terraform = TerraformClient(
-        tf_hostname=params["tf_hostname"], tf_token=params["tf_token"]
+        tf_hostname=params.get("tf_hostname"), tf_token=params.get("tf_token")
     )
     try:
-        if params["workspace"]:
+        if params.get("workspace"):
             workspace_response = get_workspace(
                 client_terraform, params["organization"], params["workspace"]
             )
@@ -384,7 +384,7 @@ def main():
         module.fail_json(msg=str(e))
 
     try:
-        if params["state"] == "present" and params["configuration_files_path"]:
+        if params.get("state") == "present" and params.get("configuration_files_path"):
             try:
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
@@ -409,7 +409,7 @@ def main():
             except Exception as e:
                 module.fail_json(msg=str(e))
 
-        elif params["state"] == "archive":
+        elif params.get("state") == "archive":
             try:
                 config_version = archive_config(
                     client_terraform, params["configuration_version_id"]
@@ -420,7 +420,7 @@ def main():
                         "changed": True,
                         "msg": "Configuration version archived successfully.",
                         "configuration_version_id": params["configuration_version_id"],
-                        "full_response": config_version,  # optional: remove if too verbose
+                        "full_response": config_version,
                     }
                 )
                 module.exit_json(**result)
@@ -429,7 +429,7 @@ def main():
                     msg=str(e),
                 )
             module.exit_json(**result)
-        elif params["state"] == "absent":
+        elif params.get("state") == "absent":
             warning_msg = "The value 'absent' for param 'state' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
             module.fail_json(msg=warning_msg)
 
