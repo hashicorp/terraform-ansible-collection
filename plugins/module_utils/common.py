@@ -49,6 +49,7 @@ class TerraformModule(AnsibleModule):
             "required": False,
             "type": "int",
             "fallback": (env_fallback, ["TF_MAX_RETRIES"]),
+            "default": 3,
         },
     }
 
