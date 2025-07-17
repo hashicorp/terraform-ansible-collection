@@ -356,7 +356,16 @@ class TerraformClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = kwargs.get("tf_hostname", "app.terraform.io")
         self._token: str = kwargs.get("tf_token") or self._get_token_from_config_file()
-        self.verify: bool = kwargs.get("tf_validate_certs", True)
+        tf_validate_certs = kwargs.get("tf_validate_certs", True)
+        if isinstance(tf_validate_certs, bool):
+            self.verify: bool = tf_validate_certs
+        elif isinstance(tf_validate_certs, str) and tf_validate_certs in ["True", "False"]:
+            self.verify: bool = tf_validate_certs == "True"
+        else:
+            raise ValueError(
+                f"Invalid value for tf_validate_certs. Expected a boolean or 'True'/'False' string, got: {tf_validate_certs}"
+            )
+
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
             "timeout": kwargs.get("timeout", 10),
