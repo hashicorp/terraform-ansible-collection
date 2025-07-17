@@ -329,22 +329,20 @@ class ClientMixin:
         self.session = requests.Session()
         self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")
         self.session.headers.update(kwargs.get("headers", {}))
-        self.tf_max_retries = kwargs.get("tf_max_retries", -1)
+        self.tf_max_retries = kwargs.get("tf_max_retries", 3)
         self.timeout = kwargs.get("timeout", 10)
 
-        if self.tf_max_retries and self.tf_max_retries > -1:
-            self.retry_strategy = Retry(
+
+        self.retry_strategy = Retry(
                 total=self.tf_max_retries,
                 connect=self.tf_max_retries,
                 read=self.tf_max_retries,
                 backoff_factor=1,
-                status_forcelist=[500, 502, 503, 504],
+                status_forcelist=[429,500, 502, 503, 504],
                 allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
                 raise_on_status=False,
             )
-            adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
-        else:
-            adapter = requests.adapters.HTTPAdapter()
+        adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
 
         if self.url.startswith("https://"):
             self.session.verify = kwargs.get("validate_certs", True)
