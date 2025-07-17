@@ -149,7 +149,6 @@ outputs:
 
 import os
 import tarfile
-import q
 import tempfile
 import gzip
 import time
@@ -396,6 +395,8 @@ def main():
     try:
         if params.get("state") == "present" and params.get("configuration_files_path"):
             try:
+                if params.get("interval") is None or params.get("retries") is None:
+                    module.fail_json(msg="Interval/Retries has not been set")
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
                 )
