@@ -98,36 +98,69 @@ class ClientMixin:
         """
         Sanitize the response by retaining only specified keys, recursively.
 
+        This method traverses through nested dictionaries and lists,
+        filtering out only the keys specified in the `keys_to_include` list.
+
         Args:
             response (dict or list): The response data to sanitize.
             keys_to_include (list): List of keys to keep in the response.
 
         Returns:
-            dict or list: The sanitized response data.
+            dict, list, or None: The sanitized response structure with only the allowed keys,
+                                or None if no valid keys remain.
         """
-
         if isinstance(response, dict):
-            result = {}
-            for k, v in response.items():
-                if k in keys_to_include:
-                    result[k] = (
-                        self.sanitize_response(v, keys_to_include)
-                        if isinstance(v, (dict, list))
-                        else v
-                    )
-                elif isinstance(v, (dict, list)):
-                    nested = self.sanitize_response(v, keys_to_include)
-                    if nested:
-                        result[k] = nested
-            return result or None
+            return self._sanitize_dict(response, keys_to_include)
 
-        elif isinstance(response, list):
-            filtered = [self.sanitize_response(item, keys_to_include) for item in response]
-            filtered = [item for item in filtered if item]
-            return filtered or None
+        if isinstance(response, list):
+            return self._sanitize_list(response, keys_to_include)
 
-        else:
-            return response
+        return response
+
+    def _sanitize_dict(
+        self, data: Dict[str, Any], keys_to_include: List[str]
+    ) -> Union[Dict[str, Any], None]:
+        """
+        Recursively sanitize a dictionary by retaining only specified keys.
+
+        Args:
+            data (dict): The dictionary to sanitize.
+            keys_to_include (list): Keys to retain in the sanitized result.
+
+        Returns:
+            dict or None: Sanitized dictionary or None if no keys matched or nested matches found.
+        """
+        result = {}
+
+        for key, value in data.items():
+            if key in keys_to_include:
+                result[key] = (
+                    self.sanitize_response(value, keys_to_include)
+                    if isinstance(value, (dict, list))
+                    else value
+                )
+            elif isinstance(value, (dict, list)):
+                nested = self.sanitize_response(value, keys_to_include)
+                if nested:
+                    result[key] = nested
+
+        return result or None
+
+    def _sanitize_list(self, data: List[Any], keys_to_include: List[str]) -> Union[List[Any], None]:
+        """
+        Recursively sanitize a list by applying sanitization to each element.
+
+        Args:
+            data (list): The list to sanitize.
+            keys_to_include (list): Keys to retain from each dictionary/list element.
+
+        Returns:
+            list or None: A sanitized list with relevant keys retained in each element,
+                        or None if all elements were filtered out.
+        """
+        sanitized = [self.sanitize_response(item, keys_to_include) for item in data]
+        sanitized = [item for item in sanitized if item]
+        return sanitized or None
 
     def dict_to_json(self, data: Dict) -> str:
         """
