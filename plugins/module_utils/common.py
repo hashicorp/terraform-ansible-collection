@@ -30,6 +30,10 @@ from .exceptions import (
 )
 
 
+# Constants
+HTTP_URL_PATTERN = r"^https?://"
+
+
 class TerraformModule(AnsibleModule):
     AUTH_ARGSPEC = {
         "tf_token": {
@@ -178,7 +182,7 @@ class ClientMixin:
             ):
                 data = self.dict_to_json(data)
 
-            if not re.match(r"^https?://", path):
+            if not re.match(HTTP_URL_PATTERN, path):
                 url = f"{self.base_url}{path}"
             else:
                 url = path
@@ -397,7 +401,7 @@ class TerraformClient(ClientMixin):
     @property
     def base_url(self):
         """Construct the base URL for the Terraform API."""
-        if re.match(r"^https?://", self.hostname):
+        if re.match(HTTP_URL_PATTERN, self.hostname):
             return f"{self.hostname}/api/v2"
         return f"https://{self.hostname}/api/v2"
 
@@ -434,6 +438,6 @@ class ArchivistClient(ClientMixin):
     @property
     def base_url(self):
         """Construct the base URL for the Terraform Archivist API."""
-        if re.match(r"^https?://", self.hostname):
+        if re.match(HTTP_URL_PATTERN, self.hostname):
             return f"{self.hostname}/v1"
         return f"https://{self.hostname}/v1"
