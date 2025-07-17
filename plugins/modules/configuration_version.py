@@ -191,7 +191,9 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                     tar.add(item_path, arcname=item)
             return temp_tar_path
         except Exception as e:
-            module.fail_json(msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}")
+            module.fail_json(
+                msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}"
+            )
 
     if os.path.isfile(configuration_files_path):
         if tarfile.is_tarfile(configuration_files_path):
@@ -203,7 +205,9 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                 module.fail_json(msg=f"Bad gzip file")
 
         # Only allow .tf and .tf.json files to be tarred
-        elif configuration_files_path.endswith(".tf") or configuration_files_path.endswith(".tf.json"):
+        elif configuration_files_path.endswith(".tf") or configuration_files_path.endswith(
+            ".tf.json"
+        ):
             try:
                 temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
                 os.close(temp_fd)
@@ -212,14 +216,18 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                     tar.add(configuration_files_path, arcname=arcname)
                 return temp_tar_path
             except Exception as e:
-                module.fail_json(msg=f"Failed to create tar.gz from file '{configuration_files_path}': {e}")
+                module.fail_json(
+                    msg=f"Failed to create tar.gz from file '{configuration_files_path}': {e}"
+                )
         else:
             module.fail_json(
                 msg=f"The file '{configuration_files_path}' is neither a .tf/.tf.json file nor a valid tar.gz archive. "
             )
 
     else:
-        module.fail_json(msg=f"The path '{configuration_files_path}' is not a file or recognized archive format.")
+        module.fail_json(
+            msg=f"The path '{configuration_files_path}' is not a file or recognized archive format."
+        )
 
 
 def create_configuration_version(
@@ -294,7 +302,11 @@ def upload_configuration_version(
     try:
         configuration_files_path = params["configuration_files_path"]
         configuration_files_path = validate_and_prepare_tar(configuration_files_path, module)
-        response = upload_config(client_archivist, upload_url=upload_url, configuration_files_path=configuration_files_path)
+        response = upload_config(
+            client_archivist,
+            upload_url=upload_url,
+            configuration_files_path=configuration_files_path,
+        )
         if response["status"] != 200:
             module.fail_json(msg=response["message"])
         return response["status"]
@@ -360,19 +372,19 @@ def main():
             configuration_files_path=dict(type="str", required=False),
             upload_url=dict(type="str", required=False),
             interval=dict(type="int", required=False, default=1),
-            retries=dict(type="int", required=False, default=30),
         ),
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
     params = module.params
 
-    if params["state"] == "absent" and "archive" not in params:
-        module.fail_json(msg="The 'archive' parameter is required when state is 'absent'.")
     client_archivist = ArchivistClient(tf_hostname="archivist.terraform.io")
     client_terraform = TerraformClient(
-        tf_hostname=params.get("tf_hostname"), tf_token=params.get("tf_token")
+        tf_hostname=params.get("tf_hostname"),
+        tf_token=params.get("tf_token"),
+        tf_max_retries=params.get("tf_max_retries"),
     )
+    params["retries"] = client_terraform.session_args.get("tf_max_retries")
     try:
         if params.get("workspace"):
             workspace_response = get_workspace(
