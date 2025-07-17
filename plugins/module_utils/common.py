@@ -332,16 +332,15 @@ class ClientMixin:
         self.tf_max_retries = kwargs.get("tf_max_retries", 3)
         self.timeout = kwargs.get("timeout", 10)
 
-
         self.retry_strategy = Retry(
-                total=self.tf_max_retries,
-                connect=self.tf_max_retries,
-                read=self.tf_max_retries,
-                backoff_factor=1,
-                status_forcelist=[429,500, 502, 503, 504],
-                allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-                raise_on_status=False,
-            )
+            total=self.tf_max_retries,
+            connect=self.tf_max_retries,
+            read=self.tf_max_retries,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+            raise_on_status=False,
+        )
         adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
 
         if self.url.startswith("https://"):

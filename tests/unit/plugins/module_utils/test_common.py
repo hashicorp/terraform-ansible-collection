@@ -688,7 +688,7 @@ class TestClientMixinAdditional:
             connect=5,
             read=5,
             backoff_factor=1,
-            status_forcelist=[500, 502, 503, 504],
+            status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
             raise_on_status=False,
         )
