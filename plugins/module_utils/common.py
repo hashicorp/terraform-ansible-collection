@@ -31,26 +31,26 @@ from .exceptions import (
 
 
 class TerraformModule(AnsibleModule):
-    AUTH_ARGSPEC = dict(
-        tf_token=dict(
-            required=False,
-            fallback=(env_fallback, ["TF_TOKEN"]),
-        ),
-        tf_hostname=dict(
-            required=False,
-            default="app.terraform.io",
-            fallback=(env_fallback, ["TF_HOSTNAME"]),
-        ),
-        tf_validate_certs=dict(
-            required=True,
-            fallback=(env_fallback, ["TF_VALIDATE_CERTS"]),
-        ),
-        tf_max_retries=dict(
-            required=False,
-            type="int",
-            fallback=(env_fallback, ["TF_MAX_RETRIES"]),
-        ),
-    )
+    AUTH_ARGSPEC = {
+        "tf_token": {
+            "required": False,
+            "fallback": (env_fallback, ["TF_TOKEN"]),
+        },
+        "tf_hostname": {
+            "required": False,
+            "default": "app.terraform.io",
+            "fallback": (env_fallback, ["TF_HOSTNAME"]),
+        },
+        "tf_validate_certs": {
+            "required": True,
+            "fallback": (env_fallback, ["TF_VALIDATE_CERTS"]),
+        },
+        "tf_max_retries": {
+            "required": False,
+            "type": "int",
+            "fallback": (env_fallback, ["TF_MAX_RETRIES"]),
+        },
+    }
 
     def __init__(
         self,
@@ -137,7 +137,7 @@ class ClientMixin:
         try:
             return json.dumps(data)
         except TypeError as e:
-            raise Exception(f"Failed to convert data to JSON: {e}")
+            raise ValueError(f"Failed to convert data to JSON: {e}") from e
 
     def json_to_dict(self, json_str: Union[bytes, str]) -> Dict[str, Any]:
         """
@@ -152,7 +152,7 @@ class ClientMixin:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            raise Exception(f"Failed to decode JSON string: {e}")
+            raise ValueError(f"Failed to decode JSON string: {e}") from e
 
     @staticmethod
     def make_request(function: Callable):
@@ -190,7 +190,7 @@ class ClientMixin:
 
             status = getattr(response, "status_code", 200)
             if status < 200 or status >= 300:
-                raise Exception(f"Failed to {method} {path}: {response.json()}")
+                raise RuntimeError(f"Failed to {method} {path}: {response.json()}")
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
@@ -324,7 +324,7 @@ class ClientMixin:
         This method can be overridden to customize session creation.
         """
         if not HAS_REQUESTS or not requests or not Retry:
-            raise Exception(missing_required_lib("requests"))
+            raise ImportError(missing_required_lib("requests"))
 
         self.session = requests.Session()
         self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")

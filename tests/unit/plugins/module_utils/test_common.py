@@ -132,7 +132,7 @@ class TestClientMixin:
         mixin = ClientMixin()
         data = {"key": set([1, 2, 3])}
 
-        with pytest.raises(Exception, match="Failed to convert data to JSON"):
+        with pytest.raises(ValueError, match="Failed to convert data to JSON"):
             mixin.dict_to_json(data)
 
     def test_json_to_dict_valid_json(self):
@@ -158,7 +158,7 @@ class TestClientMixin:
         mixin = ClientMixin()
         json_str = '{"key": "value"'  # Missing closing brace
 
-        with pytest.raises(Exception, match="Failed to decode JSON string"):
+        with pytest.raises(ValueError, match="Failed to decode JSON string"):
             mixin.json_to_dict(json_str)
 
     def test_json_to_dict_invalid_json_bytes(self):
@@ -166,7 +166,7 @@ class TestClientMixin:
         mixin = ClientMixin()
         json_bytes = b'{"key": "value"'  # Missing closing brace
 
-        with pytest.raises(Exception, match="Failed to decode JSON string"):
+        with pytest.raises(ValueError, match="Failed to decode JSON string"):
             mixin.json_to_dict(json_bytes)
 
     def test_make_request_decorator_get(self):
@@ -246,7 +246,7 @@ class TestClientMixin:
 
         client.session.request.return_value = mock_response
 
-        with pytest.raises(Exception, match="Failed to GET /test"):
+        with pytest.raises(RuntimeError, match="Failed to GET /test"):
             client.get("/test")
 
     def test_make_request_decorator_with_keys_to_include(self):
@@ -805,7 +805,7 @@ class TestClientMixinAdditional:
         mock_response.json.return_value = {"error": "Unknown"}
         client.session.request.return_value = mock_response
 
-        with pytest.raises(Exception, match="Failed to GET /test"):
+        with pytest.raises(RuntimeError, match="Failed to GET /test"):
             client.get("/test")
 
         # Test 300 (should fail)
@@ -813,7 +813,7 @@ class TestClientMixinAdditional:
         mock_response.json.return_value = {"error": "Multiple Choices"}
         client.session.request.return_value = mock_response
 
-        with pytest.raises(Exception, match="Failed to GET /test"):
+        with pytest.raises(RuntimeError, match="Failed to GET /test"):
             client.get("/test")
 
         # Test 299 (should succeed)
