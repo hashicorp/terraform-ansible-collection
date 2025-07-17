@@ -149,6 +149,7 @@ outputs:
 
 import os
 import tarfile
+import q
 import tempfile
 import gzip
 import time
@@ -379,13 +380,8 @@ def main():
     warnings = []
     result = {"changed": False, "warnings": warnings}
     params = module.params
-
-    client_archivist = ArchivistClient(tf_hostname="archivist.terraform.io")
-    client_terraform = TerraformClient(
-        tf_hostname=params.get("tf_hostname"),
-        tf_token=params.get("tf_token"),
-        tf_max_retries=params.get("tf_max_retries"),
-    )
+    client_archivist = ArchivistClient()
+    client_terraform = TerraformClient(**module.params)
     params["retries"] = client_terraform.session_args.get("tf_max_retries")
     try:
         if params.get("workspace"):
