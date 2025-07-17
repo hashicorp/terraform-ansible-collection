@@ -83,31 +83,33 @@ options:
 
 
 EXAMPLES = r"""
-- name: Create and upload to a configuration version
-  hashicorp.terraform.terraform_configuration_version:
+- name: Create a configuration version and queue runs
+  hashicorp.terraform.configuration_version:
     workspace: <your-workspace-id>
     state: present
     configuration_files_path: <path-to-your-configuration-files>
-- name: Create and upload to a configuration version but do not queue runs automatically when the configuration version is uploaded.
-  hashicorp.terraform.terraform_configuration_version:
-    workspace_id: <your-workspace-id>
+    interval: 3
+- name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
+  hashicorp.terraform.configuration_version:
+    workspace: <your-workspace-name>
+    organization: <your-organization-name>
     state: present
     auto-queue-runs: false
     configuration_files_path: <path-to-your-configuration-file>
-- name: Create and upload to a configuration may only be used to create speculative runs
-  hashicorp.terraform.terraform_configuration_version:
+- name: Create a configuration for speculative runs
+  hashicorp.terraform.configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     speculative: true
     configuration_files_path: <path-to-your-configuration-file>
-- name: Create and upload to a configuration version that will not immediately become the workspace current configuration version
-  hashicorp.terraform.terraform_configuration_version:
-    workspace_id: <your-workspace-id-file>
+- name: Create a configuration version that will not immediately become the workspace current configuration version
+  hashicorp.terraform.configuration_version:
+    workspace_id: <your-workspace-id>
     state: present
     provisional: true
-    configuration_files_path: <path-to-your-file>
+    configuration_files_path: <path-to-your-configuration-file>
 - name: Discard a configuration version
-  hashicorp.terraform.terraform_configuration_version:
+  hashicorp.terraform.configuration_version:
     state: archive
     configuration_version_id: <configuration-version-id>
 """
