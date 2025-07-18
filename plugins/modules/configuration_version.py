@@ -68,17 +68,9 @@ options:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
       - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
-      - This works in conjunction with the `retries` parameter.
+      - This works in conjunction with the `tf_max_retries` parameter.
     type: int
     default: 1
-  retries:
-    description:
-      - Specifies the number of retries to perform while waiting for the `status` of a newly created configuration to be `uploaded`.
-      - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
-      - This works in conjunction with the `interval` parameter.
-    type: int
-    default: 30
-    
 """
 
 
@@ -89,6 +81,7 @@ EXAMPLES = r"""
     state: present
     configuration_files_path: <path-to-your-configuration-files>
     interval: 3
+    tf_max_retries: 1
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.configuration_version:
     workspace: <your-workspace-name>
@@ -340,7 +333,7 @@ def get_configuration_version(
                           or if an error occurs during polling.
     """
     interval = params.get("interval")
-    retries = params.get("retries")
+    retries = params.get("tf_max_retries")
     try:
         for attempt in range(retries):
             config_response = get_config(client_terraform, config_version_id=config_version_id)
@@ -381,7 +374,7 @@ def main():
     params = module.params
     client_archivist = ArchivistClient()
     client_terraform = TerraformClient(**module.params)
-    params["retries"] = client_terraform.session_args.get("tf_max_retries")
+    params["tf_max_retries"] = client_terraform.session_args.get("tf_max_retries")
     try:
         if params.get("workspace"):
             workspace_response = get_workspace(
@@ -395,7 +388,7 @@ def main():
     try:
         if params.get("state") == "present" and params.get("configuration_files_path"):
             try:
-                if params.get("interval") is None or params.get("retries") is None:
+                if params.get("interval") is None or params.get("tf_max_retries") is None:
                     module.fail_json(msg="Interval/Retries has not been set")
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
