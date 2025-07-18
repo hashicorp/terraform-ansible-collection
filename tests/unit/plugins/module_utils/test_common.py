@@ -264,6 +264,37 @@ class TestClientMixin:
         assert result == {"status": 200, "data": {"id": "123", "name": "test"}}
         assert "secret" not in result["data"]
 
+    def test_make_request_decorator_with_full_url(self):
+        """Test make_request decorator when path is already a full URL."""
+        client = self.MockClient()
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'{"data": "test"}'
+
+        client.session.request.return_value = mock_response
+
+        # Test with HTTPS URL
+        result = client.get("https://external-api.example.com/test")
+
+        assert result == {"status": 200, "data": {"data": "test"}}
+        client.session.request.assert_called_once_with(
+            "GET",
+            "https://external-api.example.com/test",  # Should use the full URL directly
+            data=None,
+        )
+
+        # Reset mock and test with HTTP URL
+        client.session.request.reset_mock()
+        result = client.get("http://external-api.example.com/test")
+
+        assert result == {"status": 200, "data": {"data": "test"}}
+        client.session.request.assert_called_once_with(
+            "GET",
+            "http://external-api.example.com/test",  # Should use the full URL directly
+            data=None,
+        )
+
 
 class TestTerraformClient:
     """Test cases for TerraformClient class."""
@@ -283,6 +314,46 @@ class TestTerraformClient:
         assert client._token == "test-token"
         assert client.verify is True
         assert client.session == mock_session_instance
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_tf_validate_certs_string_true(self, mock_session):
+        """Test TerraformClient initialization with tf_validate_certs as string 'True'."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = TerraformClient(
+            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="True"
+        )
+
+        assert client.verify is True
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_tf_validate_certs_string_false(self, mock_session):
+        """Test TerraformClient initialization with tf_validate_certs as string 'False'."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        client = TerraformClient(
+            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="False"
+        )
+
+        assert client.verify is False
+
+    def test_terraform_client_init_tf_validate_certs_invalid_value(self):
+        """Test TerraformClient initialization with invalid tf_validate_certs value raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
+            TerraformClient(
+                tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="invalid"
+            )
+
+    def test_terraform_client_init_tf_validate_certs_invalid_type(self):
+        """Test TerraformClient initialization with invalid tf_validate_certs type raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
+            TerraformClient(
+                tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=123
+            )
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_init_custom_hostname(self, mock_session):
