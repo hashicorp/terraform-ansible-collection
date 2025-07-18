@@ -44,7 +44,7 @@ options:
         type: bool
         required: false
         default: false
-    run:
+    run_id:
         description: The ID of the run to apply/cancel.
         type: str
         required: false
@@ -61,7 +61,7 @@ options:
     state:
         description: The state of the run to manage.
         type: str
-        choices: ['present', 'absent']
+        choices: ['present', 'absent', 'discard]
         default: 'present'
         required: false
 """
@@ -80,14 +80,14 @@ Examples =  r"""
     - name: Update an existing Terraform run
       hashicorp.terraform.terraform_runs:
         workspace: "ws-12345678"
-        run: "run-12345678"
+        run_id: "run-12345678"
         message: "Updating the run message"
         state: "present"
 
     - name: Apply a Terraform run
       hashicorp.terraform.terraform_runs:
         workspace: "ws-12345678"
-        run: "run-12345678"
+        run_id: "run-12345678"
         apply: true
         state: "present"
 """
