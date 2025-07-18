@@ -61,14 +61,14 @@ options:
     state:
         description: The state of the run to manage.
         type: str
-        choices: ['present', 'absent', 'discard]
+        choices: ['present', 'absent', 'discard']
         default: 'present'
         required: false
 """
 
 Examples =  r"""
     - name: Create a new Terraform run
-      hashicorp.terraform.terraform_runs:
+      hashicorp.terraform.run:
         workspace: "ws-12345678"
         message: "Creating a new run"
         auto_apply: true
@@ -78,16 +78,22 @@ Examples =  r"""
         state: "present"
 
     - name: Update an existing Terraform run
-      hashicorp.terraform.terraform_runs:
+      hashicorp.terraform.run:
         workspace: "ws-12345678"
         run_id: "run-12345678"
         message: "Updating the run message"
         state: "present"
 
     - name: Apply a Terraform run
-      hashicorp.terraform.terraform_runs:
+      hashicorp.terraform.run:
         workspace: "ws-12345678"
         run_id: "run-12345678"
         apply: true
         state: "present"
+
+    - name: Discard a Terraform run
+      hashicorp.terraform.run:
+        workspace: "ws-12345678"
+        run_id: "run-12345678"
+        state: "discard"
 """
