@@ -23,7 +23,7 @@ options:
     description:
       - The state the configuration version should be in.
       - Setting `state=present` creates a new configuration-version and upload to it.
-      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set. 
+      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
         This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
       - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
@@ -45,29 +45,31 @@ options:
       - ID of the workspace for the configuration-version.
       - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
     type: str
-  auto-queue-runs: 
+  auto_queue_runs:
     description:
       - When true, runs are queued automatically when the configuration version is uploaded.
     type: boolean
     default: true
-  speculative: 
+  speculative:
     description:
       - When true, this configuration version may only be used to create runs which are speculative which cannot be confirmed or applied.
     type: boolean
     default: false
-  provisional: 
+  provisional:
     description:
-      - When true, this configuration version does not immediately become the workspace current configuration version. If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
+      - When true, this configuration version does not immediately become the workspace current configuration version. 
+        If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
     type: boolean
     default: false
   configuration_version_id:
-    description: 
+    description:
       - The id of the configuration version that needs to be archived.
     type: str
   configuration_files_path:
     description:
       - Path to the configuration file that should be uploaded for the configuration version.
-      - This can be a single `.tf` file or a tarball (`.tar.gz`) containing configuration-related files. When a single file `.tf` file is provided, the module creates a tarball and then uploads it to Archivist.
+      - This can be a directory or a tarball (`.tar.gz`) containing configuration-related files.
+      - When a path to a directory is provided, all it's content will be built into a tarball ('.tar.gz') within the module.
       - This file will be read from the Ansible 'host' context and not the 'controller' context.
     type: str
     required: true
