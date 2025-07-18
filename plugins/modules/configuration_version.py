@@ -1,13 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 # Copyright (c) 2025 Red Hat, Inc.
-# GNU General Public License v3.0+ (see COPYING or
-# https://www.gnu.org/licenses/gpl-3.0.txt)
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+# language=yaml
 DOCUMENTATION = r"""
 ---
-module: terraform_configuartion_version
+module: configuartion_version
 version_added: 1.0.0
 short_description: Create configuration version in Terraform Enterprise/Cloud.
 description:
@@ -27,7 +26,6 @@ options:
         This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
       - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
-    default: present
     choices: ["present", "absent", "archive"]
     required: true
   organization:
@@ -48,18 +46,18 @@ options:
   auto_queue_runs:
     description:
       - When true, runs are queued automatically when the configuration version is uploaded.
-    type: boolean
+    type: bool
     default: true
   speculative:
     description:
       - When true, this configuration version may only be used to create runs which are speculative which cannot be confirmed or applied.
-    type: boolean
+    type: bool
     default: false
   provisional:
     description:
-      - When true, this configuration version does not immediately become the workspace current configuration version. 
+      - When true, this configuration version does not immediately become the workspace current configuration version.
         If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
-    type: boolean
+    type: bool
     default: false
   configuration_version_id:
     description:
@@ -196,7 +194,7 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                     f.read(1)
                 return configuration_files_path
             except Exception as e:
-                module.fail_json(msg=f"Bad gzip file")
+                module.fail_json(msg="Bad gzip file")
         else:
             module.fail_json(
                 msg=f"The path '{configuration_files_path}' is not a valid tar.gz archive. "
@@ -417,7 +415,10 @@ def main():
                 )
             module.exit_json(**result)
         elif params.get("state") == "absent":
-            warning_msg = "The value 'absent' for param 'state' is not yet supported as delete operation endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
+            warning_msg = (
+                "The value 'absent' for param 'state' is not yet supported as delete operation "
+                "endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
+            )
             module.fail_json(msg=warning_msg)
 
     except Exception as e:
