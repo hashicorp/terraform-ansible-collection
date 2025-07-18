@@ -166,7 +166,6 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
 
     - If the path is a directory, it is archived into a temporary .tar.gz file.
     - If the path is a valid tar.gz archive, it's returned as-is after basic validation.
-    - If the path is a .tf or .tf.json file, it's wrapped in a temporary .tar.gz archive.
     - Other file types are rejected.
 
     Args:
@@ -198,25 +197,9 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                 return configuration_files_path
             except Exception as e:
                 module.fail_json(msg=f"Bad gzip file")
-
-        # Only allow .tf and .tf.json files to be tarred
-        elif configuration_files_path.endswith(".tf") or configuration_files_path.endswith(
-            ".tf.json"
-        ):
-            try:
-                temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
-                os.close(temp_fd)
-                with tarfile.open(temp_tar_path, "w:gz") as tar:
-                    arcname = os.path.basename(configuration_files_path)
-                    tar.add(configuration_files_path, arcname=arcname)
-                return temp_tar_path
-            except Exception as e:
-                module.fail_json(
-                    msg=f"Failed to create tar.gz from file '{configuration_files_path}': {e}"
-                )
         else:
             module.fail_json(
-                msg=f"The file '{configuration_files_path}' is neither a .tf/.tf.json file nor a valid tar.gz archive. "
+                msg=f"The path '{configuration_files_path}' is not a valid tar.gz archive. "
             )
 
     else:
