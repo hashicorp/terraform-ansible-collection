@@ -388,8 +388,8 @@ def main():
     try:
         if params.get("state") == "present" and params.get("configuration_files_path"):
             try:
-                if params.get("interval") is None or params.get("tf_max_retries") is None:
-                    module.fail_json(msg="Interval/Retries has not been set")
+                if params.get("tf_max_retries") is None:
+                    module.fail_json(msg="Retries has not been set")
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
                 )
