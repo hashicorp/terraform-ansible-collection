@@ -253,7 +253,11 @@ def create_configuration_version(
 
 
 def upload_configuration_version(
-    client_archivist: Any, params: dict, module: Any, upload_url: str
+    client_archivist: Any,
+    params: dict,
+    module: Any,
+    upload_url: str,
+    configuration_files_path: str,
 ) -> int:
     """
     Uploads a Terraform configuration tarball to the specified upload URL.
@@ -276,8 +280,6 @@ def upload_configuration_version(
         module.fail_json: If file preparation fails, or the upload fails with a non-200 status.
     """
     try:
-        configuration_files_path = params["configuration_files_path"]
-        configuration_files_path = validate_and_prepare_tar(configuration_files_path, module)
         response = upload_config(
             client_archivist,
             upload_url=upload_url,
@@ -371,11 +373,14 @@ def main():
             try:
                 if params.get("tf_max_retries") is None:
                     module.fail_json(msg="Retries has not been set")
+                configuration_files_path = validate_and_prepare_tar(
+                    params.get("configuration_files_path"), module
+                )
                 config_version_id, upload_url = create_configuration_version(
                     client_terraform, params, module
                 )
                 upload_response = upload_configuration_version(
-                    client_archivist, params, module, upload_url
+                    client_archivist, params, module, upload_url, configuration_files_path
                 )
                 config_status = get_configuration_version(
                     client_terraform, params, module, config_version_id
