@@ -347,7 +347,7 @@ def main():
             provisional=dict(type="bool", required=False, default=False),
             archive=dict(type="bool", required=False, default=False),
             upload=dict(type="bool", required=False, default=False),
-            configuration_files_path=dict(type="str", required=False),
+            configuration_files_path=dict(aliases=["project_path"],type="str", required=False),
             upload_url=dict(type="str", required=False),
             interval=dict(type="int", required=False, default=1),
         ),
