@@ -45,17 +45,24 @@ options:
       - ID of the workspace for the configuration-version.
       - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
     type: str
-  auto-queue-runs: When true, runs are queued automatically when the configuration version is uploaded.
+  auto-queue-runs: 
+    description:
+      - When true, runs are queued automatically when the configuration version is uploaded.
     type: boolean
     default: true
-  speculative: When true, this configuration version may only be used to create runs which are speculative which cannot be confirmed or applied.
+  speculative: 
+    description:
+      - When true, this configuration version may only be used to create runs which are speculative which cannot be confirmed or applied.
     type: boolean
     default: false
-  provisional: When true, this configuration version does not immediately become the workspace current configuration version. If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
+  provisional: 
+    description:
+      - When true, this configuration version does not immediately become the workspace current configuration version. If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
     type: boolean
     default: false
   configuration_version_id:
-    description: The id of the configuration version that needs to be archived.
+    description: 
+      - The id of the configuration version that needs to be archived.
     type: str
   configuration_files_path:
     description:
@@ -111,33 +118,24 @@ RETURN = r"""
 outputs:
   type: dict
   description: A dictionary of the configuration version details.
-  returned: when state is create
+  returned: on success
   contains:
     configuration_version_id:
       type: str
       returned: always
-      description: ID of the configuration version created
-    upload-url:
+      description: ID of the configuration version created/archived.
+    upload_response:
       type: str
-      returned: always
-      description: Upload URL for the configuration version
+      returned: when state is 'present'
+      description: The status code of the configuration version.
     status:
       type: str
-      returned: always
-      description: The status of the configuration version (pending, errored, uploaded, etc)
-  type: dict
-  description: A status of the archive operation.
-  returned: when state is archive
-  contains:
-    status:
+      returned: when state is 'present'
+      description: The status of the configuration version (pending, errored, uploaded, etc).
+    msg:
       type: str
-      returned: always
-      description: The status code of the configuration version archive action
-    configuration_version_id:
-        type: str
-        returned: always
-        description: ID of the configuration version created
-
+      returned: when state is 'archive'
+      description: The successfull completion of archive.
 """
 
 import os
