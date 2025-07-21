@@ -91,6 +91,12 @@ Examples =  r"""
         apply: true
         state: "present"
 
+    - name: Cancel a Terraform run
+      hashicorp.terraform.run:
+        workspace: "ws-12345678"
+        run_id: "run-12345678"
+        state: "cancel"
+
     - name: Discard a Terraform run
       hashicorp.terraform.run:
         workspace: "ws-12345678"
