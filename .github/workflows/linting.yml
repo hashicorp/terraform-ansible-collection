@@ -68,4 +68,4 @@ jobs:
 
   build-import:
     name: Build collection and run galaxy importer check
-    uses: ansible/ansible-content-actions/.github/workflows/build_import.yaml@main 
+    uses: ansible/ansible-content-actions/.github/workflows/build_import.yaml@main

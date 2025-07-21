@@ -38,7 +38,7 @@ lint_all: check_black check_flake8 check_isort
 
 ## Generate collection documentation
 collection-docs:
-	ansible-doc --list --type=module ansible_collections.hashicorp.terraform
+	ansible-doc --list --type=module hashicorp.terraform
 
 ## Run ansible-lint on the collection
 collection-lint:
