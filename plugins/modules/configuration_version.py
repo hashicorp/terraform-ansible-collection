@@ -355,16 +355,16 @@ def get_configuration_version(
 def main():
     module = TerraformModule(
         argument_spec=dict(
-            workspace_id=dict(type="str", required=False),
-            workspace=dict(type="str", required=False),
-            organization=dict(type="str", required=False),
+            workspace_id=dict(type="str"),
+            workspace=dict(type="str"),
+            organization=dict(type="str"),
             state=dict(type="str", required=True),
-            configuration_version_id=dict(type="str", required=False),
-            auto_queue_runs=dict(type="bool", required=False, default=True),
-            speculative=dict(type="bool", required=False, default=False),
-            provisional=dict(type="bool", required=False, default=False),
-            configuration_files_path=dict(aliases=["project_path"], type="str", required=False),
-            interval=dict(type="int", required=False, default=1),
+            configuration_version_id=dict(type="str"),
+            auto_queue_runs=dict(type="bool", default=True),
+            speculative=dict(type="bool", default=False),
+            provisional=dict(type="bool", default=False),
+            configuration_files_path=dict(aliases=["project_path"], type="str"),
+            interval=dict(type="int", default=1),
         ),
         required_together=[["workspace", "organization"]],
     )
