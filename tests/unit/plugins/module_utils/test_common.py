@@ -472,19 +472,6 @@ class TestTerraformClient:
         assert client.session == mock_session_instance
 
     @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_get_token_from_config_file(self, mock_session):
-        """Test TerraformClient _get_token_from_config_file method."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
-
-        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
-
-        # Method should return None (placeholder implementation)
-        result = client._get_token_from_config_file()
-        assert result is None
-
-    @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_pre_checks_called(self, mock_session):
         """Test TerraformClient pre_checks method is called during initialization."""
         mock_session_instance = Mock()
@@ -533,16 +520,17 @@ class TestArchivistClient:
         assert client.session == mock_session_instance
 
     @patch("plugins.module_utils.common.requests.Session")
-    def test_archivist_client_init_custom_hostname(self, mock_session):
-        """Test ArchivistClient initialization with custom hostname."""
+    def test_archivist_client_init_ignores_custom_hostname(self, mock_session):
+        """Test ArchivistClient initialization ignores custom hostname parameter."""
         mock_session_instance = Mock()
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
         client = ArchivistClient(tf_hostname="custom.archivist.io", tf_validate_certs=True)
 
-        assert client.hostname == "custom.archivist.io"
-        assert client.base_url == "https://custom.archivist.io/v1"
+        # ArchivistClient uses hardcoded hostname, ignores tf_hostname parameter
+        assert client.hostname == "archivist.terraform.io"
+        assert client.base_url == "https://archivist.terraform.io/v1"
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_archivist_client_init_with_http_url(self, mock_session):
@@ -553,7 +541,8 @@ class TestArchivistClient:
 
         client = ArchivistClient(tf_hostname="http://custom.archivist.io", tf_validate_certs=False)
 
-        assert client.base_url == "http://custom.archivist.io/v1"
+        # ArchivistClient uses hardcoded hostname, ignores tf_hostname parameter
+        assert client.base_url == "https://archivist.terraform.io/v1"
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_archivist_client_init_with_https_url(self, mock_session):
@@ -564,7 +553,8 @@ class TestArchivistClient:
 
         client = ArchivistClient(tf_hostname="https://custom.archivist.io", tf_validate_certs=True)
 
-        assert client.base_url == "https://custom.archivist.io/v1"
+        # ArchivistClient uses hardcoded hostname, ignores tf_hostname parameter
+        assert client.base_url == "https://archivist.terraform.io/v1"
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_archivist_client_headers_default(self, mock_session):
@@ -631,15 +621,33 @@ class TestArchivistClient:
         assert hasattr(client, "patch")
         assert hasattr(client, "delete")
 
-    def test_archivist_client_init_no_hostname_raises_error(self):
-        """Test ArchivistClient initialization without hostname raises error."""
-        with pytest.raises(TerraformHostnameNotFoundError):
-            ArchivistClient(tf_hostname="", tf_validate_certs=True)
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_with_empty_hostname(self, mock_session):
+        """Test ArchivistClient initialization with empty hostname uses default."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
 
-    def test_archivist_client_init_http_with_ssl_validation_raises_error(self):
-        """Test ArchivistClient initialization with HTTP URL and SSL validation raises error."""
-        with pytest.raises(TerraformSSLValidationError):
-            ArchivistClient(tf_hostname="http://archivist.terraform.io", tf_validate_certs=True)
+        # ArchivistClient doesn't validate hostname, uses hardcoded default
+        client = ArchivistClient(tf_hostname="", tf_validate_certs=True)
+
+        assert client.hostname == "archivist.terraform.io"
+        assert client.base_url == "https://archivist.terraform.io/v1"
+
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_archivist_client_init_http_with_ssl_validation_no_error(self, mock_session):
+        """Test ArchivistClient initialization with HTTP URL and SSL validation doesn't raise error."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        # ArchivistClient doesn't validate HTTP/HTTPS mismatch like TerraformClient
+        client = ArchivistClient(tf_hostname="http://custom.archivist.io", tf_validate_certs=True)
+
+        # Uses hardcoded hostname, ignores tf_hostname parameter
+        assert client.hostname == "archivist.terraform.io"
+        assert client.base_url == "https://archivist.terraform.io/v1"
+        assert client.verify is True
 
 
 class TestClientMixinAdditional:

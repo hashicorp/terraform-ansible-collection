@@ -55,6 +55,12 @@ class TerraformModule(AnsibleModule):
             "fallback": (env_fallback, ["TF_MAX_RETRIES"]),
             "default": 3,
         },
+        "tf_timeout": {
+            "required": False,
+            "type": "int",
+            "fallback": (env_fallback, ["TF_TIMEOUT"]),
+            "default": 10,
+        },
     }
 
     def __init__(
@@ -350,10 +356,10 @@ class ClientMixin:
             raise ImportError(missing_required_lib("requests"))
 
         self.session = requests.Session()
-        self.url = kwargs.get("base_url", "https://app.terraform.io/api/v2")
+        self.url = kwargs.get("base_url")
         self.session.headers.update(kwargs.get("headers", {}))
-        self.tf_max_retries = kwargs.get("tf_max_retries", 3)
-        self.timeout = kwargs.get("timeout", 10)
+        self.tf_max_retries = kwargs.get("tf_max_retries")
+        self.timeout = kwargs.get("timeout")
 
         self.retry_strategy = Retry(
             total=self.tf_max_retries,
@@ -367,7 +373,7 @@ class ClientMixin:
         adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
 
         if self.url.startswith("https://"):
-            self.session.verify = kwargs.get("validate_certs", True)
+            self.session.verify = kwargs.get("validate_certs")
             self.session.mount("https://", adapter)
         else:
             self.session.verify = False
@@ -377,9 +383,9 @@ class ClientMixin:
 
 class TerraformClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
-        self.hostname: str = kwargs.get("tf_hostname", "app.terraform.io")
-        self._token: str = kwargs.get("tf_token") or self._get_token_from_config_file()
-        tf_validate_certs = kwargs.get("tf_validate_certs", True)
+        self.hostname: str = kwargs.get("tf_hostname")
+        self._token: str = kwargs.get("tf_token")
+        tf_validate_certs = kwargs.get("tf_validate_certs")
         if isinstance(tf_validate_certs, bool):
             self.verify: bool = tf_validate_certs
         elif isinstance(tf_validate_certs, str) and tf_validate_certs in ["True", "False"]:
@@ -389,7 +395,7 @@ class TerraformClient(ClientMixin):
 
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
-            "timeout": kwargs.get("timeout", 10),
+            "timeout": kwargs.get("timeout"),
             "tf_max_retries": kwargs.get("tf_max_retries"),
             "validate_certs": self.verify,
             "headers": self.headers,
@@ -421,21 +427,14 @@ class TerraformClient(ClientMixin):
             return f"{self.hostname}/api/v2"
         return f"https://{self.hostname}/api/v2"
 
-    def _get_token_from_config_file(self):
-        """
-        Placeholder for reading the Terraform token from a config file.
-        """
-        # Implement logic to read from ~/.terraformrc or ~/.terraform.d/credentials.tfrc.json if needed
-        pass
-
 
 class ArchivistClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
-        self.hostname: str = kwargs.get("tf_hostname", "archivist.terraform.io")
-        self.verify: bool = kwargs.get("tf_validate_certs", True)
+        self.hostname: str = "archivist.terraform.io"
+        self.verify: bool = kwargs.get("tf_validate_certs")
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
-            "timeout": kwargs.get("timeout", 10),
+            "timeout": kwargs.get("timeout"),
             "tf_max_retries": kwargs.get("tf_max_retries"),
             "validate_certs": self.verify,
             "headers": self.headers,
