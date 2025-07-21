@@ -67,7 +67,10 @@ EXAMPLES = """
 - name: Show resource changes summary
   ansible.builtin.debug:
     msg: |
-      "Changes: {{ plan_result.metadata.data.attributes.resource_additions | default(0) }} additions, {{ plan_result.metadata.data.attributes.resource_changes | default(0) }} changes, {{ plan_result.metadata.data.attributes.resource_destructions | default(0) }} deletions"
+      Changes:
+        Additions: {{ plan_result.metadata.data.attributes.resource_additions | default(0) }}
+        Changes: {{ plan_result.metadata.data.attributes.resource_changes | default(0) }}
+        Deletions: {{ plan_result.metadata.data.attributes.resource_destructions | default(0) }}
 """
 
 RETURN = """
