@@ -34,7 +34,7 @@ jobs:
         git+https://github.com/ansible-collections/ansible.utils.git
 
   flake:
-    name: Code Quality (isort, flake8)
+    name: Code Quality flake 8
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -55,9 +55,9 @@ jobs:
           echo "=== CI WORKFLOW: FLAKE8 CHECK ==="
           python -m flake8 plugins/ tests/ --max-line-length=130 --extend-ignore=DOC,E402,F841 --exclude='__pycache__,*.pyc,.git,build,dist'
           echo "FLAKE8: PASS"
-  
+
   isort:
-    name: Code Quality (isort, flake8)
+    name: Code Quality isort
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
