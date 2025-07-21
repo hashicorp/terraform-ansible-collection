@@ -7,7 +7,7 @@
 
 DOCUMENTATION = r"""
 ---
-module: plan_info
+module: run
 version_added: "1.0.0"
 short_description: This module supports Create, Update, and Delete operations for Terraform Cloud/Enterprise runs.
 description:
