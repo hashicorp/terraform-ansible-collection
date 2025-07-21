@@ -92,9 +92,7 @@ class ClientMixin:
     This can be used to extend the TerraformClient class with additional methods.
     """
 
-    def sanitize_response(
-        self, response: Union[Dict[str, Any], List[Any]], keys_to_include: List[str]
-    ) -> Any:
+    def sanitize_response(self, response: Union[Dict[str, Any], List[Any]], keys_to_include: List[str]) -> Any:
         """
         Sanitize the response by retaining only specified keys, recursively.
 
@@ -117,9 +115,7 @@ class ClientMixin:
 
         return response
 
-    def _sanitize_dict(
-        self, data: Dict[str, Any], keys_to_include: List[str]
-    ) -> Union[Dict[str, Any], None]:
+    def _sanitize_dict(self, data: Dict[str, Any], keys_to_include: List[str]) -> Union[Dict[str, Any], None]:
         """
         Recursively sanitize a dictionary by retaining only specified keys.
 
@@ -134,11 +130,7 @@ class ClientMixin:
 
         for key, value in data.items():
             if key in keys_to_include:
-                result[key] = (
-                    self.sanitize_response(value, keys_to_include)
-                    if isinstance(value, (dict, list))
-                    else value
-                )
+                result[key] = self.sanitize_response(value, keys_to_include) if isinstance(value, (dict, list)) else value
             elif isinstance(value, (dict, list)):
                 nested = self.sanitize_response(value, keys_to_include)
                 if nested:
@@ -208,11 +200,7 @@ class ClientMixin:
             method = function.__name__.upper()
             content_type = self.session.headers.get("Content-Type", "application/vnd.api+json")
 
-            if (
-                method in ["POST", "PUT", "DELETE", "PATCH"]
-                and data
-                and content_type.endswith("json")
-            ):
+            if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
             if not re.match(HTTP_URL_PATTERN, path):
@@ -220,15 +208,19 @@ class ClientMixin:
             else:
                 url = path
 
+            # Let the session handle retries automatically
+            # The retry mechanism is configured in create_session()
             response = self.session.request(
                 method,
                 url,
                 data=data,
             )
 
+            # At this point, retries have already been handled by the session
+            # If we still have an error status, retries were exhausted
             status = getattr(response, "status_code", 200)
             if status < 200 or status >= 300:
-                raise RuntimeError(f"Failed to {method} {path}: {response.json()}")
+                raise RuntimeError(f"Failed to {method} {path} after retries: {response.json()}")
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
@@ -343,17 +335,12 @@ class ClientMixin:
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
         if not isinstance(self, ArchivistClient) and not self._token:
-            raise TerraformTokenNotFoundError(
-                "Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument."
-            )
+            raise TerraformTokenNotFoundError("Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument.")
         elif not self.hostname:
-            raise TerraformHostnameNotFoundError(
-                "Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument."
-            )
+            raise TerraformHostnameNotFoundError("Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument.")
         elif self.hostname.startswith("http://") and self.verify:
             raise TerraformSSLValidationError(
-                "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), "
-                "but the URL starts with 'http://' (non-secure)"
+                "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), " "but the URL starts with 'http://' (non-secure)"
             )
 
     def create_session(self, **kwargs: Any) -> Any:
@@ -400,9 +387,7 @@ class TerraformClient(ClientMixin):
         elif isinstance(tf_validate_certs, str) and tf_validate_certs in ["True", "False"]:
             self.verify: bool = tf_validate_certs == "True"
         else:
-            raise ValueError(
-                f"Invalid value for tf_validate_certs. Expected a boolean or 'True'/'False' string, got: {tf_validate_certs}"
-            )
+            raise ValueError(f"Invalid value for tf_validate_certs. Expected a boolean or 'True'/'False' string, got: {tf_validate_certs}")
 
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {

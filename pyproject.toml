@@ -1,7 +1,29 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hashicorp-terraform-collection"
+version = "0.1.0"
+description = "HashiCorp Terraform Ansible Collection"
+
+[tool.setuptools]
+packages = []  # This is an Ansible collection, not a Python package
+
+[tool.setuptools.package-dir]
+"" = "."
+
 [tool.black]
-line-length = 100
+line-length = 160
 
 [tool.pytest.ini_options]
 addopts = ["-vvv", "-n", "2", "--log-level", "WARNING", "--color", "yes"]
 filterwarnings = ['ignore:AnsibleCollectionFinder has already been configured']
 testpaths = ["tests"]
+
+[tool.isort]
+profile = "black"
+line_length = 160
+known_first_party = ["ansible_collections.hashicorp.terraform"]
+lines_after_imports = 2
+lines_between_types = 1

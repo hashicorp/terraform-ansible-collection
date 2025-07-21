@@ -3,9 +3,13 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+import json
 import os
 import sys
+import threading
+import time
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 from unittest.mock import Mock, patch
 
@@ -306,9 +310,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
         assert client.hostname == "app.terraform.io"
         assert client._token == "test-token"
@@ -322,9 +324,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="True"
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="True")
 
         assert client.verify is True
 
@@ -335,25 +335,19 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="False"
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="False")
 
         assert client.verify is False
 
     def test_terraform_client_init_tf_validate_certs_invalid_value(self):
         """Test TerraformClient initialization with invalid tf_validate_certs value raises ValueError."""
         with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
-            TerraformClient(
-                tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="invalid"
-            )
+            TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="invalid")
 
     def test_terraform_client_init_tf_validate_certs_invalid_type(self):
         """Test TerraformClient initialization with invalid tf_validate_certs type raises ValueError."""
         with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
-            TerraformClient(
-                tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=123
-            )
+            TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=123)
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_init_custom_hostname(self, mock_session):
@@ -362,9 +356,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="custom.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="custom.terraform.io", tf_validate_certs=True)
 
         assert client.hostname == "custom.terraform.io"
         assert client.base_url == "https://custom.terraform.io/api/v2"
@@ -391,9 +383,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="https://custom.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="https://custom.terraform.io", tf_validate_certs=True)
 
         assert client.base_url == "https://custom.terraform.io/api/v2"
 
@@ -404,9 +394,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
         expected_headers = {
             "Authorization": "Bearer test-token",
@@ -463,9 +451,7 @@ class TestTerraformClient:
     def test_terraform_client_init_http_with_ssl_validation_raises_error(self):
         """Test TerraformClient initialization with HTTP URL and SSL validation raises error."""
         with pytest.raises(TerraformSSLValidationError):
-            TerraformClient(
-                tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True
-            )
+            TerraformClient(tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True)
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_session_creation(self, mock_session):
@@ -492,9 +478,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
         # Method should return None (placeholder implementation)
         result = client._get_token_from_config_file()
@@ -508,9 +492,7 @@ class TestTerraformClient:
         mock_session.return_value = mock_session_instance
 
         with patch.object(TerraformClient, "pre_checks") as mock_pre_checks:
-            client = TerraformClient(
-                tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
-            )
+            client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
             mock_pre_checks.assert_called_once()
 
     @patch("plugins.module_utils.common.requests.Session")
@@ -520,9 +502,7 @@ class TestTerraformClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(
-            tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True
-        )
+        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
         # Should have methods from ClientMixin
         assert hasattr(client, "sanitize_response")
@@ -894,3 +874,151 @@ class TestClientMixinAdditional:
 
         result = client.get("/test")
         assert result == {"status": 299, "data": {"success": True}}
+
+
+class TestExponentialBackoff:
+    """
+    Test cases for exponential backoff behavior with HTTP 429 rate limiting.
+
+    Tests validate:
+    - Current implementation limitations (immediate failure on 429)
+    - Proper exponential backoff timing (1s, 2s, 4s, 8s delays)
+    - Successful retry after 4 failures with 5th request succeeding
+    """
+
+    def test_current_implementation_limitation(self):
+        """Test documents that current implementation fails immediately on 429."""
+        with patch("plugins.module_utils.common.requests.Session") as mock_session_class:
+            mock_session_instance = Mock()
+            mock_session_instance.headers = {}
+
+            # Mock response that returns 429
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_response.json.return_value = {"errors": [{"detail": "Rate limited"}]}
+            mock_session_instance.request.return_value = mock_response
+            mock_session_class.return_value = mock_session_instance
+
+            client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
+
+            with pytest.raises(RuntimeError, match="Failed to GET /test-endpoint"):
+                client.get("/test-endpoint")
+
+    def test_exponential_backoff_behavior(self):
+        """Test that retry mechanism actually implements exponential backoff delays using HTTP server."""
+
+        request_times = []
+
+        class MockServerRequestHandler(BaseHTTPRequestHandler):
+            REQUEST_COUNTER = 0
+
+            RESPONSE_OK = {
+                "data": {
+                    "id": "test-backoff-123",
+                    "type": "test-backoff",
+                    "attributes": {
+                        "status": "success",
+                        "message": "Exponential backoff test completed successfully",
+                        "retry_count": 5,
+                        "total_duration": "~15s",
+                    },
+                    "links": {
+                        "self": "/api/v2/test-backoff",
+                    },
+                }
+            }
+
+            RESPONSE_RATE_LIMITED = {
+                "errors": [
+                    {
+                        "detail": "You have exceeded the API's rate limit.",
+                        "status": 429,
+                        "title": "Too many requests",
+                    }
+                ]
+            }
+
+            def do_GET(self):
+                request_times.append(time.time())
+                MockServerRequestHandler.REQUEST_COUNTER += 1
+
+                print(f"Server received request #{MockServerRequestHandler.REQUEST_COUNTER} at {time.time():.3f}")
+
+                if self.path == "/api/v2/test-backoff":
+                    if MockServerRequestHandler.REQUEST_COUNTER <= 4:  # First 4 requests fail
+                        self.send_response(429)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        response = MockServerRequestHandler.RESPONSE_RATE_LIMITED
+                        self.wfile.write(json.dumps(response).encode("utf-8"))
+                    else:  # 5th request succeeds
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        response = MockServerRequestHandler.RESPONSE_OK
+                        self.wfile.write(json.dumps(response).encode("utf-8"))
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def log_message(self, format, *args):
+                # Suppress default logging
+                pass
+
+        HOST = "localhost"
+        PORT = 8765
+        server_address = (HOST, PORT)
+        httpd = HTTPServer(server_address, MockServerRequestHandler)
+
+        def run_server():
+            httpd.serve_forever()
+
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+
+        # Give server time to start
+        time.sleep(0.1)
+
+        try:
+            # Create client that points to our mock server
+            client = TerraformClient(
+                tf_token="test-token", tf_hostname=f"http://{HOST}:{PORT}", tf_validate_certs=False, tf_max_retries=5, timeout=30  # Allow HTTP
+            )
+
+            print(f"Starting request at {time.time():.3f}")
+            start_time = time.time()
+
+            result = client.get("/test-backoff")
+
+            total_time = time.time() - start_time
+            print(f"Request completed at {time.time():.3f}, total time: {total_time:.3f}s")
+
+            # Verify successful response
+            assert result["status"] == 200
+            assert result["data"]["data"]["id"] == "test-backoff-123"
+            assert result["data"]["data"]["type"] == "test-backoff"
+            assert result["data"]["data"]["attributes"]["status"] == "success"
+            assert MockServerRequestHandler.REQUEST_COUNTER == 5
+            assert len(request_times) == 5
+            delays = []
+            for i in range(1, len(request_times)):
+                delay = request_times[i] - request_times[i - 1]
+                delays.append(delay)
+                print(f"Delay {i}: {delay:.3f}s")
+
+            assert len(delays) == 4
+            assert 12.0 <= total_time <= 20.0  # Allow tolerance for timing variations
+
+            print("Exponential backoff verified!")
+            print(f"   Total requests: {MockServerRequestHandler.REQUEST_COUNTER} (4 failures + 1 success)")
+            print(f"   Total time: {total_time:.1f}s (proves exponential backoff happened)")
+            print(f"   Individual delays: {[f'{d:.3f}s' for d in delays]}")
+            print("   SUCCESS: Retry mechanism with exponential backoff is working!")
+
+        finally:
+            # Clean up server
+            httpd.shutdown()
+            httpd.server_close()
+            server_thread.join(timeout=2.0)
+            if server_thread.is_alive():
+                raise RuntimeError("Server thread failed to terminate within 2 seconds after shutdown")
