@@ -33,7 +33,7 @@ jobs:
       collection_pre_install: >-
         git+https://github.com/ansible-collections/ansible.utils.git
 
-  code-quality:
+  flake:
     name: Code Quality (isort, flake8)
     runs-on: ubuntu-latest
     steps:
@@ -48,19 +48,36 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install isort flake8
-
-      - name: Check import sorting with isort
-        run: |
-          echo "=== CI WORKFLOW: ISORT CHECK ==="
-          python -m isort --check-only --diff plugins/ tests/
-          echo "✅ ISORT: PASS"
+          pip install flake8
 
       - name: Check code style with flake8
         run: |
           echo "=== CI WORKFLOW: FLAKE8 CHECK ==="
           python -m flake8 plugins/ tests/ --max-line-length=130 --extend-ignore=DOC,E402,F841 --exclude='__pycache__,*.pyc,.git,build,dist'
-          echo "✅ FLAKE8: PASS"
+          echo "FLAKE8: PASS"
+  
+  isort:
+    name: Code Quality (isort, flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install isort
+
+      - name: Check import sorting with isort
+        run: |
+          echo "=== CI WORKFLOW: ISORT CHECK ==="
+          python -m isort --check-only --diff plugins/ tests/
+          echo "ISORT: PASS"
 
   all_green:
     if: ${{ always() }}
@@ -71,7 +88,8 @@ jobs:
       - unit-galaxy
       - unit-source
       - ansible-lint
-      - code-quality
+      - flake
+      - isort
     runs-on: ubuntu-latest
     steps:
       - run: >-
@@ -82,5 +100,6 @@ jobs:
           '${{ needs.unit-galaxy.result }}',
           '${{ needs.ansible-lint.result }}',
           '${{ needs.unit-source.result }}',
-          '${{ needs.code-quality.result }}'
+          '${{ needs.flake.result }}',
+          '${{ needs.isort.result }}',
           ])"
