@@ -144,6 +144,7 @@ import tempfile
 import gzip
 import time
 from typing import Any, Dict, Tuple
+from pathlib import Path
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,
     TerraformModule,
@@ -156,6 +157,20 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
     get_config,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
+
+
+def expand_path(path: str) -> Path:
+    """Resolve absolute path.
+
+    Args:
+        path: Path to expand.
+
+    Returns:
+        Expanded absolute path.
+    """
+    _path = Path(os.path.expandvars(path))
+    _path = _path.expanduser()
+    return _path.resolve()
 
 
 def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
@@ -173,13 +188,18 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
     Returns:
         str: A path to the prepared tar.gz file or the original valid file.
     """
-    if os.path.isdir(configuration_files_path):
+    expanded_path = expand_path(configuration_files_path)
+
+    if not expanded_path.exists():
+        module.fail_json(msg=f"The path '{expanded_path}' does not exist.")
+
+    if expanded_path.is_dir():
         try:
             temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
             os.close(temp_fd)
             with tarfile.open(temp_tar_path, "w:gz") as tar:
-                for item in os.listdir(configuration_files_path):
-                    item_path = os.path.join(configuration_files_path, item)
+                for item in os.listdir(expanded_path):
+                    item_path = os.path.join(expanded_path, item)
                     tar.add(item_path, arcname=item)
             return temp_tar_path
         except Exception as e:
@@ -187,22 +207,20 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                 msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}"
             )
 
-    if os.path.isfile(configuration_files_path):
-        if tarfile.is_tarfile(configuration_files_path):
+    if expanded_path.is_file():
+        if tarfile.is_tarfile(expanded_path):
             try:
-                with gzip.open(configuration_files_path, "rb") as f:
+                with gzip.open(expanded_path, "rb") as f:
                     f.read(1)
-                return configuration_files_path
+                return str(expanded_path)
             except Exception as e:
                 module.fail_json(msg="Bad gzip file")
         else:
-            module.fail_json(
-                msg=f"The path '{configuration_files_path}' is not a valid tar.gz archive. "
-            )
+            module.fail_json(msg=f"The path '{expanded_path}' is not a valid tar.gz archive. ")
 
     else:
         module.fail_json(
-            msg=f"The path '{configuration_files_path}' is not a file or recognized archive format."
+            msg=f"The path '{expanded_path}' is not a file or recognized archive format."
         )
 
 
