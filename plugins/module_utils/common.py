@@ -339,9 +339,7 @@ class ClientMixin:
         elif not self.hostname:
             raise TerraformHostnameNotFoundError("Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument.")
         elif self.hostname.startswith("http://") and self.verify:
-            raise TerraformSSLValidationError(
-                "Invalid configuration: SSL verification is enabled (`TF_VALIDATE_CERTS=True`), " "but the URL starts with 'http://' (non-secure)"
-            )
+            raise TerraformSSLValidationError("Invalid configuration: SSL verification is enabled but the URL starts with 'http://' (non-secure)")
 
     def create_session(self, **kwargs: Any) -> Any:
         """
