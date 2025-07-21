@@ -361,7 +361,7 @@ class ClientMixin:
             read=self.tf_max_retries,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+            allowed_methods=frozenset(["GET", "PUT", "DELETE"]),
             raise_on_status=False,
         )
         adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
