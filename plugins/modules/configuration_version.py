@@ -348,6 +348,7 @@ def main():
             configuration_files_path=dict(aliases=["project_path"], type="str", required=False),
             interval=dict(type="int", required=False, default=1),
         ),
+        required_together=[["workspace", "organization"]],
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
