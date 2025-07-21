@@ -159,20 +159,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def expand_path(path: str) -> Path:
-    """Resolve absolute path.
-
-    Args:
-        path: Path to expand.
-
-    Returns:
-        Expanded absolute path.
-    """
-    _path = Path(os.path.expandvars(path))
-    _path = _path.expanduser()
-    return _path.resolve()
-
-
 def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
     """
     Validates and prepares the given path for upload.
@@ -188,7 +174,7 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
     Returns:
         str: A path to the prepared tar.gz file or the original valid file.
     """
-    expanded_path = expand_path(configuration_files_path)
+    expanded_path = Path(configuration_files_path).resolve()
 
     if not expanded_path.exists():
         module.fail_json(msg=f"The path '{expanded_path}' does not exist.")
@@ -363,7 +349,7 @@ def main():
             auto_queue_runs=dict(type="bool", default=True),
             speculative=dict(type="bool", default=False),
             provisional=dict(type="bool", default=False),
-            configuration_files_path=dict(aliases=["project_path"], type="str"),
+            configuration_files_path=dict(aliases=["project_path"], type="path"),
             interval=dict(type="int", default=1),
         ),
         required_together=[["workspace", "organization"]],
