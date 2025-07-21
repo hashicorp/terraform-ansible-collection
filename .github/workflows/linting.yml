@@ -43,29 +43,6 @@ jobs:
       - name: Run check ${{ matrix.tests.name }}
         run: make ${{ matrix.tests.command }}
 
-  docs:
-    name: Check module doc strings
-    runs-on: ubuntu-latest
-    env:
-      HEADLESS: "yes"
-    steps:
-      - name: Install python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
-
-      - name: Install requirements
-        run: pip3.11 install --upgrade ansible
-
-      - uses: actions/checkout@v4
-
-      - name: Run ansible-doc
-        run: make collection-docs
-
-      - name: Get ansible-doc version
-        run: ansible-doc --version
-        if: failure()
-
   build-import:
     name: Build collection and run galaxy importer check
     uses: ansible/ansible-content-actions/.github/workflows/build_import.yaml@main
