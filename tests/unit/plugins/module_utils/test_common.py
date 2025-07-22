@@ -318,8 +318,6 @@ class TestTerraformClient:
         assert client.verify is True
         assert client.session == mock_session_instance
 
-
-
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_init_custom_hostname(self, mock_session):
         """Test TerraformClient initialization with custom hostname."""
@@ -429,7 +427,7 @@ class TestTerraformClient:
         # This should not raise an error - HTTP URLs with SSL verification should be allowed
         # (in case of redirects to HTTPS)
         client = TerraformClient(tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True)
-        
+
         assert client.verify is True  # SSL verification should remain enabled
 
     @patch("plugins.module_utils.common.requests.Session")
@@ -612,8 +610,6 @@ class TestArchivistClient:
 
         assert client.hostname == "archivist.terraform.io"
         assert client.base_url == "https://archivist.terraform.io/v1"
-
-
 
 
 class TestClientMixinAdditional:
