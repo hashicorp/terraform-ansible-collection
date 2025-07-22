@@ -18,6 +18,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
     get_config,
 )
 
+@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration.re', re)
 @patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration.requests')
 class TestConfigFunctions(unittest.TestCase):
     """Unit tests for Terraform configuration helper functions."""
