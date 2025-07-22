@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import Mock, patch, mock_open
-import requests
 
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 # Assuming the module is in the correct path for this import to work
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import (
     create_config,

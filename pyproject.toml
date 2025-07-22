@@ -5,3 +5,20 @@ line-length = 100
 addopts = ["-vvv", "-n", "2", "--log-level", "WARNING", "--color", "yes"]
 filterwarnings = ['ignore:AnsibleCollectionFinder has already been configured']
 testpaths = ["tests"]
+
+[dependency-groups]
+test = [
+    "pytest",
+    "pytest-mock",      # Provides the 'mocker' fixture
+    "pytest-ansible",   # From test-requirements.txt
+    "pytest-xdist",     # From test-requirements.txt
+    "requests",         # Used in test files
+]
+integration = [
+    "molecule",         # From test-requirements.txt
+    "ansible-navigator",
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "integration"},
+]
