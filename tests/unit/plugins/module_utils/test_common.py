@@ -25,7 +25,6 @@ from plugins.module_utils.common import (
 )
 from plugins.module_utils.exceptions import (
     TerraformHostnameNotFoundError,
-    TerraformSSLValidationError,
     TerraformTokenNotFoundError,
 )
 
