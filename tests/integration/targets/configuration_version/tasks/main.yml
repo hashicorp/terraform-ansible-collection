@@ -3,15 +3,15 @@
   module_defaults:
     group/hashicorp.terraform.terraform:
       tf_token: "{{ tfc_token }}"
-  block: 
+  block:
     - name: Generate a unique ID
-      set_fact:
+      ansible.builtin.set_fact:
         unique_id: "{{ 'terraform' | to_uuid }}"
     - name: Generate unique workspace name
-      set_fact:
+      ansible.builtin.set_fact:
         workspace_name: "{{ unique_id }}-workspace"
     - name: Create a Terraform workspace with unique name
-      uri:
+      ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/organizations/Ansible-BU-TFC/workspaces"
         method: POST
         headers:
@@ -29,19 +29,19 @@
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.json.data.id }}"
-    - name: Ensure rendered config dir exists
-      file:
-        path: "../rendered-config"
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
         state: directory
-    - name: Render main.tf from template
-      template:
-        src: "../templates/main.tf.j2"
-        dest: "../rendered-config/main.tf"
+      register: temp_dir
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
     - name: Create configuration version which is not the current version
       hashicorp.terraform.configuration_version:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
-        configuration_files_path: "../rendered-config"
+        configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: False
         provisional: True
         tf_validate_certs: True
@@ -68,7 +68,7 @@
     - name: Create configuration version
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
-        configuration_files_path: "../rendered-config"
+        configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: False
         tf_validate_certs: True
         state: present
