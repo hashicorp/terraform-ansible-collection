@@ -1,0 +1,96 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+  block: 
+    - name: Generate a unique ID
+      set_fact:
+        unique_id: "{{ 'terraform' | to_uuid }}"
+    - name: Generate unique workspace name
+      set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+    - name: Create a Terraform workspace with unique name
+      uri:
+        url: "https://app.terraform.io/api/v2/organizations/Ansible-BU-TFC/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      register: workspace_create_response
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+    - name: Ensure rendered config dir exists
+      file:
+        path: "../rendered-config"
+        state: directory
+    - name: Render main.tf from template
+      template:
+        src: "../templates/main.tf.j2"
+        dest: "../rendered-config/main.tf"
+    - name: Create configuration version which is not the current version
+      hashicorp.terraform.configuration_version:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        configuration_files_path: "../rendered-config"
+        auto_queue_runs: False
+        provisional: True
+        tf_validate_certs: True
+        state: present
+      register: result
+    - name: Assert upload success
+      assert:
+        that:
+          - result.changed
+          - result.upload_response == 200
+          - result.config_status == 'uploaded'
+    - name: Archive configuration
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: "{{ result.configuration_version_id }}"
+        state: archive
+        tf_validate_certs: True
+      register: result
+    - name: Assert archive was successful
+      assert:
+        that:
+          - result.changed
+          - result.full_response.status == 202
+          - result.msg == "Configuration version archived successfully."
+    - name: Create configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "../rendered-config"
+        auto_queue_runs: False
+        tf_validate_certs: True
+        state: present
+      register: result
+    - name: Assert upload success
+      assert:
+        that:
+          - result.changed
+          - result.upload_response == 200
+          - result.config_status == 'uploaded'
+  always:
+    - name: Force delete workspace
+      uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      register: workspace_delete_response
+    - name: Clean up rendered config directory
+      file:
+        path: "./rendered-config"
+        state: absent

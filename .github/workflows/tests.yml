@@ -30,6 +30,8 @@ jobs:
     with:
       collection_pre_install: >-
         git+https://github.com/ansible-collections/ansible.utils.git
+  integration:
+    uses: ansible/ansible-content-actions/.github/workflows/integration.yaml@main
   all_green:
     if: ${{ always() }}
     needs:
