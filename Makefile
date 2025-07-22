@@ -44,4 +44,4 @@ collection-docs:
 collection-lint:
 	ansible-lint
 
-.PHONY: help check_black check_flake8 check_isort fix_black fix_isort lint_all collection-docs collection-lint 
+.PHONY: help check_black check_flake8 check_isort fix_black fix_isort lint_all collection-docs collection-lint

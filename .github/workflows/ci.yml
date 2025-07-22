@@ -25,8 +25,8 @@ jobs:
     uses: ansible/ansible-content-actions/.github/workflows/ansible_lint.yaml@main
   sanity:
     uses: ansible/ansible-content-actions/.github/workflows/sanity.yaml@main
-  unit-source:
-    uses: ansible-network/github_actions/.github/workflows/unit_source.yml@main
+  unit-galaxy:
+    uses: ansible/ansible-content-actions/.github/workflows/unit.yaml@main
     with:
       collection_pre_install: >-
         git+https://github.com/ansible-collections/ansible.utils.git
@@ -37,7 +37,7 @@ jobs:
       - changelog
       - build-import
       - sanity
-      - unit-source
+      - unit-galaxy
       - ansible-lint
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +46,6 @@ jobs:
           set([
           '${{ needs.changelog.result }}',
           '${{ needs.sanity.result }}',
-          '${{ needs.unit-source.result }}',
+          '${{ needs.unit-galaxy.result }}',
           '${{ needs.ansible-lint.result }}',
           ])"
