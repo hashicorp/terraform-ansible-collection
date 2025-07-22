@@ -46,8 +46,8 @@ class TerraformModule(AnsibleModule):
             "fallback": (env_fallback, ["TF_HOSTNAME"]),
         },
         "tf_validate_certs": {
-            "required": True,
             "fallback": (env_fallback, ["TF_VALIDATE_CERTS"]),
+            "default": True,
         },
         "tf_max_retries": {
             "required": False,
