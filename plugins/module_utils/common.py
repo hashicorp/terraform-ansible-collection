@@ -46,8 +46,8 @@ class TerraformModule(AnsibleModule):
             "fallback": (env_fallback, ["TF_HOSTNAME"]),
         },
         "tf_validate_certs": {
-            "required": True,
             "fallback": (env_fallback, ["TF_VALIDATE_CERTS"]),
+            "default": True,
         },
         "tf_max_retries": {
             "required": False,
@@ -341,7 +341,7 @@ class ClientMixin:
     def pre_checks(self):
         """Perform pre-checks to ensure the client is configured correctly."""
         if not isinstance(self, ArchivistClient) and not self._token:
-            raise TerraformTokenNotFoundError("Terraform token not found. Set the TFE_TOKEN environment variable or pass it as an argument.")
+            raise TerraformTokenNotFoundError("Terraform token not found. Set the TF_TOKEN environment variable or pass it as the tf_token module argument.")
         elif not self.hostname:
             raise TerraformHostnameNotFoundError("Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument.")
         elif self.hostname.startswith("http://") and self.verify:
@@ -456,3 +456,4 @@ class ArchivistClient(ClientMixin):
         if re.match(HTTP_URL_PATTERN, self.hostname):
             return f"{self.hostname}/v1"
         return f"https://{self.hostname}/v1"
+
