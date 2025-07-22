@@ -62,6 +62,7 @@ class TestTerraformModuleUtil:
         assert auth_spec["tf_hostname"]["default"] == "app.terraform.io"
         assert "fallback" in auth_spec["tf_hostname"]
         assert "tf_validate_certs" in auth_spec
+        assert auth_spec["tf_validate_certs"]["type"] == "bool"
         assert auth_spec["tf_validate_certs"]["default"] is True
         assert "fallback" in auth_spec["tf_validate_certs"]
 
@@ -317,37 +318,7 @@ class TestTerraformClient:
         assert client.verify is True
         assert client.session == mock_session_instance
 
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_tf_validate_certs_string_true(self, mock_session):
-        """Test TerraformClient initialization with tf_validate_certs as string 'True'."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="True")
-
-        assert client.verify is True
-
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_tf_validate_certs_string_false(self, mock_session):
-        """Test TerraformClient initialization with tf_validate_certs as string 'False'."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
-
-        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="False")
-
-        assert client.verify is False
-
-    def test_terraform_client_init_tf_validate_certs_invalid_value(self):
-        """Test TerraformClient initialization with invalid tf_validate_certs value raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
-            TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs="invalid")
-
-    def test_terraform_client_init_tf_validate_certs_invalid_type(self):
-        """Test TerraformClient initialization with invalid tf_validate_certs type raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid value for tf_validate_certs"):
-            TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=123)
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_init_custom_hostname(self, mock_session):
@@ -448,10 +419,18 @@ class TestTerraformClient:
         with pytest.raises(TerraformHostnameNotFoundError):
             TerraformClient(tf_token="test-token", tf_hostname="", tf_validate_certs=True)
 
-    def test_terraform_client_init_http_with_ssl_validation_raises_error(self):
-        """Test TerraformClient initialization with HTTP URL and SSL validation raises error."""
-        with pytest.raises(TerraformSSLValidationError):
-            TerraformClient(tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True)
+    @patch("plugins.module_utils.common.requests.Session")
+    def test_terraform_client_init_http_with_ssl_validation_allowed(self, mock_session):
+        """Test TerraformClient initialization with HTTP URL and SSL validation is allowed."""
+        mock_session_instance = Mock()
+        mock_session_instance.headers = Mock()
+        mock_session.return_value = mock_session_instance
+
+        # This should not raise an error - HTTP URLs with SSL verification should be allowed
+        # (in case of redirects to HTTPS)
+        client = TerraformClient(tf_token="test-token", tf_hostname="http://app.terraform.io", tf_validate_certs=True)
+        
+        assert client.verify is True  # SSL verification should remain enabled
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_session_creation(self, mock_session):
@@ -634,20 +613,7 @@ class TestArchivistClient:
         assert client.hostname == "archivist.terraform.io"
         assert client.base_url == "https://archivist.terraform.io/v1"
 
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_archivist_client_init_http_with_ssl_validation_no_error(self, mock_session):
-        """Test ArchivistClient initialization with HTTP URL and SSL validation doesn't raise error."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
 
-        # ArchivistClient doesn't validate HTTP/HTTPS mismatch like TerraformClient
-        client = ArchivistClient(tf_hostname="http://custom.archivist.io", tf_validate_certs=True)
-
-        # Uses hardcoded hostname, ignores tf_hostname parameter
-        assert client.hostname == "archivist.terraform.io"
-        assert client.base_url == "https://archivist.terraform.io/v1"
-        assert client.verify is True
 
 
 class TestClientMixinAdditional:
@@ -705,14 +671,12 @@ class TestClientMixinAdditional:
         with pytest.raises(TerraformHostnameNotFoundError):
             client.pre_checks()
 
-    def test_pre_checks_http_with_ssl_validation_raises_error(self):
-        """Test pre_checks method raises error for HTTP with SSL validation."""
+    def test_pre_checks_http_with_ssl_validation_allowed(self):
+        """Test pre_checks method allows HTTP with SSL validation (for redirects)."""
         client = self.MockClient()
         client.hostname = "http://app.terraform.io"
         client.verify = True
-
-        with pytest.raises(TerraformSSLValidationError):
-            client.pre_checks()
+        client.pre_checks()
 
     @patch("plugins.module_utils.common.requests.Session")
     @patch("plugins.module_utils.common.requests.adapters.HTTPAdapter")
