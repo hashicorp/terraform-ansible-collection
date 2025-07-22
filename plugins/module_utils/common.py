@@ -25,7 +25,6 @@ from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_requ
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
-    TerraformSSLValidationError,
     TerraformTokenNotFoundError,
 )
 
