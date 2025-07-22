@@ -1,12 +1,15 @@
 import unittest
 from unittest.mock import Mock, patch, mock_open
 
-try:
-    import requests
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
-# Assuming the module is in the correct path for this import to work
+
+# Mock HTTPError class for testing
+class MockHTTPError(Exception):
+    def __init__(self, response=None):
+        self.response = response
+        super().__init__()
+
+
+# Import the module under test
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import (
     create_config,
     archive_config,
@@ -14,6 +17,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration 
     get_config,
 )
 
+@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration.requests')
 class TestConfigFunctions(unittest.TestCase):
     """Unit tests for Terraform configuration helper functions."""
 
@@ -29,7 +33,7 @@ class TestConfigFunctions(unittest.TestCase):
 
     # --- create_config ---
 
-    def test_create_config_success(self):
+    def test_create_config_success(self, mock_requests):
         """Test successful creation of a configuration version."""
         expected_response = {"data": {"id": self.config_version_id}}
         self.mock_tf_client.post.return_value = expected_response
@@ -42,26 +46,28 @@ class TestConfigFunctions(unittest.TestCase):
             data=self.payload
         )
 
-    def test_create_config_404(self):
+    def test_create_config_404(self, mock_requests):
         """Test create_config returns None on a 404 HTTPError."""
         response = Mock(status_code=404)
-        self.mock_tf_client.post.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
         
         result = create_config(self.mock_tf_client, self.workspace_id, self.payload)
         
         self.assertIsNone(result)
 
-    def test_create_config_other_error(self):
+    def test_create_config_other_error(self, mock_requests):
         """Test create_config raises other HTTPErrors."""
         response = Mock(status_code=500)
-        self.mock_tf_client.post.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
         
-        with self.assertRaises(requests.HTTPError):
+        with self.assertRaises(MockHTTPError):
             create_config(self.mock_tf_client, self.workspace_id, self.payload)
 
     # --- archive_config ---
 
-    def test_archive_config_success(self):
+    def test_archive_config_success(self, mock_requests):
         """Test successful archiving of a configuration version."""
         expected_response = {"status": "archived"}
         self.mock_tf_client.post.return_value = expected_response
@@ -73,10 +79,11 @@ class TestConfigFunctions(unittest.TestCase):
             f"/configuration-versions/{self.config_version_id}/actions/archive"
         )
 
-    def test_archive_config_404(self):
+    def test_archive_config_404(self, mock_requests):
         """Test archive_config returns None on a 404 HTTPError."""
         response = Mock(status_code=404)
-        self.mock_tf_client.post.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
         
         result = archive_config(self.mock_tf_client, self.config_version_id)
         
@@ -84,7 +91,7 @@ class TestConfigFunctions(unittest.TestCase):
 
     # --- get_config ---
 
-    def test_get_config_success(self):
+    def test_get_config_success(self, mock_requests):
         """Test successfully fetching a configuration version."""
         expected_response = {"data": {"attributes": {"status": "uploaded"}}}
         self.mock_tf_client.get.return_value = expected_response
@@ -96,10 +103,11 @@ class TestConfigFunctions(unittest.TestCase):
             f"/configuration-versions/{self.config_version_id}"
         )
 
-    def test_get_config_404(self):
+    def test_get_config_404(self, mock_requests):
         """Test get_config returns None on a 404 HTTPError."""
         response = Mock(status_code=404)
-        self.mock_tf_client.get.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_tf_client.get.side_effect = MockHTTPError(response=response)
         
         result = get_config(self.mock_tf_client, self.config_version_id)
         
@@ -108,7 +116,7 @@ class TestConfigFunctions(unittest.TestCase):
     # --- upload_config ---
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
-    def test_upload_config_success_full_url(self, mock_file):
+    def test_upload_config_success_full_url(self, mock_file, mock_requests):
         """Test successful upload when a full HTTPS URL is provided."""
         self.mock_archivist_client.base_url = "https://tfe.example.com"
         expected_response = {"status": "uploaded"}
@@ -121,7 +129,7 @@ class TestConfigFunctions(unittest.TestCase):
         self.mock_archivist_client.put.assert_called_once_with(self.upload_url, mock_file())
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
-    def test_upload_config_success_relative_path(self, mock_file):
+    def test_upload_config_success_relative_path(self, mock_file, mock_requests):
         """Test successful upload when a relative path is constructed."""
         self.mock_archivist_client.base_url = "http://localhost:8080"
         relative_upload_path = "config.tar.gz"
@@ -135,24 +143,26 @@ class TestConfigFunctions(unittest.TestCase):
         self.mock_archivist_client.put.assert_called_once_with(f"/object/{relative_upload_path}", mock_file())
 
     @patch("builtins.open", new_callable=mock_open)
-    def test_upload_config_404(self, mock_file):
+    def test_upload_config_404(self, mock_file, mock_requests):
         """Test upload_config returns None on a 404 HTTPError."""
         self.mock_archivist_client.base_url = "https://tfe.example.com"
         response = Mock(status_code=404)
-        self.mock_archivist_client.put.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_archivist_client.put.side_effect = MockHTTPError(response=response)
         
         result = upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
         
         self.assertIsNone(result)
 
     @patch("builtins.open", new_callable=mock_open)
-    def test_upload_config_other_error(self, mock_file):
+    def test_upload_config_other_error(self, mock_file, mock_requests):
         """Test upload_config raises other HTTPErrors."""
         self.mock_archivist_client.base_url = "https://tfe.example.com"
         response = Mock(status_code=500)
-        self.mock_archivist_client.put.side_effect = requests.HTTPError(response=response)
+        mock_requests.HTTPError = MockHTTPError
+        self.mock_archivist_client.put.side_effect = MockHTTPError(response=response)
         
-        with self.assertRaises(requests.HTTPError):
+        with self.assertRaises(MockHTTPError):
             upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
 
 if __name__ == "__main__":

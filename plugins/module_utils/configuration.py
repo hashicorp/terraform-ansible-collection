@@ -1,12 +1,11 @@
 try:
     import requests
     import re
-
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
+    requests = None
     re = None
-
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,

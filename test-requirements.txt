@@ -1,4 +1,10 @@
-# TO-DO: add python packages that are required for testing this collection
+# Test dependencies for hashicorp.terraform collection
+pytest
+pytest-mock
 pytest-ansible
 pytest-xdist
+# Note: requests is mocked in tests, not imported directly
+
+# Integration testing
 molecule
+ansible-navigator
