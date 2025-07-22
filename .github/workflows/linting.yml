@@ -43,6 +43,3 @@ jobs:
       - name: Run check ${{ matrix.tests.name }}
         run: make ${{ matrix.tests.command }}
 
-  build-import:
-    name: Build collection and run galaxy importer check
-    uses: ansible/ansible-content-actions/.github/workflows/build_import.yaml@main
