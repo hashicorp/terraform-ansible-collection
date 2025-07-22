@@ -16,7 +16,6 @@ from ansible_collections.hashicorp.terraform.plugins.modules.configuration_versi
 )
 
 
-# <<< IMPROVEMENT: A more robust dummy module to inspect call arguments.
 class EnhancedDummyModule:
     """A mock Ansible module for better inspection in tests."""
     def __init__(self, params=None):
@@ -37,7 +36,6 @@ class EnhancedDummyModule:
         raise SystemExit(kwargs)
 
 
-# <<< IMPROVEMENT: Fixtures are more robust and self-contained.
 @pytest.fixture
 def temp_dir_with_files():
     """Create a temporary directory with a dummy file, ensuring cleanup."""
@@ -67,10 +65,6 @@ def corrupt_tar_file():
         f.write(b"this is not a tar file")
     yield path
     os.remove(path)
-
-###
-# Tests for validate_and_prepare_tar
-###
 
 def test_validate_prepare_tar_from_directory(temp_dir_with_files):
     """Verify that a directory is correctly archived into a tar.gz file."""
@@ -108,10 +102,6 @@ def test_validate_prepare_tar_failures(file_fixture, expected_error_msg, request
     assert expected_error_msg in str(exc_info.value)
     assert module.failed is True
 
-
-###
-# Tests for individual functions
-###
 
 def test_create_configuration_version_success():
     """Verify successful creation of a configuration version."""
@@ -208,10 +198,6 @@ def test_get_configuration_version_timeout_failure():
         assert module.failed
 
 
-###
-# Tests for main() function logic
-###
-
 @pytest.fixture
 def mocked_main_dependencies(mocker):
     """A fixture to mock all external dependencies for main()."""
@@ -284,8 +270,6 @@ def test_main_present_upload_fails(mocked_main_dependencies):
 
     assert "Upload failed" in str(exc_info.value)
 
-
-# <<< IMPROVEMENT: Test for the 'absent' state.
 def test_main_absent_fails_with_message(mocked_main_dependencies):
     """Verify state=absent fails with the correct informational message."""
     params = {"state": "absent"}
