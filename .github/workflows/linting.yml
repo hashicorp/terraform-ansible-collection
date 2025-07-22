@@ -42,4 +42,3 @@ jobs:
 
       - name: Run check ${{ matrix.tests.name }}
         run: make ${{ matrix.tests.command }}
-
