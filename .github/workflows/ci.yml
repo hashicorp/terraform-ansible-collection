@@ -8,6 +8,8 @@ concurrency:
 on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [main]
+  push:
+    branches: [main]  # Run on main and feature branches
   workflow_dispatch:
   # TO-DO: Below is an example cron scheduler. Uncomment and tweak it as per your requirement
   # schedule:
@@ -27,13 +29,6 @@ jobs:
     uses: ansible/ansible-content-actions/.github/workflows/unit.yaml@main
     with:
       python_dependencies: "pytest-mock"
-  unit-source:
-    uses: ansible-network/github_actions/.github/workflows/unit_source.yml@main
-    with:
-      collection_pre_install: >-
-        git+https://github.com/ansible-collections/ansible.utils.git
-      python_dependencies: >-
-        pytest-mock
   integration:
     uses: ansible/ansible-content-actions/.github/workflows/integration.yaml@main
   all_green:
@@ -45,6 +40,7 @@ jobs:
       - unit-galaxy
       - unit-source
       - ansible-lint
+      - integration
     runs-on: ubuntu-latest
     steps:
       - run: >-
@@ -52,7 +48,7 @@ jobs:
           set([
           '${{ needs.changelog.result }}',
           '${{ needs.sanity.result }}',
-          '${{ needs.unit-galaxy.result }}'
-          '${{ needs.ansible-lint.result }}'
-          '${{ needs.unit-source.result }}'
+          '${{ needs.unit-galaxy.result }}',
+          '${{ needs.ansible-lint.result }}',
+          '${{ needs.integration.result }}'
           ])"
