@@ -346,7 +346,6 @@ class ClientMixin:
         elif not self.hostname:
             raise TerraformHostnameNotFoundError("Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument.")
 
-
     def create_session(self, **kwargs: Any) -> Any:
         """
         Create a requests session with the specified parameters.
@@ -373,7 +372,7 @@ class ClientMixin:
         adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
 
         self.session.verify = kwargs.get("validate_certs")
-        
+
         if self.url.startswith("https://"):
             self.session.mount("https://", adapter)
         else:
