@@ -25,7 +25,6 @@ from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_requ
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
-    TerraformSSLValidationError,
     TerraformTokenNotFoundError,
 )
 
@@ -46,6 +45,7 @@ class TerraformModule(AnsibleModule):
             "fallback": (env_fallback, ["TF_HOSTNAME"]),
         },
         "tf_validate_certs": {
+            "type": "bool",
             "fallback": (env_fallback, ["TF_VALIDATE_CERTS"]),
             "default": True,
         },
@@ -344,8 +344,6 @@ class ClientMixin:
             raise TerraformTokenNotFoundError("Terraform token not found. Set the TF_TOKEN environment variable or pass it as the tf_token module argument.")
         elif not self.hostname:
             raise TerraformHostnameNotFoundError("Terraform hostname not found. Set the TF_HOSTNAME environment variable or pass it as an argument.")
-        elif self.hostname.startswith("http://") and self.verify:
-            raise TerraformSSLValidationError("Invalid configuration: SSL verification is enabled but the URL starts with 'http://' (non-secure)")
 
     def create_session(self, **kwargs: Any) -> Any:
         """
@@ -372,11 +370,11 @@ class ClientMixin:
         )
         adapter = requests.adapters.HTTPAdapter(max_retries=self.retry_strategy)
 
+        self.session.verify = kwargs.get("validate_certs")
+
         if self.url.startswith("https://"):
-            self.session.verify = kwargs.get("validate_certs")
             self.session.mount("https://", adapter)
         else:
-            self.session.verify = False
             self.session.mount("http://", adapter)
         return self.session
 
@@ -385,13 +383,7 @@ class TerraformClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = kwargs.get("tf_hostname")
         self._token: str = kwargs.get("tf_token")
-        tf_validate_certs = kwargs.get("tf_validate_certs")
-        if isinstance(tf_validate_certs, bool):
-            self.verify: bool = tf_validate_certs
-        elif isinstance(tf_validate_certs, str) and tf_validate_certs in ["True", "False"]:
-            self.verify: bool = tf_validate_certs == "True"
-        else:
-            raise ValueError(f"Invalid value for tf_validate_certs. Expected a boolean or 'True'/'False' string, got: {tf_validate_certs}")
+        self.verify: bool = kwargs.get("tf_validate_certs")
 
         self.headers: Dict[str, str] = kwargs.get("headers", {})
         self.session_args: Dict[str, Any] = {
@@ -456,4 +448,3 @@ class ArchivistClient(ClientMixin):
         if re.match(HTTP_URL_PATTERN, self.hostname):
             return f"{self.hostname}/v1"
         return f"https://{self.hostname}/v1"
-
