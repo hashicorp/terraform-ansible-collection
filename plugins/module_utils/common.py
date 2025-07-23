@@ -38,10 +38,11 @@ class TerraformModule(AnsibleModule):
         "tf_token": {
             "required": False,
             "fallback": (env_fallback, ["TF_TOKEN"]),
+            "no_log": True,
         },
         "tf_hostname": {
             "required": False,
-            "default": "app.terraform.io",
+            "default": "https://app.terraform.io",
             "fallback": (env_fallback, ["TF_HOSTNAME"]),
         },
         "tf_validate_certs": {
