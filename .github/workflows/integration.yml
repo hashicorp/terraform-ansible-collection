@@ -1,0 +1,59 @@
+---
+name: Integration
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  # TO-DO: Below is an example cron scheduler. Uncomment and tweak it as per your requirement
+  # schedule:
+    # - cron: '0 0 * * *'
+
+jobs:
+  run-integration-tests:
+    name: Matrix Integration
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible-version:
+          - stable-2.19
+          - devel
+        python-version:
+          - "3.13"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "${{github.event.pull_request.head.ref}}"
+          repository: "${{ github.event.pull_request.head.repo.full_name }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ansible-core (${{ matrix.ansible-version }})
+        run: python3 -m pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible-version }}.tar.gz --disable-pip-version-check
+
+      - name: Install collection test dependencies
+        run: >-
+            python3 -m pip install -r test-requirements.txt
+
+      - name: Build and install the collection
+        run: >-
+            ansible-galaxy collection install . --force
+
+      - name: List all integration test targets
+        run: >-
+            cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
+              ansible-test integration --list-targets
+
+      - name: Run integration tests (${{ matrix.ansible-version }})
+        run: >-
+            cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
+              ansible-test integration --python ${{ matrix.python-version }} --continue-on-error
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          TFC_CI_TOKEN: "${{ secrets.TFC_CI_TOKEN }}"

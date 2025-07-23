@@ -1,7 +1,6 @@
 # Python packages required for testing and development of this collection
 pytest-ansible
 pytest-xdist
-molecule
 requests
 # Linting and code formatting tools
 tox
