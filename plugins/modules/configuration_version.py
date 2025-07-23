@@ -372,7 +372,10 @@ def main():
         module.fail_json(msg=to_text(e))
 
     try:
-        if params.get("state") == "present" and params.get("configuration_files_path"):
+        if params.get("state") == "absent":
+            module.fail_json(msg="State 'absent' is not yet supported for configuration versions")
+
+        elif params.get("state") == "present" and params.get("configuration_files_path"):
             try:
                 if params.get("tf_max_retries") is None:
                     module.fail_json(msg="Retries has not been set")

@@ -3,8 +3,7 @@ import pytest
 import tempfile
 import shutil
 import tarfile
-import gzip
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import patch, ANY
 from ansible_collections.hashicorp.terraform.plugins.modules import (
     configuration_version as configuration_module,
 )
@@ -66,6 +65,7 @@ def corrupt_tar_file():
     yield path
     os.remove(path)
 
+
 def test_validate_prepare_tar_from_directory(temp_dir_with_files):
     """Verify that a directory is correctly archived into a tar.gz file."""
     module = EnhancedDummyModule()
@@ -88,7 +88,7 @@ def test_validate_prepare_tar_with_valid_archive(valid_tar_file):
     "file_fixture, expected_error_msg",
     [
         ("corrupt_tar_file", "not a valid tar.gz archive"),
-        (None, "does not exist"), # Special case for non-existent path
+        (None, "does not exist"),  # Special case for non-existent path
     ],
 )
 def test_validate_prepare_tar_failures(file_fixture, expected_error_msg, request):
@@ -114,7 +114,7 @@ def test_create_configuration_version_success():
     # Mock the create_config function that's actually called
     with patch('ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_config') as mock_create_config:
         mock_create_config.return_value = mock_return
-        
+
         config_id, upload_url = create_configuration_version(None, params, module)
 
         assert config_id == "cv-123"
@@ -125,11 +125,11 @@ def test_create_configuration_version_api_failure():
     """Verify failure when the API returns an error or unexpected structure."""
     module = EnhancedDummyModule()
     params = {"workspace_id": "invalid-id", "auto_queue_runs": False, "speculative": False, "provisional": False}
-    
+
     # Mock the create_config function that's actually called
     with patch('ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_config') as mock_create_config:
         mock_create_config.side_effect = Exception("API Error: Workspace not found")
-        
+
         with pytest.raises(AssertionError) as exc_info:
             create_configuration_version(None, params, module)
 
@@ -140,15 +140,15 @@ def test_create_configuration_version_api_failure():
 def test_upload_configuration_version_failure(tmp_path):
     """Verify that a non-200 status code from upload fails the module."""
     module = EnhancedDummyModule()
-    
+
     # Create a temporary file to avoid file not found errors
     test_file = tmp_path / "test.tar.gz"
     test_file.write_text("test content")
-    
+
     # Mock the upload_config function that's actually called
     with patch('ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_config') as mock_upload_config:
         mock_upload_config.return_value = {"status": 403, "message": "Forbidden"}
-        
+
         with pytest.raises(AssertionError) as exc_info:
             upload_configuration_version(None, {}, module, "https://fake.upload.url", str(test_file))
 
@@ -172,7 +172,7 @@ def test_get_configuration_version_success(retries_needed):
     # Mock the get_config function that's actually called
     with patch('ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config') as mock_get_config:
         mock_get_config.side_effect = responses
-        
+
         status = get_configuration_version(None, params, module, config_version_id)
 
         assert status == "uploaded"
@@ -185,7 +185,7 @@ def test_get_configuration_version_timeout_failure():
     module = EnhancedDummyModule()
     params = {"interval": 0.01, "tf_max_retries": 3}  # Shorter interval for faster tests
     config_version_id = "cv-123"
-    
+
     # Mock the get_config function that's actually called
     with patch('ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config') as mock_get_config:
         mock_get_config.return_value = {"data": {"data": {"attributes": {"status": "pending"}}}}
@@ -204,12 +204,34 @@ def mocked_main_dependencies(mocker):
     mock_tf_module = mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule")
     mock_tf_client = mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient")
     mock_arc_client = mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient")
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar", return_value="/fake/archive.tar.gz")
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version", return_value=("cv-123", "https://upload.url"))
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version", return_value=200)
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version", return_value="uploaded")
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace", return_value={"data": {"data": {"id": "ws-123"}}})
-    mocker.patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config", return_value={"status": "ok"})
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar",
+        return_value="/fake/archive.tar.gz"
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
+        return_value=("cv-123", "https://upload.url")
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version",
+        return_value=200
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version",
+        return_value="uploaded"
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
+        return_value={"data": {"data": {"id": "ws-123"}}}
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config",
+        return_value={"status": "ok"}
+    )
+    mocker.patch(
+        "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config",
+        return_value={"data": {"data": {"attributes": {"status": "uploaded"}}}}
+    )
 
     # Set up the mocked TerraformClient to return max_retries
     mock_tf_client.return_value.session_args = {"tf_max_retries": 5}
@@ -270,6 +292,7 @@ def test_main_present_upload_fails(mocked_main_dependencies):
 
     assert "Upload failed" in str(exc_info.value)
 
+
 def test_main_absent_fails_with_message(mocked_main_dependencies):
     """Verify state=absent fails with the correct informational message."""
     params = {"state": "absent"}
@@ -284,8 +307,8 @@ def test_main_absent_fails_with_message(mocked_main_dependencies):
 
 
 def test_main_archive_success(mocked_main_dependencies):
-    """Verify the happy path for state=archive."""
-    params = {"state": "archive", "configuration_version_id": "cv-to-archive"}
+    """Verify the happy path for state=archived."""
+    params = {"state": "archived", "configuration_version_id": "cv-to-archive"}
     dummy_module = EnhancedDummyModule(params=params)
     mocked_main_dependencies.return_value = dummy_module
     archive_mock = configuration_module.archive_config

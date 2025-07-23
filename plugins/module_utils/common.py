@@ -75,9 +75,11 @@ class TerraformModule(AnsibleModule):
         add_file_common_args=False,
         supports_check_mode=False,
         required_if=None,
-        required_by={},
+        required_by=None,
     ):
         """Initialize the module updating argspec with auth params."""
+        if required_by is None:
+            required_by = {}
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)
         super().__init__(
             argument_spec,

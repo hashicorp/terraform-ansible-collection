@@ -11,15 +11,15 @@ class MockHTTPError(Exception):
 
 
 # Import the module under test
-from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     create_config,
     archive_config,
     upload_config,
     get_config,
 )
 
-@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration.re', re)
-@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration.requests')
+@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.re', re)
+@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.requests')
 class TestConfigFunctions(unittest.TestCase):
     """Unit tests for Terraform configuration helper functions."""
 
