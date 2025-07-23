@@ -1,10 +1,15 @@
-# Test dependencies for hashicorp.terraform collection
+# Python packages required for testing and development of this collection
 pytest
 pytest-mock
 pytest-ansible
 pytest-xdist
-# Note: requests is mocked in tests, not imported directly
-
+requests
 # Integration testing
 molecule
 ansible-navigator
+# Linting and code formatting tools
+tox
+black
+flake8
+isort
+
