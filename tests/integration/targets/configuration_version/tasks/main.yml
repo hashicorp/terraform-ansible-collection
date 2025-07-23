@@ -57,7 +57,7 @@
     - name: Archive configuration
       hashicorp.terraform.configuration_version:
         configuration_version_id: "{{ result.configuration_version_id }}"
-        state: archive
+        state: archived
         tf_validate_certs: true
       register: result
     - name: Assert archive was successful
@@ -93,5 +93,5 @@
       register: workspace_delete_response
     - name: Clean up rendered config directory
       ansible.builtin.file:
-        path: "./rendered-config"
+        path: "{{ temp_dir.path }}"
         state: absent
