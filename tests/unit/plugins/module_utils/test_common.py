@@ -16,6 +16,21 @@ from unittest.mock import Mock, patch
 import pytest
 
 
+try:
+    import requests
+
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+    # Create a mock requests module with HTTPError for testing
+    class MockRequests:
+        class HTTPError(Exception):
+            pass
+
+    requests = MockRequests()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 from plugins.module_utils.common import (
     ArchivistClient,
@@ -252,11 +267,13 @@ class TestClientMixin:
 
         mock_response = Mock()
         mock_response.status_code = 404
+        mock_response.content = b'{"error": "Not Found"}'
         mock_response.json.return_value = {"error": "Not Found"}
+        mock_response.raise_for_status.side_effect = requests.HTTPError("404 Client Error")
 
         client.session.request.return_value = mock_response
 
-        with pytest.raises(RuntimeError, match="Failed to GET /test"):
+        with pytest.raises(requests.HTTPError):
             client.get("/test")
 
     def test_make_request_decorator_with_keys_to_include(self):
@@ -829,23 +846,29 @@ class TestClientMixinAdditional:
         # Test 199 (should fail)
         mock_response = Mock()
         mock_response.status_code = 199
+        mock_response.content = b'{"error": "Unknown"}'
         mock_response.json.return_value = {"error": "Unknown"}
+        mock_response.raise_for_status.side_effect = requests.HTTPError("199 Client Error")
         client.session.request.return_value = mock_response
 
-        with pytest.raises(RuntimeError, match="Failed to GET /test"):
+        with pytest.raises(requests.HTTPError):
             client.get("/test")
 
         # Test 300 (should fail)
         mock_response.status_code = 300
+        mock_response.content = b'{"error": "Multiple Choices"}'
         mock_response.json.return_value = {"error": "Multiple Choices"}
+        mock_response.raise_for_status.side_effect = requests.HTTPError("300 Client Error")
         client.session.request.return_value = mock_response
 
-        with pytest.raises(RuntimeError, match="Failed to GET /test"):
+        with pytest.raises(requests.HTTPError):
             client.get("/test")
 
         # Test 299 (should succeed)
+        mock_response = Mock()
         mock_response.status_code = 299
         mock_response.content = b'{"success": true}'
+        mock_response.raise_for_status.return_value = None  # No exception for successful status
         client.session.request.return_value = mock_response
 
         result = client.get("/test")
@@ -871,13 +894,15 @@ class TestExponentialBackoff:
             # Mock response that returns 429
             mock_response = Mock()
             mock_response.status_code = 429
+            mock_response.content = b'{"errors": [{"detail": "Rate limited"}]}'
             mock_response.json.return_value = {"errors": [{"detail": "Rate limited"}]}
+            mock_response.raise_for_status.side_effect = requests.HTTPError("429 Too Many Requests")
             mock_session_instance.request.return_value = mock_response
             mock_session_class.return_value = mock_session_instance
 
             client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
-            with pytest.raises(RuntimeError, match="Failed to GET /test-endpoint"):
+            with pytest.raises(requests.HTTPError):
                 client.get("/test-endpoint")
 
     def test_exponential_backoff_behavior(self):

@@ -228,9 +228,7 @@ class ClientMixin:
 
             # At this point, retries have already been handled by the session
             # If we still have an error status, retries were exhausted
-            status = getattr(response, "status_code", 200)
-            if status < 200 or status >= 300:
-                raise RuntimeError(f"Failed to {method} {path} after retries: {response.json()}")
+            response.raise_for_status()  # Raise an error for bad responses
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
@@ -240,7 +238,7 @@ class ClientMixin:
             if kwargs.get("keys_to_include"):
                 result = self.sanitize_response(result, kwargs["keys_to_include"])
 
-            return {"status": status, "data": result}
+            return {"status": response.status_code, "data": result}
 
         return wrapper
 
