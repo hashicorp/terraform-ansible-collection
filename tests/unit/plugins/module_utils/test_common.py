@@ -76,6 +76,7 @@ class TestClientMixin:
             self.base_url = "https://api.terraform.io/api/v2"
             self.session = Mock()
             self.session.headers = {"Content-Type": "application/vnd.api+json"}
+            self.timeout = 10
 
     def test_sanitize_response_dict_with_included_keys(self):
         """Test sanitizing dict response with keys to include."""
@@ -190,6 +191,7 @@ class TestClientMixin:
             "GET",
             "https://api.terraform.io/api/v2/test",
             data=None,
+            timeout=10,
         )
 
     def test_make_request_decorator_data_conversion_methods(self):
@@ -211,6 +213,7 @@ class TestClientMixin:
             "POST",
             "https://api.terraform.io/api/v2/test",
             data='{"name": "test"}',
+            timeout=10,
         )
 
         # Test PUT
@@ -220,6 +223,7 @@ class TestClientMixin:
             "PUT",
             "https://api.terraform.io/api/v2/test",
             data='{"name": "test"}',
+            timeout=10,
         )
 
         # Test PATCH
@@ -229,6 +233,7 @@ class TestClientMixin:
             "PATCH",
             "https://api.terraform.io/api/v2/test",
             data='{"name": "test"}',
+            timeout=10,
         )
 
         # Test DELETE
@@ -238,6 +243,7 @@ class TestClientMixin:
             "DELETE",
             "https://api.terraform.io/api/v2/test",
             data=None,
+            timeout=10,
         )
 
     def test_make_request_decorator_error_response(self):
@@ -286,6 +292,7 @@ class TestClientMixin:
             "GET",
             "https://external-api.example.com/test",  # Should use the full URL directly
             data=None,
+            timeout=10,
         )
 
         # Reset mock and test with HTTP URL
@@ -297,6 +304,7 @@ class TestClientMixin:
             "GET",
             "http://external-api.example.com/test",  # Should use the full URL directly
             data=None,
+            timeout=10,
         )
 
 
@@ -624,6 +632,7 @@ class TestClientMixinAdditional:
             self.hostname: Optional[str] = "app.terraform.io"
             self.verify = True
             self._token: Optional[str] = "test-token"
+            self.timeout = 10
 
     def test_head_method_placeholder(self):
         """Test head method (placeholder implementation)."""

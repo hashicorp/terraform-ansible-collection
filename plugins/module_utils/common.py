@@ -223,6 +223,7 @@ class ClientMixin:
                 method,
                 url,
                 data=data,
+                timeout=self.timeout,
             )
 
             # At this point, retries have already been handled by the session
