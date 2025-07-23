@@ -71,8 +71,8 @@ options:
       - This can be a directory or a tarball (`.tar.gz`) containing configuration-related files.
       - When a path to a directory is provided, all it's content will be built into a tarball ('.tar.gz') within the module.
       - This file will be read from the Ansible 'host' context and not the 'controller' context.
-    type: str
-    required: true
+    type: path
+    aliases: [project_path]
   interval:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
@@ -345,7 +345,7 @@ def main():
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
             organization=dict(type="str"),
-            state=dict(type="str", required=True),
+            state=dict(type="str", required=True, choices=["present", "absent", "archive"]),
             configuration_version_id=dict(type="str"),
             auto_queue_runs=dict(type="bool", default=True),
             speculative=dict(type="bool", default=False),

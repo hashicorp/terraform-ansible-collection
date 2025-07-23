@@ -7,7 +7,7 @@
 class ModuleDocFragment:
     # Common parameters for all hashicorp.terraform modules
     # Use this with extends_doc_fragments: hashicorp.terraform.common
-    MODULES = r"""
+    DOCUMENTATION = r"""
 options:
   tf_token:
     description:
