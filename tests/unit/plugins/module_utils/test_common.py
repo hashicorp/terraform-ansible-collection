@@ -58,7 +58,7 @@ class TestTerraformModuleUtil:
         assert "fallback" in auth_spec["tf_token"]
         assert "tf_hostname" in auth_spec
         assert auth_spec["tf_hostname"]["required"] is False
-        assert auth_spec["tf_hostname"]["default"] == "app.terraform.io"
+        assert auth_spec["tf_hostname"]["default"] == "https://app.terraform.io"
         assert "fallback" in auth_spec["tf_hostname"]
         assert "tf_validate_certs" in auth_spec
         assert auth_spec["tf_validate_certs"]["type"] == "bool"
