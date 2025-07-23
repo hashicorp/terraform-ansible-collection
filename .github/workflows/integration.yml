@@ -7,13 +7,10 @@ on: # yamllint disable-line rule:truthy
   pull_request:
     branches: [main]
   workflow_dispatch:
-  # TO-DO: Below is an example cron scheduler. Uncomment and tweak it as per your requirement
-  # schedule:
-    # - cron: '0 0 * * *'
 
 jobs:
   run-integration-tests:
-    name: Matrix Integration
+    name: Run Integration Tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
