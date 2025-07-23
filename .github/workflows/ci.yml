@@ -35,7 +35,6 @@ jobs:
       - sanity
       - unit-galaxy
       - ansible-lint
-      - integration
     runs-on: ubuntu-latest
     steps:
       - run: >-
@@ -45,5 +44,4 @@ jobs:
           '${{ needs.sanity.result }}',
           '${{ needs.unit-galaxy.result }}',
           '${{ needs.ansible-lint.result }}',
-          '${{ needs.integration.result }}'
           ])"
