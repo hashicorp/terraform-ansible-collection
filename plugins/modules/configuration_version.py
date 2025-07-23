@@ -3,18 +3,17 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# language=yaml
 DOCUMENTATION = r"""
 ---
 module: configuration_version
 version_added: 1.0.0
-short_description: Create configuration version in Terraform Enterprise/Cloud.
+short_description: Manage configuration version in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
   - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
   - If a workspace and configuration_files_path is specified and the state is present, this module will create a configuration
     version in the workspace and upload the file to it.
-  - If a configuration_version_id is specified and the state is archive, this module will discard the uploaded .tar.gz
+  - If a configuration_version_id is specified and the state is archived, this module will discard the uploaded .tar.gz
     file associated with this configuration version. This can only archive the configuration versions that
     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
     current configuration version for any workspace.
@@ -26,9 +25,9 @@ options:
       - Setting `state=present` creates a new configuration-version and upload to it.
       - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
         This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
-      - Setting `state=archive` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
+      - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
-    choices: ["present", "absent", "archive"]
+    choices: ["present", "absent", "archived"]
     required: true
   organization:
     description:
@@ -111,7 +110,7 @@ EXAMPLES = r"""
     configuration_files_path: <path-to-your-configuration-file>
 - name: Discard a configuration version
   hashicorp.terraform.configuration_version:
-    state: archive
+    state: archived
     configuration_version_id: <configuration-version-id>
 """
 
@@ -135,7 +134,7 @@ outputs:
       description: The status of the configuration version (pending, errored, uploaded, etc).
     msg:
       type: str
-      returned: when state is 'archive'
+      returned: when state is 'archived'
       description: The successfull completion of archive.
 """
 
@@ -146,12 +145,13 @@ import gzip
 import time
 from typing import Any, Dict, Tuple
 from pathlib import Path
+from ansible.module_utils._text import to_text
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,
     TerraformModule,
     ArchivistClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     create_config,
     archive_config,
     upload_config,
@@ -254,7 +254,7 @@ def create_configuration_version(
         )
         return config_version_id, upload_url
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=to_text(e))
 
 
 def upload_configuration_version(
@@ -295,7 +295,7 @@ def upload_configuration_version(
         return response["status"]
 
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=to_text(e))
 
 
 def get_configuration_version(
@@ -336,7 +336,7 @@ def get_configuration_version(
             msg=f"Configuration version status did not reach 'uploaded' after {retries} retries."
         )
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=to_text(e))
 
 
 def main():
@@ -345,7 +345,7 @@ def main():
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
             organization=dict(type="str"),
-            state=dict(type="str", required=True, choices=["present", "absent", "archive"]),
+            state=dict(type="str", required=True, choices=["present", "absent", "archived"]),
             configuration_version_id=dict(type="str"),
             auto_queue_runs=dict(type="bool", default=True),
             speculative=dict(type="bool", default=False),
@@ -369,7 +369,7 @@ def main():
             workspace_id = workspace_response.get("data")["data"]["id"]
             params["workspace_id"] = workspace_id
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=to_text(e))
 
     try:
         if params.get("state") == "present" and params.get("configuration_files_path"):
@@ -400,37 +400,58 @@ def main():
                 module.exit_json(**result)
 
             except Exception as e:
-                module.fail_json(msg=str(e))
+                module.fail_json(msg=to_text(e))
 
-        elif params.get("state") == "archive":
+        elif params.get("state") == "archived":
             try:
+                config_response = get_config(
+                    client_terraform, config_version_id=params.get("configuration_version_id")
+                )
+            except Exception as e:
+                warnings.append(
+                    f"Configuration version ID '{params.get('configuration_version_id')}' not found"
+                )
+                result.update(
+                    {
+                        "changed": False,
+                        "warnings": warnings,
+                        "msg": f"Configuration version '{params.get('configuration_version_id')}' not found",
+                    }
+                )
+                module.exit_json(**result)
+            try:
+                current_status = config_response.get("data")["data"]["attributes"].get("status")
+
+                if current_status == "archived":
+                    result.update(
+                        {
+                            "changed": False,
+                            "msg": f"Configuration version '{params.get('configuration_version_id')}' is already archived.",
+                            "configuration_version_id": params.get("configuration_version_id"),
+                        }
+                    )
+                    module.exit_json(**result)
                 config_version = archive_config(
-                    client_terraform, params["configuration_version_id"]
+                    client_terraform, params.get("configuration_version_id")
                 )
 
                 result.update(
                     {
                         "changed": True,
                         "msg": "Configuration version archived successfully.",
-                        "configuration_version_id": params["configuration_version_id"],
+                        "configuration_version_id": params.get("configuration_version_id"),
                         "full_response": config_version,
                     }
                 )
                 module.exit_json(**result)
             except Exception as e:
                 module.fail_json(
-                    msg=str(e),
+                    msg=to_text(e),
                 )
             module.exit_json(**result)
-        elif params.get("state") == "absent":
-            warning_msg = (
-                "The value 'absent' for param 'state' is not yet supported as delete operation "
-                "endpoint is exclusive to Terraform Enterprise, and not available in HCP Terraform."
-            )
-            module.fail_json(msg=warning_msg)
 
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=to_text(e))
 
 
 if __name__ == "__main__":
