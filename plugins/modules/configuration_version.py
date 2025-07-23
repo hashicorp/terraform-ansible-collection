@@ -9,6 +9,7 @@ DOCUMENTATION = r"""
 module: configuration_version
 version_added: 1.0.0
 short_description: Create configuration version in Terraform Enterprise/Cloud.
+author: "Kaushiki Singh (@kausingh)"
 description:
   - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
   - If a workspace and configuration_files_path is specified and the state is present, this module will create a configuration
@@ -17,6 +18,7 @@ description:
     file associated with this configuration version. This can only archive the configuration versions that
     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
     current configuration version for any workspace.
+extends_documentation_fragment: hashicorp.terraform.common
 options:
   state:
     description:
@@ -79,7 +81,6 @@ options:
     type: int
     default: 1
 """
-
 
 EXAMPLES = r"""
 - name: Create a configuration version and queue runs
