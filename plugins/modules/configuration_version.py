@@ -404,33 +404,6 @@ def main():
 
         elif params.get("state") == "archived":
             try:
-                config_response = get_config(
-                    client_terraform, config_version_id=params.get("configuration_version_id")
-                )
-            except Exception as e:
-                warnings.append(
-                    f"Configuration version ID '{params.get('configuration_version_id')}' not found"
-                )
-                result.update(
-                    {
-                        "changed": False,
-                        "warnings": warnings,
-                        "msg": f"Configuration version '{params.get('configuration_version_id')}' not found",
-                    }
-                )
-                module.exit_json(**result)
-            try:
-                current_status = config_response.get("data")["data"]["attributes"].get("status")
-
-                if current_status == "archived":
-                    result.update(
-                        {
-                            "changed": False,
-                            "msg": f"Configuration version '{params.get('configuration_version_id')}' is already archived.",
-                            "configuration_version_id": params.get("configuration_version_id"),
-                        }
-                    )
-                    module.exit_json(**result)
                 config_version = archive_config(
                     client_terraform, params.get("configuration_version_id")
                 )
