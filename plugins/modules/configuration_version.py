@@ -372,10 +372,7 @@ def main():
         module.fail_json(msg=to_text(e))
 
     try:
-        if params.get("state") == "absent":
-            module.fail_json(msg="State 'absent' is not yet supported for configuration versions")
-
-        elif params.get("state") == "present" and params.get("configuration_files_path"):
+        if params.get("state") == "present" and params.get("configuration_files_path"):
             try:
                 if params.get("tf_max_retries") is None:
                     module.fail_json(msg="Retries has not been set")
@@ -406,14 +403,10 @@ def main():
                 module.fail_json(msg=to_text(e))
 
         elif params.get("state") == "archived":
-            try:
-                config_response = get_config(
-                    client_terraform, config_version_id=params.get("configuration_version_id")
-                )
-            except Exception as e:
-                warnings.append(
-                    f"Configuration version ID '{params.get('configuration_version_id')}' not found"
-                )
+            config_response = get_config(
+                client_terraform, config_version_id=params.get("configuration_version_id")
+            )
+            if config_response is None:
                 result.update(
                     {
                         "changed": False,
