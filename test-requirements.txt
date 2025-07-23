@@ -1,4 +1,10 @@
-# TO-DO: add python packages that are required for testing this collection
+# Python packages required for testing and development of this collection
 pytest-ansible
 pytest-xdist
 molecule
+requests
+# Linting and code formatting tools
+tox
+black
+flake8
+isort
