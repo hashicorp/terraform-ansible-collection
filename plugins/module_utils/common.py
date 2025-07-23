@@ -38,10 +38,11 @@ class TerraformModule(AnsibleModule):
         "tf_token": {
             "required": False,
             "fallback": (env_fallback, ["TF_TOKEN"]),
+            "no_log": True,
         },
         "tf_hostname": {
             "required": False,
-            "default": "app.terraform.io",
+            "default": "https://app.terraform.io",
             "fallback": (env_fallback, ["TF_HOSTNAME"]),
         },
         "tf_validate_certs": {
@@ -74,7 +75,7 @@ class TerraformModule(AnsibleModule):
         add_file_common_args=False,
         supports_check_mode=False,
         required_if=None,
-        required_by=None,
+        required_by={},
     ):
         """Initialize the module updating argspec with auth params."""
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)

@@ -1,9 +1,8 @@
 ---
 - name: Set values
-  set_fact:
+  ansible.builtin.set_fact:
     aws_access_key: "{{ aws_access_key | default(lookup('ansible.builtin.env', 'AWS_ACCESS_TOKEN')) }}"
     aws_secret_key: "{{ aws_secret_key | default(lookup('ansible.builtin.env', 'AWS_SECRET_TOKEN')) }}"
     aws_region: "{{ aws_region }}"
     tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'TFC_CI_TOKEN')) }}"
     organization: "{{ organization }}"
-
