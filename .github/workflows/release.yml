@@ -1,5 +1,5 @@
 ---
-name: Release
+name: Release hashicorp.terraform
 
 on:   # yamllint disable-line rule:truthy
   release:

@@ -1,0 +1,13 @@
+---
+name: "Validate Changelog"
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    branches: [main]
+  label:
+    types: ["created", "edited", deleted]
+
+jobs:
+  changelog:
+    uses: ansible/ansible-content-actions/.github/workflows/changelog.yaml@main
+    if: github.event_name == 'pull_request'
