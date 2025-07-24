@@ -36,21 +36,27 @@ jobs:
 
       - name: Install collection test dependencies
         run: >-
-            python3 -m pip install -r test-requirements.txt
+          python3 -m pip install -r test-requirements.txt
 
       - name: Build and install the collection
         run: >-
-            ansible-galaxy collection install . --force
+          ansible-galaxy collection install . --force
+
+      - name: Generate integration_config.yml
+        run: >-
+          ansible-playbook tools/playbooks/render_integration_config.yml
+        env:
+          ANSIBLE_CORE_CI_KEY: "${{ secrets.ANSIBLE_CORE_CI_KEY }}"
+          TFC_CI_TOKEN: "${{ secrets.TFC_CI_TOKEN }}"
 
       - name: List all integration test targets
         run: >-
-            cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
-              ansible-test integration --list-targets
+          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
+            ansible-test integration --list-targets
 
       - name: Run integration tests (${{ matrix.ansible-version }})
         run: >-
-            cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
-              ansible-test integration --python ${{ matrix.python-version }} --continue-on-error
+          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
+            ansible-test integration --python ${{ matrix.python-version }} --continue-on-error
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          TFC_CI_TOKEN: "${{ secrets.TFC_CI_TOKEN }}"
