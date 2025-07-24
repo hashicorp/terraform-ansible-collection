@@ -477,7 +477,7 @@ def main():
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
                 if not workspace_response:
-                    raise Exception(f"The workspace {params["workspace"]} in {params["organization"]} organization was not found.")
+                    raise Exception(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 # retrieve the workspace ID
                 workspace_id = workspace_response.get("data")["id"]
                 # update module params to have a workspace ID
