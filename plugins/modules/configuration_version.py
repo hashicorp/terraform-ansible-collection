@@ -33,7 +33,7 @@ options:
       - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
     choices: ["present", "absent", "archived"]
-    required: true
+    default: true
   organization:
     description:
       - Name of the organization that the workspace for the configuration-version belongs to.
@@ -322,7 +322,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
     interval = params.get("interval")
     retries = params.get("tf_max_retries")
 
-    for _ in range(max(1, retries)):
+    for iteration in range(max(1, retries)):
         config_response = get_config(client_terraform, config_version_id=config_version_id)
         status = config_response.get("data")["attributes"]["status"]
 
