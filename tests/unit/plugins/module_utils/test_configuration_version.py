@@ -1,6 +1,7 @@
-import unittest
-from unittest.mock import Mock, patch, mock_open
 import re
+import unittest
+
+from unittest.mock import Mock, mock_open, patch
 
 
 # Mock HTTPError class for testing
@@ -12,14 +13,15 @@ class MockHTTPError(Exception):
 
 # Import the module under test
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
-    create_config,
     archive_config,
-    upload_config,
+    create_config,
     get_config,
+    upload_config,
 )
 
-@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.re', re)
-@patch('ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.requests')
+
+@patch("ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.re", re)
+@patch("ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.requests")
 class TestConfigFunctions(unittest.TestCase):
     """Unit tests for Terraform configuration helper functions."""
 
@@ -39,13 +41,13 @@ class TestConfigFunctions(unittest.TestCase):
         """Test successful creation of a configuration version."""
         expected_response = {"data": {"id": self.config_version_id}}
         self.mock_tf_client.post.return_value = expected_response
-        
+
         result = create_config(self.mock_tf_client, self.workspace_id, self.payload)
-        
+
         self.assertEqual(result, expected_response)
         self.mock_tf_client.post.assert_called_once_with(
             f"/workspaces/{self.workspace_id}/configuration-versions",
-            data=self.payload
+            data=self.payload,
         )
 
     def test_create_config_404(self, mock_requests):
@@ -53,9 +55,9 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=404)
         mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
-        
+
         result = create_config(self.mock_tf_client, self.workspace_id, self.payload)
-        
+
         self.assertIsNone(result)
 
     def test_create_config_other_error(self, mock_requests):
@@ -63,7 +65,7 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=500)
         mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
-        
+
         with self.assertRaises(MockHTTPError):
             create_config(self.mock_tf_client, self.workspace_id, self.payload)
 
@@ -73,12 +75,12 @@ class TestConfigFunctions(unittest.TestCase):
         """Test successful archiving of a configuration version."""
         expected_response = {"status": "archived"}
         self.mock_tf_client.post.return_value = expected_response
-        
+
         result = archive_config(self.mock_tf_client, self.config_version_id)
-        
+
         self.assertEqual(result, expected_response)
         self.mock_tf_client.post.assert_called_once_with(
-            f"/configuration-versions/{self.config_version_id}/actions/archive"
+            f"/configuration-versions/{self.config_version_id}/actions/archive",
         )
 
     def test_archive_config_404(self, mock_requests):
@@ -86,9 +88,9 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=404)
         mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.post.side_effect = MockHTTPError(response=response)
-        
+
         result = archive_config(self.mock_tf_client, self.config_version_id)
-        
+
         self.assertIsNone(result)
 
     # --- get_config ---
@@ -97,12 +99,12 @@ class TestConfigFunctions(unittest.TestCase):
         """Test successfully fetching a configuration version."""
         expected_response = {"data": {"attributes": {"status": "uploaded"}}}
         self.mock_tf_client.get.return_value = expected_response
-        
+
         result = get_config(self.mock_tf_client, self.config_version_id)
-        
+
         self.assertEqual(result, expected_response)
         self.mock_tf_client.get.assert_called_once_with(
-            f"/configuration-versions/{self.config_version_id}"
+            f"/configuration-versions/{self.config_version_id}",
         )
 
     def test_get_config_404(self, mock_requests):
@@ -110,9 +112,9 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=404)
         mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.get.side_effect = MockHTTPError(response=response)
-        
+
         result = get_config(self.mock_tf_client, self.config_version_id)
-        
+
         self.assertIsNone(result)
 
     # --- upload_config ---
@@ -125,9 +127,9 @@ class TestConfigFunctions(unittest.TestCase):
         self.mock_archivist_client.put.return_value = expected_response
         # Ensure HTTPError is properly set up as an exception class
         mock_requests.HTTPError = MockHTTPError
-        
+
         result = upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
-        
+
         self.assertEqual(result, expected_response)
         mock_file.assert_called_once_with(self.file_path, "rb")
         self.mock_archivist_client.put.assert_called_once_with(self.upload_url, mock_file())
@@ -141,9 +143,9 @@ class TestConfigFunctions(unittest.TestCase):
         self.mock_archivist_client.put.return_value = expected_response
         # Ensure HTTPError is properly set up as an exception class
         mock_requests.HTTPError = MockHTTPError
-        
+
         result = upload_config(self.mock_archivist_client, relative_upload_path, self.file_path)
-        
+
         self.assertEqual(result, expected_response)
         mock_file.assert_called_once_with(self.file_path, "rb")
         self.mock_archivist_client.put.assert_called_once_with(f"/object/{relative_upload_path}", mock_file())
@@ -155,9 +157,9 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=404)
         mock_requests.HTTPError = MockHTTPError
         self.mock_archivist_client.put.side_effect = MockHTTPError(response=response)
-        
+
         result = upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
-        
+
         self.assertIsNone(result)
 
     @patch("builtins.open", new_callable=mock_open)
@@ -167,9 +169,10 @@ class TestConfigFunctions(unittest.TestCase):
         response = Mock(status_code=500)
         mock_requests.HTTPError = MockHTTPError
         self.mock_archivist_client.put.side_effect = MockHTTPError(response=response)
-        
+
         with self.assertRaises(MockHTTPError):
             upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
+
 
 if __name__ == "__main__":
     unittest.main()

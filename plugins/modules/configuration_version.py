@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from __future__ import annotations, absolute_import, division, print_function
+from __future__ import absolute_import, annotations, division, print_function
 
 
 __metaclass__ = type
@@ -143,32 +143,36 @@ outputs:
       description: The successfull completion of archive.
 """
 
+import gzip
 import os
 import tarfile
 import tempfile
-import gzip
 import time
-from typing import TYPE_CHECKING
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 from ansible.module_utils._text import to_text
+
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Tuple
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    ArchivistClient,
     TerraformClient,
     TerraformModule,
-    ArchivistClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
-    create_config,
     archive_config,
-    upload_config,
+    create_config,
     get_config,
+    upload_config,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
+def validate_and_prepare_tar(configuration_files_path: Path) -> str:
     """
     Validates and prepares the given path for upload.
 
@@ -180,42 +184,54 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
         configuration_files_path (str): The file or directory path to validate and prepare.
         module (Any): Ansible module object used for error handling (fail_json).
 
-    Returns:
-        str: A path to the prepared tar.gz file or the original valid file.
+    Raises:
+        FileNotFoundError: If the given path does not exist.
+        Exception: If an error occurs while archiving a directory, or if a `.tar.gz`
+            file is malformed or unreadable as gzip.
+        tarfile.TarError: If the given file is not a valid tar archive.
+        ValueError: If the given path is neither a file nor a directory, or is not
+            suitable for upload.
     """
+    final_upload_path = None
     expanded_path = Path(configuration_files_path).resolve()
 
     if not expanded_path.exists():
-        module.fail_json(msg=f"The path '{expanded_path}' does not exist.")
+        raise FileNotFoundError(f"The configuration_files_path '{expanded_path}' does not exist.")
 
+    # create a tarfile from the project directory
     if expanded_path.is_dir():
         try:
             temp_fd, temp_tar_path = tempfile.mkstemp(suffix=".tar.gz")
             os.close(temp_fd)
+
             with tarfile.open(temp_tar_path, "w:gz") as tar:
                 for item in os.listdir(expanded_path):
                     item_path = os.path.join(expanded_path, item)
                     tar.add(item_path, arcname=item)
-            return temp_tar_path
+
+            final_upload_path = temp_tar_path
         except Exception as e:
-            module.fail_json(msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}")
+            raise Exception(f"Failed to create tar.gz from directory '{expanded_path}'") from e
 
-    if expanded_path.is_file():
-        if tarfile.is_tarfile(expanded_path):
-            try:
-                with gzip.open(expanded_path, "rb") as f:
-                    f.read(1)
-                return str(expanded_path)
-            except Exception as e:
-                module.fail_json(msg="Bad gzip file")
-        else:
-            module.fail_json(msg=f"The path '{expanded_path}' is not a valid tar.gz archive. ")
-
+    # validate if the provided file is a valid tarfile
+    elif expanded_path.is_file():
+        try:
+            if tarfile.is_tarfile(expanded_path):
+                try:
+                    with gzip.open(expanded_path, "rb") as f:
+                        f.read(1)
+                    final_upload_path = to_text(expanded_path)
+                except gzip.BadGzipFile as e:
+                    raise Exception(f"The path {expanded_path} is a bad gzip file: {e}")
+        except Exception as e:
+            raise tarfile.TarError(f"The path '{expanded_path}' is not a valid tarfile: {e}")
     else:
-        module.fail_json(msg=f"The path '{expanded_path}' is not a file or recognized archive format.")
+        raise ValueError(f"The path '{expanded_path}' is not a file or recognized archive format.")
+
+    return final_upload_path
 
 
-def create_configuration_version(client_terraform: Any, params: Dict[str, Any], module: Any) -> Tuple[str, str]:
+def create_configuration_version(client_terraform: Any, params: Dict[str, Any]) -> Tuple[str, str]:
     """
     Creates a new Terraform configuration version using the given client and parameters.
 
@@ -230,37 +246,31 @@ def create_configuration_version(client_terraform: Any, params: Dict[str, Any], 
             - auto_queue_runs (bool)
             - speculative (bool)
             - provisional (bool)
-        module (Any): Ansible module object for error reporting.
 
     Returns:
         Tuple[str, str]: A tuple containing the configuration version ID and the upload URL.
-
-    Raises:
-        module.fail_json: If the request to create a configuration version fails.
     """
-    try:
-        payload = {
-            "data": {
-                "type": "configuration-versions",
-                "attributes": {
-                    "auto-queue-runs": params["auto_queue_runs"],
-                    "speculative": params["speculative"],
-                    "provisional": params["provisional"],
-                },
-            }
-        }
-        config_version = create_config(client_terraform, params["workspace_id"], payload)
-        config_version_id = config_version.get("data").get("data", {}).get("id")
-        upload_url = config_version.get("data").get("data", {}).get("attributes", {}).get("upload-url")
-        return config_version_id, upload_url
-    except Exception as e:
-        module.fail_json(msg=to_text(e))
+    workspace_id = params["workspace_id"]
+    attributes = {
+        "auto-queue-runs": params["auto_queue_runs"],
+        "speculative": params["speculative"],
+        "provisional": params["provisional"],
+    }
+
+    # create a new configuration version
+    config_version = create_config(client_terraform, workspace_id, attributes)
+
+    # the newly created configuration version will always have an ID
+    config_version_id = config_version.get("data", {}).get("id")
+
+    # the newly created configuration version will always have an upload-url
+    upload_url = config_version.get("data", {}).get("attributes", {}).get("upload-url")
+
+    return config_version_id, upload_url
 
 
 def upload_configuration_version(
     client_archivist: Any,
-    params: dict,
-    module: Any,
     upload_url: str,
     configuration_files_path: str,
 ) -> int:
@@ -280,25 +290,16 @@ def upload_configuration_version(
 
     Returns:
         int: HTTP status code from the upload response.
-
-    Raises:
-        module.fail_json: If file preparation fails, or the upload fails with a non-200 status.
     """
-    try:
-        response = upload_config(
-            client_archivist,
-            upload_url=upload_url,
-            configuration_files_path=configuration_files_path,
-        )
-        if response["status"] != 200:
-            module.fail_json(msg=response["message"])
-        return response["status"]
-
-    except Exception as e:
-        module.fail_json(msg=to_text(e))
+    response = upload_config(
+        client_archivist,
+        upload_url=upload_url,
+        configuration_files_path=configuration_files_path,
+    )
+    return response["status"]
 
 
-def get_configuration_version(client_terraform: Any, params: Dict[str, Any], module: Any, config_version_id: str) -> str:
+def get_configuration_version(client_terraform: Any, params: Dict[str, Any], config_version_id: str) -> str:
     """
     Polls the Terraform API for the status of a configuration version until it reaches 'uploaded'
     or the maximum number of retries is exhausted.
@@ -320,22 +321,20 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], mod
     """
     interval = params.get("interval")
     retries = params.get("tf_max_retries")
-    try:
-        for attempt in range(retries):
-            config_response = get_config(client_terraform, config_version_id=config_version_id)
-            status = config_response.get("data")["data"]["attributes"]["status"]
 
-            if status == "uploaded":
-                return status
+    for _ in range(max(1, retries)):
+        config_response = get_config(client_terraform, config_version_id=config_version_id)
+        status = config_response.get("data")["attributes"]["status"]
 
-            time.sleep(interval)
+        if status == "uploaded":
+            return config_response
 
-        module.fail_json(msg=f"Configuration version status did not reach 'uploaded' after {retries} retries.")
-    except Exception as e:
-        module.fail_json(msg=to_text(e))
+        time.sleep(interval)
+
+    raise Exception(msg=f"Configuration version status for {config_version_id} did not reach 'uploaded' after {retries} retries.")
 
 
-def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any], module: Any, result: Dict[str, Any]):
+def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any]):
     """
     Ensures the Terraform configuration state is present and correctly uploaded.
 
@@ -352,35 +351,33 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
         client_terraform (Any): Client object used to interact with Terraform.
         client_archivist (Any): Client object used for uploading files to the archive service.
         params (Dict[str, Any]): Dictionary of parameters including configuration paths and options.
-        module (Any): Ansible module object used for error reporting and exiting.
-        result (Dict[str, Any]): Dictionary to store the results to be returned to Ansible.
 
-    Raises:
-        Exception: Any exception raised during the process is caught and passed to `module.fail_json()`.
+    Returns:
+        dict: A result dictionary with the final status of the created configuration version.
     """
-    try:
-        if params.get("tf_max_retries") is None:
-            module.fail_json(msg="Retries has not been set")
-        configuration_files_path = validate_and_prepare_tar(params.get("configuration_files_path"), module)
-        config_version_id, upload_url = create_configuration_version(client_terraform, params, module)
-        upload_response = upload_configuration_version(client_archivist, params, module, upload_url, configuration_files_path)
-        config_status = get_configuration_version(client_terraform, params, module, config_version_id)
+    action_result = {}
 
-        result.update(
-            {
-                "changed": True,
-                "configuration_version_id": config_version_id,
-                "upload_response": upload_response,
-                "config_status": config_status,
-            }
-        )
-        module.exit_json(**result)
+    # get the updated/validated configuration_files_path
+    configuration_files_path = validate_and_prepare_tar(params.get("configuration_files_path"))
 
-    except Exception as e:
-        module.fail_json(msg=to_text(e))
+    # create a new configuration version and store the id and upload_url
+    config_version_id, upload_url = create_configuration_version(client_terraform, params)
+
+    # start configuration tarfile upload, if upload failed, this will raise an Exception
+    upload_configuration_version(client_archivist, upload_url, configuration_files_path)
+
+    final_config_status = get_configuration_version(client_terraform, params, config_version_id)
+
+    action_result.update(
+        {
+            "changed": True,
+            **final_config_status,
+        },
+    )
+    return action_result
 
 
-def state_archived(client_terraform: Any, params: Dict[str, Any], module: Any, result: Dict[str, Any]):
+def state_archived(client_terraform: Any, configuration_version_id: str):
     """
     Archives a specified Terraform configuration version if it is not already archived.
 
@@ -394,49 +391,37 @@ def state_archived(client_terraform: Any, params: Dict[str, Any], module: Any, r
 
     Args:
         client_terraform (Any): Client object used to interact with Terraform.
-        params (Dict[str, Any]): Dictionary of parameters including the configuration version ID.
-        module (Any): Ansible module object used for error reporting and exiting.
-        result (Dict[str, Any]): Dictionary to store the results to be returned to Ansible.
-
-    Raises:
-        Exception: Any exception raised during the process is caught and passed to `module.fail_json()`.
+        configuration_version_id (str, Any): The configuration_version_id to archive.
     """
-    config_response = get_config(client_terraform, config_version_id=params.get("configuration_version_id"))
-    if config_response is None:
-        result.update(
+    archiving_result = {}
+
+    config_response = get_config(client_terraform, config_version_id=configuration_version_id)
+    if not config_response:
+        archiving_result.update(
             {
                 "changed": False,
-                "msg": f"Configuration version '{params.get('configuration_version_id')}' not found",
-            }
+                "msg": f"Configuration version '{configuration_version_id}' was not found.",
+            },
         )
-        module.exit_json(**result)
-    try:
-        current_status = config_response.get("data")["data"]["attributes"]["status"]
+    else:
+        current_status = config_response["data"]["attributes"]["status"]
         if current_status == "archived":
-            result.update(
+            archiving_result.update(
                 {
                     "changed": False,
-                    "msg": f"Configuration version '{params.get('configuration_version_id')}' is already archived.",
-                    "configuration_version_id": params.get("configuration_version_id"),
-                }
+                    "msg": f"Configuration version '{configuration_version_id}' is already archived.",
+                },
             )
-            module.exit_json(**result)
-        config_version = archive_config(client_terraform, params.get("configuration_version_id"))
-
-        result.update(
-            {
-                "changed": True,
-                "msg": "Configuration version archived successfully.",
-                "configuration_version_id": params.get("configuration_version_id"),
-                "full_response": config_version,
-            }
-        )
-        module.exit_json(**result)
-    except Exception as e:
-        module.fail_json(
-            msg=to_text(e),
-        )
-    module.exit_json(**result)
+        else:
+            # configuration version is exists, but is not archived, attempt archiving
+            archive_config(client_terraform, configuration_version_id)
+            archiving_result.update(
+                {
+                    "changed": True,
+                    "msg": f"Configuration version {configuration_version_id} archived successfully.",
+                },
+            )
+    return archiving_result
 
 
 def main():
@@ -445,7 +430,7 @@ def main():
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
             organization=dict(type="str"),
-            state=dict(type="str", required=True, choices=["present", "absent", "archived"]),
+            state=dict(type="str", default="present", choices=["present", "absent", "archived"]),
             configuration_version_id=dict(type="str"),
             auto_queue_runs=dict(type="bool", default=True),
             speculative=dict(type="bool", default=False),
@@ -454,30 +439,50 @@ def main():
             interval=dict(type="int", default=1),
         ),
         required_together=[["workspace", "organization"]],
+        required_if=[
+            ("state", "archived", ["configuration_version_id"]),
+            ("state", "present", ("workspace_id", "workspace", "configuration_files_path"), True),
+        ],
+        mutually_exclusive=[
+            ("workspace", "workspace_id"),
+        ],
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
+    action_result = {}
     params = module.params
-    client_archivist = ArchivistClient()
-    client_terraform = TerraformClient(**module.params)
-    params["tf_max_retries"] = client_terraform.session_args.get("tf_max_retries")
-    try:
-        if params.get("workspace"):
-            workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
-            if workspace_response is None:
-                module.fail_json(msg=f"Workspace '{params.get('workspace')}' not found")
-            workspace_id = workspace_response.get("data")["data"]["id"]
-            params["workspace_id"] = workspace_id
-    except Exception as e:
-        module.fail_json(msg=to_text(e))
+
+    if params["tf_max_retries"] < 3:
+        warnings.append(
+            f"The value for tf_max_retries is set to {params["tf_max_retries"]}, " "this maybe too low for the configuration_version module.",
+        )
 
     try:
-        if params.get("state") == "present" and params.get("configuration_files_path"):
-            state_present(client_terraform, client_archivist, params, module, result)
+        client_archivist = ArchivistClient()
+        client_terraform = TerraformClient(**module.params)
 
-        elif params.get("state") == "archived":
-            state_archived(client_terraform, params, module, result)
+        if params["state"] == "present":
+            # either workspace_id or workspace MUST be provided when state is present
+            # when a workspace is provided, organization must be given
+            # we use both these to get the workspace_id which is required when creating configuration-versions
+            if not params["workspace_id"]:
+                # get the workspace_id from the provided workspace name
+                workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
+                if not workspace_response:
+                    raise Exception(f"The workspace {params["workspace"]} in {params["organization"]} organization was not found.")
+                # retrieve the workspace ID
+                workspace_id = workspace_response.get("data")["id"]
+                # update module params to have a workspace ID
+                params["workspace_id"] = workspace_id
 
+            action_result = state_present(client_terraform, client_archivist, params)
+
+        elif params["state"] == "archived":
+            # when state is archived, configuration_version_id will always be available
+            action_result = state_archived(client_terraform, params["configuration_version_id"])
+
+        result.update(action_result)
+        module.exit_json(**result)
     except Exception as e:
         module.fail_json(msg=to_text(e))
 
