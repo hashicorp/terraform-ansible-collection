@@ -1,7 +1,12 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+from __future__ import annotations, absolute_import, division, print_function
+
+
+__metaclass__ = type
 
 DOCUMENTATION = r"""
 ---
@@ -143,9 +148,12 @@ import tarfile
 import tempfile
 import gzip
 import time
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING
 from pathlib import Path
 from ansible.module_utils._text import to_text
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Tuple
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,
     TerraformModule,
@@ -456,6 +464,8 @@ def main():
     try:
         if params.get("workspace"):
             workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
+            if workspace_response is None:
+                module.fail_json(msg=f"Workspace '{params.get('workspace')}' not found")
             workspace_id = workspace_response.get("data")["data"]["id"]
             params["workspace_id"] = workspace_id
     except Exception as e:
