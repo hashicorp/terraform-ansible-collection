@@ -331,7 +331,6 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
 
         time.sleep(interval)
 
-    # raise Exception(msg=f"Configuration version status for {config_version_id} did not reach 'uploaded' after {retries} retries.")
     return config_response
 
 
@@ -463,7 +462,7 @@ def main():
 
     if params["tf_max_retries"] < 3:
         warnings.append(
-            f"The value for tf_max_retries is set to {params["tf_max_retries"]}, this maybe too low for the configuration_version module.",
+            f"The value for tf_max_retries is set to {params['tf_max_retries']}, this maybe too low for the configuration_version module.",
         )
 
     try:
