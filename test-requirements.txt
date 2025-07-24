@@ -4,9 +4,6 @@ pytest-mock
 pytest-ansible
 pytest-xdist
 requests
-# Integration testing
-molecule
-ansible-navigator
 # Linting and code formatting tools
 tox
 black
