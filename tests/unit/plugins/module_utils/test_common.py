@@ -16,21 +16,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 
-try:
-    import requests
-
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
-
-    # Create a mock requests module with HTTPError for testing
-    class MockRequests:
-        class HTTPError(Exception):
-            pass
-
-    requests = MockRequests()
-
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 from plugins.module_utils.common import (
     ArchivistClient,
@@ -274,7 +259,7 @@ class TestClientMixin:
 
         # The decorator doesn't raise exceptions, it returns the response
         result = client.get("/test")
-        
+
         assert result["status"] == 404
         assert result["data"] == {"error": "Not Found"}
 
@@ -906,7 +891,7 @@ class TestExponentialBackoff:
             client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
 
             result = client.get("/test-endpoint")
-        
+
             # Verify that the 429 status is returned (showing current limitation)
             assert result["status"] == 429
             assert result["data"] == {"errors": [{"detail": "Rate limited"}]}
