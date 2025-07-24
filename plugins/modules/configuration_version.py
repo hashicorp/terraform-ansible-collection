@@ -33,7 +33,7 @@ options:
       - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
     choices: ["present", "absent", "archived"]
-    default: true
+    default: present
   organization:
     description:
       - Name of the organization that the workspace for the configuration-version belongs to.
