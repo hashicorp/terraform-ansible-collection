@@ -28,8 +28,6 @@ options:
     description:
       - The state the configuration version should be in.
       - Setting `state=present` creates a new configuration-version and upload to it.
-      - Setting `state=absent` attempts to delete a configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
-        This would fail if not run against a Terraform Enterprise instance since deleting a configuration version is exclusively supported with TFE.
       - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
     type: str
     choices: ["present", "absent", "archived"]
@@ -77,7 +75,7 @@ options:
       - This file will be read from the Ansible 'host' context and not the 'controller' context.
     type: path
     aliases: [project_path]
-  interval:
+  poll_interval:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
       - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
@@ -92,7 +90,7 @@ EXAMPLES = r"""
     workspace: <your-workspace-id>
     state: present
     configuration_files_path: <path-to-your-configuration-files>
-    interval: 3
+    poll_interval: 3
     tf_max_retries: 1
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.configuration_version:
@@ -307,7 +305,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
     Args:
         client_terraform (Any): Terraform API client instance.
         params (Dict[str, Any]): Dictionary containing polling parameters:
-            - interval (int): Time in seconds to wait between retries.
+            - poll_interval (int): Time in seconds to wait between retries.
             - retries (int): Maximum number of polling attempts.
         module (Any): Ansible module object for error reporting.
         config_version_id (str): ID of the configuration version to check.
@@ -319,7 +317,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
         module.fail_json: If the configuration version doesn't reach 'uploaded' in time
                           or if an error occurs during polling.
     """
-    interval = params.get("interval")
+    poll_interval = params.get("poll_interval")
     retries = params.get("tf_max_retries")
 
     for iteration in range(max(1, retries)):
@@ -329,7 +327,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
         if status == "uploaded":
             break
 
-        time.sleep(interval)
+        time.sleep(poll_interval)
 
     return config_response
 
@@ -371,16 +369,20 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     status = final_config_status.get("data")["attributes"]["status"]
 
     if status == "uploaded":
-        change_value = True
+        action_result.update(
+            {
+                "changed": True,
+                **final_config_status["data"],
+            },
+        )
     else:
-        change_value = False
-
-    action_result.update(
-        {
-            "changed": change_value,
-            **final_config_status,
-        },
-    )
+        action_result.update(
+            {
+                "failed": True,
+                "msg": f"Configuration version {config_version_id} could not transition to uploaded state.",
+                **final_config_status["data"],
+            },
+        )
     return action_result
 
 
@@ -443,7 +445,7 @@ def main():
             speculative=dict(type="bool", default=False),
             provisional=dict(type="bool", default=False),
             configuration_files_path=dict(aliases=["project_path"], type="path"),
-            interval=dict(type="int", default=1),
+            poll_interval=dict(type="int", default=1),
         ),
         required_together=[["workspace", "organization"]],
         required_if=[
