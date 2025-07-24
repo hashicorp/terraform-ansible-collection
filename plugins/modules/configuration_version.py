@@ -190,9 +190,7 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
                     tar.add(item_path, arcname=item)
             return temp_tar_path
         except Exception as e:
-            module.fail_json(
-                msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}"
-            )
+            module.fail_json(msg=f"Failed to create tar.gz from directory '{configuration_files_path}': {e}")
 
     if expanded_path.is_file():
         if tarfile.is_tarfile(expanded_path):
@@ -206,14 +204,10 @@ def validate_and_prepare_tar(configuration_files_path: str, module: Any) -> str:
             module.fail_json(msg=f"The path '{expanded_path}' is not a valid tar.gz archive. ")
 
     else:
-        module.fail_json(
-            msg=f"The path '{expanded_path}' is not a file or recognized archive format."
-        )
+        module.fail_json(msg=f"The path '{expanded_path}' is not a file or recognized archive format.")
 
 
-def create_configuration_version(
-    client_terraform: Any, params: Dict[str, Any], module: Any
-) -> Tuple[str, str]:
+def create_configuration_version(client_terraform: Any, params: Dict[str, Any], module: Any) -> Tuple[str, str]:
     """
     Creates a new Terraform configuration version using the given client and parameters.
 
@@ -249,9 +243,7 @@ def create_configuration_version(
         }
         config_version = create_config(client_terraform, params["workspace_id"], payload)
         config_version_id = config_version.get("data").get("data", {}).get("id")
-        upload_url = (
-            config_version.get("data").get("data", {}).get("attributes", {}).get("upload-url")
-        )
+        upload_url = config_version.get("data").get("data", {}).get("attributes", {}).get("upload-url")
         return config_version_id, upload_url
     except Exception as e:
         module.fail_json(msg=to_text(e))
@@ -298,9 +290,7 @@ def upload_configuration_version(
         module.fail_json(msg=to_text(e))
 
 
-def get_configuration_version(
-    client_terraform: Any, params: Dict[str, Any], module: Any, config_version_id: str
-) -> str:
+def get_configuration_version(client_terraform: Any, params: Dict[str, Any], module: Any, config_version_id: str) -> str:
     """
     Polls the Terraform API for the status of a configuration version until it reaches 'uploaded'
     or the maximum number of retries is exhausted.
@@ -332,11 +322,113 @@ def get_configuration_version(
 
             time.sleep(interval)
 
-        module.fail_json(
-            msg=f"Configuration version status did not reach 'uploaded' after {retries} retries."
-        )
+        module.fail_json(msg=f"Configuration version status did not reach 'uploaded' after {retries} retries.")
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
+
+def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any], module: Any, result: Dict[str, Any]):
+    """
+    Ensures the Terraform configuration state is present and correctly uploaded.
+
+    This function performs the following operations:
+    1. Validates and prepares the configuration files as a tar archive.
+    3. Creates a new Terraform configuration version.
+    4. Uploads the configuration files to the generated upload URL.
+    5. Retrieves the status of the uploaded configuration version.
+    6. Updates the result dictionary and exits successfully.
+
+    If any step fails, the function will call `module.fail_json()` with the error message.
+
+    Args:
+        client_terraform (Any): Client object used to interact with Terraform.
+        client_archivist (Any): Client object used for uploading files to the archive service.
+        params (Dict[str, Any]): Dictionary of parameters including configuration paths and options.
+        module (Any): Ansible module object used for error reporting and exiting.
+        result (Dict[str, Any]): Dictionary to store the results to be returned to Ansible.
+
+    Raises:
+        Exception: Any exception raised during the process is caught and passed to `module.fail_json()`.
+    """
+    try:
+        if params.get("tf_max_retries") is None:
+            module.fail_json(msg="Retries has not been set")
+        configuration_files_path = validate_and_prepare_tar(params.get("configuration_files_path"), module)
+        config_version_id, upload_url = create_configuration_version(client_terraform, params, module)
+        upload_response = upload_configuration_version(client_archivist, params, module, upload_url, configuration_files_path)
+        config_status = get_configuration_version(client_terraform, params, module, config_version_id)
+
+        result.update(
+            {
+                "changed": True,
+                "configuration_version_id": config_version_id,
+                "upload_response": upload_response,
+                "config_status": config_status,
+            }
+        )
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=to_text(e))
+
+
+def state_archived(client_terraform: Any, params: Dict[str, Any], module: Any, result: Dict[str, Any]):
+    """
+    Archives a specified Terraform configuration version if it is not already archived.
+
+    This function performs the following operations:
+    1. Checks if the configuration version exists.
+    2. If already archived, exits without making changes.
+    3. Otherwise, archives the configuration version.
+    4. Updates the result dictionary and exits.
+
+    If any step fails, appropriate messages are returned.
+
+    Args:
+        client_terraform (Any): Client object used to interact with Terraform.
+        params (Dict[str, Any]): Dictionary of parameters including the configuration version ID.
+        module (Any): Ansible module object used for error reporting and exiting.
+        result (Dict[str, Any]): Dictionary to store the results to be returned to Ansible.
+
+    Raises:
+        Exception: Any exception raised during the process is caught and passed to `module.fail_json()`.
+    """
+    config_response = get_config(client_terraform, config_version_id=params.get("configuration_version_id"))
+    if config_response is None:
+        result.update(
+            {
+                "changed": False,
+                "msg": f"Configuration version '{params.get('configuration_version_id')}' not found",
+            }
+        )
+        module.exit_json(**result)
+    try:
+        current_status = config_response.get("data")["data"]["attributes"]["status"]
+        if current_status == "archived":
+            result.update(
+                {
+                    "changed": False,
+                    "msg": f"Configuration version '{params.get('configuration_version_id')}' is already archived.",
+                    "configuration_version_id": params.get("configuration_version_id"),
+                }
+            )
+            module.exit_json(**result)
+        config_version = archive_config(client_terraform, params.get("configuration_version_id"))
+
+        result.update(
+            {
+                "changed": True,
+                "msg": "Configuration version archived successfully.",
+                "configuration_version_id": params.get("configuration_version_id"),
+                "full_response": config_version,
+            }
+        )
+        module.exit_json(**result)
+    except Exception as e:
+        module.fail_json(
+            msg=to_text(e),
+        )
+    module.exit_json(**result)
 
 
 def main():
@@ -363,9 +455,7 @@ def main():
     params["tf_max_retries"] = client_terraform.session_args.get("tf_max_retries")
     try:
         if params.get("workspace"):
-            workspace_response = get_workspace(
-                client_terraform, params["organization"], params["workspace"]
-            )
+            workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
             workspace_id = workspace_response.get("data")["data"]["id"]
             params["workspace_id"] = workspace_id
     except Exception as e:
@@ -373,77 +463,10 @@ def main():
 
     try:
         if params.get("state") == "present" and params.get("configuration_files_path"):
-            try:
-                if params.get("tf_max_retries") is None:
-                    module.fail_json(msg="Retries has not been set")
-                configuration_files_path = validate_and_prepare_tar(
-                    params.get("configuration_files_path"), module
-                )
-                config_version_id, upload_url = create_configuration_version(
-                    client_terraform, params, module
-                )
-                upload_response = upload_configuration_version(
-                    client_archivist, params, module, upload_url, configuration_files_path
-                )
-                config_status = get_configuration_version(
-                    client_terraform, params, module, config_version_id
-                )
-
-                result.update(
-                    {
-                        "changed": True,
-                        "configuration_version_id": config_version_id,
-                        "upload_response": upload_response,
-                        "config_status": config_status,
-                    }
-                )
-                module.exit_json(**result)
-
-            except Exception as e:
-                module.fail_json(msg=to_text(e))
+            state_present(client_terraform, client_archivist, params, module, result)
 
         elif params.get("state") == "archived":
-            config_response = get_config(
-                client_terraform, config_version_id=params.get("configuration_version_id")
-            )
-            if config_response is None:
-                result.update(
-                    {
-                        "changed": False,
-                        "warnings": warnings,
-                        "msg": f"Configuration version '{params.get('configuration_version_id')}' not found",
-                    }
-                )
-                module.exit_json(**result)
-            try:
-                current_status = config_response.get("data")["data"]["attributes"]["status"]
-                if current_status == "archived":
-                    result.update(
-                        {
-                            "changed": False,
-                            "msg": f"Configuration version '{params.get('configuration_version_id')}' is already archived.",
-                            "configuration_version_id": params.get("configuration_version_id"),
-                        }
-                    )
-                    module.exit_json(**result)
-                config_version = archive_config(
-                    client_terraform, params.get("configuration_version_id")
-                )
-
-                result.update(
-                    {
-                        "changed": True,
-                        "msg": "Configuration version archived successfully.",
-                        "configuration_version_id": params.get("configuration_version_id"),
-                        "full_response": config_version,
-                    }
-                )
-                module.exit_json(**result)
-            except Exception as e:
-                module.fail_json(
-                    msg=to_text(e),
-                )
-            module.exit_json(**result)
+            state_archived(client_terraform, params, module, result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
