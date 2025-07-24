@@ -226,10 +226,6 @@ class ClientMixin:
                 timeout=self.timeout,
             )
 
-            # At this point, retries have already been handled by the session
-            # If we still have an error status, retries were exhausted
-            response.raise_for_status()  # Raise an error for bad responses
-
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
             else:
