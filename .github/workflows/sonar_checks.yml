@@ -1,6 +1,8 @@
-name: SonarCube Scans (PR)
+name: SonarCube Scans
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -13,7 +15,7 @@ permissions:
 
 jobs:
   sonarcloud:
-    name: SonarCube Scans (PR)
+    name: SonarCube Scans
     runs-on: ubuntu-latest
 
     steps:
@@ -46,7 +48,17 @@ jobs:
             echo '<?xml version="1.0" encoding="UTF-8"?><coverage></coverage>' > code.cov
           fi
 
-      - name: SonarCube Scan
+      - name: SonarCube Scan (Main Branch)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: SonarSource/sonarqube-scan-action@v5.2.0
+        env:
+          SONAR_TOKEN: ${{ secrets[format('{0}', vars.SONAR_TOKEN_SECRET_NAME)] }}
+        with:
+          args: >
+            -Dsonar.python.coverage.reportPaths=code.cov
+
+      - name: SonarCube Scan (Pull Request)
+        if: github.event_name == 'pull_request'
         uses: SonarSource/sonarqube-scan-action@v5.2.0
         env:
           SONAR_TOKEN: ${{ secrets[format('{0}', vars.SONAR_TOKEN_SECRET_NAME)] }}
