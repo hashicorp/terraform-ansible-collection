@@ -22,7 +22,7 @@ integration = [
 dev = [
     {include-group = "test"},
     {include-group = "integration"},
-
+]
 [tool.isort]
 profile = "black"
 line_length = 160
