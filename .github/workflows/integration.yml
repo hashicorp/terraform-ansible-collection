@@ -44,7 +44,7 @@ jobs:
 
       - name: Generate integration_config.yml
         run: >-
-          ansible-playbook tools/playbooks/render_integration_config.yml
+          ansible-playbook tools/ci/playbooks/render_integration_config.yml
         env:
           ANSIBLE_CORE_CI_KEY: "${{ secrets.ANSIBLE_CORE_CI_KEY }}"
           TFC_CI_TOKEN: "${{ secrets.TFC_CI_TOKEN }}"
