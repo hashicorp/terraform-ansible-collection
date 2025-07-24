@@ -378,7 +378,6 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     action_result.update(
         {
             "changed": change_value,
-            "msg": "Configuration version status did not reach 'uploaded' status after retries.",
             **final_config_status,
         },
     )

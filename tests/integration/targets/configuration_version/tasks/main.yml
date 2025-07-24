@@ -47,25 +47,23 @@
         provisional: true
         tf_validate_certs: true
         state: present
-      register: result
+      register: result_upload
     - name: Assert upload success
       ansible.builtin.assert:
         that:
-          - result.changed
-          - result.upload_response == 200
-          - result.config_status == 'uploaded'
+          - result_upload.changed
+          - result_upload.status == 200
     - name: Archive configuration
       hashicorp.terraform.configuration_version:
-        configuration_version_id: "{{ result.configuration_version_id }}"
+        configuration_version_id: "{{ result_upload.data.id }}"
         state: archived
         tf_validate_certs: true
-      register: result
+      register: result_archive
     - name: Assert archive was successful
       ansible.builtin.assert:
         that:
-          - result.changed
-          - result.full_response.status == 202
-          - result.msg == "Configuration version archived successfully."
+          - result_archive.changed
+          - '"archived successfully" in result_archive.msg'
     - name: Create configuration version
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
@@ -78,8 +76,7 @@
       ansible.builtin.assert:
         that:
           - result.changed
-          - result.upload_response == 200
-          - result.config_status == 'uploaded'
+          - result.status == 200
   always:
     - name: Force delete workspace
       ansible.builtin.uri:

@@ -15,13 +15,8 @@ test = [
     "pytest-xdist",     # From test-requirements.txt
     "requests",         # Used in test files
 ]
-integration = [
-    "molecule",         # From test-requirements.txt
-    "ansible-navigator",
-]
 dev = [
     {include-group = "test"},
-    {include-group = "integration"},
 ]
 [tool.isort]
 profile = "black"
