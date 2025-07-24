@@ -327,11 +327,12 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
         status = config_response.get("data")["attributes"]["status"]
 
         if status == "uploaded":
-            return config_response
+            break
 
         time.sleep(interval)
 
-    raise Exception(msg=f"Configuration version status for {config_version_id} did not reach 'uploaded' after {retries} retries.")
+    # raise Exception(msg=f"Configuration version status for {config_version_id} did not reach 'uploaded' after {retries} retries.")
+    return config_response
 
 
 def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any]):
@@ -368,9 +369,17 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
 
     final_config_status = get_configuration_version(client_terraform, params, config_version_id)
 
+    status = final_config_status.get("data")["attributes"]["status"]
+
+    if status == "uploaded":
+        change_value = True
+    else:
+        change_value = False
+
     action_result.update(
         {
-            "changed": True,
+            "changed": change_value,
+            "msg": "Configuration version status did not reach 'uploaded' status after retries.",
             **final_config_status,
         },
     )
@@ -454,7 +463,7 @@ def main():
 
     if params["tf_max_retries"] < 3:
         warnings.append(
-            f"The value for tf_max_retries is set to {params["tf_max_retries"]}, " "this maybe too low for the configuration_version module.",
+            f"The value for tf_max_retries is set to {params["tf_max_retries"]}, this maybe too low for the configuration_version module.",
         )
 
     try:
