@@ -16,10 +16,10 @@ short_description: Manage configuration versions in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
   - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
-  - If a workspace and configuration_files_path is specified and the state is present, this module will create a configuration
-    version in the workspace and upload the file to it.
-  - If a configuration_version_id is specified and the state is archived, this module will discard the uploaded .tar.gz
-    file associated with this configuration version. This can only archive the configuration versions that
+  - If a I(workspace) and I(configuration_files_path) is specified and the I(state) is C(present), this module will create
+    a configuration version in the workspace and upload the file to it.
+  - If a I(configuration_version_id) is specified and the I(state) is C(archived), this module will discard the uploaded
+    C(.tar.gz) file associated with this configuration version. This can only archive the configuration versions that
     were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the
     current configuration version for any workspace.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -28,24 +28,24 @@ options:
     description:
       - The state the configuration version should be in.
       - Setting `state=present` creates a new configuration-version and upload to it.
-      - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the `configuration_version_id` field to be set.
+      - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the I(configuration_version_id) field to be set.
     type: str
     choices: ["present", "absent", "archived"]
     default: present
   organization:
     description:
       - Name of the organization that the workspace for the configuration-version belongs to.
-      - This is required when `workspace` key is set.
+      - This is required when I(workspace) key is set.
     type: str
   workspace:
     description:
       - Name of the workspace for the configuration-version.
-      - When this key is set, `organization` must be specified so that the ID of the workspace can be retrieved.
+      - When this key is set, I(organization) must be specified so that the ID of the workspace can be retrieved.
     type: str
   workspace_id:
     description:
       - ID of the workspace for the configuration-version.
-      - Either `workspace` (and `organization`) or `workspace_id` must be specified when creating new a `configuration-version`.
+      - Either I(workspace) I((and `organization`)) or I(workspace_id) must be specified when creating new a `configuration-version`.
     type: str
   auto_queue_runs:
     description:
@@ -79,7 +79,7 @@ options:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
       - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
-      - This works in conjunction with the `tf_max_retries` parameter.
+      - This works in conjunction with the I(tf_max_retries) parameter.
     type: int
     default: 1
 """
@@ -92,29 +92,172 @@ EXAMPLES = r"""
     configuration_files_path: <path-to-your-configuration-files>
     poll_interval: 3
     tf_max_retries: 1
+
+# Assuming play output is registered in 'result'
+#  "result": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-07-25T05:26:26+00:00"
+#             }
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "cv-id",
+#         "links": {
+#             "download": "download-link",
+#             "self": "api-link"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     }
+
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
   hashicorp.terraform.configuration_version:
     workspace: <your-workspace-name>
     organization: <your-organization-name>
     state: present
-    auto-queue-runs: false
+    auto_queue_runs: false
     configuration_files_path: <path-to-your-configuration-file>
+
+# Assuming play output is registered in 'result'
+# "result": {
+#         "attributes": {
+#             "auto-queue-runs": false,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-07-25T05:29:30+00:00"
+#             }
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "cv-id",
+#         "links": {
+#             "download": "download-link",
+#             "self": "api-link"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     }
+
 - name: Create a configuration for speculative runs
   hashicorp.terraform.configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     speculative: true
     configuration_files_path: <path-to-your-configuration-file>
+
+# Assuming play output is registered in 'result'
+# "result": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": true,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-07-25T05:31:36+00:00"
+#             }
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "cv-id",
+#         "links": {
+#             "download": "download-link",
+#             "self": "api-link"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     }
+
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     provisional: true
     configuration_files_path: <path-to-your-configuration-file>
+
+# Assuming play output is registered in 'result'
+# "result": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": true,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-07-25T05:32:56+00:00"
+#             }
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "cv-id",
+#         "links": {
+#             "download": "download-link",
+#             "self": "api-link"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     }
+
 - name: Discard a configuration version
   hashicorp.terraform.configuration_version:
     state: archived
     configuration_version_id: <configuration-version-id>
+
+# Assuming play output is registered in 'archive_record'
+# "archive_record": {
+#         "changed": true,
+#         "failed": false,
+#         "msg": "Configuration version cv-mTaz7Qq44wVRGcdA archived successfully."
+#     }
 """
 
 RETURN = r"""
@@ -123,18 +266,14 @@ outputs:
   description: A dictionary of the configuration version details.
   returned: on success
   contains:
+    attributes:
+        type: dict
+        returned: always
+        description: The attributes of the configuration version created.
     configuration_version_id:
       type: str
       returned: always
       description: ID of the configuration version created/archived.
-    upload_response:
-      type: str
-      returned: when state is 'present'
-      description: The status code of the configuration version.
-    status:
-      type: str
-      returned: when state is 'present'
-      description: The status of the configuration version (pending, errored, uploaded, etc).
     msg:
       type: str
       returned: when state is 'archived'
