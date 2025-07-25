@@ -79,9 +79,17 @@ options:
     description:
       - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
       - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
-      - This works in conjunction with the I(tf_max_retries) parameter.
+      - This works in conjunction with the I(poll_timeout) parameter.
     type: int
-    default: 1
+    default: 2
+  poll_timeout:
+    description:
+      - Configures the timeout (in seconds) for polling while inspecting the `configuration-version` status.
+      - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+      - This works in conjunction with the I(poll_interval) parameter.
+      - This would factor in the time in case of errors leading to exponential backoff.
+    type: int
+    default: 10
 """
 
 EXAMPLES = r"""
@@ -91,7 +99,7 @@ EXAMPLES = r"""
     state: present
     configuration_files_path: <path-to-your-configuration-files>
     poll_interval: 3
-    tf_max_retries: 1
+    poll_timeout: 15
 
 # Assuming play output is registered in 'result'
 #  "result": {
@@ -226,7 +234,7 @@ EXAMPLES = r"""
 #             "speculative": false,
 #             "status": "uploaded",
 #             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:32:56+00:00"
+#                 "uploaded-at": "2025-07-25T09:28:12+00:00"
 #             }
 #         },
 #         "changed": true,
@@ -439,31 +447,35 @@ def upload_configuration_version(
 def get_configuration_version(client_terraform: Any, params: Dict[str, Any], config_version_id: str) -> Dict[str, Any]:
     """
     Polls the Terraform API for the status of a configuration version until it reaches 'uploaded'
-    or the maximum number of retries is exhausted.
+    or the timeout is reached.
 
     Args:
         client_terraform (Any): Terraform API client instance.
         params (Dict[str, Any]): Dictionary containing polling parameters:
             - poll_interval (int): Time in seconds to wait between retries.
-            - retries (int): Maximum number of polling attempts.
+            - poll_timeout (int): Maximum timeout of polling.
         module (Any): Ansible module object for error reporting.
         config_version_id (str): ID of the configuration version to check.
 
     Returns:
         Dict[str, Any]: The full configuration version response.
     """
-    poll_interval = params.get("poll_interval")
-    retries = params.get("tf_max_retries")
+    poll_interval = params.get("poll_interval", 2)
+    timeout = params.get("poll_timeout", 10)
 
-    for iteration in range(max(1, retries)):
+    start_time = time.time()
+
+    while True:
         config_response = get_config(client_terraform, config_version_id=config_version_id)
         status = config_response.get("data")["attributes"]["status"]
 
         if status == "uploaded":
             break
 
-        time.sleep(poll_interval)
+        if time.time() - start_time >= timeout:
+            break
 
+        time.sleep(poll_interval)
     return config_response
 
 
@@ -580,7 +592,8 @@ def main():
             speculative=dict(type="bool", default=False),
             provisional=dict(type="bool", default=False),
             configuration_files_path=dict(aliases=["project_path"], type="path"),
-            poll_interval=dict(type="int", default=1),
+            poll_interval=dict(type="int", default=2),
+            poll_timeout=dict(type="int", default=10),
         ),
         required_together=[["workspace", "organization"]],
         required_if=[
@@ -596,10 +609,6 @@ def main():
     action_result = {}
     params = module.params
 
-    if params["tf_max_retries"] < 3:
-        warnings.append(
-            f"The value for tf_max_retries is set to {params['tf_max_retries']}, this maybe too low for the configuration_version module.",
-        )
 
     try:
         client_archivist = ArchivistClient()

@@ -81,6 +81,8 @@
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
         tf_validate_certs: true
+        poll_interval: 3
+        poll_timeout: 15
         state: present
       register: result
 
