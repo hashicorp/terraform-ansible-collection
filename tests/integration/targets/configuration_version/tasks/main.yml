@@ -3,13 +3,16 @@
   module_defaults:
     group/hashicorp.terraform.terraform:
       tf_token: "{{ tfc_token }}"
+
   block:
     - name: Generate a unique ID
       ansible.builtin.set_fact:
-        unique_id: "{{ 'terraform' | to_uuid }}"
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
     - name: Generate unique workspace name
       ansible.builtin.set_fact:
         workspace_name: "{{ unique_id }}-workspace"
+
     - name: Create a Terraform workspace with unique name
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/organizations/Ansible-BU-TFC/workspaces"
@@ -26,18 +29,22 @@
         return_content: true
         status_code: 201
       register: workspace_create_response
+
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.json.data.id }}"
+
     - name: Create temporary directory to store main.tf configuration
       ansible.builtin.tempfile:
         state: directory
       register: temp_dir
+
     - name: Generate Terraform configuration
       ansible.builtin.template:
         src: "main.tf.j2"
         dest: "{{ temp_dir.path }}/main.tf"
         mode: "0644"
+
     - name: Create configuration version which is not the current version
       hashicorp.terraform.configuration_version:
         workspace: "{{ workspace_name }}"
@@ -48,22 +55,26 @@
         tf_validate_certs: true
         state: present
       register: result_upload
-    - name: Assert upload success
+
+    - name: Assert create and upload success
       ansible.builtin.assert:
         that:
           - result_upload.changed
-          - result_upload.status == 200
+          - result_upload.attributes.status == "uploaded"
+
     - name: Archive configuration
       hashicorp.terraform.configuration_version:
-        configuration_version_id: "{{ result_upload.data.id }}"
+        configuration_version_id: "{{ result_upload.id }}"
         state: archived
         tf_validate_certs: true
       register: result_archive
+
     - name: Assert archive was successful
       ansible.builtin.assert:
         that:
           - result_archive.changed
           - '"archived successfully" in result_archive.msg'
+
     - name: Create configuration version
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
@@ -72,11 +83,13 @@
         tf_validate_certs: true
         state: present
       register: result
-    - name: Assert upload success
+
+    - name: Assert create and upload success
       ansible.builtin.assert:
         that:
           - result.changed
-          - result.status == 200
+          - result.attributes.status == "uploaded"
+
   always:
     - name: Force delete workspace
       ansible.builtin.uri:
@@ -88,6 +101,7 @@
         status_code: 204
         return_content: true
       register: workspace_delete_response
+
     - name: Clean up rendered config directory
       ansible.builtin.file:
         path: "{{ temp_dir.path }}"
