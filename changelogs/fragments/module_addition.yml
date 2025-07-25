@@ -1,2 +1,2 @@
 minor_changes:
-  - Dependency additions - Enhancements to required packages.
+  - Adds a new module hashicorp.terraform.configuration_version for configuration-version management on TFE/C.
