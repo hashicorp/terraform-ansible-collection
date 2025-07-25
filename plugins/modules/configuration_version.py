@@ -609,7 +609,6 @@ def main():
     action_result = {}
     params = module.params
 
-
     try:
         client_archivist = ArchivistClient()
         client_terraform = TerraformClient(**module.params)
