@@ -25,6 +25,7 @@ issues: https://access.redhat.com/support/
 # uses 'fnmatch' to match the files or directories. Some directories and files like 'galaxy.yml', '*.pyc', '*.retry',
 # and '.git' are always filtered. Mutually exclusive with 'manifest'
 build_ignore:
+  - tools/
   - .gitignore
   - changelogs/.plugin-cache.yaml
 # A dict controlling use of manifest directives used in building the collection artifact. The key 'directives' is a

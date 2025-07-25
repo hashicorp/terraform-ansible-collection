@@ -1,0 +1,8 @@
+---
+- name: Generate temp AWS keys and render integration_config.yml
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run render_integration_config role
+      ansible.builtin.import_role:
+        name: render_integration_config

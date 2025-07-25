@@ -1,0 +1,41 @@
+---
+- name: Set required Core CI variables
+  ansible.builtin.set_fact:
+    create_core_ci_session_key: "{{ lookup('env', 'ANSIBLE_CORE_CI_KEY') }}"
+    create_core_ci_session_stage: prod
+    create_core_ci_instance_id: "{{ lookup('pipe', 'uuidgen') }}"
+    terraform_cloud_token: "{{ lookup('env', 'TFC_CI_TOKEN') }}"
+    destination_path: "~/.ansible/collections/ansible_collections/hashicorp/terraform/tests/integration/integration_config.yml"
+  no_log: true
+
+- name: Create a new session
+  ansible.builtin.uri:
+    method: PUT
+    body_format: json
+    body: '{"config": {"platform": "aws", "version": "sts"}, "auth": {"remote": {"key": "{{ create_core_ci_session_key }}", "nonce": null}}, "threshold": 1}'
+    url: "https://ansible-core-ci.testing.ansible.com/{{ create_core_ci_session_stage }}/aws/{{ create_core_ci_instance_id }}"
+  register: result
+  no_log: true
+
+- name: Set AWS secret and access key
+  ansible.builtin.set_fact:
+    secret_key: "{{ result.json.aws.credentials.secret_key }}"
+    access_key: "{{ result.json.aws.credentials.access_key }}"
+    session_token: "{{ result.json.aws.credentials.session_token }}"
+  no_log: true
+
+- name: Render integration_config.yml
+  ansible.builtin.copy:
+    dest: "{{ destination_path }}"
+    content: "{{ lookup('template', 'integration_config.yml.j2') }}"
+    mode: "0644"
+  no_log: true
+
+- name: Stat integration_config.yml file
+  ansible.builtin.stat:
+    path: "{{ destination_path }}"
+  register: result
+
+- name: Assert that integration_config.yml file exists
+  ansible.builtin.assert:
+    that: result.stat.exists
