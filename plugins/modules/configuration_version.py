@@ -214,6 +214,15 @@ EXAMPLES = r"""
 #         },
 #         "type": "configuration-versions"
 #     }
+#
+# Configuration version is created but could not transition to uploaded state
+#
+# FAILED! => {"attributes": {"auto-queue-runs": true, "changed-files": [], "error": null, "error-message": null,
+# "provisional": true, "source": "tfe-api", "speculative": false, "status": "pending", "status-timestamps": {}},
+# "changed": false, "id": "cv-id", "links": {"self": "api-link"},
+# "msg": "Configuration version cv-id was created but could not transition to uploaded state.", "relationships":
+# {"ingress-attributes": {"data": null, "links": {"related": "api-link"}}},
+# "type": "configuration-versions"}
 
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.configuration_version:

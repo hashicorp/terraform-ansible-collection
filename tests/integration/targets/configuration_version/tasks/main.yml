@@ -45,6 +45,23 @@
         dest: "{{ temp_dir.path }}/main.tf"
         mode: "0644"
 
+    - name: Invalid workspace name
+      hashicorp.terraform.configuration_version:
+        workspace: invalid-worskpace
+        organization: "{{ organization }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        provisional: true
+        tf_validate_certs: true
+        state: present
+      register: result_invalid_workspace
+      ignore_errors: true
+
+    - name: Assert failure
+      ansible.builtin.assert:
+        that:
+          - '"not found" in result_invalid_workspace.msg'
+
     - name: Create configuration version which is not the current version
       hashicorp.terraform.configuration_version:
         workspace: "{{ workspace_name }}"
@@ -74,8 +91,34 @@
         that:
           - result_archive.changed
           - '"archived successfully" in result_archive.msg'
+   
+    - name: Archive an already archived configuration 
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: "{{ result_upload.id }}"
+        state: archived
+        tf_validate_certs: true
+      register: result_archive
 
-    - name: Create configuration version
+    - name: Assert archive is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_archive.changed
+          - '"is already archived" in result_archive.msg'
+
+    - name: Archive a configuration that does not exist
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: invalid-id
+        state: archived
+        tf_validate_certs: true
+      register: result_archive
+
+    - name: Assert archive handles 'configuration does not exist'
+      ansible.builtin.assert:
+        that:
+          - not result_archive.changed
+          - '"not found" in result_archive.msg'
+
+    - name: Create configuration version with auto_queue_runs to false
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
         configuration_files_path: "{{ temp_dir.path }}"
