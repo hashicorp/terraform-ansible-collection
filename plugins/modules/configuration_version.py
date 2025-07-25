@@ -379,7 +379,7 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
         action_result.update(
             {
                 "failed": True,
-                "msg": f"Configuration version {config_version_id} could not transition to uploaded state.",
+                "msg": f"Configuration version {config_version_id} was created but could not transition to uploaded state.",
                 **final_config_status["data"],
             },
         )
