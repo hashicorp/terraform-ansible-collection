@@ -377,6 +377,8 @@ def validate_and_prepare_tar(configuration_files_path: Path) -> str:
                     final_upload_path = to_text(expanded_path)
                 except gzip.BadGzipFile as e:
                     raise Exception(f"The path {expanded_path} is a bad gzip file: {e}")
+            else:
+                raise ValueError(f"The path '{expanded_path}' is not a file or recognized archive format.")
         except Exception as e:
             raise tarfile.TarError(f"The path '{expanded_path}' is not a valid tarfile: {e}")
     else:
