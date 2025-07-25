@@ -297,7 +297,7 @@ def upload_configuration_version(
     return response["status"]
 
 
-def get_configuration_version(client_terraform: Any, params: Dict[str, Any], config_version_id: str) -> str:
+def get_configuration_version(client_terraform: Any, params: Dict[str, Any], config_version_id: str) -> Dict[str, Any]:
     """
     Polls the Terraform API for the status of a configuration version until it reaches 'uploaded'
     or the maximum number of retries is exhausted.
@@ -311,11 +311,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
         config_version_id (str): ID of the configuration version to check.
 
     Returns:
-        str: The status of the configuration version when it becomes 'uploaded'.
-
-    Raises:
-        module.fail_json: If the configuration version doesn't reach 'uploaded' in time
-                          or if an error occurs during polling.
+        Dict[str, Any]: The full configuration version response.
     """
     poll_interval = params.get("poll_interval")
     retries = params.get("tf_max_retries")
