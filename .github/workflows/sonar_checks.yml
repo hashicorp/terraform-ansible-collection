@@ -2,9 +2,9 @@ name: SonarCube Scans
 
 on:
   push:
-    branches: [main]
+    branches: [stable-1]
   pull_request:
-    branches: [main]
+    branches: [stable-1]
     types: [opened, synchronize, reopened]
 
 permissions:

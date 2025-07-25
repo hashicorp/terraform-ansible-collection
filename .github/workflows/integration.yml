@@ -3,9 +3,9 @@ name: Integration
 
 on: # yamllint disable-line rule:truthy
   push:
-    branches: [main]
+    branches: [stable-1]
   pull_request:
-    branches: [main]
+    branches: [stable-1]
   workflow_dispatch:
 
 jobs:
