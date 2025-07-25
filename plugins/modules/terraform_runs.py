@@ -18,10 +18,18 @@ description:
   - It can be used to check plan status, resource changes, and execution details.
   - Supports both Terraform Cloud and Terraform Enterprise environments.
 options:
-    workspace:
+    workspace_id:
         description: The ID of the workspace where the run will be created or managed.
         type: str
-        required: true
+        required: false
+    workspace:
+        description: The desired workspace name when the run is to be created
+        type: str
+        required: false
+    organization:
+        description: The desired organization to which the workspace belongs to
+        type: str
+        required: false
     configuration_version:
         description: The configuration version for the run present in the workspace, defaults to the latest version in the workspace if not specified.
         type: str
@@ -35,9 +43,14 @@ options:
         type: bool
         required: false
         default: false
+    save_plan:
+        description: Wheather to run plans and check the configuration without becoming the worspace's current run
+        type: bool
+        required: false
+        default: false
     variables:
-        description: A dictionary of variables to pass to the run.
-        type: dict
+        description: A list of dictionary of variables to pass to the run.
+        type: list
         required: false
     plan_only:
         description: Whether to only create a plan without applying it.
@@ -61,7 +74,7 @@ options:
     state:
         description: The state of the run to manage.
         type: str
-        choices: ['present', 'absent', 'discard']
+        choices: ['present', 'absent', 'applied', 'discarded', 'cancelled']
         default: 'present'
         required: false
 """
@@ -77,6 +90,12 @@ Examples =  r"""
           var2: "value2"
         state: "present"
 
+    - name: destroy provisioned resources
+      hashicorp.terraform.run:
+        workspace: "ws-12345678"
+        message: "Creating a new destroy run"
+        state: "absent"
+
     - name: Update an existing Terraform run
       hashicorp.terraform.run:
         workspace: "ws-12345678"
@@ -86,20 +105,16 @@ Examples =  r"""
 
     - name: Apply a Terraform run
       hashicorp.terraform.run:
-        workspace: "ws-12345678"
         run_id: "run-12345678"
-        apply: true
-        state: "present"
+        state: "applied"
 
     - name: Cancel a Terraform run
       hashicorp.terraform.run:
-        workspace: "ws-12345678"
         run_id: "run-12345678"
         state: "cancel"
 
     - name: Discard a Terraform run
       hashicorp.terraform.run:
-        workspace: "ws-12345678"
         run_id: "run-12345678"
         state: "discard"
 """
