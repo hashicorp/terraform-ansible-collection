@@ -64,11 +64,6 @@ options:
         description: The ID of the run to apply/cancel.
         type: str
         required: false
-    apply:
-        description: Whether to apply the run after planning.
-        type: bool
-        required: false
-        default: false
     is_destroy:
         description: Wheather to destroy all the provisoned resources.
         type: bool
@@ -82,7 +77,7 @@ options:
     state:
         description: The state of the run to manage.
         type: str
-        choices: ['present', 'absent', 'applied', 'discarded', 'cancelled']
+        choices: ['present', 'applied', 'discarded', 'cancelled']
         default: 'present'
         required: false
 """
@@ -106,10 +101,10 @@ Examples =  r"""
     - name: Cancel a Terraform run
       hashicorp.terraform.run:
         run_id: "run-12345678"
-        state: "cancel"
+        state: "cancelled"
 
     - name: Discard a Terraform run
       hashicorp.terraform.run:
         run_id: "run-12345678"
-        state: "discard"
+        state: "discarded"
 """
