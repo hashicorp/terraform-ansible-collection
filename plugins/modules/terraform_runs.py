@@ -9,14 +9,17 @@ DOCUMENTATION = r"""
 ---
 module: run
 version_added: "1.0.0"
-short_description: This module supports Create, Update, and Delete operations for Terraform Cloud/Enterprise runs.
+short_description: This module supports Create,  for Terraform Cloud/Enterprise runs.
 description:
-  - The module supports operations such as creating a new run, updating an existing run, and deleting a run.
-  - It allows you to manage Terraform runs by specifying the workspace, plan, and other parameters.
+  - The module supports run operations such as creating, applying, cancelling and discarding.
+  - It allows the user to manage Terraform runs by specifying the workspace, plan, and other parameters.
   - It can also be used to trigger a plan or apply operation on a specified workspace.
-  - The module provides options to manage run parameters, such as message, variables, and auto-apply settings.
-  - It can be used to check plan status, resource changes, and execution details.
+  - The module provides options to manage run attributes such as message, variables, and auto-apply settings.
   - Supports both Terraform Cloud and Terraform Enterprise environments.
+  - The present state supports planned, planned and saved, planned and finished and applied states; defaults to planned state
+  - The applied state corresponds to applying a run with it's run_id
+  - The discarded state corresponds to discarding a run without applying it
+  - The cancelled state corresponds to cancelling a run which is in progress
 options:
     workspace_id:
         description: The ID of the workspace where the run will be created or managed.
@@ -66,6 +69,11 @@ options:
         type: bool
         required: false
         default: false
+    is_destroy:
+        description: Wheather to destroy all the provisoned resources.
+        type: bool
+        required: false
+        default: false
     target-addrs:
         description: A list of target addresses to apply the run to.
         type: list
@@ -88,19 +96,6 @@ Examples =  r"""
         variables:
           var1: "value1"
           var2: "value2"
-        state: "present"
-
-    - name: destroy provisioned resources
-      hashicorp.terraform.run:
-        workspace: "ws-12345678"
-        message: "Creating a new destroy run"
-        state: "absent"
-
-    - name: Update an existing Terraform run
-      hashicorp.terraform.run:
-        workspace: "ws-12345678"
-        run_id: "run-12345678"
-        message: "Updating the run message"
         state: "present"
 
     - name: Apply a Terraform run
