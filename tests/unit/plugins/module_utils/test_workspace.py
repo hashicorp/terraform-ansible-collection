@@ -40,14 +40,9 @@ class TestWorkspaceFunctions(unittest.TestCase):
             "data": {
                 "id": self.workspace_id,
                 "type": "workspaces",
-                "attributes": {
-                    "name": self.workspace_name,
-                    "environment": "production",
-                    "auto-apply": False,
-                    "terraform-version": "1.0.0"
-                }
+                "attributes": {"name": self.workspace_name, "environment": "production", "auto-apply": False, "terraform-version": "1.0.0"},
             },
-            "status": 200
+            "status": 200,
         }
         self.mock_tf_client.get.return_value = expected_response
 
@@ -57,18 +52,11 @@ class TestWorkspaceFunctions(unittest.TestCase):
         expected_result = {
             "id": self.workspace_id,
             "type": "workspaces",
-            "attributes": {
-                "name": self.workspace_name,
-                "environment": "production",
-                "auto-apply": False,
-                "terraform-version": "1.0.0"
-            },
-            "status": 200
+            "attributes": {"name": self.workspace_name, "environment": "production", "auto-apply": False, "terraform-version": "1.0.0"},
+            "status": 200,
         }
         self.assertEqual(result, expected_result)
-        self.mock_tf_client.get.assert_called_once_with(
-            f"/organizations/{self.organization}/workspaces/{self.workspace_name}"
-        )
+        self.mock_tf_client.get.assert_called_once_with(f"/organizations/{self.organization}/workspaces/{self.workspace_name}")
 
     def test_get_workspace_empty_data_section(self, mock_requests):
         """Test get_workspace with empty data section."""
@@ -125,23 +113,14 @@ class TestWorkspaceFunctions(unittest.TestCase):
         special_org = "test-org-123"
         special_workspace = "test-workspace_prod.v2"
 
-        expected_response = {
-            "data": {"id": self.workspace_id, "attributes": {"name": special_workspace}},
-            "status": 200
-        }
+        expected_response = {"data": {"id": self.workspace_id, "attributes": {"name": special_workspace}}, "status": 200}
         self.mock_tf_client.get.return_value = expected_response
 
         result = get_workspace(self.mock_tf_client, special_org, special_workspace)
 
-        expected_result = {
-            "id": self.workspace_id,
-            "attributes": {"name": special_workspace},
-            "status": 200
-        }
+        expected_result = {"id": self.workspace_id, "attributes": {"name": special_workspace}, "status": 200}
         self.assertEqual(result, expected_result)
-        self.mock_tf_client.get.assert_called_once_with(
-            f"/organizations/{special_org}/workspaces/{special_workspace}"
-        )
+        self.mock_tf_client.get.assert_called_once_with(f"/organizations/{special_org}/workspaces/{special_workspace}")
 
     def test_get_workspace_unauthorized(self, mock_requests):
         """Test get_workspace with 401 unauthorized."""
@@ -173,20 +152,12 @@ class TestWorkspaceFunctions(unittest.TestCase):
                     "auto-apply": False,
                     "terraform-version": "1.0.0",
                     "working-directory": "/terraform",
-                    "vcs-repo": {
-                        "identifier": "org/repo",
-                        "branch": "main",
-                        "oauth-token-id": "ot-123"
-                    },
-                    "tags": ["production", "webapp"]
+                    "vcs-repo": {"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
+                    "tags": ["production", "webapp"],
                 },
-                "relationships": {
-                    "organization": {
-                        "data": {"id": "org-123", "type": "organizations"}
-                    }
-                }
+                "relationships": {"organization": {"data": {"id": "org-123", "type": "organizations"}}},
             },
-            "status": 200
+            "status": 200,
         }
         self.mock_tf_client.get.return_value = expected_response
 
@@ -207,7 +178,7 @@ class TestWorkspaceImportErrorHandling(unittest.TestCase):
         import ansible_collections.hashicorp.terraform.plugins.module_utils.workspace as workspace_module
 
         # Verify that HAS_REQUESTS variable exists
-        self.assertTrue(hasattr(workspace_module, 'HAS_REQUESTS'))
+        self.assertTrue(hasattr(workspace_module, "HAS_REQUESTS"))
 
         # In normal circumstances, it should be True since requests is available
         self.assertTrue(workspace_module.HAS_REQUESTS)
@@ -217,7 +188,7 @@ class TestWorkspaceImportErrorHandling(unittest.TestCase):
         import ansible_collections.hashicorp.terraform.plugins.module_utils.workspace as workspace_module
 
         # Verify the get_workspace function exists
-        self.assertTrue(hasattr(workspace_module, 'get_workspace'))
+        self.assertTrue(hasattr(workspace_module, "get_workspace"))
         self.assertTrue(callable(workspace_module.get_workspace))
 
 
