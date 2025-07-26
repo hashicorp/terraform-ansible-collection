@@ -22,13 +22,13 @@ provider "aws" {
   access_key = "{{ aws_access_key }}"
   secret_key = "{{ aws_secret_key }}"
   region = "{{ aws_region }}"
-{% if security_token | default(false) %}
-  token = "{{ security_token }}"
+{% if aws_session_token | default(false) %}
+  token = "{{ aws_session_token }}"
 {% endif %}
 }
 
 
-resource "aws_instance" "new-tar-instance" {
+resource "aws_instance" "{{ unique_id }}-new-tar-instance" {
   ami           = "ami-07b0c09aab6e66ee9" # This is a dummy AMI ID for Amazon Linux 2 in us-west-2
   instance_type = "t2.micro"
 

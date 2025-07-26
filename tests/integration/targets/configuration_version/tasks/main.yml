@@ -15,7 +15,7 @@
 
     - name: Create a Terraform workspace with unique name
       ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/Ansible-BU-TFC/workspaces"
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
         method: POST
         headers:
           Authorization: "Bearer {{ tfc_token }}"
@@ -47,7 +47,7 @@
 
     - name: Invalid workspace name
       hashicorp.terraform.configuration_version:
-        workspace: invalid-worskpace
+        workspace: invalid-workspace
         organization: "{{ organization }}"
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
@@ -57,10 +57,14 @@
       register: result_invalid_workspace
       ignore_errors: true
 
+    - name: Set expected error message
+      set_fact:
+        expected_error: "The workspace invalid-workspace in {{ organization }} organization was not found."
+
     - name: Assert failure
       ansible.builtin.assert:
         that:
-          - '"not found" in result_invalid_workspace.msg'
+          - result_invalid_workspace.msg == expected_error
 
     - name: Create configuration version which is not the current version
       hashicorp.terraform.configuration_version:

@@ -5,4 +5,4 @@
     aws_secret_key: "{{ aws_secret_key | default(lookup('ansible.builtin.env', 'AWS_SECRET_TOKEN')) }}"
     aws_region: "us-west-2"
     tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'TFC_CI_TOKEN')) }}"
-    organization: "Ansible-BU-TFC"
+    organization: "ANSIBLE-ENGINEERING-CI"
