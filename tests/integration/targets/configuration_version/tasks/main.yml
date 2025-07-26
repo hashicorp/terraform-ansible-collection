@@ -58,7 +58,7 @@
       ignore_errors: true
 
     - name: Set expected error message
-      set_fact:
+      ansible.builtin.set_fact:
         expected_error: "The workspace invalid-workspace in {{ organization }} organization was not found."
 
     - name: Assert failure

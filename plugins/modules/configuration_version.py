@@ -376,7 +376,7 @@ def validate_and_prepare_tar(configuration_files_path: Path) -> str:
                         f.read(1)
                     final_upload_path = to_text(expanded_path)
                 except gzip.BadGzipFile as e:
-                    raise Exception(f"The path {expanded_path} is a bad gzip file: {e}")
+                    raise gzip.BadGzipFile(f"The path {expanded_path} is a bad gzip file: {e}")
             else:
                 raise ValueError(f"The path '{expanded_path}' is not a file or recognized archive format.")
         except Exception as e:
@@ -632,7 +632,7 @@ def main():
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
                 if not workspace_response:
-                    raise Exception(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 # retrieve the workspace ID
                 workspace_id = workspace_response.get("data")["id"]
                 # update module params to have a workspace ID
