@@ -40,8 +40,6 @@ class TestConfigFunctions(unittest.TestCase):
         self.upload_url = "https://archivist.example.com/object/config.tar.gz"
         self.file_path = "/fake/path/config.tar.gz"
 
-    # --- create_config ---
-
     def test_create_config_success(self, mock_requests):
         """Test successful creation of a configuration version."""
         expected_response = {"data": {"id": self.config_version_id, "type": "configuration-versions"}, "status": 201}
@@ -107,8 +105,6 @@ class TestConfigFunctions(unittest.TestCase):
         expected_result = {"id": self.config_version_id, "status": 201}
         self.assertEqual(result, expected_result)
 
-    # --- archive_config ---
-
     def test_archive_config_success(self, mock_requests):
         """Test successful archiving of a configuration version."""
         response = {"status": 202}
@@ -150,8 +146,6 @@ class TestConfigFunctions(unittest.TestCase):
 
                 with self.assertRaises(MockHTTPError):
                     archive_config(self.mock_tf_client, self.config_version_id)
-
-    # --- get_config ---
 
     def test_get_config_success(self, mock_requests):
         """Test successfully fetching a configuration version."""
@@ -215,8 +209,6 @@ class TestConfigFunctions(unittest.TestCase):
 
                 with self.assertRaises(MockHTTPError):
                     get_config(self.mock_tf_client, self.config_version_id)
-
-    # --- upload_config ---
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
     def test_upload_config_success_full_url(self, mock_file, mock_requests):

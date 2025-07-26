@@ -32,8 +32,6 @@ class TestWorkspaceFunctions(unittest.TestCase):
         self.workspace_name = "test-workspace"
         self.workspace_id = "ws-123abc456def789"
 
-    # --- get_workspace ---
-
     def test_get_workspace_success(self, mock_requests):
         """Test successful retrieval of a workspace."""
         expected_response = {
