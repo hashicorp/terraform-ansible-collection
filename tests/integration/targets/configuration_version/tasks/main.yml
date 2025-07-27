@@ -90,11 +90,15 @@
         tf_validate_certs: true
       register: result_archive
 
+    - name: Set expected archive message
+      ansible.builtin.set_fact:
+        expected_result: "Configuration version {{ result_upload.id }} archived successfully."
+
     - name: Assert archive was successful
       ansible.builtin.assert:
         that:
           - result_archive.changed
-          - '"archived successfully" in result_archive.msg'
+          - result_archive.msg == expected_result
 
     - name: Archive an already archived configuration
       hashicorp.terraform.configuration_version:
@@ -103,11 +107,15 @@
         tf_validate_certs: true
       register: result_archive
 
+    - name: Set expected idempotence message
+      ansible.builtin.set_fact:
+        expected_idemp_result: "Configuration version '{{ result_upload.id }}' is already archived."
+
     - name: Assert archive is idempotent
       ansible.builtin.assert:
         that:
           - not result_archive.changed
-          - '"is already archived" in result_archive.msg'
+          - result_archive.msg == expected_idemp_result
 
     - name: Archive a configuration that does not exist
       hashicorp.terraform.configuration_version:
