@@ -69,7 +69,7 @@ options:
         type: bool
         required: false
         default: false
-    target-addrs:
+    target_addrs:
         description: A list of target addresses to apply the run to.
         type: list
         elements: str
@@ -80,6 +80,21 @@ options:
         choices: ['present', 'applied', 'discarded', 'cancelled']
         default: 'present'
         required: false
+    poll_interval:
+        description:
+            - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
+            - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+            - This works in conjunction with the I(poll_timeout) parameter.
+        type: int
+        default: 2
+    poll_timeout:
+        description:
+            - Configures the timeout (in seconds) for polling while inspecting the `configuration-version` status.
+            - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+            - This works in conjunction with the I(poll_interval) parameter.
+            - This would factor in the time in case of errors leading to exponential backoff.
+    type: int
+    default: 10
 """
 
 Examples =  r"""
