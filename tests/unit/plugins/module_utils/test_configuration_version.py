@@ -306,5 +306,6 @@ class TestConfigFunctions(unittest.TestCase):
                 with self.assertRaises(MockHTTPError):
                     upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
 
+
 if __name__ == "__main__":
     unittest.main()
