@@ -7,4 +7,4 @@
     aws_region: "us-east-1"
     tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'TFC_CI_TOKEN')) }}"
     organization: "ANSIBLE-ENGINEERING-CI"
-    no_log: True
+    no_log: true
