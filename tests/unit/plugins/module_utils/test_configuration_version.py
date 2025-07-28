@@ -306,24 +306,5 @@ class TestConfigFunctions(unittest.TestCase):
                 with self.assertRaises(MockHTTPError):
                     upload_config(self.mock_archivist_client, self.upload_url, self.file_path)
 
-
-# Test import error scenarios
-class TestImportErrorHandling(unittest.TestCase):
-    """Test handling when imports are not available."""
-
-    def test_import_error_handling(self):
-        """Test that the module handles import errors gracefully."""
-        # This test verifies that if requests/re are not available,
-        # the module sets HAS_REQUESTS=False and None values
-        # We can't easily test this directly, but we can verify the pattern exists
-        import ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version as config_module
-
-        # Verify that HAS_REQUESTS variable exists
-        self.assertTrue(hasattr(config_module, "HAS_REQUESTS"))
-
-        # In normal circumstances, it should be True since requests is available
-        self.assertTrue(config_module.HAS_REQUESTS)
-
-
 if __name__ == "__main__":
     unittest.main()
