@@ -45,7 +45,7 @@ options:
   workspace_id:
     description:
       - ID of the workspace for the configuration-version.
-      - Either I(workspace) I((and `organization`)) or I(workspace_id) must be specified when creating new a `configuration-version`.
+      - Either I(workspace) (and I(organization)) or I(workspace_id) must be specified when creating new a `configuration-version`.
     type: str
   auto_queue_runs:
     description:
@@ -59,7 +59,7 @@ options:
     default: false
   provisional:
     description:
-      - When true, this configuration version does not immediately become the workspace current configuration version.
+      - When C(true), this configuration version does not immediately become the workspace current configuration version.
         If the associated run is applied, it then becomes the current configuration version unless a newer one exists.
     type: bool
     default: false
