@@ -5,17 +5,12 @@
 
 import re
 
-
-try:
-    import requests
-
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     ArchivistClient,
     TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
+    TerraformError,
 )
 
 
@@ -40,7 +35,7 @@ def create_config(client: TerraformClient, workspace_id: str, attributes: dict):
         configuration version details and a `status` field with HTTP status code.
 
     Raises:
-        requests.HTTPError: If the request fails (i.e., non-201 status code is returned).
+        TerraformError: If the request fails (i.e., non-201 status code is returned).
     """
     payload = {
         "data": {
@@ -58,7 +53,7 @@ def create_config(client: TerraformClient, workspace_id: str, attributes: dict):
     else:
         # A non-201 status code was received when attempting to create specified configuration version
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)
 
 
 def archive_config(client: TerraformClient, config_version_id: str):
@@ -82,7 +77,7 @@ def archive_config(client: TerraformClient, config_version_id: str):
         is denied.
 
     Raises:
-        requests.HTTPError: If the archive request fails with a non-404 or non-202 status code.
+        TerraformError: If the archive request fails with a non-404 or non-202 status code.
     """
     response = client.post(f"/configuration-versions/{config_version_id}/actions/archive")
     response_status = response["status"]
@@ -98,7 +93,7 @@ def archive_config(client: TerraformClient, config_version_id: str):
     else:
         # Archive process was not initiated successfully
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)
 
 
 def upload_config(client: ArchivistClient, upload_url: str, configuration_files_path: str):
@@ -118,7 +113,7 @@ def upload_config(client: ArchivistClient, upload_url: str, configuration_files_
         dict: The HTTP response returned from the PUT request.
 
     Raises:
-        requests.HTTPError: If the upload fails (non-200 HTTP status code).
+        TerraformError: If the upload fails (non-200 HTTP status code).
     """
     response = {}
     with open(configuration_files_path, "rb") as f:
@@ -128,7 +123,7 @@ def upload_config(client: ArchivistClient, upload_url: str, configuration_files_
             response = client.put(f"/object/{upload_url}", f)
 
     if response["status"] != 200:
-        raise requests.HTTPError(response)
+        raise TerraformError(response)
     return response
 
 
@@ -151,7 +146,7 @@ def get_config(client: TerraformClient, config_version_id: str):
         or an empty dictionary if not found (status 404).
 
     Raises:
-        requests.HTTPError: If the request fails with a non-404 or non-200 status code.
+        TerraformError: If the request fails with a non-404 or non-200 status code.
     """
     response = client.get(f"/configuration-versions/{config_version_id}")
     response_data = response.get("data", {})
@@ -168,4 +163,4 @@ def get_config(client: TerraformClient, config_version_id: str):
     else:
         # A failure status code was received when attempting to fetch the specified configuration version
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)

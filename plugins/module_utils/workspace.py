@@ -3,15 +3,10 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-try:
-    import requests
-
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
-
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
+    TerraformError,
+)
 
 
 def get_workspace(client: TerraformClient, organization: str, workspace_name: str):
@@ -34,7 +29,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         if found, or an empty dictionary if the workspace is not found (status 404).
 
     Raises:
-        requests.HTTPError: If the request fails with a non-404 status code.
+        TerraformError: If the request fails with a non-404 status code.
     """
     response = client.get(f"/organizations/{organization}/workspaces/{workspace_name}")
     response_data = response.get("data", {})
@@ -51,4 +46,4 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
     else:
         # A failure status code was received when attempting to fetch the specified configuration version
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)

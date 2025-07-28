@@ -80,6 +80,7 @@ class TerraformModule(AnsibleModule):
         """Initialize the module updating argspec with auth params."""
         if required_by is None:
             required_by = {}
+
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)
         super().__init__(
             argument_spec,

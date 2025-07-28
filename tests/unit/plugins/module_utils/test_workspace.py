@@ -5,15 +5,11 @@
 
 import unittest
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-
-# Mock HTTPError class for testing
-class MockHTTPError(Exception):
-    def __init__(self, response=None):
-        self.response = response
-        super().__init__()
-
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
+    TerraformError,
+)
 
 # Import the module under test
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
@@ -21,7 +17,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 )
 
 
-@patch("ansible_collections.hashicorp.terraform.plugins.module_utils.workspace.requests")
 class TestWorkspaceFunctions(unittest.TestCase):
     """Unit tests for Terraform workspace helper functions."""
 
@@ -32,7 +27,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
         self.workspace_name = "test-workspace"
         self.workspace_id = "ws-123abc456def789"
 
-    def test_get_workspace_success(self, mock_requests):
+    def test_get_workspace_success(self):
         """Test successful retrieval of a workspace."""
         expected_response = {
             "data": {
@@ -56,7 +51,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
         self.assertEqual(result, expected_result)
         self.mock_tf_client.get.assert_called_once_with(f"/organizations/{self.organization}/workspaces/{self.workspace_name}")
 
-    def test_get_workspace_empty_data_section(self, mock_requests):
+    def test_get_workspace_empty_data_section(self):
         """Test get_workspace with empty data section."""
         expected_response = {"data": {}, "status": 200}
         self.mock_tf_client.get.return_value = expected_response
@@ -66,7 +61,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
         expected_result = {"status": 200}
         self.assertEqual(result, expected_result)
 
-    def test_get_workspace_no_data_key(self, mock_requests):
+    def test_get_workspace_no_data_key(self):
         """Test get_workspace with no data key."""
         expected_response = {"status": 200}
         self.mock_tf_client.get.return_value = expected_response
@@ -76,7 +71,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
         expected_result = {"status": 200}
         self.assertEqual(result, expected_result)
 
-    def test_get_workspace_404(self, mock_requests):
+    def test_get_workspace_404(self):
         """Test get_workspace returns empty dict on 404 (workspace not found)."""
         response = {"status": 404}
         self.mock_tf_client.get.return_value = response
@@ -85,28 +80,25 @@ class TestWorkspaceFunctions(unittest.TestCase):
 
         self.assertEqual(result, {})
 
-    def test_get_workspace_failure_raises_error(self, mock_requests):
+    def test_get_workspace_failure_raises_error(self):
         """Test get_workspace raises HTTPError on non-200/non-404 status."""
         response = {"status": 500}
-        mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.get.return_value = response
 
-        with self.assertRaises(MockHTTPError):
+        with self.assertRaises(TerraformError):
             get_workspace(self.mock_tf_client, self.organization, self.workspace_name)
 
-    def test_get_workspace_various_failure_statuses(self, mock_requests):
+    def test_get_workspace_various_failure_statuses(self):
         """Test get_workspace with various non-success status codes."""
-        mock_requests.HTTPError = MockHTTPError
-
         for status_code in [400, 401, 403, 422, 500, 502, 503]:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
                 self.mock_tf_client.get.return_value = response
 
-                with self.assertRaises(MockHTTPError):
+                with self.assertRaises(TerraformError):
                     get_workspace(self.mock_tf_client, self.organization, self.workspace_name)
 
-    def test_get_workspace_with_special_characters_in_names(self, mock_requests):
+    def test_get_workspace_with_special_characters_in_names(self):
         """Test get_workspace with special characters in organization and workspace names."""
         special_org = "test-org-123"
         special_workspace = "test-workspace_prod.v2"
@@ -120,25 +112,23 @@ class TestWorkspaceFunctions(unittest.TestCase):
         self.assertEqual(result, expected_result)
         self.mock_tf_client.get.assert_called_once_with(f"/organizations/{special_org}/workspaces/{special_workspace}")
 
-    def test_get_workspace_unauthorized(self, mock_requests):
+    def test_get_workspace_unauthorized(self):
         """Test get_workspace with 401 unauthorized."""
         response = {"status": 401}
-        mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.get.return_value = response
 
-        with self.assertRaises(MockHTTPError):
+        with self.assertRaises(TerraformError):
             get_workspace(self.mock_tf_client, self.organization, self.workspace_name)
 
-    def test_get_workspace_forbidden(self, mock_requests):
+    def test_get_workspace_forbidden(self):
         """Test get_workspace with 403 forbidden."""
         response = {"status": 403}
-        mock_requests.HTTPError = MockHTTPError
         self.mock_tf_client.get.return_value = response
 
-        with self.assertRaises(MockHTTPError):
+        with self.assertRaises(TerraformError):
             get_workspace(self.mock_tf_client, self.organization, self.workspace_name)
 
-    def test_get_workspace_with_complex_data_structure(self, mock_requests):
+    def test_get_workspace_with_complex_data_structure(self):
         """Test get_workspace with complex nested data structure."""
         expected_response = {
             "data": {
