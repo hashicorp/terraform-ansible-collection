@@ -86,7 +86,7 @@ options:
             - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
             - This works in conjunction with the I(poll_timeout) parameter.
         type: int
-        default: 2
+        default: 5
     poll_timeout:
         description:
             - Configures the timeout (in seconds) for polling while inspecting the `configuration-version` status.
@@ -94,7 +94,7 @@ options:
             - This works in conjunction with the I(poll_interval) parameter.
             - This would factor in the time in case of errors leading to exponential backoff.
     type: int
-    default: 10
+    default: 25
 """
 
 Examples =  r"""
