@@ -17,8 +17,8 @@ Version added: 1.0.0
 
 Synopsis
 --------
-- Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
-- If a *workspace* and *configuration_files_path* is specified and the *state* is ``present``, this module will create a configuration version in the workspace and upload the file to it.
+- Create or archive configuration-versions in Terraform Enterprise/Cloud.
+- If *workspace* and *configuration_files_path* is specified and the *state* is ``present``, this module will create a configuration version in the workspace and upload the file to it.
 - If a *configuration_version_id* is specified and the *state* is ``archived``, this module will discard the uploaded ``.tar.gz`` file associated with this configuration version. This can only archive the configuration versions that were created with the API or CLI, are in an uploaded state, have no runs in progress, and are not the current configuration version for any workspace.
 
 

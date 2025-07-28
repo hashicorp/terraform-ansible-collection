@@ -15,8 +15,8 @@ version_added: 1.0.0
 short_description: Manage configuration versions in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
-  - Create/Archive/Upload configuration version in Terraform Enterprise/Cloud.
-  - If a I(workspace) and I(configuration_files_path) is specified and the I(state) is C(present), this module will create
+  - Create or archive configuration-versions in Terraform Enterprise/Cloud.
+  - If I(workspace) and I(configuration_files_path) is specified and the I(state) is C(present), this module will create
     a configuration version in the workspace and upload the file to it.
   - If a I(configuration_version_id) is specified and the I(state) is C(archived), this module will discard the uploaded
     C(.tar.gz) file associated with this configuration version. This can only archive the configuration versions that
