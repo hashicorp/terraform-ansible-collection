@@ -28,6 +28,7 @@
             type: "workspaces"
         return_content: true
         status_code: 201
+      no_log: true
       register: workspace_create_response
 
     - name: Set a fact for 'workspace_id'
@@ -157,6 +158,7 @@
           Content-Type: "application/vnd.api+json"
         status_code: 204
         return_content: true
+      no_log: true
       register: workspace_delete_response
 
     - name: Clean up rendered config directory
