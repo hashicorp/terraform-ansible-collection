@@ -23,6 +23,11 @@ PEP440 is the schema used to describe the versions of Ansible.
 ## Included content
 
 <!--start collection content-->
+### Modules
+Name | Description
+--- | ---
+[hashicorp.terraform.configuration_version](https://github.com/ansible/blob/main/docs/hashicorp.terraform.configuration_version_module.rst)|Manage configuration versions in Terraform Enterprise/Cloud.
+
 <!--end collection content-->
 
 ## Installation

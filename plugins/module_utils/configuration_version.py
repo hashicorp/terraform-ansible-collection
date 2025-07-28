@@ -3,16 +3,15 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-try:
-    import re
+import re
 
+
+try:
     import requests
 
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
-    requests = None
-    re = None
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     ArchivistClient,
