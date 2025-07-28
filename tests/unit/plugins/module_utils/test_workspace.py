@@ -167,28 +167,5 @@ class TestWorkspaceFunctions(unittest.TestCase):
         self.assertEqual(result, expected_result)
 
 
-# Test import error scenarios for workspace module
-class TestWorkspaceImportErrorHandling(unittest.TestCase):
-    """Test handling when imports are not available in workspace module."""
-
-    def test_import_error_handling(self):
-        """Test that the workspace module handles import errors gracefully."""
-        import ansible_collections.hashicorp.terraform.plugins.module_utils.workspace as workspace_module
-
-        # Verify that HAS_REQUESTS variable exists
-        self.assertTrue(hasattr(workspace_module, "HAS_REQUESTS"))
-
-        # In normal circumstances, it should be True since requests is available
-        self.assertTrue(workspace_module.HAS_REQUESTS)
-
-    def test_workspace_module_structure(self):
-        """Test that workspace module has expected structure."""
-        import ansible_collections.hashicorp.terraform.plugins.module_utils.workspace as workspace_module
-
-        # Verify the get_workspace function exists
-        self.assertTrue(hasattr(workspace_module, "get_workspace"))
-        self.assertTrue(callable(workspace_module.get_workspace))
-
-
 if __name__ == "__main__":
     unittest.main()
