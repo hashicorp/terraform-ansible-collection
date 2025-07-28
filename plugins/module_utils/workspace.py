@@ -6,9 +6,8 @@
 try:
     import requests
 
-    HAS_REQUESTS = True
 except ImportError:
-    HAS_REQUESTS = False
+    raise ImportError("The 'requests' library is required but not installed.")
 
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
