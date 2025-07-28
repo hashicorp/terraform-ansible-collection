@@ -90,6 +90,7 @@ class TestValidateAndPrepareTar:
                 assert "main.tf" in names
                 assert "subdir/variables.tf" in names
 
+            # Cleanup
             os.remove(result)
 
     def test_validate_prepare_tar_valid_uncompressed_tar(self):
@@ -159,6 +160,7 @@ class TestConfigurationVersionOperations:
             assert config_id == "cv-456"
             assert upload_url == "https://example.com/upload"
 
+            # Verify the attributes were passed correctly
             mock_create.assert_called_once_with(mock_client, "ws-456", {"auto-queue-runs": False, "speculative": True, "provisional": True})
 
     def test_upload_configuration_version_success(self):
@@ -243,7 +245,7 @@ class TestConfigurationVersionPolling:
         ]
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
-            with patch("time.sleep"):
+            with patch("time.sleep"):  # Speed up the test
                 mock_get.side_effect = responses
 
                 result = get_configuration_version(mock_client, params, config_id)
@@ -461,7 +463,7 @@ class TestMainFunctionBehavior:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 5,
-            # No workspace_id key at all
+            # Note: No workspace_id key at all
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
@@ -483,3 +485,66 @@ class TestMainFunctionBehavior:
 
             # Should fail due to KeyError when accessing params["workspace_id"]
             assert "'workspace_id'" in str(exc_info.value)
+
+
+class TestIntegrationFlows:
+    """End-to-end integration-style tests."""
+
+    def test_full_integration_present_with_workspace_id(self):
+        """Test full integration of present state with workspace_id provided."""
+        params = {
+            "state": "present",
+            "workspace_id": "ws-direct-123",
+            "configuration_files_path": "/fake/path",
+            "auto_queue_runs": False,
+            "speculative": True,
+            "provisional": False,
+            "poll_interval": 1,
+            "poll_timeout": 5,
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present"
+        ) as mock_state:
+
+            mock_module = Mock()
+            mock_module.params = params.copy()
+            mock_module_class.return_value = mock_module
+
+            mock_state.return_value = {"changed": True, "id": "cv-123", "attributes": {"status": "uploaded"}}
+
+            mock_module.exit_json.side_effect = SystemExit({"changed": True})
+
+            with pytest.raises(SystemExit):
+                main()
+
+            mock_state.assert_called_once()
+            # Verify workspace_id was passed correctly
+            call_args = mock_state.call_args[0][2]  # params argument
+            assert call_args["workspace_id"] == "ws-direct-123"
+
+    def test_full_integration_archived_state(self):
+        """Test full integration of archived state."""
+        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived"
+        ) as mock_state:
+
+            mock_module = Mock()
+            mock_module.params = params
+            mock_module_class.return_value = mock_module
+
+            mock_state.return_value = {"changed": True, "msg": "Archived successfully"}
+
+            # Mock exit_json to raise SystemExit to simulate module exit
+            mock_module.exit_json.side_effect = SystemExit({"changed": True})
+
+            with pytest.raises(SystemExit):
+                main()
+
+            mock_state.assert_called_once_with(ANY, "cv-to-archive")
