@@ -490,7 +490,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
     return config_response
 
 
-def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any]):
+def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Ensures the Terraform configuration state is present and correctly uploaded.
 
@@ -544,7 +544,7 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     return action_result
 
 
-def state_archived(client_terraform: Any, configuration_version_id: str):
+def state_archived(client_terraform: Any, configuration_version_id: str) -> Dict[str, Any]:
     """
     Archives a specified Terraform configuration version if it is not already archived.
 
