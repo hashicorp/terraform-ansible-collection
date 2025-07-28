@@ -93,15 +93,16 @@ options:
 """
 
 EXAMPLES = r"""
-- name: Create a configuration version and queue runs
+- name: Create a configuration version successfully and queue runs
   hashicorp.terraform.configuration_version:
-    workspace: <your-workspace-id>
+    workspace_id: <your-workspace-id>
     state: present
     configuration_files_path: <path-to-your-configuration-files>
     poll_interval: 3
     poll_timeout: 15
 
-# Assuming play output is registered in 'result'
+# Task output:
+# ------------
 #  "result": {
 #         "attributes": {
 #             "auto-queue-runs": true,
@@ -134,7 +135,46 @@ EXAMPLES = r"""
 #         "type": "configuration-versions"
 #     }
 
-- name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded.
+- name: Create a new configuration version (failed to transition to uploaded state even after end of polling)
+  hashicorp.terraform.configuration_version:
+    workspace_id: <your-workspace-id>
+    state: present
+    configuration_files_path: <path-to-your-configuration-files>
+    poll_interval: 3
+    poll_timeout: 15
+
+# Task output:
+# ------------
+# FAILED! => {
+#  "attributes": {
+#    "auto-queue-runs": true,
+#    "changed-files": [],
+#    "error": null,
+#    "error-message": null,
+#    "provisional": true,
+#    "source": "tfe-api",
+#    "speculative": false,
+#    "status": "pending",
+#    "status-timestamps": {}
+#  },
+#  "changed": false,
+#  "id": "cv-ntv3HbhJqvFzamy7",
+#  "links": {
+#    "self": "api-link"
+#  },
+#  "msg": "Configuration version cv-ntv3HbhJqvFzamy7 was created but could not transition to uploaded state.",
+#  "relationships": {
+#    "ingress-attributes": {
+#      "data": null,
+#      "links": {
+#        "related": "api-link"
+#      }
+#    }
+#  },
+#  "type": "configuration-versions"
+# }
+
+- name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded
   hashicorp.terraform.configuration_version:
     workspace: <your-workspace-name>
     organization: <your-organization-name>
@@ -142,7 +182,8 @@ EXAMPLES = r"""
     auto_queue_runs: false
     configuration_files_path: <path-to-your-configuration-file>
 
-# Assuming play output is registered in 'result'
+# Task output:
+# ------------
 # "result": {
 #         "attributes": {
 #             "auto-queue-runs": false,
@@ -175,14 +216,15 @@ EXAMPLES = r"""
 #         "type": "configuration-versions"
 #     }
 
-- name: Create a configuration for speculative runs
+- name: Create a configuration version for speculative runs
   hashicorp.terraform.configuration_version:
     workspace_id: <your-workspace-id>
     state: present
     speculative: true
     configuration_files_path: <path-to-your-configuration-file>
 
-# Assuming play output is registered in 'result'
+# Task output:
+# ------------
 # "result": {
 #         "attributes": {
 #             "auto-queue-runs": true,
@@ -215,14 +257,6 @@ EXAMPLES = r"""
 #         "type": "configuration-versions"
 #     }
 #
-# Configuration version is created but could not transition to uploaded state
-#
-# FAILED! => {"attributes": {"auto-queue-runs": true, "changed-files": [], "error": null, "error-message": null,
-# "provisional": true, "source": "tfe-api", "speculative": false, "status": "pending", "status-timestamps": {}},
-# "changed": false, "id": "cv-id", "links": {"self": "api-link"},
-# "msg": "Configuration version cv-id was created but could not transition to uploaded state.", "relationships":
-# {"ingress-attributes": {"data": null, "links": {"related": "api-link"}}},
-# "type": "configuration-versions"}
 
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.configuration_version:
@@ -231,7 +265,8 @@ EXAMPLES = r"""
     provisional: true
     configuration_files_path: <path-to-your-configuration-file>
 
-# Assuming play output is registered in 'result'
+# Task output:
+# ------------
 # "result": {
 #         "attributes": {
 #             "auto-queue-runs": true,
@@ -267,10 +302,11 @@ EXAMPLES = r"""
 - name: Discard a configuration version
   hashicorp.terraform.configuration_version:
     state: archived
-    configuration_version_id: <configuration-version-id>
+    configuration_version_id: cv-mTaz7Qq44wVRGcdA
 
-# Assuming play output is registered in 'archive_record'
-# "archive_record": {
+# Task output:
+# ------------
+# "result": {
 #         "changed": true,
 #         "failed": false,
 #         "msg": "Configuration version cv-mTaz7Qq44wVRGcdA archived successfully."
