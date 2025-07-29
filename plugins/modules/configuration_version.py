@@ -606,41 +606,29 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
         client_terraform (Any): Client object used to interact with Terraform.
         configuration_version_id (str, Any): The configuration_version_id to archive.
     """
-    archiving_result = {}
+    archiving_result = {
+        "changed": False,
+    }
 
     config_response = get_config(client_terraform, config_version_id=configuration_version_id)
     if not config_response:
-        archiving_result.update(
-            {
-                "changed": False,
-                "msg": f"Configuration version '{configuration_version_id}' was not found.",
-            },
-        )
+        msg = f"Configuration version '{configuration_version_id}' was not found."
+
     else:
         current_status = config_response["data"]["attributes"]["status"]
         if current_status == "archived":
-            archiving_result.update(
-                {
-                    "changed": False,
-                    "msg": f"Configuration version '{configuration_version_id}' is already archived.",
-                },
-            )
+            msg = f"Configuration version '{configuration_version_id}' is already archived."
         else:
             archiving_result["changed"] = True
             # configuration version exists, but is not archived, attempt archiving (if not running in check_mode)
             if not check_mode:
                 archive_config(client_terraform, configuration_version_id)
-                archiving_result.update(
-                    {
-                        "msg": f"Configuration version {configuration_version_id} archived successfully.",
-                    },
-                )
+                msg = f"Configuration version {configuration_version_id} archived successfully."
             else:
-                archiving_result.update(
-                    {
-                        "msg": f"Configuration version {configuration_version_id} found and in archivable state. " "Skipped archiving due to check mode.",
-                    },
-                )
+                msg = f"Configuration version {configuration_version_id} found and in archivable state. " "Skipped archiving due to check mode."
+
+    archiving_result["msg"] = msg
+
     return archiving_result
 
 
