@@ -581,7 +581,6 @@ class TestIntegrationFlows:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 5,
-            "check_mode": False,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
@@ -608,7 +607,7 @@ class TestIntegrationFlows:
 
     def test_full_integration_archived_state(self):
         """Test full integration of archived state."""
-        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5, "check_mode": False}
+        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
@@ -628,7 +627,7 @@ class TestIntegrationFlows:
             with pytest.raises(SystemExit):
                 main()
 
-            mock_state.assert_called_once_with(ANY, "cv-to-archive", check_mode=False)
+            mock_state.assert_called_once_with(ANY, "cv-to-archive", params["check_mode"])
 
     def test_main_workspace_lookup_successful(self):
         """Test main when workspace lookup succeeds and workspace_id is set."""

@@ -671,9 +671,10 @@ def main():
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
-    check_mode = module.params["check_mode"]
+    check_mode = module.check_mode
     action_result = {}
     params = module.params
+    params["check_mode"] = check_mode
 
     try:
         client_archivist = ArchivistClient(**module.params)
@@ -697,7 +698,7 @@ def main():
 
         elif params["state"] == "archived":
             # when state is archived, configuration_version_id will always be available
-            action_result = state_archived(client_terraform, params["configuration_version_id"], check_mode=check_mode)
+            action_result = state_archived(client_terraform, params["configuration_version_id"], params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)
