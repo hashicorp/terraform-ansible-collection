@@ -1,0 +1,167 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Invalid workspace name
+      hashicorp.terraform.configuration_version:
+        workspace: invalid-workspace
+        organization: "{{ organization }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        provisional: true
+        tf_validate_certs: true
+        state: present
+      register: result_invalid_workspace
+      ignore_errors: true
+
+    - name: Set expected error message
+      ansible.builtin.set_fact:
+        expected_error: "The workspace invalid-workspace in {{ organization }} organization was not found."
+
+    - name: Assert failure
+      ansible.builtin.assert:
+        that:
+          - result_invalid_workspace.msg == expected_error
+
+    - name: Create configuration version which is not the current version
+      hashicorp.terraform.configuration_version:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        provisional: true
+        tf_validate_certs: true
+        state: present
+      register: result_upload
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result_upload.changed
+          - result_upload.attributes.status == "uploaded"
+
+    - name: Archive configuration
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: "{{ result_upload.id }}"
+        state: archived
+        tf_validate_certs: true
+      register: result_archive
+
+    - name: Set expected archive message
+      ansible.builtin.set_fact:
+        expected_result: "Configuration version {{ result_upload.id }} archived successfully."
+
+    - name: Assert archive was successful
+      ansible.builtin.assert:
+        that:
+          - result_archive.changed
+          - result_archive.msg == expected_result
+
+    - name: Archive an already archived configuration
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: "{{ result_upload.id }}"
+        state: archived
+        tf_validate_certs: true
+      register: result_archive
+
+    - name: Set expected idempotence message
+      ansible.builtin.set_fact:
+        expected_idemp_result: "Configuration version '{{ result_upload.id }}' is already archived."
+
+    - name: Assert archive is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_archive.changed
+          - result_archive.msg == expected_idemp_result
+
+    - name: Archive a configuration that does not exist
+      hashicorp.terraform.configuration_version:
+        configuration_version_id: invalid-id
+        state: archived
+        tf_validate_certs: true
+      register: result_archive
+
+    - name: Assert archive handles 'configuration does not exist'
+      ansible.builtin.assert:
+        that:
+          - not result_archive.changed
+          - '"not found" in result_archive.msg'
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        tf_validate_certs: true
+        poll_interval: 3
+        poll_timeout: 15
+        state: present
+      register: result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result.changed
+          - result.attributes.status == "uploaded"
+
+  always:
+    - name: Force delete workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: workspace_delete_response
+
+    - name: Clean up rendered config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent

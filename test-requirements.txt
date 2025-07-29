@@ -1,4 +1,6 @@
 # Python packages required for testing and development of this collection
+pytest
+pytest-mock
 pytest-ansible
 pytest-xdist
 requests
