@@ -3,16 +3,11 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-try:
-    import requests
-
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
-    requests = None
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
+    TerraformError,
 )
 
 
@@ -24,7 +19,7 @@ def get_plan_metadata(client: TerraformClient, identifier: str, use_plan_id: boo
     The request can be made using either a plan ID directly or through a run ID.
     If the plan does not exist, returns an empty dictionary without raising an error.
     If the plan is found, returns the full response. For any other non-success
-    status, raises an HTTPError with the response.
+    status, raises a TerraformError with the response.
 
     Args:
         client (TerraformClient): An authenticated client instance used to interact
@@ -37,7 +32,7 @@ def get_plan_metadata(client: TerraformClient, identifier: str, use_plan_id: boo
         or an empty dictionary if not found (status 404).
 
     Raises:
-        requests.HTTPError: If the request fails with a non-404 or non-200 status code.
+        TerraformError: If the request fails with a non-404 or non-200 status code.
     """
     if use_plan_id:
         path = f"/plans/{identifier}"
@@ -57,7 +52,7 @@ def get_plan_metadata(client: TerraformClient, identifier: str, use_plan_id: boo
     else:
         # A failure status code was received when attempting to fetch the specified plan
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)
 
 
 def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: bool):
@@ -68,7 +63,7 @@ def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: 
     The request can be made using either a plan ID directly or through a run ID.
     If the plan JSON output does not exist, returns an empty dictionary without
     raising an error. If the JSON output is found, returns the full response.
-    For any other non-success status, raises an HTTPError with the response.
+    For any other non-success status, raises a TerraformError with the response.
 
     Args:
         client (TerraformClient): An authenticated client instance used to interact
@@ -81,7 +76,7 @@ def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: 
         or an empty dictionary if not found (status 404).
 
     Raises:
-        requests.HTTPError: If the request fails with a non-404 or non-200 status code.
+        TerraformError: If the request fails with a non-404 or non-200 status code.
     """
     if use_plan_id:
         path = f"/plans/{identifier}/json-output"
@@ -101,4 +96,4 @@ def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: 
     else:
         # A failure status code was received when attempting to fetch the specified plan JSON output
         # there can be several reasons for this so we raise an exception with the response
-        raise requests.HTTPError(response)
+        raise TerraformError(response)

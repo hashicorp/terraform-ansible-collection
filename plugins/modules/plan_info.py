@@ -4,7 +4,7 @@
 # Copyright: (c) 2025, Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 module: plan_info
 version_added: "1.0.0"
 short_description: Retrieve information about Terraform Cloud/Enterprise plans
@@ -34,39 +34,271 @@ extends_documentation_fragment:
   - hashicorp.terraform.auth
 """
 
-EXAMPLES = """
-# Get plan information using plan ID
+EXAMPLES = r"""
+# Get plan information
 - name: Get plan information by plan ID
   hashicorp.terraform.plan_info:
-    plan_id: <your-plan_id>
+    plan_id: <your-plan-id>
     token: "{{ tf_token }}"
     hostname: "{{ tf_hostname }}"
   register: plan_result
+# Task output:
+# ------------
+# "changed": false,
+# "metadata": {
+#     "data": {
+#         "attributes": {
+#             "has_changes": true,
+#             "resource_additions": 1,
+#             "resource_changes": 0,
+#             "resource_destructions": 0,
+#             "status": "finished"
+#         },
+#         "id": "plan-8F5JFydVYAmRZLLC",
+#         "type": "plans"
+#     }
+# },
+# "json_output": {
+#     "applyable": true,
+#     "complete": true,
+#     "configuration": {
+#         "provider_config": {
+#             "aws": {
+#                 "name": "aws",
+#                 "full_name": "registry.terraform.io/hashicorp/aws"
+#             }
+#         },
+#         "root_module": {
+#             "resources": [
+#                 {
+#                     "address": "aws_instance.example",
+#                     "mode": "managed",
+#                     "name": "example",
+#                     "provider_config_key": "aws",
+#                     "schema_version": 1,
+#                     "type": "aws_instance"
+#                 }
+#             ]
+#         }
+#     },
+#     "errored": false,
+#     "format_version": "1.2",
+#     "planned_values": {
+#         "root_module": {
+#             "resources": [
+#                 {
+#                     "address": "aws_instance.example",
+#                     "mode": "managed",
+#                     "name": "example",
+#                     "provider_name": "registry.terraform.io/hashicorp/aws",
+#                     "schema_version": 1,
+#                     "type": "aws_instance",
+#                     "values": {
+#                         "ami": "ami-0c02fb55956c7d316",
+#                         "instance_type": "t2.micro"
+#                     }
+#                 }
+#             ]
+#         }
+#     },
+#     "resource_changes": [
+#         {
+#             "address": "aws_instance.example",
+#             "change": {
+#                 "actions": ["create"],
+#                 "before": null,
+#                 "after": {
+#                     "ami": "ami-0c02fb55956c7d316",
+#                     "instance_type": "t2.micro",
+#                     "tags": null
+#                 },
+#                 "after_unknown": {
+#                     "arn": true,
+#                     "id": true,
+#                     "public_ip": true
+#                 },
+#             },
+#             "mode": "managed",
+#             "name": "example",
+#             "provider_name": "registry.terraform.io/hashicorp/aws",
+#             "type": "aws_instance"
+#         }
+#     ],
+#     "terraform_version": "1.5.0",
+#     "timestamp": "2025-07-25T10:15:30Z"
+# },
+# "plan_status": "finished"
 
-# Get plan information using run ID
 - name: Get plan information by run ID
   hashicorp.terraform.plan_info:
-    run_id: <your-run_id>
+    run_id: <your-run-id>
     token: "{{ tf_token }}"
     hostname: "{{ tf_hostname }}"
   register: plan_result
+# Task output:
+# ------------
+# "changed": false,
+# "metadata": {
+#     "data": {
+#         "attributes": {
+#             "has_changes": true,
+#             "resource_additions": 0,
+#             "resource_changes": 1,
+#             "resource_destructions": 0,
+#             "status": "finished"
+#         },
+#         "id": "plan-9G6KGzfWZBnSaMLD",
+#         "type": "plans"
+#     }
+# },
+# "json_output": {
+#     "applyable": true,
+#     "complete": true,
+#     "errored": false,
+#     "format_version": "1.2",
+#     "resource_changes": [
+#         {
+#             "address": "aws_s3_bucket.example",
+#             "change": {
+#                 "actions": ["update"],
+#                 "before": {
+#                     "bucket": "my-terraform-bucket",
+#                     "versioning": {
+#                         "enabled": false
+#                     }
+#                 },
+#                 "after": {
+#                     "bucket": "my-terraform-bucket",
+#                     "versioning": {
+#                         "enabled": true
+#                     }
+#                 },
+#                 "after_unknown": {
+#                     "id": true
+#                 },
+#             },
+#             "mode": "managed",
+#             "name": "example",
+#             "provider_name": "registry.terraform.io/hashicorp/aws",
+#             "type": "aws_s3_bucket"
+#         }
+#     ],
+#     "terraform_version": "1.5.0",
+#     "timestamp": "2025-07-25T10:20:45Z"
+# },
+# "plan_status": "finished"
 
-# For drift analysis, use these tasks in the playbook:
+- name: Get plan information for a plan with no changes
+  hashicorp.terraform.plan_info:
+    plan_id: <your-plan-id>
+    token: "{{ tf_token }}"
+    hostname: "{{ tf_hostname }}"
+  register: plan_result
+# Task output:
+# ------------
+# "changed": false,
+# "metadata": {
+#     "data": {
+#         "attributes": {
+#             "has_changes": false,
+#             "resource_additions": 0,
+#             "resource_changes": 0,
+#             "resource_destructions": 0,
+#             "status": "finished"
+#         },
+#         "id": "plan-NoChangesExample",
+#         "type": "plans"
+#     }
+# },
+# "json_output": {
+#     "applyable": false,
+#     "complete": true,
+#     "errored": false,
+#     "format_version": "1.2",
+#     "resource_changes": [],
+#     "terraform_version": "1.5.0",
+#     "timestamp": "2025-07-25T10:25:12Z"
+# },
+# "plan_status": "finished"
+
+- name: Get plan information with error status (plan failed)
+  hashicorp.terraform.plan_info:
+    run_id: <your-run-id>
+    token: "{{ tf_token }}"
+    hostname: "{{ tf_hostname }}"
+  register: plan_result
+# Task output:
+# ------------
+# "changed": false,
+# "metadata": {
+#     "data": {
+#         "attributes": {
+#             "has_changes": false,
+#             "resource_additions": 0,
+#             "resource_changes": 0,
+#             "resource_destructions": 0,
+#             "status": "errored"
+#         },
+#         "id": "plan-ErrorExample123",
+#         "type": "plans"
+#     }
+# },
+# "json_output": {
+#     "applyable": false,
+#     "complete": false,
+#     "errored": true,
+#     "format_version": "1.2",
+#     "resource_changes": [],
+#     "terraform_version": "1.5.0",
+#     "timestamp": "2025-07-25T10:30:22Z"
+# },
+# "plan_status": "errored"
+
+# For drift analysis, use these tasks in the playbook
+# To see diff output, run the playbook with --diff flag:
+# $ ansible-playbook playbooks/test_plan_info.yml --diff
 
 - name: Analyze each resource changes for drift detection
-      ansible.utils.fact_diff:
-        before: "{{ item.change.before | default({}) | ansible.utils.to_paths }}"
-        after: "{{ item.change.after | default({}) | ansible.utils.to_paths }}"
-      loop: "{{ plan_result.json_output.resource_changes }}"
-      loop_control:
-        label: "diff"
-      when: plan_result.json_output.resource_changes is defined
+  ansible.utils.fact_diff:
+    before: "{{ item.change.before | default({}) | ansible.utils.to_paths }}"
+    after: "{{ item.change.after | default({}) | ansible.utils.to_paths }}"
+  loop: "{{ plan_result.json_output.resource_changes }}"
+  loop_control:
+    label: "diff"
+  when: plan_result.json_output.resource_changes is defined
+# Task output:
+# ------------
+# --- before
+# +++ after
+# @@ -25,7 +25,7 @@
+#     "id": "i-0417e9e07585b0962",
+#     "instance_initiated_shutdown_behavior": "stop",
+#     "instance_state": "running",
+# -    "instance_type": "t3.large",
+# +    "instance_type": "t3.micro",
+#     "ipv6_address_count": 0,
+#     "ipv6_addresses": [],
+#     "key_name": "",
+# @@ -64,10 +64,8 @@
+#     "source_dest_check": true,
+#     "subnet_id": "subnet-071443af7288cb251",
+#     "tags.Name": "instance-check_2",
+# -    "tags.architecture": "x86_64",
+#     "tags.owner": "geet_2",
+#     "tags_all.Name": "instance-check_2",
+# -    "tags_all.architecture": "x86_64",
+#     "tags_all.owner": "geet_2",
+#     "tenancy": "default",
+#     "timeouts": null,
 
 - name: Display plan status and resource change count
   ansible.builtin.debug:
     msg: |
       Plan Status: {{ plan_result.metadata.data.attributes.status }}
       Resource Changes Count: {{ plan_result.json_output.resource_changes | length }}
+# Task output:
+# ------------
+# "msg": "Plan Status: planned\nResource Changes Count: 2"
 
 - name: Show resource changes summary
   ansible.builtin.debug:
@@ -75,9 +307,12 @@ EXAMPLES = """
         Additions: {{ plan_result.metadata.data.attributes.resource_additions | default(0) }}
         Changes: {{ plan_result.metadata.data.attributes.resource_changes | default(0) }}
         Deletions: {{ plan_result.metadata.data.attributes.resource_destructions | default(0) }}
+# Task output:
+# ------------
+# "msg": "Changes:\n  Additions: 2\n  Changes: 1\n  Deletions: 0"
 """
 
-RETURN = """
+RETURN = r"""
 metadata:
   description: The metadata about the Terraform plan.
   returned: always
@@ -257,7 +492,7 @@ def main():
                 module.fail_json(msg=f"Plan for run with ID '{identifier}' was not found.")
 
         # Extract plan status from metadata
-        plan_status = metadata_response.get("data", {}).get("data", {}).get("attributes", {}).get("status", "unknown")
+        plan_status = metadata_response.get("data", {}).get("attributes", {}).get("status", "unknown")
 
         result.update(
             {
