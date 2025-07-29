@@ -26,7 +26,7 @@ options:
         type: str
         required: false
     workspace:
-        description: The desired workspace name when the run is to be created
+        description: The desired workspace name where the run is to be created
         type: str
         required: false
     organization:
@@ -45,12 +45,10 @@ options:
         description: Whether to automatically apply the run after planning.
         type: bool
         required: false
-        default: false
     save_plan:
         description: Wheather to run plans and check the configuration without becoming the worspace's current run
         type: bool
         required: false
-        default: false
     variables:
         description: A list of dictionary of variables to pass to the run.
         type: list
@@ -59,7 +57,6 @@ options:
         description: Whether to only create a plan without applying it.
         type: bool
         required: false
-        default: false
     run_id:
         description: The ID of the run to apply/cancel.
         type: str
@@ -68,7 +65,6 @@ options:
         description: Wheather to destroy all the provisoned resources.
         type: bool
         required: false
-        default: false
     target_addrs:
         description: A list of target addresses to apply the run to.
         type: list
@@ -80,17 +76,20 @@ options:
         choices: ['present', 'applied', 'discarded', 'cancelled']
         default: 'present'
         required: false
+    poll:
+        description: Whether to poll the run status.
+        type: bool
+        default: true
+        required: false
     poll_interval:
         description:
-            - Configures the interval (in seconds) to wait between retries of inspecting the `configuration-version` status.
-            - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+            - Configures the interval (in seconds) to wait between retries of inspecting the `run` status.
             - This works in conjunction with the I(poll_timeout) parameter.
         type: int
         default: 5
     poll_timeout:
         description:
-            - Configures the timeout (in seconds) for polling while inspecting the `configuration-version` status.
-            - This is used with `state=present` when creating a new configuration-version and uploading a configuration file for it.
+            - Configures the timeout (in seconds) for polling while inspecting the `run` status.
             - This works in conjunction with the I(poll_interval) parameter.
             - This would factor in the time in case of errors leading to exponential backoff.
     type: int
