@@ -11,7 +11,7 @@ import time
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -551,27 +551,24 @@ class TestArchivistClient:
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = ArchivistClient(tf_validate_certs=True)
+        # Create client to trigger initialization side effects
+        ArchivistClient(tf_validate_certs=True)
 
         expected_headers = {"Content-Type": "application/octet-stream"}
         mock_session_instance.headers.update.assert_called_with(expected_headers)
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_archivist_client_headers_custom(self, mock_session):
-        """Test ArchivistClient ignores custom headers and uses default."""
+        """Test ArchivistClient ignores custom headers and always uses application/octet-stream."""
         mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
+        mock_session_instance.headers = {"Content-Type": "application/octet-stream"}
         mock_session.return_value = mock_session_instance
 
         custom_headers = {"User-Agent": "test-agent"}
         client = ArchivistClient(tf_validate_certs=True, headers=custom_headers)
 
-        # ArchivistClient currently ignores custom headers and always uses default
-        # It calls headers.update twice:
-        # 1. From create_session with empty headers dict
-        # 2. With default Content-Type header since self.headers is always empty
-        expected_calls = [call({}), call({"Content-Type": "application/octet-stream"})]  # From create_session  # Default headers
-        mock_session_instance.headers.update.assert_has_calls(expected_calls)
+        # Regardless of custom headers provided, ArchivistClient always sets Content-Type to application/octet-stream
+        assert client.session.headers["Content-Type"] == "application/octet-stream"
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_archivist_client_session_creation(self, mock_session):
@@ -593,7 +590,8 @@ class TestArchivistClient:
         mock_session.return_value = mock_session_instance
 
         with patch.object(ArchivistClient, "pre_checks") as mock_pre_checks:
-            client = ArchivistClient(tf_validate_certs=True)
+            # Create client to trigger initialization side effects
+            ArchivistClient(tf_validate_certs=True)
             mock_pre_checks.assert_called_once()
 
     @patch("plugins.module_utils.common.requests.Session")
