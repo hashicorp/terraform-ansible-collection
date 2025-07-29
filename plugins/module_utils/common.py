@@ -13,13 +13,16 @@ try:
     import requests
     import requests.adapters
 
-    from urllib3.util.retry import Retry
-
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
-    requests = None
-    Retry = None
+
+try:
+    from urllib3.util.retry import Retry
+
+    HAS_URLLIB3 = True
+except ImportError:
+    HAS_URLLIB3 = False
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
 
@@ -349,8 +352,10 @@ class ClientMixin:
         Create a requests session with the specified parameters.
         This method can be overridden to customize session creation.
         """
-        if not HAS_REQUESTS or not requests or not Retry:
+        if not HAS_REQUESTS:
             raise ImportError(missing_required_lib("requests"))
+        if not HAS_URLLIB3:
+            raise ImportError(missing_required_lib("urllib3"))
 
         self.session = requests.Session()
         self.url = kwargs.get("base_url")
