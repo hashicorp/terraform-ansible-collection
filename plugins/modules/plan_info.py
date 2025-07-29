@@ -443,7 +443,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     TerraformClient,
     TerraformModule,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.plan_info import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_json_output,
     get_plan_metadata,
 )
