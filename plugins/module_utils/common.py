@@ -5,7 +5,6 @@
 
 import json
 import re
-
 from typing import Any, Callable, Dict, List, Optional, Union
 
 
@@ -423,7 +422,7 @@ class ArchivistClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = "archivist.terraform.io"
         self.verify: bool = kwargs.get("tf_validate_certs")
-        self.headers: Dict[str, str] = kwargs.get("headers", {})
+        self.headers: Dict[str, str] = {}
         self.session_args: Dict[str, Any] = {
             "timeout": kwargs.get("timeout"),
             "tf_max_retries": kwargs.get("tf_max_retries"),

@@ -657,7 +657,7 @@ def main():
     params = module.params
 
     try:
-        client_archivist = ArchivistClient()
+        client_archivist = ArchivistClient(**module.params)
         client_terraform = TerraformClient(**module.params)
 
         if params["state"] == "present":
