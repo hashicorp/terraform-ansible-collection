@@ -31,7 +31,7 @@ options:
       - Mutually exclusive with plan_id.
     type: str
 extends_documentation_fragment:
-  - hashicorp.terraform.auth
+  - hashicorp.terraform.common
 """
 
 EXAMPLES = r"""
