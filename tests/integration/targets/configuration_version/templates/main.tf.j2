@@ -1,0 +1,39 @@
+
+terraform {
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+  required_version = ">= 1.2.0"
+  cloud {
+    organization = "{{ organization }}"
+    token = "{{ tfc_token }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name    = "{{ workspace_name }}"
+    }
+  }
+}
+
+provider "aws" {
+  access_key = "{{ aws_access_key }}"
+  secret_key = "{{ aws_secret_key }}"
+  region = "{{ aws_region }}"
+{% if aws_session_token | default(false) %}
+  token = "{{ aws_session_token }}"
+{% endif %}
+}
+
+
+resource "aws_instance" "new-tar-instance-{{ unique_id }}" {
+  ami           = "ami-07b0c09aab6e66ee9" # This is a dummy AMI ID for Amazon Linux 2 in us-west-2
+  instance_type = "t2.micro"
+
+  tags = {
+    Name  = "{{ unique_id }}-ec2",
+    env   = "dev",
+  }
+}

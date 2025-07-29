@@ -20,11 +20,6 @@ A collection may contain metadata that identifies these versions.
 PEP440 is the schema used to describe the versions of Ansible.
 <!--end requires_ansible-->
 
-## Included content
-
-<!--start collection content-->
-<!--end collection content-->
-
 ## Installation
 
 To install this collection from Automation Hub, the following needs to be added to `ansible.cfg`:
