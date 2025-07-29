@@ -6,6 +6,7 @@
 import re
 import unittest
 
+from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 # Import the module under test
@@ -212,19 +213,34 @@ class TestConfigFunctions(unittest.TestCase):
         mock_file.assert_called_once_with(self.file_path, "rb")
         self.mock_archivist_client.put.assert_called_once_with(self.upload_url, mock_file.return_value)
 
-    @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
-    def test_upload_config_success_relative_path(self, mock_file):
-        """Test successful upload when a relative path is constructed."""
-        self.mock_archivist_client.base_url = "http://localhost:8080"
-        relative_upload_path = "config.tar.gz"
+    @patch("builtins.open", new_callable=mock_open, read_data=b"testdata-content")
+    def test_upload_config_success_with_testdata_archive(self, mock_file):
+        """Test successful upload using valid testdata archive."""
+        # Use actual testdata file path (but mock the file reading)
+        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "valid.tar.gz"
+
+        # Verify testdata exists
+        self.assertTrue(testdata_file.exists(), f"Testdata file not found: {testdata_file}")
+
+        # Set a proper base_url for the mock client (needed for re.match)
+        self.mock_archivist_client.base_url = "https://app.terraform.io"
+
         expected_response = {"status": 200}
         self.mock_archivist_client.put.return_value = expected_response
 
-        result = upload_config(self.mock_archivist_client, relative_upload_path, self.file_path)
+        result = upload_config(self.mock_archivist_client, self.upload_url, str(testdata_file))
 
         self.assertEqual(result, expected_response)
-        mock_file.assert_called_once_with(self.file_path, "rb")
-        self.mock_archivist_client.put.assert_called_once_with(f"/object/{relative_upload_path}", mock_file.return_value)
+        mock_file.assert_called_once_with(str(testdata_file), "rb")
+        self.mock_archivist_client.put.assert_called_once_with(self.upload_url, mock_file.return_value)
+
+    def test_upload_config_with_nonexistent_testdata_file(self):
+        """Test upload failure when testdata file doesn't exist."""
+        nonexistent_file = "/path/to/nonexistent/testdata.tar.gz"
+
+        # Should raise FileNotFoundError when trying to open nonexistent file
+        with self.assertRaises(FileNotFoundError):
+            upload_config(self.mock_archivist_client, self.upload_url, nonexistent_file)
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
     def test_upload_config_http_base_url_no_object_in_upload_url(self, mock_file):

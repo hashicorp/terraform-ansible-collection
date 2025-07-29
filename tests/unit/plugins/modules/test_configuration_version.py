@@ -126,6 +126,74 @@ class TestValidateAndPrepareTar:
 
                 assert "Failed to create tar.gz" in str(exc_info.value)
 
+    def test_validate_prepare_tar_with_testdata_directory(self):
+        """Test using actual testdata directory from test suite."""
+        testdata_dir = Path(__file__).parent.parent.parent / "testdata" / "testdir"
+
+        # Verify testdata exists
+        assert testdata_dir.exists(), f"Testdata directory not found: {testdata_dir}"
+        assert (testdata_dir / "file.tf").exists(), "file.tf not found in testdata"
+
+        result = validate_and_prepare_tar(testdata_dir)
+
+        # Verify it creates a valid tar file
+        assert tarfile.is_tarfile(result)
+
+        # Verify content
+        with tarfile.open(result, "r:gz") as tar:
+            names = tar.getnames()
+            assert "file.tf" in names
+
+            # Extract and verify terraform content
+            tf_content = tar.extractfile("file.tf").read().decode("utf-8")
+            assert 'provider "aws"' in tf_content
+            assert 'resource "aws_vpc"' in tf_content
+
+        os.remove(result)
+
+    def test_validate_prepare_tar_with_valid_testdata_archive(self):
+        """Test validation using pre-made valid tar.gz from testdata."""
+        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "valid.tar.gz"
+
+        # Verify testdata exists
+        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+
+        # The function should accept valid gzipped tar files
+        result = validate_and_prepare_tar(testdata_file)
+
+        # Should return the same file path since it's already valid
+        assert result == str(testdata_file)
+
+    def test_validate_prepare_tar_with_corrupt_testdata_archive(self):
+        """Test error handling using corrupted tar.gz from testdata."""
+        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "corrupt.tar.gz"
+
+        # Verify testdata exists
+        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+
+        # Should raise an exception for corrupt files
+        with pytest.raises(Exception) as exc_info:
+            validate_and_prepare_tar(testdata_file)
+
+        # Should mention it's not a valid tar file
+        error_msg = str(exc_info.value).lower()
+        assert any(keyword in error_msg for keyword in ["tar", "gzip", "archive", "format"])
+
+    def test_validate_prepare_tar_with_unsupported_file_type(self):
+        """Test rejection of non-terraform files using testdata."""
+        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "unsupported.txt"
+
+        # Verify testdata exists
+        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+
+        # Should raise an exception for unsupported file types
+        with pytest.raises(Exception) as exc_info:
+            validate_and_prepare_tar(testdata_file)
+
+        # Should indicate file type issue
+        error_msg = str(exc_info.value).lower()
+        assert any(keyword in error_msg for keyword in ["directory", "tar", "supported", "invalid"])
+
 
 class TestConfigurationVersionOperations:
     """Tests for configuration version CRUD operations."""
