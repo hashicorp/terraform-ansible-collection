@@ -338,16 +338,17 @@ class TestStateOperations:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 3,
+            "check_mode": False,
         }
 
         final_response = {"data": {"id": "cv-123", "attributes": {"status": "uploaded"}}}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
         ) as mock_create, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version",
         ) as mock_upload, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version",
         ) as mock_get:
 
             mock_validate.return_value = "/tmp/config.tar.gz"
@@ -365,10 +366,17 @@ class TestStateOperations:
         """Test state_present when upload fails."""
         mock_tf_client = Mock()
         mock_archivist_client = Mock()
-        params = {"configuration_files_path": "/fake/path", "workspace_id": "ws-123", "auto_queue_runs": True, "speculative": False, "provisional": False}
+        params = {
+            "configuration_files_path": "/fake/path",
+            "workspace_id": "ws-123",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "check_mode": False,
+        }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
         ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version") as mock_upload:
 
             mock_validate.return_value = "/tmp/config.tar.gz"
@@ -392,16 +400,17 @@ class TestStateOperations:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 3,
+            "check_mode": False,
         }
 
         final_response = {"data": {"id": "cv-123", "attributes": {"status": "errored"}}}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
         ) as mock_create, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version",
         ) as mock_upload, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version",
         ) as mock_get:
 
             mock_validate.return_value = "/tmp/config.tar.gz"
@@ -422,7 +431,7 @@ class TestStateOperations:
         mock_response = {"data": {"attributes": {"status": "uploaded"}}}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config",
         ) as mock_archive:
 
             mock_get.return_value = mock_response
@@ -478,12 +487,13 @@ class TestMainFunctionBehavior:
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
+            "check_mode": False,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws:
 
             mock_module = Mock()
@@ -501,10 +511,10 @@ class TestMainFunctionBehavior:
 
     def test_main_exception_handling(self):
         """Test that main properly handles and reports exceptions."""
-        params = {"state": "present", "workspace_id": "ws-123", "configuration_files_path": "/fake/path", "poll_timeout": 5}
+        params = {"state": "present", "workspace_id": "ws-123", "configuration_files_path": "/fake/path", "poll_timeout": 5, "check_mode": False}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ) as mock_client_class:
 
             mock_module = Mock()
@@ -532,11 +542,12 @@ class TestMainFunctionBehavior:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 5,
+            "check_mode": False,
             # Note: No workspace_id key at all
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"):
 
             mock_module = Mock()
@@ -570,12 +581,13 @@ class TestIntegrationFlows:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 5,
+            "check_mode": False,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
         ) as mock_state:
 
             mock_module = Mock()
@@ -596,12 +608,12 @@ class TestIntegrationFlows:
 
     def test_full_integration_archived_state(self):
         """Test full integration of archived state."""
-        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
+        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5, "check_mode": False}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived",
         ) as mock_state:
 
             mock_module = Mock()
@@ -616,7 +628,7 @@ class TestIntegrationFlows:
             with pytest.raises(SystemExit):
                 main()
 
-            mock_state.assert_called_once_with(ANY, "cv-to-archive")
+            mock_state.assert_called_once_with(ANY, "cv-to-archive", check_mode=False)
 
     def test_main_workspace_lookup_successful(self):
         """Test main when workspace lookup succeeds and workspace_id is set."""
@@ -630,14 +642,15 @@ class TestIntegrationFlows:
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
+            "check_mode": False,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
         ) as mock_state:
 
             mock_module = Mock()
@@ -675,12 +688,13 @@ class TestIntegrationFlows:
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
+            "check_mode": False,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace"
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws:
 
             mock_module = Mock()
@@ -699,3 +713,143 @@ class TestIntegrationFlows:
 
             # Verify get_workspace was called with correct parameters
             mock_get_ws.assert_called_once_with(ANY, "test-org", "nonexistent-workspace")
+
+
+class TestCheckMode:
+    """
+    These tests focus specifically on verifying check mode.
+    """
+
+    def setup_method(self):
+        """Set up common test fixtures."""
+        self.mock_tf_client = Mock()
+        self.mock_archivist_client = Mock()
+
+    def test_state_present_check_mode(self):
+        """Test return value structure when running in check mode."""
+        params = {
+            "configuration_files_path": "/fake/path/config.tar.gz",
+            "workspace_id": "ws-12345",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "poll_interval": 2,
+            "poll_timeout": 10,
+            "check_mode": True,
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate:
+            mock_validate.return_value = "/tmp/check_mode_validated.tar.gz"
+
+            result = state_present(self.mock_tf_client, self.mock_archivist_client, params)
+
+            # Verify the exact structure and content of check mode return
+            assert isinstance(result, dict)
+            assert result["changed"] is True
+            assert "msg" in result
+            assert "The configuration_files_path /tmp/check_mode_validated.tar.gz was validated" in result["msg"]
+            assert "but configuration version creation was skipped due to check mode" in result["msg"]
+
+            # Verify that no API-related keys are present in check mode
+            assert "id" not in result
+            assert "type" not in result
+            assert "attributes" not in result
+            assert "links" not in result
+            assert "relationships" not in result
+            assert "failed" not in result
+
+    def test_state_archived_check_mode_configuration_version_not_found(self):
+        """Test return value when configuration version is not found and check_mode=True."""
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get_config:
+            # Mock that configuration version is not found
+            mock_get_config.return_value = None
+            test_config_version_id = "cv-test-12345"
+
+            result = state_archived(self.mock_tf_client, test_config_version_id, check_mode=True)
+
+            # Verify the exact structure and content for not found scenario
+            assert isinstance(result, dict)
+            assert result["changed"] is False
+            assert "msg" in result
+            assert f"Configuration version '{test_config_version_id}' was not found." in result["msg"]
+
+            # Verify no other keys are present
+            expected_keys = {"changed", "msg"}
+            assert set(result.keys()) == expected_keys
+
+    def test_check_mode_true_already_archived(self):
+        """Test return value when configuration version is already archived and check_mode=True."""
+        test_config_version_id = "cv-test-12345"
+        mock_config_response = {
+            "data": {
+                "id": test_config_version_id,
+                "type": "configuration-versions",
+                "attributes": {
+                    "status": "archived",
+                    "auto-queue-runs": True,
+                    "speculative": False,
+                    "provisional": False,
+                    "source": "tfe-api",
+                },
+            },
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get_config:
+            mock_get_config.return_value = mock_config_response
+
+            result = state_archived(self.mock_tf_client, test_config_version_id, check_mode=True)
+
+            # Verify the exact structure and content for already archived scenario
+            assert isinstance(result, dict)
+            assert result["changed"] is False
+            assert "msg" in result
+            assert f"Configuration version '{test_config_version_id}' is already archived." in result["msg"]
+
+            # Verify no other keys are present
+            expected_keys = {"changed", "msg"}
+            assert set(result.keys()) == expected_keys
+
+    def test_check_mode_true_needs_archiving(self):
+        """Test return value when configuration version needs archiving and check_mode=True."""
+        test_config_version_id = "cv-test-12345"
+        mock_config_response = {
+            "data": {
+                "id": test_config_version_id,
+                "type": "configuration-versions",
+                "attributes": {
+                    "status": "uploaded",
+                    "auto-queue-runs": True,
+                    "speculative": False,
+                    "provisional": False,
+                    "source": "tfe-api",
+                    "status-timestamps": {
+                        "uploaded-at": "2025-01-15T10:30:00Z",
+                    },
+                },
+                "links": {
+                    "self": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}",
+                    "download": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}/download",
+                },
+            },
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get_config, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config",
+        ) as mock_archive_config:
+
+            mock_get_config.return_value = mock_config_response
+
+            result = state_archived(self.mock_tf_client, test_config_version_id, check_mode=True)
+
+            # Verify the exact structure and content for successful archiving in check mode
+            assert isinstance(result, dict)
+            assert result["changed"] is True
+            assert "msg" in result
+            assert (f"Configuration version {test_config_version_id} found and in archivable state. " "Skipped archiving due to check mode.") in result["msg"]
+
+            # Verify archive_config was NOT called in check mode
+            mock_archive_config.assert_not_called()
+
+            # Verify no other keys are present
+            expected_keys = {"changed", "msg"}
+            assert set(result.keys()) == expected_keys
