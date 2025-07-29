@@ -659,6 +659,7 @@ def main():
             poll_interval=dict(type="int", default=2),
             poll_timeout=dict(type="int", default=10),
         ),
+        supports_check_mode=True,
         required_together=[["workspace", "organization"]],
         required_if=[
             ("state", "archived", ["configuration_version_id"]),
