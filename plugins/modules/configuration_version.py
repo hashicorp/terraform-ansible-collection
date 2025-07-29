@@ -671,10 +671,9 @@ def main():
     )
     warnings = []
     result = {"changed": False, "warnings": warnings}
-    check_mode = module.check_mode
     action_result = {}
     params = module.params
-    params["check_mode"] = check_mode
+    params["check_mode"] = module.check_mode
 
     try:
         client_archivist = ArchivistClient(**module.params)
