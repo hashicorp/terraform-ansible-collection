@@ -456,16 +456,13 @@ def main():
             run_id=dict(type="str"),
         ),
         mutually_exclusive=[["plan_id", "run_id"]],
+        requires_one_of=[["plan_id", "run_id"]],
         supports_check_mode=True,
     )
 
     params = module.params
     plan_id = params.get("plan_id")
     run_id = params.get("run_id")
-
-    # Validate that at least one identifier is provided
-    if not plan_id and not run_id:
-        module.fail_json(msg="Either plan_id or run_id must be provided.")
 
     result = {"changed": False}
 
@@ -487,9 +484,9 @@ def main():
         # Check if plan was found
         if not metadata_response:
             if use_plan_id:
-                module.fail_json(msg=f"Plan with ID '{identifier}' was not found.")
+                raise ValueError(f"Plan with ID '{identifier}' was not found.")
             else:
-                module.fail_json(msg=f"Plan for run with ID '{identifier}' was not found.")
+                raise ValueError(f"Plan for run with ID '{identifier}' was not found.")
 
         # Extract plan status from metadata
         plan_status = metadata_response.get("data", {}).get("attributes", {}).get("status", "unknown")
