@@ -72,7 +72,7 @@ options:
       - Path to the configuration file that should be uploaded for the configuration version.
       - This can be a directory or a tarball (`.tar.gz`) containing configuration-related files.
       - When a path to a directory is provided, all it's content will be built into a tarball ('.tar.gz') within the module.
-      - This file will be read from the Ansible 'host' context and not the 'controller' context.
+      - This file will be read from the Ansible 'host' context and not the 'controller' context, when run against a remote host.
     type: path
     aliases: [project_path]
   poll_interval:
