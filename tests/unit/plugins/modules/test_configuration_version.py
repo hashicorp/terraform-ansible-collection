@@ -472,6 +472,7 @@ class TestMainFunctionBehavior:
             "state": "present",
             "workspace": "nonexistent-workspace",
             "organization": "test-org",
+            "workspace_id": None,  # Explicitly set to None to trigger workspace lookup
             "configuration_files_path": "/fake/path",
             "auto_queue_runs": True,
             "speculative": False,
@@ -488,15 +489,15 @@ class TestMainFunctionBehavior:
             mock_module = Mock()
             mock_module.params = params
             mock_module_class.return_value = mock_module
-            mock_get_ws.return_value = None
+            # Fixed: Use empty dict {} instead of None to match actual get_workspace behavior
+            mock_get_ws.return_value = {}
 
-            # Mock fail_json to raise AssertionError
-            mock_module.fail_json.side_effect = AssertionError("Workspace was not found")
+            main()
 
-            with pytest.raises(AssertionError) as exc_info:
-                main()
-
-            assert "was not found" in str(exc_info.value)
+            # The ValueError should be caught and fail_json should be called
+            mock_module.fail_json.assert_called_once()
+            call_args = mock_module.fail_json.call_args[1]  # kwargs
+            assert "was not found" in call_args["msg"]
 
     def test_main_exception_handling(self):
         """Test that main properly handles and reports exceptions."""
@@ -616,3 +617,85 @@ class TestIntegrationFlows:
                 main()
 
             mock_state.assert_called_once_with(ANY, "cv-to-archive")
+
+    def test_main_workspace_lookup_successful(self):
+        """Test main when workspace lookup succeeds and workspace_id is set."""
+        params = {
+            "state": "present",
+            "workspace": "test-workspace",
+            "organization": "test-org",
+            "workspace_id": None,  # Explicitly set to None to trigger workspace lookup
+            "configuration_files_path": "/fake/path",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "poll_timeout": 5,
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace"
+        ) as mock_get_ws, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present"
+        ) as mock_state:
+
+            mock_module = Mock()
+            mock_module.params = params
+            mock_module_class.return_value = mock_module
+
+            # Mock get_workspace to return valid workspace data
+            mock_get_ws.return_value = {"data": {"id": "ws-from-name-123", "type": "workspaces"}, "status": 200}
+
+            mock_state.return_value = {"changed": True, "msg": "Created successfully"}
+
+            # Mock exit_json to raise SystemExit to simulate module exit
+            mock_module.exit_json.side_effect = SystemExit({"changed": True})
+
+            with pytest.raises(SystemExit):
+                main()
+
+            # Verify get_workspace was called with correct parameters
+            mock_get_ws.assert_called_once_with(ANY, "test-org", "test-workspace")
+
+            # Verify state_present was called and workspace_id was set correctly
+            mock_state.assert_called_once()
+            call_args = mock_state.call_args[0][2]  # params argument
+            assert call_args["workspace_id"] == "ws-from-name-123"
+
+    def test_main_workspace_lookup_not_found_empty_dict(self):
+        """Test main when workspace lookup returns empty dict (404 case)."""
+        params = {
+            "state": "present",
+            "workspace": "nonexistent-workspace",
+            "organization": "test-org",
+            "workspace_id": None,
+            "configuration_files_path": "/fake/path",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "poll_timeout": 5,
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient"
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace"
+        ) as mock_get_ws:
+
+            mock_module = Mock()
+            mock_module.params = params
+            mock_module_class.return_value = mock_module
+
+            # Mock get_workspace to return empty dict (actual 404 behavior)
+            mock_get_ws.return_value = {}
+
+            main()
+
+            # The ValueError should be caught and fail_json should be called
+            mock_module.fail_json.assert_called_once()
+            call_args = mock_module.fail_json.call_args[1]  # kwargs
+            assert "The workspace nonexistent-workspace in test-org organization was not found." in call_args["msg"]
+
+            # Verify get_workspace was called with correct parameters
+            mock_get_ws.assert_called_once_with(ANY, "test-org", "nonexistent-workspace")
