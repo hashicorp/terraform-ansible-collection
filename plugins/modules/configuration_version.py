@@ -625,7 +625,7 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
                 archive_config(client_terraform, configuration_version_id)
                 msg = f"Configuration version {configuration_version_id} archived successfully."
             else:
-                msg = f"Configuration version {configuration_version_id} found and in archivable state. " "Skipped archiving due to check mode."
+                msg = f"Configuration version {configuration_version_id} found and is not archived. " "Skipped archiving due to check mode."
 
     archiving_result["msg"] = msg
 

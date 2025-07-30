@@ -844,7 +844,7 @@ class TestCheckMode:
             assert isinstance(result, dict)
             assert result["changed"] is True
             assert "msg" in result
-            assert (f"Configuration version {test_config_version_id} found and in archivable state. " "Skipped archiving due to check mode.") in result["msg"]
+            assert (f"Configuration version {test_config_version_id} found and is not archived. " "Skipped archiving due to check mode.") in result["msg"]
 
             # Verify archive_config was NOT called in check mode
             mock_archive_config.assert_not_called()
