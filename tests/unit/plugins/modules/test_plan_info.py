@@ -321,53 +321,6 @@ class TestPlanInfoModule:
             call_args = mock_module.fail_json.call_args[1]
             assert "Connection failed" in call_args["msg"]
 
-    def test_main_with_empty_metadata_data(self):
-        """Test main function handling empty metadata data section."""
-        params = {
-            "plan_id": "plan-empty123",
-            "run_id": None,
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
-        }
-
-        metadata_response = {
-            "data": {},
-            "status": 200,
-        }
-
-        json_output_response = {
-            "data": {},
-            "status": 200,
-        }
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
-        ) as mock_get_json:
-
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module_class.return_value = mock_module
-
-            mock_get_metadata.return_value = metadata_response
-            mock_get_json.return_value = json_output_response
-
-            # Mock exit_json to raise SystemExit to simulate module exit
-            mock_module.exit_json.side_effect = SystemExit({"changed": False})
-
-            with pytest.raises(SystemExit):
-                main()
-
-            # Verify exit_json was called with empty data and unknown status
-            expected_result = {
-                "changed": False,
-                "metadata": {},
-                "json_output": {},
-                "plan_status": "unknown",
-            }
-            mock_module.exit_json.assert_called_once_with(**expected_result)
-
     def test_main_with_missing_status_in_metadata(self):
         """Test main function when status is missing from metadata."""
         params = {

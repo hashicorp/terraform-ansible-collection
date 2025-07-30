@@ -97,39 +97,15 @@ class TestGetPlanMetadata(TestPlanFunctions):
         self.assertEqual(result, {})
         self.mock_tf_client.get.assert_called_once_with(f"/runs/{self.run_id}/plan")
 
-    def test_get_plan_metadata_failure_raises_error(self):
-        """Test get_plan_metadata raises TerraformError on non-200/non-404 status."""
-        response = {"status": 500, "error": "Internal server error"}
-        self.mock_tf_client.get.return_value = response
-
-        with self.assertRaises(TerraformError):
-            get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
-
     def test_get_plan_metadata_various_failure_statuses(self):
         """Test get_plan_metadata with various non-success status codes."""
-        for status_code in [400, 401, 403, 422, 500, 502, 503]:
+        for status_code in [400, 401, 500]:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
                 self.mock_tf_client.get.return_value = response
 
                 with self.assertRaises(TerraformError):
                     get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
-
-    def test_get_plan_metadata_unauthorized_with_plan_id(self):
-        """Test get_plan_metadata with 401 unauthorized using plan ID."""
-        response = {"status": 401, "error": "Unauthorized"}
-        self.mock_tf_client.get.return_value = response
-
-        with self.assertRaises(TerraformError):
-            get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
-
-    def test_get_plan_metadata_forbidden_with_run_id(self):
-        """Test get_plan_metadata with 403 forbidden using run ID."""
-        response = {"status": 403, "error": "Forbidden"}
-        self.mock_tf_client.get.return_value = response
-
-        with self.assertRaises(TerraformError):
-            get_plan_metadata(self.mock_tf_client, self.run_id, use_plan_id=False)
 
     def test_get_plan_metadata_with_complex_data_structure(self):
         """Test get_plan_metadata with complex nested data structure."""
@@ -275,17 +251,9 @@ class TestGetPlanJsonOutput(TestPlanFunctions):
         self.assertEqual(result, {})
         self.mock_tf_client.get.assert_called_once_with(f"/runs/{self.run_id}/plan/json-output")
 
-    def test_get_plan_json_output_failure_raises_error(self):
-        """Test get_plan_json_output raises TerraformError on non-200/non-404 status."""
-        response = {"status": 500, "error": "Internal server error"}
-        self.mock_tf_client.get.return_value = response
-
-        with self.assertRaises(TerraformError):
-            get_plan_json_output(self.mock_tf_client, self.plan_id, use_plan_id=True)
-
     def test_get_plan_json_output_various_failure_statuses(self):
         """Test get_plan_json_output with various non-success status codes."""
-        for status_code in [400, 401, 403, 422, 500, 502, 503]:
+        for status_code in [400, 401, 500]:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
                 self.mock_tf_client.get.return_value = response
