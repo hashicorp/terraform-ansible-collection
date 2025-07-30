@@ -552,35 +552,45 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     # get the updated/validated configuration_files_path
     configuration_files_path = validate_and_prepare_tar(params.get("configuration_files_path"))
 
-    # create a new configuration version and store the id and upload_url
-    config_version_id, upload_url = create_configuration_version(client_terraform, params)
+    # create a new configuration version and store the id and upload_url (if not running in check_mode)
+    if not params["check_mode"]:
+        config_version_id, upload_url = create_configuration_version(client_terraform, params)
 
-    # start configuration tarfile upload, if upload failed, this will raise an Exception
-    upload_configuration_version(client_archivist, upload_url, configuration_files_path)
+        # start configuration tarfile upload, if upload failed, this will raise an Exception
+        upload_configuration_version(client_archivist, upload_url, configuration_files_path)
 
-    final_config_status = get_configuration_version(client_terraform, params, config_version_id)
+        final_config_status = get_configuration_version(client_terraform, params, config_version_id)
 
-    status = final_config_status.get("data")["attributes"]["status"]
+        status = final_config_status.get("data")["attributes"]["status"]
 
-    if status == "uploaded":
+        if status == "uploaded":
+            action_result.update(
+                {
+                    "changed": True,
+                    **final_config_status["data"],
+                },
+            )
+        else:
+            action_result.update(
+                {
+                    "failed": True,
+                    "msg": f"Configuration version {config_version_id} was created but could not transition to uploaded state.",
+                    **final_config_status["data"],
+                },
+            )
+    else:
+        # when running in check_mode, we just validate the configuration_files_path and return a changed=True
         action_result.update(
             {
                 "changed": True,
-                **final_config_status["data"],
-            },
-        )
-    else:
-        action_result.update(
-            {
-                "failed": True,
-                "msg": f"Configuration version {config_version_id} was created but could not transition to uploaded state.",
-                **final_config_status["data"],
+                "msg": f"The configuration_files_path {configuration_files_path} was validated, "
+                "but configuration version creation was skipped due to check mode.",
             },
         )
     return action_result
 
 
-def state_archived(client_terraform: Any, configuration_version_id: str) -> Dict[str, Any]:
+def state_archived(client_terraform: Any, configuration_version_id: str, check_mode: bool = False) -> Dict[str, Any]:
     """
     Archives a specified Terraform configuration version if it is not already archived.
 
@@ -596,34 +606,29 @@ def state_archived(client_terraform: Any, configuration_version_id: str) -> Dict
         client_terraform (Any): Client object used to interact with Terraform.
         configuration_version_id (str, Any): The configuration_version_id to archive.
     """
-    archiving_result = {}
+    archiving_result = {
+        "changed": False,
+    }
 
     config_response = get_config(client_terraform, config_version_id=configuration_version_id)
     if not config_response:
-        archiving_result.update(
-            {
-                "changed": False,
-                "msg": f"Configuration version '{configuration_version_id}' was not found.",
-            },
-        )
+        msg = f"Configuration version '{configuration_version_id}' was not found."
+
     else:
         current_status = config_response["data"]["attributes"]["status"]
         if current_status == "archived":
-            archiving_result.update(
-                {
-                    "changed": False,
-                    "msg": f"Configuration version '{configuration_version_id}' is already archived.",
-                },
-            )
+            msg = f"Configuration version '{configuration_version_id}' is already archived."
         else:
-            # configuration version is exists, but is not archived, attempt archiving
-            archive_config(client_terraform, configuration_version_id)
-            archiving_result.update(
-                {
-                    "changed": True,
-                    "msg": f"Configuration version {configuration_version_id} archived successfully.",
-                },
-            )
+            archiving_result["changed"] = True
+            # configuration version exists, but is not archived, attempt archiving (if not running in check_mode)
+            if not check_mode:
+                archive_config(client_terraform, configuration_version_id)
+                msg = f"Configuration version {configuration_version_id} archived successfully."
+            else:
+                msg = f"Configuration version {configuration_version_id} found and is not archived. " "Skipped archiving due to check mode."
+
+    archiving_result["msg"] = msg
+
     return archiving_result
 
 
@@ -642,6 +647,7 @@ def main():
             poll_interval=dict(type="int", default=2),
             poll_timeout=dict(type="int", default=10),
         ),
+        supports_check_mode=True,
         required_together=[["workspace", "organization"]],
         required_if=[
             ("state", "archived", ["configuration_version_id"]),
@@ -655,6 +661,7 @@ def main():
     result = {"changed": False, "warnings": warnings}
     action_result = {}
     params = module.params
+    params["check_mode"] = module.check_mode
 
     try:
         client_archivist = ArchivistClient(**module.params)
@@ -678,7 +685,7 @@ def main():
 
         elif params["state"] == "archived":
             # when state is archived, configuration_version_id will always be available
-            action_result = state_archived(client_terraform, params["configuration_version_id"])
+            action_result = state_archived(client_terraform, params["configuration_version_id"], params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)

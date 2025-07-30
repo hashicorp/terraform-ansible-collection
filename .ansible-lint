@@ -1,0 +1,7 @@
+---
+# .ansible-lint
+
+profile: production
+
+exclude_paths:
+  - tools/
