@@ -1,6 +1,9 @@
 import time
-from pydantic import BaseModel, StrictBool, StrictStr
+
 from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, StrictBool, StrictStr
+
 from .common import TerraformClient
 from .exceptions import TerraformError
 
