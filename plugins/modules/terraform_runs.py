@@ -10,6 +10,7 @@ DOCUMENTATION = r"""
 module: run
 version_added: "1.0.0"
 short_description: This module supports Create,  for Terraform Cloud/Enterprise runs.
+author: "Siddarth Sharma (@siddasha)"
 description:
   - The module supports run operations such as creating, applying, cancelling and discarding.
   - It allows the user to manage Terraform runs by specifying the workspace, plan, and other parameters.
