@@ -1,5 +1,5 @@
 import time
-from pydantic import BaseModel, Field, StrictBool, StrictInt, StrictStr
+from pydantic import BaseModel, StrictBool, StrictStr
 from typing import Any, Literal, Optional
 from .common import TerraformClient
 from .exceptions import TerraformError
@@ -34,8 +34,10 @@ class RunData(BaseModel):
     type: Literal["runs"]
     relationships: Relationships
 
+
 class RunRequest(BaseModel):
     data: RunData
+
 
 class TerraformRun:
     def __init__(self, client: TerraformClient):
@@ -134,7 +136,7 @@ class TerraformRun:
         else:
             raise TerraformError(str(response))
 
-    def wait_for_state(self, run_id: str, expected_states: list[str], expected_key:str, timeout: int = 25, polling_interval: int = 5):
+    def wait_for_state(self, run_id: str, expected_states: list[str], expected_key: str, timeout: int = 25, polling_interval: int = 5):
         """
         Wait for a run to reach a specific state.
         Args:
@@ -150,4 +152,4 @@ class TerraformRun:
             if run.get(expected_key) in expected_states:
                 return run
             time.sleep(polling_interval)
-        raise TerraformError(f"Run {run_id} did not reach expected state {expected_state} within {timeout} seconds")
+        raise TerraformError(f"Run {run_id} did not reach expected state {expected_states} within {timeout} seconds")
