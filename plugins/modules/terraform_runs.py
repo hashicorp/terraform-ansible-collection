@@ -96,7 +96,7 @@ options:
     default: 25
 """
 
-Examples =  r"""
+Examples = r"""
     - name: Create a new Terraform run
       hashicorp.terraform.run:
         workspace: "ws-12345678"
@@ -122,3 +122,54 @@ Examples =  r"""
         run_id: "run-12345678"
         state: "discarded"
 """
+
+from plugins.module_utils.common import TerraformClient, TerraformModule
+from plugins.module_utils.run import TerraformRun
+
+
+def main():
+    module = TerraformModule(
+        argument_spec=dict(
+            workspace_id=dict(type="str", required=False),
+            workspace=dict(type="str", required=False),
+            organization=dict(type="str", required=False),
+            poll=dict(type="bool", required=False, default=True),
+            poll_interval=dict(type="int", required=False, default=5),
+            poll_timeout=dict(type="int", required=False, default=25),
+            configuration_version=dict(type="str", required=False),
+            message=dict(type="str", required=False),
+            auto_apply=dict(type="bool", required=False),
+            save_plan=dict(type="bool", required=False),
+            variables=dict(type="list", required=False),
+            plan_only=dict(type="bool", required=False),
+            is_destroy=dict(type="bool", required=False),
+            target_addrs=dict(type="list", required=False),
+            state=dict(type="str", required=False, choices=["present", "applied", "discarded", "cancelled"], default="present"),
+            run_id=dict(type="str", required=False),
+        ),
+        required_together=[["workspace", "organization"]],
+        required_if=[
+            ("state", "present", ("workspace_id", "workspace"), True),
+            ("state", "applied", ("run_id"), True),
+            ("state", "discarded", ("run_id"), True),
+            ("state", "cancelled", ("run_id"), True),
+        ],
+        mutually_exclusive=[
+            ("workspace", "workspace_id"),
+            ("plan_only", "save_plan"),
+            ("plan_only", "auto_apply"),
+            ("save_plan", "auto_apply"),
+        ],
+    )
+    warnings = []
+    result = {"changed": False, "warnings": warnings}
+    action_result = {}
+    params = module.params
+    params["check_mode"] = module.check_mode
+
+    tf_client = TerraformClient(**module.params)
+    tf_run = TerraformRun(client=tf_client)
+
+
+if __name__ == "__main__":
+    main()
