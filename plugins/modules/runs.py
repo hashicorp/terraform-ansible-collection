@@ -124,8 +124,8 @@ Examples = r"""
         state: "discarded"
 """
 
-from plugins.module_utils.common import TerraformClient, TerraformModule
-from plugins.module_utils.run import TerraformRun
+from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import TerraformRun
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient, TerraformModule
 
 
 def main():
