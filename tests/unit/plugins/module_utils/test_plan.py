@@ -104,8 +104,15 @@ class TestGetPlanMetadata(TestPlanFunctions):
                 response = {"status": status_code}
                 self.mock_tf_client.get.return_value = response
 
-                with self.assertRaises(TerraformError):
+                with self.assertRaises(TerraformError) as context:
                     get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
+                
+                # Verify the exception contains the response
+                self.assertEqual(context.exception.args[0], response)
+                self.mock_tf_client.get.assert_called_with(f"/plans/{self.plan_id}")
+                
+                # Reset mock for next iteration
+                self.mock_tf_client.reset_mock()
 
     def test_get_plan_metadata_with_complex_data_structure(self):
         """Test get_plan_metadata with complex nested data structure."""
@@ -143,6 +150,11 @@ class TestGetPlanMetadata(TestPlanFunctions):
         result = get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
 
         self.assertEqual(result, expected_response)
+        self.mock_tf_client.get.assert_called_once_with(f"/plans/{self.plan_id}")
+        # Verify complex data structure is preserved
+        self.assertIn("status_timestamps", result["data"]["attributes"])
+        self.assertIn("permissions", result["data"]["attributes"])
+        self.assertIn("relationships", result["data"])
 
 
 class TestGetPlanJsonOutput(TestPlanFunctions):
@@ -258,8 +270,15 @@ class TestGetPlanJsonOutput(TestPlanFunctions):
                 response = {"status": status_code}
                 self.mock_tf_client.get.return_value = response
 
-                with self.assertRaises(TerraformError):
+                with self.assertRaises(TerraformError) as context:
                     get_plan_json_output(self.mock_tf_client, self.plan_id, use_plan_id=True)
+                
+                # Verify the exception contains the response
+                self.assertEqual(context.exception.args[0], response)
+                self.mock_tf_client.get.assert_called_with(f"/plans/{self.plan_id}/json-output")
+                
+                # Reset mock for next iteration
+                self.mock_tf_client.reset_mock()
 
     def test_get_plan_json_output_with_no_changes(self):
         """Test get_plan_json_output when plan has no changes."""
@@ -410,6 +429,11 @@ class TestGetPlanJsonOutput(TestPlanFunctions):
         result = get_plan_json_output(self.mock_tf_client, self.plan_id, use_plan_id=True)
 
         self.assertEqual(result, expected_response)
+        self.mock_tf_client.get.assert_called_once_with(f"/plans/{self.plan_id}/json-output")
+        # Verify complex resource changes structure
+        self.assertGreater(len(result["data"]["resource_changes"]), 1)
+        self.assertIn("after_unknown", result["data"]["resource_changes"][0]["change"])
+        self.assertIn("planned_values", result["data"])
 
 
 if __name__ == "__main__":

@@ -97,6 +97,14 @@ class TestPlanInfoModule:
                 "plan_status": "finished",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
+            
+            # Should NOT call fail_json on success
+            mock_module.fail_json.assert_not_called()
+            
+            # Verify response structure
+            assert "metadata" in expected_result
+            assert "json_output" in expected_result
+            assert expected_result["plan_status"] == "finished"
 
     def test_main_with_run_id_success(self):
         """Test main function with run_id parameter success case."""
@@ -165,6 +173,15 @@ class TestPlanInfoModule:
                 "plan_status": "planning",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
+            
+            # Should NOT call fail_json on success
+            mock_module.fail_json.assert_not_called()
+            
+            # Verify response structure and content
+            assert "metadata" in expected_result
+            assert "json_output" in expected_result
+            assert expected_result["plan_status"] == "planning"
+            assert expected_result["metadata"]["attributes"]["has_changes"] is False
 
     def test_main_plan_not_found_with_plan_id(self):
         """Test main function when plan is not found using plan_id."""
@@ -192,9 +209,14 @@ class TestPlanInfoModule:
             main()
 
             # Should call fail_json with appropriate error message
-            mock_module.fail_json.assert_called_once()
-            call_args = mock_module.fail_json.call_args[1]  # kwargs
-            assert "Plan with ID 'plan-nonexistent123' was not found." in call_args["msg"]
+            mock_module.fail_json.assert_called_once_with(msg="Plan with ID 'plan-nonexistent123' was not found.")
+            
+            # Should NOT call exit_json on failure
+            mock_module.exit_json.assert_not_called()
+            
+            # Should have called plan utility functions with correct parameters
+            mock_get_metadata.assert_called_once_with(ANY, "plan-nonexistent123", True)
+            mock_get_json.assert_called_once_with(ANY, "plan-nonexistent123", True)
 
     def test_main_plan_not_found_with_run_id(self):
         """Test main function when plan is not found using run_id."""
@@ -222,9 +244,14 @@ class TestPlanInfoModule:
             main()
 
             # Should call fail_json with appropriate error message
-            mock_module.fail_json.assert_called_once()
-            call_args = mock_module.fail_json.call_args[1]
-            assert "Plan for run with ID 'run-nonexistent456' was not found." in call_args["msg"]
+            mock_module.fail_json.assert_called_once_with(msg="Plan for run with ID 'run-nonexistent456' was not found.")
+            
+            # Should NOT call exit_json on failure
+            mock_module.exit_json.assert_not_called()
+            
+            # Should have called plan utility functions with correct parameters
+            mock_get_metadata.assert_called_once_with(ANY, "run-nonexistent456", False)
+            mock_get_json.assert_called_once_with(ANY, "run-nonexistent456", False)
 
     def test_main_with_error_status_plan(self):
         """Test main function with a plan in error status."""
@@ -293,6 +320,17 @@ class TestPlanInfoModule:
                 "plan_status": "errored",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
+            
+            # Should NOT call fail_json for errored plans (they still return data)
+            mock_module.fail_json.assert_not_called()
+            
+            # Verify plan utility functions were called
+            mock_get_metadata.assert_called_once_with(ANY, "plan-error123", True)
+            mock_get_json.assert_called_once_with(ANY, "plan-error123", True)
+            
+            # Verify error status is properly extracted
+            assert expected_result["plan_status"] == "errored"
+            assert expected_result["json_output"]["errored"] is True
 
     def test_main_exception_handling(self):
         """Test main function exception handling."""
@@ -305,7 +343,11 @@ class TestPlanInfoModule:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ) as mock_client_class:
+        ) as mock_client_class, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
+        ) as mock_get_json:
 
             mock_module = Mock()
             mock_module.params = params
@@ -317,9 +359,14 @@ class TestPlanInfoModule:
             main()
 
             # Should call fail_json with the exception message
-            mock_module.fail_json.assert_called_once()
-            call_args = mock_module.fail_json.call_args[1]
-            assert "Connection failed" in call_args["msg"]
+            mock_module.fail_json.assert_called_once_with(msg="Connection failed")
+            
+            # Should NOT call exit_json when exception occurs
+            mock_module.exit_json.assert_not_called()
+            
+            # Should NOT call plan utility functions when client creation fails
+            mock_get_metadata.assert_not_called()
+            mock_get_json.assert_not_called()
 
     def test_main_with_missing_status_in_metadata(self):
         """Test main function when status is missing from metadata."""
@@ -384,6 +431,17 @@ class TestPlanInfoModule:
                 "plan_status": "unknown",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
+            
+            # Should NOT call fail_json for missing status (fallback handled)
+            mock_module.fail_json.assert_not_called()
+            
+            # Verify plan utility functions were called
+            mock_get_metadata.assert_called_once_with(ANY, "plan-nostatus123", True)
+            mock_get_json.assert_called_once_with(ANY, "plan-nostatus123", True)
+            
+            # Verify fallback status is used
+            assert expected_result["plan_status"] == "unknown"
+            assert "status" not in expected_result["metadata"]["attributes"]
 
     def test_main_with_complex_plan_data(self):
         """Test main function with complex plan data including multiple resource changes."""
@@ -512,6 +570,15 @@ class TestPlanInfoModule:
                 "plan_status": "finished",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
+            
+            # Should NOT call fail_json on success
+            mock_module.fail_json.assert_not_called()
+            
+            # Verify complex data structure is preserved
+            assert "status_timestamps" in expected_result["metadata"]["attributes"]
+            assert "relationships" in expected_result["metadata"]
+            assert len(expected_result["json_output"]["resource_changes"]) == 3
+            assert expected_result["json_output"]["resource_changes"][0]["address"] == "aws_instance.web[0]"
 
     def test_module_argument_spec(self):
         """Test that the module has correct argument specification."""
@@ -550,10 +617,19 @@ class TestPlanInfoModule:
 
                 assert actual_argument_spec == expected_argument_spec
 
-                # Verify mutually exclusive and requires_one_of settings
+                # Verify mutually exclusive and required_one_of settings
                 assert call_args[1]["mutually_exclusive"] == [["plan_id", "run_id"]]
-                assert call_args[1]["requires_one_of"] == [["plan_id", "run_id"]]
+                assert call_args[1]["required_one_of"] == [["plan_id", "run_id"]]
                 assert call_args[1]["supports_check_mode"] is True
+                
+                # Should call exit_json on successful execution
+                mock_module.exit_json.assert_called_once()
+                # Should NOT call fail_json on successful execution
+                mock_module.fail_json.assert_not_called()
+                
+                # Verify plan utility functions were called
+                mock_get_metadata.assert_called_once()
+                mock_get_json.assert_called_once()
 
 
 if __name__ == "__main__":
