@@ -66,13 +66,9 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -146,13 +142,9 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -200,13 +192,9 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -239,13 +227,9 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -260,9 +244,7 @@ class TestPlanInfoModule:
             main()
 
             # Should call fail_json with appropriate error message
-            mock_module.fail_json.assert_called_once_with(
-                msg="Plan for run with ID 'run-nonexistent456' was not found."
-            )
+            mock_module.fail_json.assert_called_once_with(msg="Plan for run with ID 'run-nonexistent456' was not found.")
 
             # Should NOT call exit_json on failure
             mock_module.exit_json.assert_not_called()
@@ -311,13 +293,9 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -363,13 +341,9 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ) as mock_client_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ) as mock_client_class, patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -428,13 +402,9 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -530,15 +500,8 @@ class TestPlanInfoModule:
                         "name": "web",
                         "change": {
                             "actions": ["update"],
-                            "before": {
-                                "ingress": [{"from_port": 80, "to_port": 80}]
-                            },
-                            "after": {
-                                "ingress": [
-                                    {"from_port": 80, "to_port": 80},
-                                    {"from_port": 443, "to_port": 443}
-                                ]
-                            },
+                            "before": {"ingress": [{"from_port": 80, "to_port": 80}]},
+                            "after": {"ingress": [{"from_port": 80, "to_port": 80}, {"from_port": 443, "to_port": 443}]},
                         },
                     },
                     {
@@ -574,13 +537,9 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-        ) as mock_get_metadata, patch(
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -621,9 +580,7 @@ class TestPlanInfoModule:
 
     def test_module_argument_spec(self):
         """Test that the module has correct argument specification."""
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
-        ) as mock_module_class:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class:
             mock_module = Mock()
             mock_module.params = {
                 "plan_id": "plan-test123",
@@ -634,13 +591,9 @@ class TestPlanInfoModule:
             mock_module_class.return_value = mock_module
 
             # Mock the plan utility functions to avoid actual API calls
-            with patch(
-                "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-            ), patch(
+            with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"), patch(
                 "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-            ) as mock_get_metadata, patch(
-                "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
-            ) as mock_get_json:
+            ) as mock_get_metadata, patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output") as mock_get_json:
 
                 mock_get_metadata.return_value = {"data": {"attributes": {"status": "finished"}}}
                 mock_get_json.return_value = {"data": {}}
