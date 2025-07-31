@@ -106,11 +106,11 @@ class TestGetPlanMetadata(TestPlanFunctions):
 
                 with self.assertRaises(TerraformError) as context:
                     get_plan_metadata(self.mock_tf_client, self.plan_id, use_plan_id=True)
-                
+
                 # Verify the exception contains the response
                 self.assertEqual(context.exception.args[0], response)
                 self.mock_tf_client.get.assert_called_with(f"/plans/{self.plan_id}")
-                
+
                 # Reset mock for next iteration
                 self.mock_tf_client.reset_mock()
 
@@ -272,11 +272,11 @@ class TestGetPlanJsonOutput(TestPlanFunctions):
 
                 with self.assertRaises(TerraformError) as context:
                     get_plan_json_output(self.mock_tf_client, self.plan_id, use_plan_id=True)
-                
+
                 # Verify the exception contains the response
                 self.assertEqual(context.exception.args[0], response)
                 self.mock_tf_client.get.assert_called_with(f"/plans/{self.plan_id}/json-output")
-                
+
                 # Reset mock for next iteration
                 self.mock_tf_client.reset_mock()
 

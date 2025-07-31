@@ -456,7 +456,7 @@ def main():
             run_id=dict(type="str"),
         ),
         mutually_exclusive=[["plan_id", "run_id"]],
-        requires_one_of=[["plan_id", "run_id"]],
+        required_one_of=[["plan_id", "run_id"]],
         supports_check_mode=True,
     )
 

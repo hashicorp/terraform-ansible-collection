@@ -66,9 +66,13 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -97,10 +101,10 @@ class TestPlanInfoModule:
                 "plan_status": "finished",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
-            
+
             # Should NOT call fail_json on success
             mock_module.fail_json.assert_not_called()
-            
+
             # Verify response structure
             assert "metadata" in expected_result
             assert "json_output" in expected_result
@@ -142,9 +146,13 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -173,10 +181,10 @@ class TestPlanInfoModule:
                 "plan_status": "planning",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
-            
+
             # Should NOT call fail_json on success
             mock_module.fail_json.assert_not_called()
-            
+
             # Verify response structure and content
             assert "metadata" in expected_result
             assert "json_output" in expected_result
@@ -192,9 +200,13 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -210,10 +222,10 @@ class TestPlanInfoModule:
 
             # Should call fail_json with appropriate error message
             mock_module.fail_json.assert_called_once_with(msg="Plan with ID 'plan-nonexistent123' was not found.")
-            
+
             # Should NOT call exit_json on failure
             mock_module.exit_json.assert_not_called()
-            
+
             # Should have called plan utility functions with correct parameters
             mock_get_metadata.assert_called_once_with(ANY, "plan-nonexistent123", True)
             mock_get_json.assert_called_once_with(ANY, "plan-nonexistent123", True)
@@ -227,9 +239,13 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -244,11 +260,13 @@ class TestPlanInfoModule:
             main()
 
             # Should call fail_json with appropriate error message
-            mock_module.fail_json.assert_called_once_with(msg="Plan for run with ID 'run-nonexistent456' was not found.")
-            
+            mock_module.fail_json.assert_called_once_with(
+                msg="Plan for run with ID 'run-nonexistent456' was not found."
+            )
+
             # Should NOT call exit_json on failure
             mock_module.exit_json.assert_not_called()
-            
+
             # Should have called plan utility functions with correct parameters
             mock_get_metadata.assert_called_once_with(ANY, "run-nonexistent456", False)
             mock_get_json.assert_called_once_with(ANY, "run-nonexistent456", False)
@@ -293,9 +311,13 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -320,14 +342,14 @@ class TestPlanInfoModule:
                 "plan_status": "errored",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
-            
+
             # Should NOT call fail_json for errored plans (they still return data)
             mock_module.fail_json.assert_not_called()
-            
+
             # Verify plan utility functions were called
             mock_get_metadata.assert_called_once_with(ANY, "plan-error123", True)
             mock_get_json.assert_called_once_with(ANY, "plan-error123", True)
-            
+
             # Verify error status is properly extracted
             assert expected_result["plan_status"] == "errored"
             assert expected_result["json_output"]["errored"] is True
@@ -341,7 +363,9 @@ class TestPlanInfoModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
         ) as mock_client_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
@@ -360,10 +384,10 @@ class TestPlanInfoModule:
 
             # Should call fail_json with the exception message
             mock_module.fail_json.assert_called_once_with(msg="Connection failed")
-            
+
             # Should NOT call exit_json when exception occurs
             mock_module.exit_json.assert_not_called()
-            
+
             # Should NOT call plan utility functions when client creation fails
             mock_get_metadata.assert_not_called()
             mock_get_json.assert_not_called()
@@ -404,9 +428,13 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -431,14 +459,14 @@ class TestPlanInfoModule:
                 "plan_status": "unknown",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
-            
+
             # Should NOT call fail_json for missing status (fallback handled)
             mock_module.fail_json.assert_not_called()
-            
+
             # Verify plan utility functions were called
             mock_get_metadata.assert_called_once_with(ANY, "plan-nostatus123", True)
             mock_get_json.assert_called_once_with(ANY, "plan-nostatus123", True)
-            
+
             # Verify fallback status is used
             assert expected_result["plan_status"] == "unknown"
             assert "status" not in expected_result["metadata"]["attributes"]
@@ -502,8 +530,15 @@ class TestPlanInfoModule:
                         "name": "web",
                         "change": {
                             "actions": ["update"],
-                            "before": {"ingress": [{"from_port": 80, "to_port": 80}]},
-                            "after": {"ingress": [{"from_port": 80, "to_port": 80}, {"from_port": 443, "to_port": 443}]},
+                            "before": {
+                                "ingress": [{"from_port": 80, "to_port": 80}]
+                            },
+                            "after": {
+                                "ingress": [
+                                    {"from_port": 80, "to_port": 80},
+                                    {"from_port": 443, "to_port": 443}
+                                ]
+                            },
                         },
                     },
                     {
@@ -539,9 +574,13 @@ class TestPlanInfoModule:
             "status": 200,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class, patch(
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata") as mock_get_metadata, patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
+        ) as mock_get_metadata, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
         ) as mock_get_json:
 
@@ -570,10 +609,10 @@ class TestPlanInfoModule:
                 "plan_status": "finished",
             }
             mock_module.exit_json.assert_called_once_with(**expected_result)
-            
+
             # Should NOT call fail_json on success
             mock_module.fail_json.assert_not_called()
-            
+
             # Verify complex data structure is preserved
             assert "status_timestamps" in expected_result["metadata"]["attributes"]
             assert "relationships" in expected_result["metadata"]
@@ -582,7 +621,9 @@ class TestPlanInfoModule:
 
     def test_module_argument_spec(self):
         """Test that the module has correct argument specification."""
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule") as mock_module_class:
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformModule"
+        ) as mock_module_class:
             mock_module = Mock()
             mock_module.params = {
                 "plan_id": "plan-test123",
@@ -593,9 +634,13 @@ class TestPlanInfoModule:
             mock_module_class.return_value = mock_module
 
             # Mock the plan utility functions to avoid actual API calls
-            with patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"), patch(
+            with patch(
+                "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.TerraformClient"
+            ), patch(
                 "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_metadata"
-            ) as mock_get_metadata, patch("ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output") as mock_get_json:
+            ) as mock_get_metadata, patch(
+                "ansible_collections.hashicorp.terraform.plugins.modules.plan_info.get_plan_json_output"
+            ) as mock_get_json:
 
                 mock_get_metadata.return_value = {"data": {"attributes": {"status": "finished"}}}
                 mock_get_json.return_value = {"data": {}}
@@ -621,12 +666,12 @@ class TestPlanInfoModule:
                 assert call_args[1]["mutually_exclusive"] == [["plan_id", "run_id"]]
                 assert call_args[1]["required_one_of"] == [["plan_id", "run_id"]]
                 assert call_args[1]["supports_check_mode"] is True
-                
+
                 # Should call exit_json on successful execution
                 mock_module.exit_json.assert_called_once()
                 # Should NOT call fail_json on successful execution
                 mock_module.fail_json.assert_not_called()
-                
+
                 # Verify plan utility functions were called
                 mock_get_metadata.assert_called_once()
                 mock_get_json.assert_called_once()
