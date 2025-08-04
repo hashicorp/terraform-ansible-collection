@@ -5,6 +5,7 @@
 
 import json
 import re
+import traceback
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -25,6 +26,8 @@ except ImportError:
     HAS_URLLIB3 = False
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
+from ansible.module_utils.common.text.converters import to_text
+from ansible.module_utils.compat.version import LooseVersion
 
 from .exceptions import (
     TerraformHostnameNotFoundError,
@@ -36,7 +39,14 @@ from .exceptions import (
 HTTP_URL_PATTERN = r"^https?://"
 
 
-class TerraformModule(AnsibleModule):
+class AnsibleTerraformModule(AnsibleModule):
+    """Ansible module class for hashicorp.terraform modules."""
+
+    DEFAULT_SETTINGS = {
+        "check_requests": True,
+        "module_class": AnsibleModule,
+    }
+
     AUTH_ARGSPEC = {
         "tf_token": {
             "required": False,
@@ -67,36 +77,191 @@ class TerraformModule(AnsibleModule):
         },
     }
 
-    def __init__(
-        self,
-        argument_spec,
-        bypass_checks=False,
-        no_log=False,
-        mutually_exclusive=None,
-        required_together=None,
-        required_one_of=None,
-        add_file_common_args=False,
-        supports_check_mode=False,
-        required_if=None,
-        required_by=None,
-    ):
-        """Initialize the module updating argspec with auth params."""
-        if required_by is None:
-            required_by = {}
+    def __init__(self, **kwargs) -> None:
+        local_settings = {}
+        for key in AnsibleTerraformModule.DEFAULT_SETTINGS:
+            try:
+                local_settings[key] = kwargs.pop(key)
+            except KeyError:
+                local_settings[key] = AnsibleTerraformModule.default_settings[key]
+        self.settings = local_settings
 
-        argument_spec.update(TerraformModule.AUTH_ARGSPEC)
-        super().__init__(
-            argument_spec,
-            bypass_checks,
-            no_log,
-            mutually_exclusive,
-            required_together,
-            required_one_of,
-            add_file_common_args,
-            supports_check_mode,
-            required_if,
-            required_by,
+        self._module = self.settings["module_class"](**kwargs)
+
+        if self.settings["check_requests"]:
+            self.requires("requests")
+
+    @property
+    def check_mode(self):
+        return self._module.check_mode
+
+    @property
+    def _diff(self):
+        return self._module._diff
+
+    @property
+    def _name(self):
+        return self._module._name
+
+    @property
+    def params(self):
+        return self._module.params
+
+    def warn(self, *args, **kwargs):
+        return self._module.warn(*args, **kwargs)
+
+    def deprecate(self, *args, **kwargs):
+        return self._module.deprecate(*args, **kwargs)
+
+    def debug(self, *args, **kwargs):
+        return self._module.debug(*args, **kwargs)
+
+    def exit_json(self, *args, **kwargs):
+        return self._module.exit_json(*args, **kwargs)
+
+    def fail_json(self, *args, **kwargs):
+        return self._module.fail_json(*args, **kwargs)
+
+    def fail_from_exception(self, exception):
+        msg = to_text(exception)
+        tb = "".join(
+            traceback.format_exception(None, exception, exception.__traceback__),
         )
+        return self.fail_json(msg=msg, exception=tb)
+
+    def requires(
+        self,
+        dependency: str,
+        minimum: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
+        try:
+            requires(dependency, minimum, reason=reason)
+        except Exception as e:
+            self.fail_json(msg=to_text(e))
+
+
+def requires(
+    dependency: str,
+    minimum: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> None:
+    """Fail if a specific dependency is not present at a minimum version.
+
+    If a minimum version is not specified it will require only that the
+    dependency is present. This function raises an exception when the
+    dependency is not found at the required version.
+
+    Args:
+        dependency (str): The name of the required package/dependency to check.
+        minimum (str, optional): The minimum version required for the dependency.
+                                If None, only checks that the dependency is present.
+                                Defaults to None.
+        reason (str, optional): Additional context or reason why this dependency
+                               is required. Used in error messages. Defaults to None.
+
+    Returns:
+        None: This function does not return a value.
+
+    Raises:
+        Exception: If the dependency is not found or does not meet the minimum
+                  version requirement.
+    """
+    if not has_at_least(dependency, minimum):
+        if minimum is not None:
+            lib = "{0}>={1}".format(dependency, minimum)
+        else:
+            lib = dependency
+        raise Exception(missing_required_lib(lib, reason=reason))
+
+
+def has_at_least(dependency: str, minimum: Optional[str] = None) -> bool:
+    """Check if a dependency is present and meets minimum version requirements.
+
+    Performs a comprehensive check to determine if the specified package is
+    available and optionally validates it meets or exceeds a minimum version.
+    Uses semantic version comparison for accurate version checking.
+
+    Args:
+        dependency (str): The name of the package to check. Must be a valid
+                         Python package name that can be imported.
+        minimum (str, optional): The minimum version requirement in semantic
+                                version format (e.g., "1.2.3", "2.0.0").
+                                If None, only verifies package presence.
+                                Defaults to None.
+
+    Returns:
+        bool: True if the dependency is present and meets version requirements,
+              False otherwise. Returns False for any import or version parsing
+              errors to fail safely.
+
+    Note:
+        This function is designed to fail gracefully - any errors during
+        package discovery or version parsing will result in False being
+        returned rather than raising exceptions.
+    """
+    result = False
+
+    try:
+        # Retrieve available dependency versions
+        available_packages = gather_versions([dependency])
+        current_version = available_packages.get(dependency)
+
+        # Check if dependency was found and version is discoverable
+        if current_version is not None:
+            # If no minimum version specified, dependency presence is sufficient
+            if minimum is None:
+                result = True
+            else:
+                # Perform semantic version comparison
+                result = LooseVersion(current_version) >= LooseVersion(minimum)
+
+    except Exception:
+        # If for some reason the validation fails, result remains False
+        result = False
+
+    return result
+
+
+def gather_versions(packages: Optional[List[str]] = None) -> Dict[str, str]:
+    """
+    Gather version information for specified packages.
+
+    Args:
+        packages (list, optional): List of package names to check.
+                                   If None, uses a default set of common packages.
+
+    Returns:
+        dict: Dictionary mapping package names to their versions.
+    """
+    if packages is None:
+        packages = ["requests"]
+
+    versions = {}
+
+    for package_name in packages:
+        try:
+            # Import the package
+            package = __import__(package_name)
+
+            # Try different common version attributes
+            version = None
+            for attr in ["__version__", "version", "VERSION"]:
+                if hasattr(package, attr):
+                    version = getattr(package, attr)
+                    break
+
+            if version:
+                versions[package_name] = to_text(version)
+
+        except ImportError:
+            # Package not available, skip it
+            pass
+        except Exception:
+            # Any other error, skip this package
+            pass
+
+    return versions
 
 
 class ClientMixin:
