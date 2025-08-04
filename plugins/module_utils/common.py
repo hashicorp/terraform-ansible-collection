@@ -83,8 +83,10 @@ class AnsibleTerraformModule(AnsibleModule):
             try:
                 local_settings[key] = kwargs.pop(key)
             except KeyError:
-                local_settings[key] = AnsibleTerraformModule.default_settings[key]
+                local_settings[key] = AnsibleTerraformModule.DEFAULT_SETTINGS[key]
         self.settings = local_settings
+
+        kwargs["argument_spec"].update(self.AUTH_ARGSPEC)
 
         self._module = self.settings["module_class"](**kwargs)
 

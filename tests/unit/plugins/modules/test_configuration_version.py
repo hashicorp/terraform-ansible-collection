@@ -490,7 +490,7 @@ class TestMainFunctionBehavior:
             "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
@@ -513,7 +513,7 @@ class TestMainFunctionBehavior:
         """Test that main properly handles and reports exceptions."""
         params = {"state": "present", "workspace_id": "ws-123", "configuration_files_path": "/fake/path", "poll_timeout": 5, "check_mode": False}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ) as mock_client_class:
 
@@ -546,7 +546,7 @@ class TestMainFunctionBehavior:
             # Note: No workspace_id key at all
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"):
 
@@ -583,7 +583,7 @@ class TestIntegrationFlows:
             "poll_timeout": 5,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
@@ -609,7 +609,7 @@ class TestIntegrationFlows:
         """Test full integration of archived state."""
         params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived",
@@ -644,7 +644,7 @@ class TestIntegrationFlows:
             "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
@@ -690,7 +690,7 @@ class TestIntegrationFlows:
             "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformModule") as mock_module_class, patch(
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",

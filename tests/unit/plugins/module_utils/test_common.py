@@ -18,10 +18,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 from plugins.module_utils.common import (
+    AnsibleTerraformModule,
     ArchivistClient,
     ClientMixin,
     TerraformClient,
-    TerraformModule,
 )
 from plugins.module_utils.exceptions import (
     TerraformHostnameNotFoundError,
@@ -30,28 +30,36 @@ from plugins.module_utils.exceptions import (
 
 
 class TestTerraformModuleUtil:
-    """Test cases for TerraformModule class."""
+    """Test cases for AnsibleTerraformModule class."""
 
     def test_terraform_module_init_adds_auth_argspec(self):
-        """Test that TerraformModule adds authentication parameters to argspec."""
-        test_argspec = {
-            "test_param": dict(type="str", required=True),
-        }
+        """Test that AnsibleTerraformModule adds authentication parameters to argspec."""
+        argument_spec = dict(
+            test_param=dict(type="str"),
+        )
 
         with patch("ansible.module_utils.basic.AnsibleModule.__init__") as mock_init:
             mock_init.return_value = None
-            TerraformModule(test_argspec)
+            AnsibleTerraformModule(argument_spec=argument_spec)
 
-            # Check that auth argspec was added
-            called_argspec = mock_init.call_args[0][0]
+            # Check that auth argspec was added to the argument_spec
+            # Access the keyword arguments passed to the mocked constructor
+            called_kwargs = mock_init.call_args.kwargs
+            called_argspec = called_kwargs["argument_spec"]
+
+            # Verify original parameter is still present
+            assert "test_param" in called_argspec
+
+            # Verify auth parameters were added
             assert "tf_token" in called_argspec
             assert "tf_hostname" in called_argspec
             assert "tf_validate_certs" in called_argspec
-            assert "test_param" in called_argspec
+            assert "tf_max_retries" in called_argspec
+            assert "tf_timeout" in called_argspec
 
     def test_terraform_module_auth_argspec_structure(self):
         """Test the structure of AUTH_ARGSPEC."""
-        auth_spec = TerraformModule.AUTH_ARGSPEC
+        auth_spec = AnsibleTerraformModule.AUTH_ARGSPEC
 
         assert "tf_token" in auth_spec
         assert auth_spec["tf_token"]["required"] is False
@@ -764,7 +772,7 @@ class TestClientMixinAdditional:
                     "nested": {"id": "456", "value": "keep", "private": "remove"},
                 },
                 "relationships": {"parent": {"data": {"id": "789", "type": "parent"}}},
-            }
+            },
         }
         keys_to_include = ["id", "name", "value", "data", "type"]
 
@@ -920,7 +928,7 @@ class TestExponentialBackoff:
                     "links": {
                         "self": "/api/v2/test-backoff",
                     },
-                }
+                },
             }
 
             RESPONSE_RATE_LIMITED = {
@@ -929,8 +937,8 @@ class TestExponentialBackoff:
                         "detail": "You have exceeded the API's rate limit.",
                         "status": 429,
                         "title": "Too many requests",
-                    }
-                ]
+                    },
+                ],
             }
 
             def do_GET(self):
@@ -977,7 +985,11 @@ class TestExponentialBackoff:
         try:
             # Create client that points to our mock server
             client = TerraformClient(
-                tf_token="test-token", tf_hostname=f"http://{HOST}:{PORT}", tf_validate_certs=False, tf_max_retries=5, timeout=30  # Allow HTTP
+                tf_token="test-token",
+                tf_hostname=f"http://{HOST}:{PORT}",
+                tf_validate_certs=False,
+                tf_max_retries=5,
+                timeout=30,  # Allow HTTP
             )
 
             print(f"Starting request at {time.time():.3f}")

@@ -349,9 +349,9 @@ if TYPE_CHECKING:
     from typing import Any, Dict, Tuple
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
     ArchivistClient,
     TerraformClient,
-    TerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     archive_config,
@@ -633,7 +633,7 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
 
 
 def main():
-    module = TerraformModule(
+    module = AnsibleTerraformModule(
         argument_spec=dict(
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
