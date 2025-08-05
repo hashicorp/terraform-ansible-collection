@@ -1294,12 +1294,11 @@ class TestCommonUtils:
 class TestAnsibleTerraformModule:
     """Test cases for AnsibleTerraformModule methods and functionality."""
 
-    @patch("ansible.module_utils.basic.AnsibleModule")
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
     @patch("plugins.module_utils.common.requires")
-    def test_init_with_custom_settings(self, mock_requires, mock_ansible_module):
+    def test_init_with_custom_settings(self, mock_requires, mock_init):
         """Test AnsibleTerraformModule initialization with custom settings."""
-        mock_module_instance = Mock()
-        mock_ansible_module.return_value = mock_module_instance
+        mock_init.return_value = None
 
         custom_module_class = Mock()
         argument_spec = {"test_param": {"type": "str"}}
@@ -1315,8 +1314,151 @@ class TestAnsibleTerraformModule:
         assert terraform_module.settings["module_class"] == custom_module_class
 
         # Verify custom module class was used
-        mock_ansible_module.assert_not_called()
+        mock_init.assert_not_called()
         custom_module_class.assert_called_once()
 
         # Verify requests dependency was NOT checked
         mock_requires.assert_not_called()
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_warn_delegates_to_module(self, mock_init):
+        """Test warn method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test warn with positional arguments
+        terraform_module.warn("Test warning message")
+        mock_module_instance.warn.assert_called_with("Test warning message")
+
+        # Test warn with keyword arguments
+        terraform_module.warn("Test warning", version="2.0")
+        mock_module_instance.warn.assert_called_with("Test warning", version="2.0")
+
+        # Test warn with both positional and keyword arguments
+        terraform_module.warn("Test", "warning", version="2.0", deprecation_msg="deprecated")
+        mock_module_instance.warn.assert_called_with("Test", "warning", version="2.0", deprecation_msg="deprecated")
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_deprecate_delegates_to_module(self, mock_init):
+        """Test deprecate method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test deprecate with positional arguments
+        terraform_module.deprecate("This feature is deprecated")
+        mock_module_instance.deprecate.assert_called_with("This feature is deprecated")
+
+        # Test deprecate with keyword arguments
+        terraform_module.deprecate("Feature deprecated", version="3.0")
+        mock_module_instance.deprecate.assert_called_with("Feature deprecated", version="3.0")
+
+        # Test deprecate with both positional and keyword arguments
+        terraform_module.deprecate("deprecated", version="3.0", date="2024-01-01")
+        mock_module_instance.deprecate.assert_called_with("deprecated", version="3.0", date="2024-01-01")
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_debug_delegates_to_module(self, mock_init):
+        """Test debug method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test debug with positional arguments
+        terraform_module.debug("Debug message")
+        mock_module_instance.debug.assert_called_with("Debug message")
+
+        # Test debug with keyword arguments
+        terraform_module.debug("Debug info", var_name="test_var")
+        mock_module_instance.debug.assert_called_with("Debug info", var_name="test_var")
+
+        # Test debug with both positional and keyword arguments
+        terraform_module.debug("Debug", "info", level=1, verbose=True)
+        mock_module_instance.debug.assert_called_with("Debug", "info", level=1, verbose=True)
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_exit_json_delegates_to_module(self, mock_init):
+        """Test exit_json method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test exit_json with positional arguments
+        terraform_module.exit_json(True)
+        mock_module_instance.exit_json.assert_called_with(True)
+
+        # Test exit_json with keyword arguments
+        terraform_module.exit_json(changed=True, msg="Success")
+        mock_module_instance.exit_json.assert_called_with(changed=True, msg="Success")
+
+        # Test exit_json with both positional and keyword arguments
+        terraform_module.exit_json(True, msg="Success", result={"id": "123"})
+        mock_module_instance.exit_json.assert_called_with(True, msg="Success", result={"id": "123"})
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_fail_json_delegates_to_module(self, mock_init):
+        """Test fail_json method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test fail_json with positional arguments
+        terraform_module.fail_json("Error occurred")
+        mock_module_instance.fail_json.assert_called_with("Error occurred")
+
+        # Test fail_json with keyword arguments
+        terraform_module.fail_json(msg="Error message")
+        mock_module_instance.fail_json.assert_called_with(msg="Error message")
+
+        # Test fail_json with both positional and keyword arguments
+        terraform_module.fail_json("Error", msg="Failed", rc=1, details={"error": "details"})
+        mock_module_instance.fail_json.assert_called_with("Error", msg="Failed", rc=1, details={"error": "details"})
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_fail_from_exception_formats_and_calls_fail_json(self, mock_init):
+        """Test fail_from_exception method formats exception and calls fail_json."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Call fail_from_exception
+        terraform_module.fail_from_exception(ValueError("Test error message"))
+
+        # Verify fail_json was called on the underlying module
+        mock_module_instance.fail_json.assert_called_once()
+
+        # Get the actual call arguments
+        _, call_kwargs = mock_module_instance.fail_json.call_args
+
+        # Verify the message contains the exception text
+        assert call_kwargs["msg"] == "Test error message"
+
+        # Verify the exception traceback is included
+        assert "exception" in call_kwargs
+        assert "ValueError: Test error message" in call_kwargs["exception"]
+        assert "traceback" in call_kwargs["exception"].lower() or "ValueError" in call_kwargs["exception"]
