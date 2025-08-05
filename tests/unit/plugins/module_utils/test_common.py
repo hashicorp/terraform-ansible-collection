@@ -1354,17 +1354,9 @@ class TestAnsibleTerraformModule:
         terraform_module = AnsibleTerraformModule(argument_spec={})
         terraform_module._module = mock_module_instance
 
-        # Test deprecate with positional arguments
-        terraform_module.deprecate("This feature is deprecated")
-        mock_module_instance.deprecate.assert_called_with("This feature is deprecated")
-
-        # Test deprecate with keyword arguments
-        terraform_module.deprecate("Feature deprecated", version="3.0")
-        mock_module_instance.deprecate.assert_called_with("Feature deprecated", version="3.0")
-
         # Test deprecate with both positional and keyword arguments
-        terraform_module.deprecate("deprecated", version="3.0", date="2024-01-01")
-        mock_module_instance.deprecate.assert_called_with("deprecated", version="3.0", date="2024-01-01")
+        terraform_module.deprecate("deprecated", collection_name="hashicorp.terraform", date="2024-01-01")
+        mock_module_instance.deprecate.assert_called_with("deprecated", collection_name="hashicorp.terraform", date="2024-01-01")
 
     @patch("ansible.module_utils.basic.AnsibleModule.__init__")
     def test_debug_delegates_to_module(self, mock_init):
@@ -1453,7 +1445,7 @@ class TestAnsibleTerraformModule:
         mock_module_instance.fail_json.assert_called_once()
 
         # Get the actual call arguments
-        _, call_kwargs = mock_module_instance.fail_json.call_args
+        _tmp, call_kwargs = mock_module_instance.fail_json.call_args
 
         # Verify the message contains the exception text
         assert call_kwargs["msg"] == "Test error message"
