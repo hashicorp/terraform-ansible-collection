@@ -30,6 +30,7 @@ from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.compat.version import LooseVersion
 
 from .exceptions import (
+    TerraformError,
     TerraformHostnameNotFoundError,
     TerraformTokenNotFoundError,
 )
@@ -174,7 +175,7 @@ def requires(
             lib = "{0}>={1}".format(dependency, minimum)
         else:
             lib = dependency
-        raise Exception(missing_required_lib(lib, reason=reason))
+        raise TerraformError(missing_required_lib(lib, reason=reason))
 
 
 def has_at_least(dependency: str, minimum: Optional[str] = None) -> bool:
