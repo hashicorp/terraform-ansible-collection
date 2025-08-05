@@ -17,6 +17,7 @@ import pytest
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
+
 from plugins.module_utils.common import (
     AnsibleTerraformModule,
     ArchivistClient,
@@ -1246,12 +1247,12 @@ class TestCommonUtils:
         mock_has_at_least.return_value = False
 
         with pytest.raises(Exception) as exc_info:
-            requires("test_package", "1.0.0", "needed for authentication")
+            requires("test_package", "1.0.0", "needed for some feature")
 
         # The error should include the reason
         error_message = str(exc_info.value)
         assert "test_package>=1.0.0" in error_message
-        assert "needed for authentication" in error_message
+        assert "needed for some feature" in error_message
 
     @patch("plugins.module_utils.common.has_at_least")
     def test_requires_with_reason_no_minimum(self, mock_has_at_least):
@@ -1288,3 +1289,34 @@ class TestCommonUtils:
         result = has_at_least("sys")
 
         assert result is True
+
+
+class TestAnsibleTerraformModule:
+    """Test cases for AnsibleTerraformModule methods and functionality."""
+
+    @patch("ansible.module_utils.basic.AnsibleModule")
+    @patch("plugins.module_utils.common.requires")
+    def test_init_with_custom_settings(self, mock_requires, mock_ansible_module):
+        """Test AnsibleTerraformModule initialization with custom settings."""
+        mock_module_instance = Mock()
+        mock_ansible_module.return_value = mock_module_instance
+
+        custom_module_class = Mock()
+        argument_spec = {"test_param": {"type": "str"}}
+
+        terraform_module = AnsibleTerraformModule(
+            argument_spec=argument_spec,
+            check_requests=False,
+            module_class=custom_module_class,
+        )
+
+        # Verify custom settings were applied
+        assert terraform_module.settings["check_requests"] is False
+        assert terraform_module.settings["module_class"] == custom_module_class
+
+        # Verify custom module class was used
+        mock_ansible_module.assert_not_called()
+        custom_module_class.assert_called_once()
+
+        # Verify requests dependency was NOT checked
+        mock_requires.assert_not_called()
