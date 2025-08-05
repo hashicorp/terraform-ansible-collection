@@ -22,6 +22,9 @@ from plugins.module_utils.common import (
     ArchivistClient,
     ClientMixin,
     TerraformClient,
+    gather_versions,
+    has_at_least,
+    requires,
 )
 from plugins.module_utils.exceptions import (
     TerraformHostnameNotFoundError,
@@ -1029,3 +1032,259 @@ class TestExponentialBackoff:
             server_thread.join(timeout=2.0)
             if server_thread.is_alive():
                 raise RuntimeError("Server thread failed to terminate within 2 seconds after shutdown")
+
+
+class TestCommonUtils:
+    """Test cases for utility functions in common module."""
+
+    def test_gather_versions_with_existing_packages(self):
+        """Test gather_versions with packages that exist."""
+        # Test with sys module which should always be available
+        result = gather_versions(["sys"])
+
+        assert isinstance(result, dict)
+        assert "sys" in result
+        assert isinstance(result["sys"], str)
+
+    def test_gather_versions_with_nonexistent_package(self):
+        """Test gather_versions with a package that doesn't exist."""
+        result = gather_versions(["nonexistent_package_xyz123"])
+
+        assert isinstance(result, dict)
+        assert "nonexistent_package_xyz123" not in result
+
+    def test_gather_versions_with_none_parameter(self):
+        """Test gather_versions with None parameter uses default packages."""
+        result = gather_versions(None)
+
+        assert isinstance(result, dict)
+        # Default should include "requests" but might not be available in test environment
+
+    def test_gather_versions_with_empty_list(self):
+        """Test gather_versions with empty list."""
+        result = gather_versions([])
+
+        assert isinstance(result, dict)
+        assert len(result) == 0
+
+    @patch("builtins.__import__")
+    def test_gather_versions_import_error_handling(self, mock_import):
+        """Test gather_versions handles import errors gracefully."""
+        mock_import.side_effect = ImportError("Module not found")
+
+        result = gather_versions(["test_package"])
+
+        assert isinstance(result, dict)
+        assert "test_package" not in result
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute(self, mock_import):
+        """Test gather_versions with package that has __version__ attribute."""
+        mock_package = Mock()
+        mock_package.__version__ = "1.2.3"
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "1.2.3"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute_variants(self, mock_import):
+        """Test gather_versions with different version attribute names."""
+        # Test with 'version' attribute
+        mock_package = Mock()
+        mock_package.version = "2.0.0"
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "2.0.0"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute_uppercase(self, mock_import):
+        """Test gather_versions with VERSION attribute."""
+        mock_package = Mock()
+        mock_package.VERSION = "3.1.0"
+        del mock_package.version
+        del mock_package.__version__
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "3.1.0"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_no_version_attribute(self, mock_import):
+        """Test gather_versions with package that has no version attribute."""
+        mock_package = Mock(spec=[])  # No version attributes
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert "test_package" not in result
+
+    @patch("builtins.__import__")
+    def test_gather_versions_exception_handling(self, mock_import):
+        """Test gather_versions handles general exceptions gracefully."""
+        mock_import.side_effect = Exception("Unexpected error")
+
+        result = gather_versions(["test_package"])
+
+        assert isinstance(result, dict)
+        assert "test_package" not in result
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_dependency_exists_no_minimum(self, mock_gather):
+        """Test has_at_least when dependency exists and no minimum version required."""
+        mock_gather.return_value = {"test_package": "1.0.0"}
+
+        result = has_at_least("test_package")
+
+        assert result is True
+        mock_gather.assert_called_once_with(["test_package"])
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_dependency_not_found(self, mock_gather):
+        """Test has_at_least when dependency is not found."""
+        mock_gather.return_value = {}
+
+        result = has_at_least("nonexistent_package")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_meets_minimum(self, mock_gather):
+        """Test has_at_least when current version meets minimum requirement."""
+        mock_gather.return_value = {"test_package": "2.0.0"}
+
+        result = has_at_least("test_package", "1.5.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_below_minimum(self, mock_gather):
+        """Test has_at_least when current version is below minimum requirement."""
+        mock_gather.return_value = {"test_package": "1.0.0"}
+
+        result = has_at_least("test_package", "2.0.0")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_equals_minimum(self, mock_gather):
+        """Test has_at_least when current version equals minimum requirement."""
+        mock_gather.return_value = {"test_package": "1.5.0"}
+
+        result = has_at_least("test_package", "1.5.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_exception_handling(self, mock_gather):
+        """Test has_at_least handles exceptions gracefully."""
+        mock_gather.side_effect = Exception("Unexpected error")
+
+        result = has_at_least("test_package", "1.0.0")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_loose_version_comparison(self, mock_gather):
+        """Test has_at_least uses LooseVersion for version comparison."""
+        mock_gather.return_value = {"test_package": "1.10.0"}
+
+        # Test that 1.10.0 is greater than 1.9.0 (not lexicographic comparison)
+        result = has_at_least("test_package", "1.9.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_dependency_available(self, mock_has_at_least):
+        """Test requires when dependency is available."""
+        mock_has_at_least.return_value = True
+
+        # Should not raise an exception
+        requires("test_package")
+
+        mock_has_at_least.assert_called_once_with("test_package", None)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_dependency_not_available(self, mock_has_at_least):
+        """Test requires raises exception when dependency is not available."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("missing_package")
+
+        # The exception message should contain missing_required_lib output
+        assert "missing_package" in str(exc_info.value)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_minimum_version_met(self, mock_has_at_least):
+        """Test requires when minimum version requirement is met."""
+        mock_has_at_least.return_value = True
+
+        # Should not raise an exception
+        requires("test_package", "1.0.0")
+
+        mock_has_at_least.assert_called_once_with("test_package", "1.0.0")
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_minimum_version_not_met(self, mock_has_at_least):
+        """Test requires raises exception when minimum version is not met."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", "2.0.0")
+
+        # Should include version requirement in error message
+        assert "test_package>=2.0.0" in str(exc_info.value)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_reason(self, mock_has_at_least):
+        """Test requires includes reason in error message."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", "1.0.0", "needed for authentication")
+
+        # The error should include the reason
+        error_message = str(exc_info.value)
+        assert "test_package>=1.0.0" in error_message
+        assert "needed for authentication" in error_message
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_reason_no_minimum(self, mock_has_at_least):
+        """Test requires includes reason when no minimum version specified."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", reason="required for functionality")
+
+        error_message = str(exc_info.value)
+        assert "test_package" in error_message
+        assert "required for functionality" in error_message
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_returns_none(self, mock_has_at_least):
+        """Test requires returns None when successful."""
+        mock_has_at_least.return_value = True
+
+        result = requires("test_package")
+
+        assert result is None
+
+    def test_requires_integration_with_real_package(self):
+        """Integration test with a real package that should exist."""
+        # Test with 'sys' which should always be available
+        # Should not raise an exception
+        result = requires("sys")
+
+        assert result is None
+
+    def test_has_at_least_integration_with_real_package(self):
+        """Integration test with a real package that should exist."""
+        # Test with 'sys' which should always be available
+        result = has_at_least("sys")
+
+        assert result is True
