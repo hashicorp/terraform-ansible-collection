@@ -1,27 +1,31 @@
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 from datetime import datetime
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+
 from pydantic import BaseModel, Field
 
 
-T = TypeVar('T')
-AttributesType = TypeVar('AttributesType', bound=BaseModel)
-RelationshipsType = TypeVar('RelationshipsType', bound=BaseModel)
+T = TypeVar("T")
+AttributesType = TypeVar("AttributesType", bound=BaseModel)
+RelationshipsType = TypeVar("RelationshipsType", bound=BaseModel)
 
 
 class ResourceData(BaseModel):
     """Base model for resource data in relationships."""
+
     type: str
     id: str
 
 
 class Relationship(BaseModel):
     """Generic relationship model."""
+
     data: Optional[Union[ResourceData, List[ResourceData]]] = None
     links: Optional[Dict[str, str]] = None
 
 
 class Links(BaseModel):
     """Common links structure for API responses."""
+
     self: Optional[str] = None
     related: Optional[str] = None
     download: Optional[str] = None
@@ -38,6 +42,7 @@ class BaseTerraformResource(BaseModel, Generic[AttributesType, RelationshipsType
     - relationships: Related resources
     - links: API links for the resource
     """
+
     id: Optional[str] = None
     type: str
     attributes: Optional[AttributesType] = None
@@ -47,6 +52,7 @@ class BaseTerraformResource(BaseModel, Generic[AttributesType, RelationshipsType
 
 class BaseRequest(BaseModel, Generic[T]):
     """Base model for API request payloads."""
+
     data: T
 
     class Config:
@@ -55,6 +61,7 @@ class BaseRequest(BaseModel, Generic[T]):
 
 class BaseAttributes(BaseModel):
     """Base attributes model with common timestamp fields."""
+
     created_at: Optional[datetime] = Field(None, alias="created-at")
     updated_at: Optional[datetime] = Field(None, alias="updated-at")
 
@@ -72,6 +79,7 @@ class BaseRelationships(BaseModel):
 
 class TerraformAPIResponse(BaseModel, Generic[T]):
     """Generic model for Terraform API responses."""
+
     data: Optional[Union[T, List[T]]] = None
     included: Optional[List[Dict[str, Any]]] = None
     meta: Optional[Dict[str, Any]] = None

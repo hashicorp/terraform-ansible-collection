@@ -129,11 +129,10 @@ import time
 
 from typing import Any, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs import RunRequest, RunStates
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient, AnsibleTerraformModule
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import apply_run, create_run, get_run
-from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import cancel_run, discard_run
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs import RunRequest, RunStates
+from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import apply_run, cancel_run, create_run, discard_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 

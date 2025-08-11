@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, StrictBool, StrictStr
 
 from .common import (
@@ -14,6 +15,7 @@ from .common import (
 
 class WorkspaceAttributes(BaseAttributes):
     """Attributes for workspace resources."""
+
     name: Optional[StrictStr] = None
     description: Optional[StrictStr] = None
     auto_apply: Optional[StrictBool] = Field(None, alias="auto-apply")
@@ -38,6 +40,7 @@ class WorkspaceAttributes(BaseAttributes):
 
 class WorkspaceRelationships(BaseRelationships):
     """Relationships for workspace resources."""
+
     organization: Optional[Relationship] = None
     current_run: Optional[Relationship] = Field(default=None, alias="current-run")
     current_state_version: Optional[Relationship] = Field(default=None, alias="current-state-version")
@@ -48,6 +51,7 @@ class WorkspaceRelationships(BaseRelationships):
 
 class WorkspaceData(BaseModel):
     """Model for workspace data."""
+
     type: Literal["workspaces"] = "workspaces"
     attributes: Optional[WorkspaceAttributes] = None
     relationships: Optional[WorkspaceRelationships] = None
@@ -57,12 +61,7 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
     """Model for workspace API requests."""
 
     @classmethod
-    def create(
-        cls,
-        name: str,
-        organization_name: Optional[str] = None,
-        **attributes
-    ) -> "WorkspaceRequest":
+    def create(cls, name: str, organization_name: Optional[str] = None, **attributes) -> "WorkspaceRequest":
         """
         Create a WorkspaceRequest with simplified interface.
 
@@ -79,16 +78,9 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
 
         if organization_name:
             relationships = WorkspaceRelationships()
-            relationships.organization = Relationship(
-                data=create_organization_reference(organization_name)
-            )
+            relationships.organization = Relationship(data=create_organization_reference(organization_name))
 
-        return cls(
-            data=WorkspaceData(
-                attributes=workspace_attrs,
-                relationships=relationships
-            )
-        )
+        return cls(data=WorkspaceData(attributes=workspace_attrs, relationships=relationships))
 
 
 # Type aliases for convenience

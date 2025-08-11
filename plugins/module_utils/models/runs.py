@@ -5,6 +5,7 @@ This module contains models specifically for run-related API operations.
 """
 
 from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, StrictBool, StrictStr
 
 from .common import (
@@ -21,22 +22,26 @@ from .common import (
 
 class WorkspaceData(BaseModel):
     """Model for workspace data in relationships."""
+
     type: Literal["workspaces"]
     id: str
 
 
 class WorkspaceRelationship(BaseModel):
     """Model for workspace relationship."""
+
     data: WorkspaceData
 
 
 class Relationships(BaseModel):
     """Model for all relationships."""
+
     workspace: WorkspaceRelationship
 
 
 class Attributes(BaseModel):
     """Model for run attributes."""
+
     message: Optional[StrictStr] = None
     refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
     plan_only: Optional[StrictBool] = Field(None, alias="plan-only")
@@ -50,6 +55,7 @@ class Attributes(BaseModel):
 
 class RunData(BaseModel):
     """Model for run data."""
+
     attributes: Attributes
     type: Literal["runs", "plans", "applies", "state-versions", "configuration-versions", "policy-checks"]
     relationships: Relationships
@@ -57,6 +63,7 @@ class RunData(BaseModel):
 
 class RunRequest(BaseModel):
     """Model for the complete run request."""
+
     data: RunData
 
     class Config:
@@ -66,10 +73,7 @@ class RunRequest(BaseModel):
     def create(
         cls,
         workspace_id: str,
-        resource_type: Literal[
-            "runs", "plans", "applies", "state-versions",
-            "configuration-versions", "policy-checks"
-        ] = "runs",
+        resource_type: Literal["runs", "plans", "applies", "state-versions", "configuration-versions", "policy-checks"] = "runs",
         **attributes
     ) -> "RunRequest":
         """
@@ -88,11 +92,7 @@ class RunRequest(BaseModel):
             data=RunData(
                 attributes=Attributes(**attributes),
                 type=resource_type,
-                relationships=Relationships(
-                    workspace=WorkspaceRelationship(
-                        data=WorkspaceData(type="workspaces", id=workspace_id)
-                    )
-                ),
+                relationships=Relationships(workspace=WorkspaceRelationship(data=WorkspaceData(type="workspaces", id=workspace_id))),
             )
         )
 
@@ -102,6 +102,7 @@ class RunRequest(BaseModel):
 
 class RunAttributes(BaseAttributes):
     """Attributes for run resources."""
+
     message: Optional[StrictStr] = None
     status: Optional[StrictStr] = None
     refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
@@ -116,6 +117,7 @@ class RunAttributes(BaseAttributes):
 
 class RunRelationships(BaseRelationships):
     """Relationships for run resources."""
+
     workspace: Optional[Relationship] = None
     configuration_version: Optional[Relationship] = Field(default=None, alias="configuration-version")
     plan: Optional[Relationship] = None

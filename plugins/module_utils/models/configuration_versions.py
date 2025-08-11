@@ -1,6 +1,6 @@
-
-from typing import Dict, List, Literal, Optional
 from datetime import datetime
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, StrictBool
 
 from .common import (
@@ -15,16 +15,14 @@ from .common import (
 
 class ConfigurationVersionAttributes(BaseAttributes):
     """Attributes for configuration version resources."""
+
     auto_queue_runs: Optional[StrictBool] = Field(None, alias="auto-queue-runs")
     speculative: Optional[StrictBool] = None
     provisional: Optional[StrictBool] = None
     status: Optional[Literal["pending", "fetching", "uploaded", "errored", "archived"]] = None
     error: Optional[str] = None
     error_message: Optional[str] = Field(None, alias="error-message")
-    source: Optional[Literal[
-        "tfe-api", "tfe-ui", "tfe-cli", "github",
-        "gitlab", "bitbucket", "ado", "terraform-cloud-operator"
-    ]] = None
+    source: Optional[Literal["tfe-api", "tfe-ui", "tfe-cli", "github", "gitlab", "bitbucket", "ado", "terraform-cloud-operator"]] = None
     upload_url: Optional[str] = Field(None, alias="upload-url")
     status_timestamps: Optional[Dict[str, datetime]] = Field(None, alias="status-timestamps")
     changed_files: Optional[List[str]] = Field(None, alias="changed-files")
@@ -32,11 +30,13 @@ class ConfigurationVersionAttributes(BaseAttributes):
 
 class ConfigurationVersionRelationships(BaseRelationships):
     """Relationships for configuration version resources."""
+
     ingress_attributes: Optional[Relationship] = Field(default=None, alias="ingress-attributes")
 
 
 class ConfigurationVersionData(BaseModel):
     """Model for configuration version data."""
+
     type: Literal["configuration-versions"] = "configuration-versions"
     attributes: Optional[ConfigurationVersionAttributes] = None
     relationships: Optional[ConfigurationVersionRelationships] = None
@@ -46,13 +46,7 @@ class ConfigurationVersionRequest(BaseRequest[ConfigurationVersionData]):
     """Model for configuration version API requests."""
 
     @classmethod
-    def create(
-        cls,
-        auto_queue_runs: bool = True,
-        speculative: bool = False,
-        provisional: bool = False,
-        **attributes
-    ) -> "ConfigurationVersionRequest":
+    def create(cls, auto_queue_runs: bool = True, speculative: bool = False, provisional: bool = False, **attributes) -> "ConfigurationVersionRequest":
         """
         Create a ConfigurationVersionRequest with simplified interface.
 
@@ -66,22 +60,12 @@ class ConfigurationVersionRequest(BaseRequest[ConfigurationVersionData]):
             A complete ConfigurationVersionRequest
         """
         # Use alias for auto_queue_runs to match the field definition
-        attributes_dict = {
-            "auto-queue-runs": auto_queue_runs,
-            "speculative": speculative,
-            "provisional": provisional,
-            **attributes
-        }
+        attributes_dict = {"auto-queue-runs": auto_queue_runs, "speculative": speculative, "provisional": provisional, **attributes}
         config_attrs = ConfigurationVersionAttributes(**attributes_dict)
 
         relationships = ConfigurationVersionRelationships()
 
-        return cls(
-            data=ConfigurationVersionData(
-                attributes=config_attrs,
-                relationships=relationships
-            )
-        )
+        return cls(data=ConfigurationVersionData(attributes=config_attrs, relationships=relationships))
 
 
 ConfigurationVersionResource = BaseTerraformResource[ConfigurationVersionAttributes, ConfigurationVersionRelationships]
@@ -119,6 +103,4 @@ class ConfigurationVersionStates:
     @classmethod
     def is_final_state(cls, state: str) -> bool:
         """Check if the given state is a final state (success, failure, or archived)."""
-        return (cls.is_success_state(state) or
-                cls.is_failure_state(state) or
-                cls.is_archived_state(state))
+        return cls.is_success_state(state) or cls.is_failure_state(state) or cls.is_archived_state(state)
