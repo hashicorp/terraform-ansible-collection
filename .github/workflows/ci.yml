@@ -7,9 +7,9 @@ concurrency:
 
 on: # yamllint disable-line rule:truthy
   push:
-    branches: [main]
+    branches: [stable-1]
   pull_request:
-    branches: [main]
+    branches: [stable-1]
   workflow_dispatch:
   # TO-DO: Below is an example cron scheduler. Uncomment and tweak it as per your requirement
   # schedule:
