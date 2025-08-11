@@ -81,7 +81,7 @@ options:
   auto_destroy_activity_duration:
     description:
       - The value and units to automatically schedule destroy runs based on workspace activity.
-      - 'auto_destroy_activity_duration' takes precedence over 'auto_destroy_at', if both are set.
+      - The 'auto_destroy_activity_duration' takes precedence over 'auto_destroy_at', if both are set.
       - The valid values are greater than 0 and four digits or less.
       - The valid units are d and h.
     type: str
@@ -197,4 +197,24 @@ EXAMPLES = r"""
     workspace_id: <your-workspace-id>
     force_delete: true
     state: absent
+"""
+
+RETURN = r"""
+outputs:
+  type: dict
+  description: A dictionary of the workspace details.
+  returned: on success
+  contains:
+    attributes:
+        type: dict
+        returned: always
+        description: The attributes of the configuration version created.
+    workspace_id:
+      type: str
+      returned: always
+      description: ID of the configuration version created/archived.
+    msg:
+      type: str
+      returned: when state is 'absent'
+      description: The successfull completion of archive.
 """
