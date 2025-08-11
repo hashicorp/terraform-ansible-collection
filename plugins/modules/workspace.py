@@ -43,6 +43,12 @@ options:
     description:
       - Name of the workspace.
       - When this key is set, I(organization) must be specified so that the ID of the workspace can be retrieved.
+      - Workspace names can only include letters, numbers, -, and _.
+    type: str
+  new_workspace_name:
+    description:
+      - This is the new name of the workspace.
+      - It is tied to updating workspaces only and applicable to existing workspaces.
     type: str
   workspace_id:
     description:
@@ -133,7 +139,6 @@ options:
           - Defines if the project I(agent_pool) is inherited.
         type: bool
         default: false
-
   force_delete:
     description:
       - Identifies if a workspace needs to be force deleted.
@@ -175,6 +180,7 @@ EXAMPLES = r"""
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
     organization: <your-organization>
+    new_workspace_name: <new-name-for-the-workspace>
     description: This is an updated dev workspace.
     project_id: <your-new-project-id>
     tag_bindings:
