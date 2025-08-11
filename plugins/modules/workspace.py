@@ -18,11 +18,11 @@ description:
   - Create, Update or Delete workspaces in Terraform Enterprise/Cloud.
   - If I(workspace) and I(organization) is specified for a non-existent workspace and the I(state) is C(present),
     this module will create a new workspace.
-  - If I(workspace) and I(organization) is specified for an existing workspace and the I(state) is C(present),
+  - If either I(workspace) (and I(organization)) or I(workspace_id) is specified for an existing workspace and the I(state) is C(present),
     this module will update the existing workspace.
-  - If a I(configuration_version_id) is specified, the I(state) is C(absent) and the I(force_delete) is set C(true)
+  - If a I(workspace_id) is specified, the I(state) is C(absent) and the I(force_delete) is set C(true)
     this module will force delete the workspace without checking whether it is managing resources.
-  - If a I(configuration_version_id) is specified, the I(state) is C(absent), this module will safe delete the
+  - If a I(workspace_id) is specified, the I(state) is C(absent), this module will safe delete the
     workspace. This would only delete the workspace if it is not managing any resources.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
@@ -52,7 +52,7 @@ options:
   project_id:
     description:
       - ID of the project that the workspace will belong to.
-      - If no 'project_id' is provided, the workspace is created in the organization's default project.
+      - If no I(project_id) is provided, the workspace is created in the organization's default project.
     type: str
   allow_destroy_plan:
     description:
@@ -81,7 +81,7 @@ options:
   auto_destroy_activity_duration:
     description:
       - The value and units to automatically schedule destroy runs based on workspace activity.
-      - The 'auto_destroy_activity_duration' takes precedence over 'auto_destroy_at', if both are set.
+      - The I(auto_destroy_activity_duration) takes precedence over I(auto_destroy_at), if both are set.
       - The valid values are greater than 0 and four digits or less.
       - The valid units are d and h.
     type: str
@@ -101,7 +101,7 @@ options:
     description:
       - This specifies the version of Terraform to use for this workspace.
       - If a constraint is specified, the workspace always uses the newest release that meets that constraint.
-      - If omitted when creating a new 'workspace', this defaults to the latest released version.
+      - If omitted when creating a new I(workspace), this defaults to the latest released version.
     type: str
   execution_mode:
     description:
@@ -112,7 +112,7 @@ options:
   agent_pool_id:
     description:
       - The ID of the agent pool belonging to the workspace's organization.
-      - This value must not be specified if `execution-mode` is set to `remote` or `local`.
+      - This value must not be specified if I(execution-mode) is set to `remote` or `local`.
     type: str
   tag_bindings:
     description:
@@ -125,12 +125,12 @@ options:
     suboptions:
       execution_mode:
         description:
-          - Defines if the project `execution_mode` is inherited.
+          - Defines if the project I(execution_mode) is inherited.
         type: bool
         default: false
       agent_pool:
         description:
-          - Defines if the project `agent_pool` is inherited.
+          - Defines if the project I(agent_pool) is inherited.
         type: bool
         default: false
 
@@ -208,13 +208,13 @@ outputs:
     attributes:
         type: dict
         returned: always
-        description: The attributes of the configuration version created.
+        description: The attributes of the workspace created.
     workspace_id:
       type: str
       returned: always
-      description: ID of the configuration version created/archived.
+      description: ID of the workspace created/updated/deleted.
     msg:
       type: str
       returned: when state is 'absent'
-      description: The successfull completion of archive.
+      description: The successfull completion of delete.
 """
