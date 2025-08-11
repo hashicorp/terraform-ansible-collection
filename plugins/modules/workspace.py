@@ -113,6 +113,7 @@ options:
     description:
       - This specifies the execution mode for the workspace.
       - This inherits the default project mode by default.
+      - The I(agent_pool_id) must be provided when the I(execution_mode) is `agent`
     choices: ["remote", "local", "agent"]
     type: str
   agent_pool_id:
