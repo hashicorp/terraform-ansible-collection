@@ -119,10 +119,8 @@ workspace:
           type: str
           returned: always
           description: API endpoint for this workspace.
-          sample: "/api/v2/organizations/sample_organization/workspaces/sample_workspace"
         self-html:
           type: str
           returned: always
           description: Web UI URL for this workspace.
-          sample: "api/v2/organizations/sample_organization/workspaces/sample_workspace"
 """
