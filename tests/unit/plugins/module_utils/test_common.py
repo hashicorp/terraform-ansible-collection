@@ -17,11 +17,15 @@ import pytest
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
+
 from plugins.module_utils.common import (
+    AnsibleTerraformModule,
     ArchivistClient,
     ClientMixin,
     TerraformClient,
-    TerraformModule,
+    gather_versions,
+    has_at_least,
+    requires,
 )
 from plugins.module_utils.exceptions import (
     TerraformHostnameNotFoundError,
@@ -30,28 +34,36 @@ from plugins.module_utils.exceptions import (
 
 
 class TestTerraformModuleUtil:
-    """Test cases for TerraformModule class."""
+    """Test cases for AnsibleTerraformModule class."""
 
     def test_terraform_module_init_adds_auth_argspec(self):
-        """Test that TerraformModule adds authentication parameters to argspec."""
-        test_argspec = {
-            "test_param": dict(type="str", required=True),
-        }
+        """Test that AnsibleTerraformModule adds authentication parameters to argspec."""
+        argument_spec = dict(
+            test_param=dict(type="str"),
+        )
 
         with patch("ansible.module_utils.basic.AnsibleModule.__init__") as mock_init:
             mock_init.return_value = None
-            TerraformModule(test_argspec)
+            AnsibleTerraformModule(argument_spec=argument_spec)
 
-            # Check that auth argspec was added
-            called_argspec = mock_init.call_args[0][0]
+            # Check that auth argspec was added to the argument_spec
+            # Access the keyword arguments passed to the mocked constructor
+            called_kwargs = mock_init.call_args.kwargs
+            called_argspec = called_kwargs["argument_spec"]
+
+            # Verify original parameter is still present
+            assert "test_param" in called_argspec
+
+            # Verify auth parameters were added
             assert "tf_token" in called_argspec
             assert "tf_hostname" in called_argspec
             assert "tf_validate_certs" in called_argspec
-            assert "test_param" in called_argspec
+            assert "tf_max_retries" in called_argspec
+            assert "tf_timeout" in called_argspec
 
     def test_terraform_module_auth_argspec_structure(self):
         """Test the structure of AUTH_ARGSPEC."""
-        auth_spec = TerraformModule.AUTH_ARGSPEC
+        auth_spec = AnsibleTerraformModule.AUTH_ARGSPEC
 
         assert "tf_token" in auth_spec
         assert auth_spec["tf_token"]["required"] is False
@@ -764,7 +776,7 @@ class TestClientMixinAdditional:
                     "nested": {"id": "456", "value": "keep", "private": "remove"},
                 },
                 "relationships": {"parent": {"data": {"id": "789", "type": "parent"}}},
-            }
+            },
         }
         keys_to_include = ["id", "name", "value", "data", "type"]
 
@@ -920,7 +932,7 @@ class TestExponentialBackoff:
                     "links": {
                         "self": "/api/v2/test-backoff",
                     },
-                }
+                },
             }
 
             RESPONSE_RATE_LIMITED = {
@@ -929,8 +941,8 @@ class TestExponentialBackoff:
                         "detail": "You have exceeded the API's rate limit.",
                         "status": 429,
                         "title": "Too many requests",
-                    }
-                ]
+                    },
+                ],
             }
 
             def do_GET(self):
@@ -977,7 +989,11 @@ class TestExponentialBackoff:
         try:
             # Create client that points to our mock server
             client = TerraformClient(
-                tf_token="test-token", tf_hostname=f"http://{HOST}:{PORT}", tf_validate_certs=False, tf_max_retries=5, timeout=30  # Allow HTTP
+                tf_token="test-token",
+                tf_hostname=f"http://{HOST}:{PORT}",
+                tf_validate_certs=False,
+                tf_max_retries=5,
+                timeout=30,  # Allow HTTP
             )
 
             print(f"Starting request at {time.time():.3f}")
@@ -1017,3 +1033,424 @@ class TestExponentialBackoff:
             server_thread.join(timeout=2.0)
             if server_thread.is_alive():
                 raise RuntimeError("Server thread failed to terminate within 2 seconds after shutdown")
+
+
+class TestCommonUtils:
+    """Test cases for utility functions in common module."""
+
+    def test_gather_versions_with_existing_packages(self):
+        """Test gather_versions with packages that exist."""
+        # Test with sys module which should always be available
+        result = gather_versions(["sys"])
+
+        assert isinstance(result, dict)
+        assert "sys" in result
+        assert isinstance(result["sys"], str)
+
+    def test_gather_versions_with_nonexistent_package(self):
+        """Test gather_versions with a package that doesn't exist."""
+        result = gather_versions(["nonexistent_package_xyz123"])
+
+        assert isinstance(result, dict)
+        assert "nonexistent_package_xyz123" not in result
+
+    def test_gather_versions_with_none_parameter(self):
+        """Test gather_versions with None parameter uses default packages."""
+        result = gather_versions(None)
+
+        assert isinstance(result, dict)
+        # Default should include "requests" but might not be available in test environment
+
+    def test_gather_versions_with_empty_list(self):
+        """Test gather_versions with empty list."""
+        result = gather_versions([])
+
+        assert isinstance(result, dict)
+        assert len(result) == 0
+
+    @patch("builtins.__import__")
+    def test_gather_versions_import_error_handling(self, mock_import):
+        """Test gather_versions handles import errors gracefully."""
+        mock_import.side_effect = ImportError("Module not found")
+
+        result = gather_versions(["test_package"])
+
+        assert isinstance(result, dict)
+        assert "test_package" not in result
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute(self, mock_import):
+        """Test gather_versions with package that has __version__ attribute."""
+        mock_package = Mock()
+        mock_package.__version__ = "1.2.3"
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "1.2.3"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute_variants(self, mock_import):
+        """Test gather_versions with different version attribute names."""
+        # Test with 'version' attribute
+        mock_package = Mock()
+        mock_package.version = "2.0.0"
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "2.0.0"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_with_version_attribute_uppercase(self, mock_import):
+        """Test gather_versions with VERSION attribute."""
+        mock_package = Mock()
+        mock_package.VERSION = "3.1.0"
+        del mock_package.version
+        del mock_package.__version__
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert result["test_package"] == "3.1.0"
+
+    @patch("builtins.__import__")
+    def test_gather_versions_no_version_attribute(self, mock_import):
+        """Test gather_versions with package that has no version attribute."""
+        mock_package = Mock(spec=[])  # No version attributes
+        mock_import.return_value = mock_package
+
+        result = gather_versions(["test_package"])
+
+        assert "test_package" not in result
+
+    @patch("builtins.__import__")
+    def test_gather_versions_exception_handling(self, mock_import):
+        """Test gather_versions handles general exceptions gracefully."""
+        mock_import.side_effect = Exception("Unexpected error")
+
+        result = gather_versions(["test_package"])
+
+        assert isinstance(result, dict)
+        assert "test_package" not in result
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_dependency_exists_no_minimum(self, mock_gather):
+        """Test has_at_least when dependency exists and no minimum version required."""
+        mock_gather.return_value = {"test_package": "1.0.0"}
+
+        result = has_at_least("test_package")
+
+        assert result is True
+        mock_gather.assert_called_once_with(["test_package"])
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_dependency_not_found(self, mock_gather):
+        """Test has_at_least when dependency is not found."""
+        mock_gather.return_value = {}
+
+        result = has_at_least("nonexistent_package")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_meets_minimum(self, mock_gather):
+        """Test has_at_least when current version meets minimum requirement."""
+        mock_gather.return_value = {"test_package": "2.0.0"}
+
+        result = has_at_least("test_package", "1.5.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_below_minimum(self, mock_gather):
+        """Test has_at_least when current version is below minimum requirement."""
+        mock_gather.return_value = {"test_package": "1.0.0"}
+
+        result = has_at_least("test_package", "2.0.0")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_version_equals_minimum(self, mock_gather):
+        """Test has_at_least when current version equals minimum requirement."""
+        mock_gather.return_value = {"test_package": "1.5.0"}
+
+        result = has_at_least("test_package", "1.5.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_exception_handling(self, mock_gather):
+        """Test has_at_least handles exceptions gracefully."""
+        mock_gather.side_effect = Exception("Unexpected error")
+
+        result = has_at_least("test_package", "1.0.0")
+
+        assert result is False
+
+    @patch("plugins.module_utils.common.gather_versions")
+    def test_has_at_least_loose_version_comparison(self, mock_gather):
+        """Test has_at_least uses LooseVersion for version comparison."""
+        mock_gather.return_value = {"test_package": "1.10.0"}
+
+        # Test that 1.10.0 is greater than 1.9.0 (not lexicographic comparison)
+        result = has_at_least("test_package", "1.9.0")
+
+        assert result is True
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_dependency_available(self, mock_has_at_least):
+        """Test requires when dependency is available."""
+        mock_has_at_least.return_value = True
+
+        # Should not raise an exception
+        requires("test_package")
+
+        mock_has_at_least.assert_called_once_with("test_package", None)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_dependency_not_available(self, mock_has_at_least):
+        """Test requires raises exception when dependency is not available."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("missing_package")
+
+        # The exception message should contain missing_required_lib output
+        assert "missing_package" in str(exc_info.value)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_minimum_version_met(self, mock_has_at_least):
+        """Test requires when minimum version requirement is met."""
+        mock_has_at_least.return_value = True
+
+        # Should not raise an exception
+        requires("test_package", "1.0.0")
+
+        mock_has_at_least.assert_called_once_with("test_package", "1.0.0")
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_minimum_version_not_met(self, mock_has_at_least):
+        """Test requires raises exception when minimum version is not met."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", "2.0.0")
+
+        # Should include version requirement in error message
+        assert "test_package>=2.0.0" in str(exc_info.value)
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_reason(self, mock_has_at_least):
+        """Test requires includes reason in error message."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", "1.0.0", "needed for some feature")
+
+        # The error should include the reason
+        error_message = str(exc_info.value)
+        assert "test_package>=1.0.0" in error_message
+        assert "needed for some feature" in error_message
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_with_reason_no_minimum(self, mock_has_at_least):
+        """Test requires includes reason when no minimum version specified."""
+        mock_has_at_least.return_value = False
+
+        with pytest.raises(Exception) as exc_info:
+            requires("test_package", reason="required for functionality")
+
+        error_message = str(exc_info.value)
+        assert "test_package" in error_message
+        assert "required for functionality" in error_message
+
+    @patch("plugins.module_utils.common.has_at_least")
+    def test_requires_returns_none(self, mock_has_at_least):
+        """Test requires returns None when successful."""
+        mock_has_at_least.return_value = True
+
+        result = requires("test_package")
+
+        assert result is None
+
+    def test_requires_integration_with_real_package(self):
+        """Integration test with a real package that should exist."""
+        # Test with 'sys' which should always be available
+        # Should not raise an exception
+        result = requires("sys")
+
+        assert result is None
+
+    def test_has_at_least_integration_with_real_package(self):
+        """Integration test with a real package that should exist."""
+        # Test with 'sys' which should always be available
+        result = has_at_least("sys")
+
+        assert result is True
+
+
+class TestAnsibleTerraformModule:
+    """Test cases for AnsibleTerraformModule methods and functionality."""
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    @patch("plugins.module_utils.common.requires")
+    def test_init_with_custom_settings(self, mock_requires, mock_init):
+        """Test AnsibleTerraformModule initialization with custom settings."""
+        mock_init.return_value = None
+
+        custom_module_class = Mock()
+        argument_spec = {"test_param": {"type": "str"}}
+
+        terraform_module = AnsibleTerraformModule(
+            argument_spec=argument_spec,
+            check_requests=False,
+            module_class=custom_module_class,
+        )
+
+        # Verify custom settings were applied
+        assert terraform_module.settings["check_requests"] is False
+        assert terraform_module.settings["module_class"] == custom_module_class
+
+        # Verify custom module class was used
+        mock_init.assert_not_called()
+        custom_module_class.assert_called_once()
+
+        # Verify requests dependency was NOT checked
+        mock_requires.assert_not_called()
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_warn_delegates_to_module(self, mock_init):
+        """Test warn method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test warn with positional arguments
+        terraform_module.warn("Test warning message")
+        mock_module_instance.warn.assert_called_with("Test warning message")
+
+        # Test warn with keyword arguments
+        terraform_module.warn("Test warning", version="2.0")
+        mock_module_instance.warn.assert_called_with("Test warning", version="2.0")
+
+        # Test warn with both positional and keyword arguments
+        terraform_module.warn("Test", "warning", version="2.0", deprecation_msg="deprecated")
+        mock_module_instance.warn.assert_called_with("Test", "warning", version="2.0", deprecation_msg="deprecated")
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_deprecate_delegates_to_module(self, mock_init):
+        """Test deprecate method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test deprecate with both positional and keyword arguments
+        terraform_module.deprecate("deprecated", collection_name="hashicorp.terraform", date="2024-01-01")
+        mock_module_instance.deprecate.assert_called_with("deprecated", collection_name="hashicorp.terraform", date="2024-01-01")
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_debug_delegates_to_module(self, mock_init):
+        """Test debug method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test debug with positional arguments
+        terraform_module.debug("Debug message")
+        mock_module_instance.debug.assert_called_with("Debug message")
+
+        # Test debug with keyword arguments
+        terraform_module.debug("Debug info", var_name="test_var")
+        mock_module_instance.debug.assert_called_with("Debug info", var_name="test_var")
+
+        # Test debug with both positional and keyword arguments
+        terraform_module.debug("Debug", "info", level=1, verbose=True)
+        mock_module_instance.debug.assert_called_with("Debug", "info", level=1, verbose=True)
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_exit_json_delegates_to_module(self, mock_init):
+        """Test exit_json method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test exit_json with positional arguments
+        terraform_module.exit_json(True)
+        mock_module_instance.exit_json.assert_called_with(True)
+
+        # Test exit_json with keyword arguments
+        terraform_module.exit_json(changed=True, msg="Success")
+        mock_module_instance.exit_json.assert_called_with(changed=True, msg="Success")
+
+        # Test exit_json with both positional and keyword arguments
+        terraform_module.exit_json(True, msg="Success", result={"id": "123"})
+        mock_module_instance.exit_json.assert_called_with(True, msg="Success", result={"id": "123"})
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_fail_json_delegates_to_module(self, mock_init):
+        """Test fail_json method delegates to underlying Ansible module."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Test fail_json with positional arguments
+        terraform_module.fail_json("Error occurred")
+        mock_module_instance.fail_json.assert_called_with("Error occurred")
+
+        # Test fail_json with keyword arguments
+        terraform_module.fail_json(msg="Error message")
+        mock_module_instance.fail_json.assert_called_with(msg="Error message")
+
+        # Test fail_json with both positional and keyword arguments
+        terraform_module.fail_json("Error", msg="Failed", rc=1, details={"error": "details"})
+        mock_module_instance.fail_json.assert_called_with("Error", msg="Failed", rc=1, details={"error": "details"})
+
+    @patch("ansible.module_utils.basic.AnsibleModule.__init__")
+    def test_fail_from_exception_formats_and_calls_fail_json(self, mock_init):
+        """Test fail_from_exception method formats exception and calls fail_json."""
+        mock_init.return_value = None
+
+        # Create a mock module instance and attach it to the terraform module
+        mock_module_instance = Mock()
+
+        terraform_module = AnsibleTerraformModule(argument_spec={})
+        terraform_module._module = mock_module_instance
+
+        # Call fail_from_exception
+        terraform_module.fail_from_exception(ValueError("Test error message"))
+
+        # Verify fail_json was called on the underlying module
+        mock_module_instance.fail_json.assert_called_once()
+
+        # Get the actual call arguments
+        _tmp, call_kwargs = mock_module_instance.fail_json.call_args
+
+        # Verify the message contains the exception text
+        assert call_kwargs["msg"] == "Test error message"
+
+        # Verify the exception traceback is included
+        assert "exception" in call_kwargs
+        assert "ValueError: Test error message" in call_kwargs["exception"]
+        assert "traceback" in call_kwargs["exception"].lower() or "ValueError" in call_kwargs["exception"]
