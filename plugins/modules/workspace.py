@@ -112,7 +112,7 @@ options:
   agent_pool_id:
     description:
       - The ID of the agent pool belonging to the workspace's organization.
-      - This value must not be specified if I(execution-mode) is set to `remote` or `local`.
+      - This value must not be specified if I(execution_mode) is set to `remote` or `local`.
     type: str
   tag_bindings:
     description:
