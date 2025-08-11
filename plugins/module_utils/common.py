@@ -80,6 +80,7 @@ class TerraformModule(AnsibleModule):
         """Initialize the module updating argspec with auth params."""
         if required_by is None:
             required_by = {}
+
         argument_spec.update(TerraformModule.AUTH_ARGSPEC)
         super().__init__(
             argument_spec,
@@ -422,7 +423,7 @@ class ArchivistClient(ClientMixin):
     def __init__(self, **kwargs: Any) -> None:
         self.hostname: str = "archivist.terraform.io"
         self.verify: bool = kwargs.get("tf_validate_certs")
-        self.headers: Dict[str, str] = kwargs.get("headers", {})
+        self.headers: Dict[str, str] = {}
         self.session_args: Dict[str, Any] = {
             "timeout": kwargs.get("timeout"),
             "tf_max_retries": kwargs.get("tf_max_retries"),
