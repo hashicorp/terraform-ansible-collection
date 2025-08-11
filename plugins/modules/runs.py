@@ -36,7 +36,8 @@ options:
         type: str
         required: false
     configuration_version:
-        description: The configuration version for the run present in the workspace, defaults to the latest version in the workspace if not specified.
+        description: The configuration version for the run present in the worksp
+        ace, defaults to the latest version in the workspace if not specified.
         type: str
         required: false
     message:
@@ -128,12 +129,12 @@ import time
 
 from typing import Any, Optional
 
-from ansible.collections.hashicorp.terraform.plugins.module_utils.models import RunRequest, RunStates
-
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs import RunRequest, RunStates
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient, AnsibleTerraformModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, create_run, get_run
+from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import apply_run, create_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import cancel_run, discard_run
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
 def wait_for_state(
@@ -177,7 +178,6 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     """
     action_result = {}
     target_run_id = run_id or response.get("data", {}).get("id")
-
     if poll and target_run_id:
         status, poll_response = wait_for_state(client, target_run_id, "status")
         if status == "success" and poll_response:
@@ -190,33 +190,18 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     return action_result
 
 
-def check_mode(func):
-    """
-    Decorator to check if the check_mode is enabled.
-    """
-
-    def wrapper(*args, **kwargs):
-        if kwargs.get("check_mode"):
-            return {"changed": True, "warnings": ["Check mode is enabled, no changes will be made"]}
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
-
-
 def idempotency_check(func):
     def wrapper(*args, **kwargs):
         run_id = kwargs.get("run_id")
         if run_id:
             run = get_run(args[0], run_id)
-            if run.get("data").get("attributes").get("status") == func.__name__().split("_")[1]:
+            if run.get("data").get("attributes").get("status") == func.__name__.split("_")[1]:
                 return {"changed": False, "run": run.get("data")}
         return func(*args, **kwargs)
 
     return wrapper
 
 
-@check_mode
 def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Create a new run with the given parameters.
@@ -227,19 +212,17 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     Raises:
         TerraformError: If the response does not return a 201 status code.
     """
-    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "run_id", "state"]
+    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state", "organization", "workspace"]
     run_params = kwargs.copy()
     for value in ignore_list:
         run_params.pop(value, None)
     run_request = RunRequest.create(workspace_id=run_params.pop("workspace_id"), **run_params)
     run_payload = run_request.model_dump(by_alias=True, exclude_unset=True)
     response = create_run(client, run_payload)
-
     return handle_polling_and_result(client, response, kwargs.get("poll", True))
 
 
 @idempotency_check
-@check_mode
 def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Apply a run with the given parameters.
@@ -250,11 +233,10 @@ def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     """
     run_id = kwargs.get("run_id")
     response = apply_run(client, run_id)
-    return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id)
+    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id)
 
 
 @idempotency_check
-@check_mode
 def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Discard a run with the given parameters.
@@ -265,13 +247,11 @@ def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     """
     run_id = kwargs.get("run_id")
     response = discard_run(client, run_id)
-
-    return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id)
+    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id)
 
 
 @idempotency_check
-@check_mode
-def state_cancelled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
+def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Cancel a run with the given parameters.
     Args:
@@ -281,8 +261,22 @@ def state_cancelled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     """
     run_id = kwargs.get("run_id")
     response = cancel_run(client, run_id)
-
     return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id)
+
+
+def get_workspace_id(client: TerraformClient, workspace: str, organization: str) -> str:
+    """
+    Get the workspace ID for the given workspace and organization.
+    Args:
+        workspace: The name of the workspace.
+        organization: The name of the organization.
+    Returns:
+        workspace_id: The ID of the workspace.
+    """
+    response = get_workspace(client, organization, workspace)
+    if not response:
+        raise TerraformError(f"The Workspace {workspace} was not found in the organization {organization}")
+    return response.get("data").get("id")
 
 
 def main():
@@ -323,25 +317,33 @@ def main():
     result = {"changed": False, "warnings": warnings}
     action_result = {}
     params = module.params
-    params["check_mode"] = module.check_mode or False
+    params["check_mode"] = module.check_mode
 
-    tf_client = TerraformClient(**module.params)
     try:
-        match params.get("state"):
-            case "present":
-                action_result = state_present(tf_client, **params)
-            case "applied":
-                action_result = state_applied(tf_client, **params)
-            case "discarded":
-                action_result = state_discarded(tf_client, **params)
-            case "cancelled":
-                action_result = state_cancelled(tf_client, **params)
-            case _:
-                raise TerraformError(f"Invalid state: {params.get('state')}")
+        tf_client = TerraformClient(**module.params)
+        if not params.get("workspace_id"):
+            params["workspace_id"] = get_workspace_id(tf_client, params["organization"], params["workspace"])
 
-        result.update(action_result)
-        module.exit_json(**result)
-    except TerraformError as e:
+        if module.check_mode:
+            action_result = {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
+            module.exit_json(**action_result)
+        else:
+            match params.get("state"):
+                case "present":
+                    action_result = state_present(tf_client, **params)
+                case "applied":
+                    action_result = state_applied(tf_client, **params)
+                case "discarded":
+                    action_result = state_discarded(tf_client, **params)
+                case "canceled":
+                    action_result = state_canceled(tf_client, **params)
+                case _:
+                    raise TerraformError(f"Invalid state: {params.get('state')}")
+
+            result.update(action_result)
+            module.exit_json(**result)
+
+    except Exception as e:
         module.fail_json(msg=str(e))
 
 
