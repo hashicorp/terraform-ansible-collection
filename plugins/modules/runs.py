@@ -76,7 +76,7 @@ options:
     state:
         description: The state of the run to manage.
         type: str
-        choices: ['present', 'applied', 'discarded', 'cancelled']
+        choices: ['present', 'applied', 'discarded', 'canceled']
         default: 'present'
         required: false
     poll:
@@ -118,7 +118,7 @@ EXAMPLES = r"""
     - name: Cancel a Terraform run
       hashicorp.terraform.run:
         run_id: "run-12345678"
-        state: "cancelled"
+        state: "canceled"
 
     - name: Discard a Terraform run
       hashicorp.terraform.run:
@@ -153,6 +153,7 @@ def wait_for_state(
         TerraformError: If the run does not reach the expected state within the timeout.
     """
     start_time = time.time()
+    run = None
     while time.time() - start_time <= timeout:
         run = get_run(client, run_id)
         state = run.get("data").get("attributes").get("status")
@@ -303,7 +304,7 @@ def main():
             ("state", "present", ("workspace_id", "workspace"), True),
             ("state", "applied", ("run_id", "workspace_id", "workspace"), True),
             ("state", "discarded", ("run_id", "workspace_id", "workspace"), True),
-            ("state", "cancelled", ("run_id", "workspace_id", "workspace"), True),
+            ("state", "canceled", ("run_id", "workspace_id", "workspace"), True),
         ],
         mutually_exclusive=[
             ("workspace", "workspace_id"),
