@@ -5,12 +5,15 @@
 
 import os
 import sys
+
 from unittest.mock import Mock
 
 import pytest
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
+from plugins.module_utils.exceptions import TerraformError
 from plugins.module_utils.runs import (
     apply_run,
     cancel_run,
@@ -20,7 +23,6 @@ from plugins.module_utils.runs import (
     run_events,
     task_stages,
 )
-from plugins.module_utils.exceptions import TerraformError
 
 
 class TestCreateRun:
@@ -47,11 +49,7 @@ class TestCreateRun:
                 "attributes": {
                     "message": "Test run",
                 },
-                "relationships": {
-                    "workspace": {
-                        "data": {"type": "workspaces", "id": "ws-123"}
-                    }
-                },
+                "relationships": {"workspace": {"data": {"type": "workspaces", "id": "ws-123"}}},
             }
         }
 
