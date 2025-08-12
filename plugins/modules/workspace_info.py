@@ -28,20 +28,17 @@ options:
       - The unique identifier of the workspace to retrieve information about.
       - Either I(workspace_id) or a combination of I(workspace_name) and I(organization_name) must be given to fetch workspace information.
     type: str
-    required: false
   workspace_name:
     description:
       - The name of the workspace to retrieve information about.
       - When this parameter is used, I(organization_name) must also be provided.
       - Either a combination of I(workspace_name) and I(organization_name) or I(workspace_id) must be given to fetch workspace information.
     type: str
-    required: false
   organization_name:
     description:
       - The name of the organization that contains the workspace.
       - This parameter is required when I(workspace_name) is provided.
     type: str
-    required: false
 """
 EXAMPLES = r"""
 - name: Gather information about a workspace by ID
