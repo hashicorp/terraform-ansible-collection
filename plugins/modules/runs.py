@@ -136,19 +136,16 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import ap
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def wait_for_state(
-    client: TerraformClient, run_id: str, expected_key: str, timeout: int = 50, polling_interval: int = 5
-) -> tuple[str, Optional[dict[str, Any]]]:
+def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 50, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
-    Wait for a run to reach a specific state.
+    Wait for a run to reach a terminal state (success or failure).
     Args:
+        client: TerraformClient instance
         run_id: The ID of the run to wait for.
-        expected_state: The expected state of the run.
-        expected_key: The expected key of the run.
-        timeout: The timeout for the wait.
-        polling_interval: The polling interval.
+        timeout: The timeout for the wait in seconds.
+        polling_interval: The polling interval in seconds.
     Returns:
-        The run.
+        A tuple of (status, run_data) where status is "success", "failure", or "timeout"
     Raises:
         TerraformError: If the run does not reach the expected state within the timeout.
     """
@@ -179,7 +176,7 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     action_result = {}
     target_run_id = run_id or response.get("data", {}).get("id")
     if poll and target_run_id:
-        status, poll_response = wait_for_state(client, target_run_id, "status")
+        status, poll_response = wait_for_state(client, target_run_id)
         if status == "success" and poll_response:
             action_result.update({"changed": True, **poll_response.get("data", {})})
         else:

@@ -61,7 +61,7 @@ class TestWaitForState:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.RunStates") as mock_run_states:
             mock_run_states.is_success_state.return_value = True
 
-            status, response = wait_for_state(mock_client, "run-123", "status")
+            status, response = wait_for_state(mock_client, "run-123")
 
             assert status == "success"
             assert response == success_response
@@ -80,7 +80,7 @@ class TestWaitForState:
             mock_run_states.is_success_state.return_value = False
             mock_run_states.is_failure_state.return_value = True
 
-            status, response = wait_for_state(mock_client, "run-123", "status")
+            status, response = wait_for_state(mock_client, "run-123")
 
             assert status == "failure"
             assert response == failure_response
@@ -102,7 +102,7 @@ class TestWaitForState:
             mock_run_states.is_success_state.return_value = False
             mock_run_states.is_failure_state.return_value = False
 
-            status, response = wait_for_state(mock_client, "run-123", "status", timeout=50)
+            status, response = wait_for_state(mock_client, "run-123", timeout=50)
 
             assert status == "timeout"
             assert response == pending_response
@@ -123,7 +123,7 @@ class TestHandlePollingAndResult:
 
         assert result["changed"] is True
         assert result["id"] == "run-123"
-        mock_wait_for_state.assert_called_once_with(mock_client, "run-123", "status")
+        mock_wait_for_state.assert_called_once_with(mock_client, "run-123")
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.wait_for_state")
     def test_handle_polling_failure(self, mock_wait_for_state):
@@ -643,7 +643,7 @@ class TestRunsModuleEdgeCases:
                         mock_run_states.is_success_state.return_value = False
                         mock_run_states.is_failure_state.return_value = False
 
-                        status, response = wait_for_state(mock_client, "run-123", "status", timeout=30, polling_interval=10)
+                        status, response = wait_for_state(mock_client, "run-123", timeout=30, polling_interval=10)
 
                         assert status == "timeout"
 
