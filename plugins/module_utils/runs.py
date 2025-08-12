@@ -16,7 +16,7 @@ def create_run(client, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     response = client.post("/runs", data=data)
     if response.get("status") != 201:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
