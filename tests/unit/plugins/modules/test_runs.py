@@ -159,7 +159,7 @@ class TestHandlePollingAndResult:
 
             result = handle_polling_and_result(mock_client, response, True, run_id="run-123")
 
-            mock_wait.assert_called_once_with(mock_client, "run-123", "status")
+            mock_wait.assert_called_once_with(mock_client, "run-123")
 
 
 class TestIdempotencyCheck:
