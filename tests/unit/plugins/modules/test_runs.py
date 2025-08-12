@@ -92,8 +92,8 @@ class TestWaitForState:
         """Test wait_for_state with timeout."""
         mock_client = Mock()
 
-        # Mock time progression to trigger timeout
-        mock_time.side_effect = [0, 60]  # Start at 0, then exceed timeout of 50
+        # Mock time progression to trigger timeout after one iteration
+        mock_time.side_effect = [0, 30, 60]  # Start at 0, then 30 (within timeout), then 60 (exceeds timeout of 50)
 
         pending_response = {"data": {"id": "run-123", "attributes": {"status": "pending"}}}
         mock_get_run.return_value = pending_response
@@ -451,9 +451,9 @@ class TestMainFunction:
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.state_canceled")
-    def test_main_state_cancelled(self, mock_state_canceled, mock_tf_client, mock_module_class):
-        """Test main function with state=cancelled."""
-        mock_module = EnhancedDummyModule({"workspace_id": "ws-123", "run_id": "run-123", "state": "cancelled", "poll": True})
+    def test_main_state_canceled(self, mock_state_canceled, mock_tf_client, mock_module_class):
+        """Test main function with state=canceled."""
+        mock_module = EnhancedDummyModule({"workspace_id": "ws-123", "run_id": "run-123", "state": "canceled", "poll": True})
         mock_module_class.return_value = mock_module
 
         mock_client_instance = Mock()
@@ -636,7 +636,7 @@ class TestRunsModuleEdgeCases:
         mock_client = Mock()
 
         with patch("time.sleep") as mock_sleep:
-            with patch("time.time", side_effect=[0, 100]):  # Simulate timeout
+            with patch("time.time", side_effect=[0, 20, 100]):  # Simulate timeout after one iteration
                 with patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.get_run") as mock_get_run:
                     with patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.RunStates") as mock_run_states:
                         mock_get_run.return_value = {"data": {"attributes": {"status": "pending"}}}
