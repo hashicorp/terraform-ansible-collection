@@ -122,9 +122,4 @@ workspace:
           type: str
           returned: always
           description: Web UI URL for this workspace.
-    changed:
-      description: Indicates if the module execution resulted in any changes. Always returns false for info modules.
-      returned: always
-      type: bool
-      default: false
 """
