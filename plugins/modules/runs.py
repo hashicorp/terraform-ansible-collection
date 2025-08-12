@@ -7,7 +7,7 @@
 
 DOCUMENTATION = r"""
 ---
-module: run
+module: runs
 version_added: "1.0.0"
 short_description: This module supports Create, for Terraform Cloud/Enterprise runs.
 author: "Siddarth Sharma (@siddasha)"
@@ -54,6 +54,7 @@ options:
     variables:
         description: A list of dictionary of variables to pass to the run.
         type: list
+        elements: dict
         required: false
     plan_only:
         description: Whether to only create a plan without applying it.
@@ -94,11 +95,11 @@ options:
             - Configures the timeout (in seconds) for polling while inspecting the `run` status.
             - This works in conjunction with the I(poll_interval) parameter.
             - This would factor in the time in case of errors leading to exponential backoff.
-    type: int
-    default: 25
+        type: int
+        default: 25
 """
 
-Examples = r"""
+EXAMPLES = r"""
     - name: Create a new Terraform run
       hashicorp.terraform.run:
         workspace: "ws-12345678"
@@ -294,7 +295,7 @@ def main():
             plan_only=dict(type="bool"),
             is_destroy=dict(type="bool"),
             target_addrs=dict(type="list"),
-            state=dict(type="str", choices=["present", "applied", "discarded", "cancelled"], default="present"),
+            state=dict(type="str", choices=["present", "applied", "discarded", "canceled"], default="present"),
             run_id=dict(type="str"),
         ),
         required_together=[["workspace", "organization"]],
