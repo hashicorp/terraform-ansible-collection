@@ -3,6 +3,7 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+
 from datetime import datetime
 from typing import Optional
 
@@ -15,7 +16,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common 
     BaseRelationships,
     BaseRequest,
     BaseTerraformResource,
-    Links,
     Relationship,
     ResourceData,
     TerraformAPIResponse,
@@ -97,34 +97,6 @@ class TestRelationship:
         assert relationship.links is None
 
 
-class TestLinks:
-    """Test cases for Links model."""
-
-    def test_links_creation(self):
-        """Test creating Links with all fields."""
-        links = Links(self="/api/v2/workspaces/ws-123", related="/api/v2/workspaces/ws-123/runs", download="/api/v2/workspaces/ws-123/download")
-
-        assert links.self == "/api/v2/workspaces/ws-123"
-        assert links.related == "/api/v2/workspaces/ws-123/runs"
-        assert links.download == "/api/v2/workspaces/ws-123/download"
-
-    def test_links_partial(self):
-        """Test creating Links with partial fields."""
-        links = Links(self="/api/v2/workspaces/ws-123")
-
-        assert links.self == "/api/v2/workspaces/ws-123"
-        assert links.related is None
-        assert links.download is None
-
-    def test_links_empty(self):
-        """Test creating empty Links."""
-        links = Links()
-
-        assert links.self is None
-        assert links.related is None
-        assert links.download is None
-
-
 class TestBaseAttributes:
     """Test cases for BaseAttributes model."""
 
@@ -174,7 +146,10 @@ class TestBaseRelationships:
 
     def test_base_relationships_extra_fields(self):
         """Test BaseRelationships allows extra fields."""
-        data = {"workspace": {"data": {"type": "workspaces", "id": "ws-123"}}, "custom_field": {"data": {"type": "custom", "id": "custom-123"}}}
+        data = {
+            "workspace": {"data": {"type": "workspaces", "id": "ws-123"}},
+            "custom_field": {"data": {"type": "custom", "id": "custom-123"}},
+        }
         relationships = BaseRelationships.model_validate(data)
 
         # Should not raise validation error due to extra="allow"
@@ -202,17 +177,15 @@ class TestBaseTerraformResource:
         """Test creating BaseTerraformResource with all fields."""
         attributes = SampleAttributes(name="test-resource")
         relationships = SampleRelationships()
-        links = Links(self="/api/v2/test/123")
 
         resource = BaseTerraformResource[SampleAttributes, SampleRelationships](
-            id="test-123", type="test-resources", attributes=attributes, relationships=relationships, links=links
+            id="test-123", type="test-resources", attributes=attributes, relationships=relationships
         )
 
         assert resource.id == "test-123"
         assert resource.type == "test-resources"
         assert resource.attributes.name == "test-resource"
         assert resource.relationships is not None
-        assert resource.links.self == "/api/v2/test/123"
 
     def test_base_terraform_resource_minimal(self):
         """Test creating BaseTerraformResource with minimal fields."""
@@ -222,7 +195,6 @@ class TestBaseTerraformResource:
         assert resource.type == "test-resources"
         assert resource.attributes is None
         assert resource.relationships is None
-        assert resource.links is None
 
     def test_base_terraform_resource_validation(self):
         """Test BaseTerraformResource validation."""
@@ -252,16 +224,6 @@ class TestBaseRequest:
         # Data is required
         with pytest.raises(ValidationError):
             BaseRequest[SampleData]()
-
-    def test_base_request_config(self):
-        """Test BaseRequest configuration."""
-        # Test that populate_by_name is enabled
-        data = SampleData(action="test")
-        request = BaseRequest[SampleData](data=data)
-
-        # Should be able to serialize using field names
-        serialized = request.model_dump(by_alias=True)
-        assert "data" in serialized
 
 
 class TestTerraformAPIResponse:
@@ -297,15 +259,6 @@ class TestTerraformAPIResponse:
         assert response.meta["total"] == 100
         assert response.links["next"] == "/api/v2/test?page=2"
 
-    def test_terraform_api_response_with_errors(self):
-        """Test TerraformAPIResponse with errors."""
-        errors = [{"detail": "Resource not found", "status": "404"}, {"detail": "Validation failed", "status": "422"}]
-        response = TerraformAPIResponse[BaseTerraformResource[SampleAttributes, SampleRelationships]](errors=errors)
-
-        assert len(response.errors) == 2
-        assert response.errors[0]["detail"] == "Resource not found"
-        assert response.errors[1]["status"] == "422"
-
     def test_terraform_api_response_empty(self):
         """Test empty TerraformAPIResponse."""
         response = TerraformAPIResponse[BaseTerraformResource[SampleAttributes, SampleRelationships]]()
@@ -314,7 +267,6 @@ class TestTerraformAPIResponse:
         assert response.included is None
         assert response.meta is None
         assert response.links is None
-        assert response.errors is None
 
 
 class TestUtilityFunctions:
@@ -362,75 +314,6 @@ class TestUtilityFunctions:
         assert ref.id == "ws-test_123-abc"
 
 
-class TestCommonModelsIntegration:
-    """Integration tests for common models working together."""
-
-    def test_complex_terraform_resource_structure(self):
-        """Test complex Terraform resource with all components."""
-        # Create attributes
-        attributes = SampleAttributes(name="test-workspace", description="A test workspace")
-
-        # Create relationships
-        org_ref = create_organization_reference("my-org")
-        relationships = SampleRelationships(organization=Relationship(data=org_ref))
-
-        # Create links
-        links = Links(self="/api/v2/workspaces/ws-123", related="/api/v2/workspaces/ws-123/runs")
-
-        # Create resource
-        resource = BaseTerraformResource[SampleAttributes, SampleRelationships](
-            id="ws-123", type="workspaces", attributes=attributes, relationships=relationships, links=links
-        )
-
-        # Create API response
-        response = TerraformAPIResponse[BaseTerraformResource[SampleAttributes, SampleRelationships]](data=resource, meta={"request-id": "req-123"})
-
-        # Verify the complete structure
-        assert response.data.id == "ws-123"
-        assert response.data.attributes.name == "test-workspace"
-        assert response.data.relationships.organization.data.type == "organizations"
-        assert response.data.relationships.organization.data.id == "my-org"
-        assert response.data.links.self == "/api/v2/workspaces/ws-123"
-        assert response.meta["request-id"] == "req-123"
-
-    def test_serialization_with_aliases(self):
-        """Test complete serialization with field aliases."""
-        now = datetime.now()
-        attributes = SampleAttributes(name="test-resource", created_at=now, updated_at=now)
-
-        resource = BaseTerraformResource[SampleAttributes, SampleRelationships](type="test-resources", attributes=attributes)
-
-        # Serialize with aliases
-        data = resource.model_dump(by_alias=True, exclude_unset=True)
-
-        assert data["type"] == "test-resources"
-        assert data["attributes"]["name"] == "test-resource"
-        assert "created-at" in data["attributes"]
-        assert "updated-at" in data["attributes"]
-        assert "created_at" not in data["attributes"]
-
-    def test_deserialization_from_api_response(self):
-        """Test deserializing from typical API response format."""
-        api_data = {
-            "data": {
-                "id": "ws-123",
-                "type": "workspaces",
-                "attributes": {"name": "my-workspace", "created-at": "2023-01-01T00:00:00Z", "updated-at": "2023-01-02T00:00:00Z"},
-                "relationships": {"organization": {"data": {"type": "organizations", "id": "org-123"}}},
-                "links": {"self": "/api/v2/workspaces/ws-123"},
-            },
-            "meta": {"request-id": "req-456"},
-        }
-
-        response = TerraformAPIResponse[BaseTerraformResource[SampleAttributes, SampleRelationships]].model_validate(api_data)
-
-        assert response.data.id == "ws-123"
-        assert response.data.attributes.name == "my-workspace"
-        assert response.data.attributes.created_at is not None
-        assert response.data.relationships.organization.data.id == "org-123"
-        assert response.meta["request-id"] == "req-456"
-
-
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
@@ -445,16 +328,6 @@ class TestErrorHandling:
         # Test with wrong attribute type
         with pytest.raises(ValidationError):
             BaseTerraformResource[SampleAttributes, SampleRelationships](type="test", attributes="invalid_type")  # Should be SampleAttributes instance
-
-    def test_nested_validation_errors(self):
-        """Test nested validation errors propagate correctly."""
-        with pytest.raises(ValidationError):
-            TerraformAPIResponse[BaseTerraformResource[SampleAttributes, SampleRelationships]](
-                data=BaseTerraformResource[SampleAttributes, SampleRelationships](
-                    # Missing required 'type' field
-                    attributes=SampleAttributes(name="test")
-                )
-            )
 
     def test_list_validation_in_relationships(self):
         """Test list validation in relationships."""

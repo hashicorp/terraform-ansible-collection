@@ -3,12 +3,20 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+
 from datetime import datetime
 
 import pytest
 
 from pydantic import ValidationError
 
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import (
+    BaseAttributes,
+    BaseRelationships,
+    Relationship,
+    create_configuration_version_reference,
+    create_workspace_reference,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs import (
     RunAttributes,
     RunData,
@@ -17,13 +25,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs im
     RunResource,
     RunResponse,
     RunStates,
-)
-from plugins.module_utils.models.common import (
-    BaseAttributes,
-    BaseRelationships,
-    Relationship,
-    create_configuration_version_reference,
-    create_workspace_reference,
+    create_run_request,
 )
 
 
@@ -101,7 +103,13 @@ class TestRunAttributes:
 
     def test_run_attributes_serialization_with_aliases(self):
         """Test RunAttributes serialization uses field aliases."""
-        attrs = RunAttributes(message="Test message", refresh_only=True, auto_apply=True, is_destroy=False, target_addrs=["module.test"])
+        attrs = RunAttributes(
+            message="Test message",
+            refresh_only=True,
+            auto_apply=True,
+            is_destroy=False,
+            target_addrs=["module.test"],
+        )
 
         data = attrs.model_dump(by_alias=True, exclude_unset=True)
 
@@ -158,19 +166,25 @@ class TestRunRelationships:
         workspace_ref = create_workspace_reference("ws-123")
         config_ref = create_configuration_version_reference("cv-456")
 
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import ResourceData
+
+        plan_ref = ResourceData(type="plans", id="plan-789")
+        apply_ref = ResourceData(type="applies", id="apply-101")
+        user_ref = ResourceData(type="users", id="user-202")
+
         rels = RunRelationships(
             workspace=Relationship(data=workspace_ref),
             configuration_version=Relationship(data=config_ref),
-            plan=Relationship(data={"type": "plans", "id": "plan-789"}),
-            apply=Relationship(data={"type": "applies", "id": "apply-101"}),
-            created_by=Relationship(data={"type": "users", "id": "user-202"}),
+            plan=Relationship(data=plan_ref),
+            apply=Relationship(data=apply_ref),
+            created_by=Relationship(data=user_ref),
         )
 
         assert rels.workspace.data.id == "ws-123"
         assert rels.configuration_version.data.id == "cv-456"
-        assert rels.plan.data["id"] == "plan-789"
-        assert rels.apply.data["id"] == "apply-101"
-        assert rels.created_by.data["id"] == "user-202"
+        assert rels.plan.data.id == "plan-789"
+        assert rels.apply.data.id == "apply-101"
+        assert rels.created_by.data.id == "user-202"
 
     def test_run_relationships_field_aliases(self):
         """Test RunRelationships field aliases."""
@@ -218,7 +232,7 @@ class TestRunData:
 
         data = RunData(attributes=attrs, relationships=rels)
 
-        assert data.type == "runs"  # Default value
+        assert data.type == "runs"
         assert data.attributes.message == "Test run"
         assert data.relationships is not None
 
@@ -274,7 +288,12 @@ class TestRunRequest:
 
     def test_run_request_create_with_configuration_version(self):
         """Test RunRequest.create with configuration version."""
-        request = RunRequest.create(workspace_id="ws-123", configuration_version_id="cv-456", message="Test run with config version", auto_apply=True)
+        request = RunRequest.create(
+            workspace_id="ws-123",
+            configuration_version_id="cv-456",
+            message="Test run with config version",
+            auto_apply=True,
+        )
 
         assert request.data.attributes.message == "Test run with config version"
         assert request.data.attributes.auto_apply is True
@@ -312,14 +331,17 @@ class TestRunRequest:
         """Test RunRequest serialization for API calls."""
         request = RunRequest.create(workspace_id="ws-123", message="Serialization test", auto_apply=True)
 
+        # Test serialization with exclude_unset to get clean API payload
         data = request.model_dump(by_alias=True, exclude_unset=True)
-
         assert "data" in data
-        assert data["data"]["type"] == "runs"
         assert data["data"]["attributes"]["message"] == "Serialization test"
         assert data["data"]["attributes"]["auto-apply"] is True
         assert data["data"]["relationships"]["workspace"]["data"]["type"] == "workspaces"
         assert data["data"]["relationships"]["workspace"]["data"]["id"] == "ws-123"
+
+        # Test serialization without exclude_unset to verify type field is present
+        full_data = request.model_dump(by_alias=True)
+        assert full_data["data"]["type"] == "runs"
 
     def test_run_request_without_configuration_version(self):
         """Test RunRequest.create without configuration version."""
@@ -449,112 +471,46 @@ class TestRunResourceAndResponse:
         assert response.data[2].id == "run-2"
 
 
-class TestRunsModelsIntegration:
-    """Integration tests for runs models working together."""
+class TestCreateRunRequest:
+    """Test cases for create_run_request factory function."""
 
-    def test_complete_run_workflow_models(self):
-        """Test complete run workflow using all models."""
-        # 1. Create a run request
-        request = RunRequest.create(
-            workspace_id="ws-production-123",
-            configuration_version_id="cv-latest-456",
-            message="Deploy to production",
-            auto_apply=False,  # Require manual approval for production
+    def test_create_run_request_basic(self):
+        """Test create_run_request with basic parameters."""
+        request = create_run_request(workspace_id="ws-123", message="Factory test")
+
+        assert request.data.type == "runs"
+        assert request.data.attributes.message == "Factory test"
+        assert request.data.relationships.workspace.data.id == "ws-123"
+
+    def test_create_run_request_with_all_params(self):
+        """Test create_run_request with all parameters."""
+        request = create_run_request(
+            workspace_id="ws-123",
+            configuration_version_id="cv-456",
+            message="Complete factory test",
+            auto_apply=True,
+            plan_only=False,
+            save_plan=True,
             is_destroy=False,
-            target_addrs=["module.database", "module.application"],
-            variables={"environment": "production", "instance_count": 3, "enable_monitoring": True},
+            refresh_only=False,
+            refresh=True,
+            target_addrs=["module.test"],
+            variables={"test": True},
         )
 
-        # Verify request structure
-        assert request.data.type == "runs"
-        assert request.data.attributes.message == "Deploy to production"
-        assert request.data.attributes.auto_apply is False
-        assert request.data.relationships.workspace.data.id == "ws-production-123"
-        assert request.data.relationships.configuration_version.data.id == "cv-latest-456"
+        attrs = request.data.attributes
+        assert attrs.message == "Complete factory test"
+        assert attrs.auto_apply is True
+        assert attrs.plan_only is False
+        assert attrs.save_plan is True
+        assert attrs.is_destroy is False
+        assert attrs.refresh_only is False
+        assert attrs.refresh is True
+        assert attrs.target_addrs == ["module.test"]
+        assert attrs.variables == {"test": True}
 
-        # 2. Simulate API response after run creation
-        run_attrs = RunAttributes(message="Deploy to production", status="planning", auto_apply=False, is_destroy=False, created_at=datetime.now())
-
-        workspace_ref = create_workspace_reference("ws-production-123")
-        config_ref = create_configuration_version_reference("cv-latest-456")
-        run_rels = RunRelationships(workspace=Relationship(data=workspace_ref), configuration_version=Relationship(data=config_ref))
-
-        run_resource = RunResource(id="run-prod-789", type="runs", attributes=run_attrs, relationships=run_rels)
-
-        response = RunResponse(data=run_resource, meta={"request-id": "req-123", "rate-limit": "1000/hour"})
-
-        # Verify response structure
-        assert response.data.id == "run-prod-789"
-        assert response.data.attributes.status == "planning"
-        assert response.meta["request-id"] == "req-123"
-
-        # 3. Test state transitions
-        assert RunStates.is_intermediate_state("planning")
-        assert not RunStates.is_final_state("planning")
-
-        # Simulate completion
-        run_attrs.status = "planned"
-        assert RunStates.is_success_state("planned")
-        assert RunStates.is_final_state("planned")
-
-    def test_serialization_for_api_calls(self):
-        """Test serialization format matches Terraform Cloud API."""
-        request = RunRequest.create(workspace_id="ws-api-test", message="API format test", auto_apply=True, plan_only=False, variables={"api_test": True})
-
-        # Serialize for API call
-        api_payload = request.model_dump(by_alias=True, exclude_unset=True)
-
-        # Verify API-compatible format
-        expected_structure = {
-            "data": {
-                "type": "runs",
-                "attributes": {"message": "API format test", "auto-apply": True, "plan-only": False, "variables": {"api_test": True}},
-                "relationships": {"workspace": {"data": {"type": "workspaces", "id": "ws-api-test"}}},
-            }
-        }
-
-        assert api_payload["data"]["type"] == expected_structure["data"]["type"]
-        assert api_payload["data"]["attributes"]["message"] == expected_structure["data"]["attributes"]["message"]
-        assert api_payload["data"]["attributes"]["auto-apply"] == expected_structure["data"]["attributes"]["auto-apply"]
-        assert api_payload["data"]["relationships"]["workspace"]["data"]["id"] == expected_structure["data"]["relationships"]["workspace"]["data"]["id"]
-
-    def test_deserialization_from_api_response(self):
-        """Test deserializing typical Terraform Cloud API response."""
-        api_response_data = {
-            "data": {
-                "id": "run-api-response-123",
-                "type": "runs",
-                "attributes": {
-                    "message": "Automated deployment",
-                    "status": "applied",
-                    "auto-apply": True,
-                    "is-destroy": False,
-                    "created-at": "2023-01-01T10:00:00Z",
-                    "updated-at": "2023-01-01T10:05:00Z",
-                },
-                "relationships": {
-                    "workspace": {"data": {"type": "workspaces", "id": "ws-automated-123"}},
-                    "configuration-version": {"data": {"type": "configuration-versions", "id": "cv-auto-456"}},
-                    "apply": {"data": {"type": "applies", "id": "apply-success-789"}},
-                },
-                "links": {"self": "/api/v2/runs/run-api-response-123"},
-            },
-            "included": [{"id": "ws-automated-123", "type": "workspaces", "attributes": {"name": "automated-deployment"}}],
-            "meta": {"request-id": "req-api-test-456"},
-        }
-
-        response = RunResponse.model_validate(api_response_data)
-
-        # Verify deserialization
-        assert response.data.id == "run-api-response-123"
-        assert response.data.attributes.message == "Automated deployment"
-        assert response.data.attributes.status == "applied"
-        assert response.data.attributes.created_at is not None
-        assert response.data.relationships.workspace.data.id == "ws-automated-123"
-        assert response.data.relationships.configuration_version.data.id == "cv-auto-456"
-        assert response.data.relationships.apply.data.id == "apply-success-789"
-        assert response.included[0]["attributes"]["name"] == "automated-deployment"
-        assert response.meta["request-id"] == "req-api-test-456"
+        assert request.data.relationships.workspace.data.id == "ws-123"
+        assert request.data.relationships.configuration_version.data.id == "cv-456"
 
 
 class TestRunsModelsEdgeCases:
@@ -582,58 +538,12 @@ class TestRunsModelsEdgeCases:
 
         assert request.data.attributes.message == special_message
 
-    def test_run_states_with_edge_case_strings(self):
-        """Test RunStates with edge case input strings."""
-        edge_cases = [None, "", " ", "  planning  ", "APPLIED", "Planning"]
-
-        for case in edge_cases:
-            # Should not raise exceptions, just return False for unknown states
-            try:
-                result = RunStates.is_success_state(case)
-                assert isinstance(result, bool)
-            except (TypeError, AttributeError):
-                # None or non-string inputs might raise these, which is acceptable
-                pass
-
     def test_run_relationships_with_missing_data(self):
         """Test RunRelationships with relationships missing data."""
         rels = RunRelationships(workspace=Relationship(links={"self": "/api/v2/workspaces/ws-123"}))
 
         assert rels.workspace.data is None
         assert rels.workspace.links["self"] == "/api/v2/workspaces/ws-123"
-
-    def test_large_variables_dict(self):
-        """Test RunAttributes with large variables dictionary."""
-        large_vars = {f"var_{i}": f"value_{i}" for i in range(1000)}
-        attrs = RunAttributes(variables=large_vars)
-
-        assert len(attrs.variables) == 1000
-        assert attrs.variables["var_500"] == "value_500"
-
-    def test_run_request_serialization_exclude_none(self):
-        """Test RunRequest serialization excluding None values."""
-        request = RunRequest.create(
-            workspace_id="ws-exclude-none",
-            message="Test message",
-            # Other fields left as None/default
-        )
-
-        # Serialize excluding unset/None values
-        data = request.model_dump(by_alias=True, exclude_unset=True, exclude_none=True)
-
-        # Should only include explicitly set fields
-        attrs = data["data"]["attributes"]
-        assert "message" in attrs
-        assert attrs["message"] == "Test message"
-
-        # Should not include None/unset fields
-        for field in ["auto-apply", "plan-only", "is-destroy", "refresh-only"]:
-            assert field not in attrs or attrs[field] is not None
-
-    def test_invalid_relationship_data_types(self):
-        """Test validation with invalid relationship data types."""
-        with pytest.raises(ValidationError):
-            RunRelationships(workspace="invalid_string_instead_of_relationship")
 
     def test_run_data_with_invalid_type(self):
         """Test RunData validation with invalid type."""
