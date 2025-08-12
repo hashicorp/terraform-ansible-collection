@@ -17,11 +17,10 @@ description:
   - It can also be used to trigger a plan or apply operation on a specified workspace.
   - The module provides options to manage run attributes such as message, variables, and auto-apply settings.
   - Supports both Terraform Cloud and Terraform Enterprise environments.
-  - The present state supports planned, planned and saved, planned and finished and applied states;
-    defaults to planned state
-  - The applied state corresponds to applying a run with it's run_id
-  - The discarded state corresponds to discarding a run without applying it
-  - The cancelled state corresponds to cancelling a run which is in progress
+  - The present state creates a new run with the given parameters.
+  - The applied state applies a run with it's run_id
+  - The discarded state discards a run without applying it
+  - The canceled state cancels a run which is in progress
 options:
     workspace_id:
         description: The ID of the workspace where the run will be created or managed.
