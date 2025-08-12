@@ -12,11 +12,11 @@ DOCUMENTATION = r"""
 ---
 module: run_info
 version_added: 1.0.0
-short_description: Gather information about a run in Terraform Enterprise/Cloud.
+short_description: Retrieve information about a run in Terraform Enterprise/Cloud.
 author: "Abhishek Chaudhary (@abchaudh)"
 description:
   - This module retrieves information about a given run in Terraform Enterprise/Cloud.
-  - If I(run_id) is provided, it will return information about that specific run.
+  - If I(run_id) is provided, the module will return information about that specific run.
   - If the run does not exist, the module will fail with an error message.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
