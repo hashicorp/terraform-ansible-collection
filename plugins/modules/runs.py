@@ -343,7 +343,7 @@ def main():
             module.exit_json(**result)
 
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_from_exception(e)
 
 
 if __name__ == "__main__":
