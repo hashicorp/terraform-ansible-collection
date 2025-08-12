@@ -32,7 +32,7 @@ def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/apply")
     if response.get("status") != 202:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -48,7 +48,7 @@ def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/cancel")
     if response.get("status") != 202:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -64,7 +64,7 @@ def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/discard")
     if response.get("status") != 202:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def get_run(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -80,7 +80,7 @@ def get_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.get(f"/runs/{run_id}")
     if response.get("status") != 200:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -97,7 +97,7 @@ def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.get(f"/runs/{run_id}/run-events")
     if response.get("status") != 200:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
 
 
 def task_stages(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -114,4 +114,4 @@ def task_stages(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.get(f"/runs/{run_id}/task-stages")
     if response.get("status") != 200:
         raise TerraformError(str(response))
-    return response.get("data", {})
+    return response.get("data")
