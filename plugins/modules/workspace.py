@@ -199,7 +199,7 @@ EXAMPLES = r"""
     organization: <your-organization>
     state: absent
 
-- name: Safe delete a workspace
+- name: Force delete a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
     force_delete: true
