@@ -17,22 +17,22 @@ author: "Shashank Venkat (@shvenkat)"
 description:
   - This module retrieves information about a given workspace in Terraform Enterprise/Cloud.
   - It can be used to check if a workspace exists or to gather detailed information about it.
-  - If I(workspace_id) is provided, it will return information about that specific workspace.
-  - If I(workspace_name) and I(organization_name) are provided, it will return information about the workspace with that name in the specified organization.
-  - Either I(workspace_id) or both I(workspace_name) and I(organization_name) must be provided.
+  - If I(workspace_id) is provided, the module will return information about that specific workspace.
+  - If I(workspace_name) and I(organization_name) are provided, the module will return information about the workspace with that name in the specified organization.
   - If the workspace does not exist, the module will fail with an error message.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   workspace_id:
     description:
       - The unique identifier of the workspace to retrieve information about.
-      - This is mutually exclusive with I(workspace_name) and I(organization_name).
+      - Either I(workspace_id) or a combination of I(workspace_name) and I(organization_name) must be given to fetch workspace information.
     type: str
     required: false
   workspace_name:
     description:
       - The name of the workspace to retrieve information about.
       - When this parameter is used, I(organization_name) must also be provided.
+      - Either a combination of I(workspace_name) and I(organization_name) or I(workspace_id) must be given to fetch workspace information.
     type: str
     required: false
   organization_name:
