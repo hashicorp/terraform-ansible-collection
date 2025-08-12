@@ -36,8 +36,7 @@ options:
         type: str
         required: false
     configuration_version:
-        description: The configuration version for the run present in the worksp
-        ace, defaults to the latest version in the workspace if not specified.
+        description: The configuration version for the run present in the workspace, defaults to the latest version in the workspace if not specified.
         type: str
         required: false
     message:
