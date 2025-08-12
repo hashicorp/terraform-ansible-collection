@@ -11,97 +11,18 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr
 from .common import (
     BaseAttributes,
     BaseRelationships,
+    BaseRequest,
     BaseTerraformResource,
     Relationship,
+    ResourceData,
     TerraformAPIResponse,
+    create_workspace_reference,
+    create_configuration_version_reference,
 )
 
 
-# Compatibility classes that match the original models.py structure
-
-
-class WorkspaceData(BaseModel):
-    """Model for workspace data in relationships."""
-
-    type: Literal["workspaces"]
-    id: str
-
-
-class WorkspaceRelationship(BaseModel):
-    """Model for workspace relationship."""
-
-    data: WorkspaceData
-
-
-class Relationships(BaseModel):
-    """Model for all relationships."""
-
-    workspace: WorkspaceRelationship
-
-
-class Attributes(BaseModel):
-    """Model for run attributes."""
-
-    message: Optional[StrictStr] = None
-    refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
-    plan_only: Optional[StrictBool] = Field(None, alias="plan-only")
-    auto_apply: Optional[StrictBool] = Field(None, alias="auto-apply")
-    save_plan: Optional[StrictBool] = Field(None, alias="save-plan")
-    is_destroy: Optional[StrictBool] = Field(None, alias="is-destroy")
-    target_addrs: Optional[List[StrictStr]] = Field(None, alias="target-addrs")
-    refresh: Optional[StrictBool] = None
-    variables: Optional[Dict[str, Any]] = None
-
-
-class RunData(BaseModel):
-    """Model for run data."""
-
-    attributes: Attributes
-    type: Literal["runs", "plans", "applies", "state-versions", "configuration-versions", "policy-checks"]
-    relationships: Relationships
-
-
-class RunRequest(BaseModel):
-    """Model for the complete run request."""
-
-    data: RunData
-
-    class Config:
-        populate_by_name = True
-
-    @classmethod
-    def create(
-        cls,
-        workspace_id: str,
-        resource_type: Literal["runs", "plans", "applies", "state-versions", "configuration-versions", "policy-checks"] = "runs",
-        **attributes
-    ) -> "RunRequest":
-        """
-        Create a RunRequest with just workspace_id and attributes.
-
-        Args:
-            workspace_id: The workspace ID
-            resource_type: The resource type (runs, plans, applies, state-versions,
-                configuration-versions, policy-checks)
-            **attributes: Any run attributes (message, plan_only, auto_apply, etc.)
-
-        Returns:
-            A complete RunRequest with all nested structure built automatically
-        """
-        return cls(
-            data=RunData(
-                attributes=Attributes(**attributes),
-                type=resource_type,
-                relationships=Relationships(workspace=WorkspaceRelationship(data=WorkspaceData(type="workspaces", id=workspace_id))),
-            )
-        )
-
-
-# Extended models for future use
-
-
 class RunAttributes(BaseAttributes):
-    """Attributes for run resources."""
+    """Attributes for run resources with comprehensive run-specific fields."""
 
     message: Optional[StrictStr] = None
     status: Optional[StrictStr] = None
@@ -128,6 +49,94 @@ class RunRelationships(BaseRelationships):
     task_stages: Optional[Relationship] = Field(default=None, alias="task-stages")
 
 
+class RunData(BaseModel):
+    """Model for run data in API requests."""
+
+    attributes: RunAttributes
+    type: Literal["runs"] = "runs"
+    relationships: RunRelationships
+
+    class Config:
+        populate_by_name = True
+
+
+class RunRequest(BaseRequest[RunData]):
+    """Model for the complete run request."""
+
+    @classmethod
+    def create(
+        cls,
+        workspace_id: str,
+        configuration_version_id: Optional[str] = None,
+        **attributes
+    ) -> "RunRequest":
+        """
+        Create a RunRequest with workspace_id and optional configuration version.
+
+        Args:
+            workspace_id: The workspace ID
+            configuration_version_id: Optional configuration version ID
+            **attributes: Any run attributes (message, plan_only, auto_apply, etc.)
+
+        Returns:
+            A complete RunRequest with all nested structure built automatically
+        """
+        # Create relationships using common utilities
+        relationships = RunRelationships(
+            workspace=Relationship(data=create_workspace_reference(workspace_id))
+        )
+        
+        # Add configuration version if provided
+        if configuration_version_id:
+            relationships.configuration_version = Relationship(
+                data=create_configuration_version_reference(configuration_version_id)
+            )
+
+        return cls(
+            data=RunData(
+                attributes=RunAttributes(**attributes),
+                relationships=relationships,
+            )
+        )
+
+    @classmethod
+    def create_with_workspace_name(
+        cls,
+        workspace_name: str,
+        organization: str,
+        **attributes
+    ) -> "RunRequest":
+        """
+        Create a RunRequest using workspace name and organization.
+        
+        Note: This is a convenience method. In practice, you should resolve
+        the workspace name to workspace_id before creating the request.
+
+        Args:
+            workspace_name: The workspace name
+            organization: The organization name
+            **attributes: Any run attributes
+
+        Returns:
+            A RunRequest (workspace_id should be resolved separately)
+        """
+        # This method would typically be used in conjunction with workspace lookup
+        # For now, we create a placeholder that requires workspace_id resolution
+        raise ValueError(
+            "workspace_id must be provided. Use workspace lookup to resolve "
+            f"workspace '{workspace_name}' in organization '{organization}' to workspace_id first."
+        )
+
+
+# Legacy models removed - use the new common-based models above
+# For migration guide:
+# - WorkspaceData -> use create_workspace_reference()
+# - WorkspaceRelationship -> use Relationship with workspace reference
+# - Relationships -> use RunRelationships
+# - Attributes -> use RunAttributes
+
+
+# Define type aliases using common models
 RunResource = BaseTerraformResource[RunAttributes, RunRelationships]
 RunResponse = TerraformAPIResponse[RunResource]
 
@@ -137,7 +146,7 @@ class RunStates:
 
     SUCCESS_STATES = [
         "planned",
-        "planned_and_finished",
+        "planned_and_finished", 
         "planned_and_saved",
         "applied",
         "discarded",
@@ -171,3 +180,58 @@ class RunStates:
     def is_final_state(cls, state: str) -> bool:
         """Check if the given state is a final state (success or failure)."""
         return cls.is_success_state(state) or cls.is_failure_state(state)
+
+
+# Enhanced factory functions for better API usage
+def create_run_request(
+    workspace_id: str,
+    message: Optional[str] = None,
+    auto_apply: Optional[bool] = None,
+    plan_only: Optional[bool] = None,
+    is_destroy: Optional[bool] = None,
+    configuration_version_id: Optional[str] = None,
+    **kwargs
+) -> RunRequest:
+    """
+    Enhanced factory function to create run requests with better API.
+    
+    Args:
+        workspace_id: The workspace ID
+        message: Optional message for the run
+        auto_apply: Whether to auto-apply the run
+        plan_only: Whether this is a plan-only run
+        is_destroy: Whether this is a destroy run
+        configuration_version_id: Optional configuration version ID
+        **kwargs: Additional run attributes
+        
+    Returns:
+        A configured RunRequest instance
+    """
+    attributes: Dict[str, Any] = {}
+    if message is not None:
+        attributes["message"] = message
+    if auto_apply is not None:
+        attributes["auto_apply"] = auto_apply
+    if plan_only is not None:
+        attributes["plan_only"] = plan_only
+    if is_destroy is not None:
+        attributes["is_destroy"] = is_destroy
+    
+    # Add any additional attributes
+    attributes.update(kwargs)
+    
+    return RunRequest.create(
+        workspace_id=workspace_id,
+        configuration_version_id=configuration_version_id,
+        **attributes
+    )
+
+
+def create_workspace_run_relationship(workspace_id: str) -> Relationship:
+    """Create a workspace relationship for run requests."""
+    return Relationship(data=create_workspace_reference(workspace_id))
+
+
+def create_configuration_version_run_relationship(config_version_id: str) -> Relationship:
+    """Create a configuration version relationship for run requests."""
+    return Relationship(data=create_configuration_version_reference(config_version_id))

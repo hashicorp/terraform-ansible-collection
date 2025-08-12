@@ -3,18 +3,12 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import os
-import sys
-
 from unittest.mock import Mock
 
 import pytest
 
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
-
-from plugins.module_utils.exceptions import TerraformError
-from plugins.module_utils.runs import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import (
     apply_run,
     cancel_run,
     create_run,
