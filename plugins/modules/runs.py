@@ -216,8 +216,16 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     run_params = kwargs.copy()
     for value in ignore_list:
         run_params.pop(value, None)
-    run_request = RunRequest.create(workspace_id=run_params.pop("workspace_id"), **run_params)
-    run_payload = run_request.model_dump(by_alias=True, exclude_unset=True)
+
+    workspace_id = run_params.pop("workspace_id")
+    configuration_version_id = run_params.pop("configuration_version", None)
+
+    if configuration_version_id:
+        run_request = RunRequest.create(workspace_id=workspace_id, configuration_version_id=configuration_version_id, **run_params)
+    else:
+        run_request = RunRequest.create(workspace_id=workspace_id, **run_params)
+
+    run_payload = run_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = create_run(client, run_payload)
     return handle_polling_and_result(client, response, kwargs.get("poll", True))
 
