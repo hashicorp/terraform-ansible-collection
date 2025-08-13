@@ -9,122 +9,252 @@ DOCUMENTATION = r"""
 ---
 module: runs
 version_added: "1.0.0"
-short_description: This module supports Create, for Terraform Cloud/Enterprise runs.
+short_description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
 author: "Siddarth Sharma (@siddasha)"
 description:
-  - The module supports run operations such as creating, applying, cancelling and discarding.
-  - It allows the user to manage Terraform runs by specifying the workspace, plan, and other parameters.
-  - It can also be used to trigger a plan or apply operation on a specified workspace.
-  - The module provides options to manage run attributes such as message, variables, and auto-apply settings.
-  - Supports both Terraform Cloud and Terraform Enterprise environments.
-  - The present state creates a new run with the given parameters.
-  - The applied state applies a run with it's run_id
-  - The discarded state discards a run without applying it
-  - The canceled state cancels a run which is in progress
+  - Manages Terraform Cloud and Terraform Enterprise runs with support for creating, applying, canceling, and discarding operations.
+  - Allows users to manage Terraform runs by specifying workspace, plan configuration, and other run parameters.
+  - Can trigger plan or apply operations on specified workspaces with customizable settings.
+  - Provides comprehensive options for managing run attributes including messages, variables, and auto-apply settings.
+  - Compatible with both Terraform Cloud and Terraform Enterprise environments.
+  - The I(present) state creates a new run with the specified parameters.
+  - The I(applied) state applies an existing run using its run ID.
+  - The I(discarded) state discards a run without applying it.
+  - The I(canceled) state cancels a run that is currently in progress.
 options:
     workspace_id:
-        description: The ID of the workspace where the run will be created or managed.
+        description: The unique identifier of the workspace where the run will be created or managed.
         type: str
         required: false
     workspace:
-        description: The desired workspace name where the run is to be created
+        description: The name of the workspace where the run will be created.
         type: str
         required: false
     organization:
-        description: The desired organization to which the workspace belongs to
+        description: The name of the organization that owns the workspace.
         type: str
         required: false
     configuration_version:
-        description: The configuration version for the run present in the workspace, defaults to the latest version in the workspace if not specified.
+        description:
+          - The configuration version ID to use for the run.
+          - If not specified, defaults to the latest configuration version available in the workspace.
         type: str
         required: false
     message:
-        description: A message to attach to the run.
+        description: An optional message to attach to the run for documentation purposes.
         type: str
         required: false
     auto_apply:
-        description: Whether to automatically apply the run after planning.
+        description: Whether to automatically apply the run after the planning phase completes successfully.
         type: bool
         required: false
     save_plan:
-        description: Wheather to run plans and check the configuration without becoming the worspace's current run
+        description: Whether to save the plan and check the configuration without making it the workspace's current run.
         type: bool
         required: false
     variables:
-        description: A list of dictionary of variables to pass to the run.
+        description: A list of variables to pass to the run for configuration.
         type: list
         elements: dict
         required: false
     plan_only:
-        description: Whether to only create a plan without applying it.
+        description: Whether to only create a plan without applying any changes.
         type: bool
         required: false
     run_id:
-        description: The ID of the run to apply/cancel.
+        description: The unique identifier of the run to apply, cancel, or discard.
         type: str
         required: false
     is_destroy:
-        description: Wheather to destroy all the provisoned resources.
+        description: Whether to destroy all provisioned resources managed by this configuration.
         type: bool
         required: false
     target_addrs:
-        description: A list of target addresses to apply the run to.
+        description: A list of resource addresses to target for this run operation.
         type: list
         elements: str
         required: false
     state:
-        description: The state of the run to manage.
+        description: The desired state of the run to manage.
         type: str
         choices: ['present', 'applied', 'discarded', 'canceled']
         default: 'present'
         required: false
     poll:
-        description: Whether to poll the run status.
+        description: Whether to poll and wait for the run to reach a terminal state.
         type: bool
         default: true
         required: false
     poll_interval:
         description:
-            - Configures the interval (in seconds) to wait between retries of inspecting the `run` status.
-            - This works in conjunction with the I(poll_timeout) parameter.
+            - The interval in seconds to wait between status checks when polling.
+            - Used in conjunction with the C(poll_timeout) parameter.
         type: int
         default: 5
     poll_timeout:
         description:
-            - Configures the timeout (in seconds) for polling while inspecting the `run` status.
-            - This works in conjunction with the I(poll_interval) parameter.
-            - This would factor in the time in case of errors leading to exponential backoff.
+            - The maximum time in seconds to wait for the run to reach a terminal state.
+            - Used in conjunction with the C(poll_interval) parameter.
+            - Includes time for exponential backoff in case of transient errors.
         type: int
         default: 25
 """
 
 EXAMPLES = r"""
-    - name: Create a new Terraform run
-      hashicorp.terraform.run:
-        workspace: "ws-12345678"
-        message: "Creating a new run"
+    - name: Create a new Terraform run with auto-apply
+      hashicorp.terraform.runs:
+        workspace: "my-app-workspace"
+        organization: "my-org"
+        message: "Deploy new application version"
         auto_apply: true
         variables:
-          var1: "value1"
-          var2: "value2"
+          - key: "environment"
+            value: "production"
+          - key: "app_version"
+            value: "v1.2.3"
         state: "present"
 
-    - name: Apply a Terraform run
-      hashicorp.terraform.run:
-        run_id: "run-12345678"
-        state: "applied"
+    - name: Create a plan-only run for review
+      hashicorp.terraform.runs:
+        workspace_id: "ws-abc123def456"
+        message: "Review infrastructure changes"
+        plan_only: true
+        state: "present"
 
-    - name: Cancel a Terraform run
-      hashicorp.terraform.run:
-        run_id: "run-12345678"
+    - name: Create a destroy run to remove resources
+      hashicorp.terraform.runs:
+        workspace: "staging-workspace"
+        organization: "my-org"
+        message: "Clean up staging environment"
+        is_destroy: true
+        auto_apply: false
+        state: "present"
+
+    - name: Apply an existing run
+      hashicorp.terraform.runs:
+        run_id: "run-abc123def456"
+        state: "applied"
+        poll: true
+        poll_timeout: 300
+
+    - name: Cancel a running Terraform operation
+      hashicorp.terraform.runs:
+        run_id: "run-abc123def456"
         state: "canceled"
 
-    - name: Discard a Terraform run
-      hashicorp.terraform.run:
-        run_id: "run-12345678"
+    - name: Discard a planned run without applying
+      hashicorp.terraform.runs:
+        run_id: "run-abc123def456"
         state: "discarded"
 """
-# todo: add task output to the examples above
+# todo add task outputs above
+RETURN = r"""
+data:
+    description: The main data object containing run information.
+    returned: always
+    type: complex
+    contains:
+        id:
+            description: The unique identifier of the run.
+            returned: always
+            type: str
+            sample: "run-7TwrwCoRQ3FXbFtP"
+        type:
+            description: The resource type, always 'runs'.
+            returned: always
+            type: str
+            sample: "runs"
+        attributes:
+            description: The run's attributes and configuration.
+            returned: always
+            type: dict
+            sample: {
+                "actions": {
+                    "is-cancelable": true,
+                    "is-confirmable": false,
+                    "is-discardable": false,
+                    "is-force-cancelable": false
+                },
+                "allow-config-generation": false,
+                "allow-empty-apply": false,
+                "auto-apply": false,
+                "canceled-at": null,
+                "created-at": "2025-07-03T08:10:20.479Z",
+                "has-changes": false,
+                "is-destroy": false,
+                "message": "Custom message2",
+                "plan-only": true,
+                "status": "pending",
+                "terraform-version": "1.10.5",
+                "updated-at": "2025-07-03T08:10:20.651Z",
+                "permissions": {
+                    "can-apply": true,
+                    "can-cancel": true,
+                    "can-discard": true,
+                    "can-force-cancel": true
+                },
+                "variables": []
+            }
+        relationships:
+            description: Related resources linked to the run.
+            returned: always
+            type: dict
+            sample: {
+                "workspace": {
+                    "data": {
+                        "id": "ws-82Qk88p7boaHK2BT",
+                        "type": "workspaces"
+                    }
+                },
+                "apply": {
+                    "data": {
+                        "id": "apply-qki4X5daDtNzNjpw",
+                        "type": "applies"
+                    }
+                },
+                "configuration-version": {
+                    "data": {
+                        "id": "cv-h2u3XnkPasTHbgyv",
+                        "type": "configuration-versions"
+                    }
+                },
+                "plan": {
+                    "data": {
+                        "id": "plan-YDyzmtnwadKwjVSn",
+                        "type": "plans"
+                    }
+                },
+                "created-by": {
+                    "data": {
+                        "id": "user-YYhuc7w4AJxv5RVp",
+                        "type": "users"
+                    }
+                }
+            }
+        links:
+            description: API links for the run.
+            returned: always
+            type: dict
+            sample: {
+                "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
+            }
+changed:
+    description: Whether any changes were made.
+    returned: always
+    type: bool
+    sample: true
+failed:
+    description: Whether the operation failed.
+    returned: when operation fails
+    type: bool
+    sample: false
+msg:
+    description: Human readable message describing the result.
+    returned: when operation fails or during polling timeout
+    type: str
+    sample: "Run reached status 'timeout' instead of expected success state"
+"""
+
 import time
 
 from typing import Any, Optional
@@ -136,7 +266,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.runs import ap
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 50, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
+def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
     Wait for a run to reach a terminal state (success or failure).
     Args:
@@ -162,7 +292,7 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 50, poll
     return "timeout", run
 
 
-def handle_polling_and_result(client: TerraformClient, response: dict, poll: bool, run_id: Optional[str] = None) -> dict[str, Any]:
+def handle_polling_and_result(client: TerraformClient, response: dict, poll: bool, run_id: Optional[str] = None, **kwargs: Any) -> dict[str, Any]:
     """
     Handle polling and return appropriate action result.
     Args:
@@ -176,7 +306,7 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     action_result = {}
     target_run_id = run_id or response.get("data", {}).get("id")
     if poll and target_run_id:
-        status, poll_response = wait_for_state(client, target_run_id)
+        status, poll_response = wait_for_state(client, target_run_id, kwargs.get("poll_timeout", 25), kwargs.get("poll_interval", 5))
         if status == "success" and poll_response:
             action_result.update({"changed": True, **poll_response.get("data", {})})
         else:
@@ -224,7 +354,7 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
 
     run_payload = run_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = create_run(client, run_payload)
-    return handle_polling_and_result(client, response, kwargs.get("poll", True))
+    return handle_polling_and_result(client, response, **kwargs)
 
 
 @idempotency_check

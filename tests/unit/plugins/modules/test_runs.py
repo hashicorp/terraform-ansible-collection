@@ -123,7 +123,7 @@ class TestHandlePollingAndResult:
 
         assert result["changed"] is True
         assert result["id"] == "run-123"
-        mock_wait_for_state.assert_called_once_with(mock_client, "run-123")
+        mock_wait_for_state.assert_called_once_with(mock_client, "run-123", 25, 5)
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.wait_for_state")
     def test_handle_polling_failure(self, mock_wait_for_state):
@@ -159,7 +159,20 @@ class TestHandlePollingAndResult:
 
             result = handle_polling_and_result(mock_client, response, True, run_id="run-123")
 
-            mock_wait.assert_called_once_with(mock_client, "run-123")
+            mock_wait.assert_called_once_with(mock_client, "run-123", 25, 5)
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.runs.wait_for_state")
+    def test_handle_polling_with_custom_timeouts(self, mock_wait_for_state):
+        """Test handle_polling_and_result with custom poll_timeout and poll_interval."""
+        mock_client = Mock()
+        response = {"data": {"id": "run-123"}}
+
+        mock_wait_for_state.return_value = ("success", {"data": {"id": "run-123"}})
+
+        result = handle_polling_and_result(mock_client, response, True, poll_timeout=60, poll_interval=10)
+
+        assert result["changed"] is True
+        mock_wait_for_state.assert_called_once_with(mock_client, "run-123", 60, 10)
 
 
 class TestIdempotencyCheck:
@@ -335,7 +348,6 @@ class TestStateCanceled:
 
             assert result["changed"] is True
             mock_cancel_run.assert_called_once_with(mock_client, "run-123")
-            # Note: state_canceled uses poll=False by default
             mock_handle_polling.assert_called_once_with(mock_client, mock_cancel_run.return_value, False, "run-123")
 
 
