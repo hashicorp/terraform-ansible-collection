@@ -40,7 +40,7 @@ options:
           - If not specified, defaults to the latest configuration version available in the workspace.
         type: str
         required: false
-    message:
+    run_message:
         description: An optional message to attach to the run for documentation purposes.
         type: str
         required: false
@@ -105,7 +105,7 @@ EXAMPLES = r"""
       hashicorp.terraform.runs:
         workspace: "my-app-workspace"
         organization: "my-org"
-        message: "Deploy new application version"
+        run_message: "Deploy new application version"
         auto_apply: true
         variables:
           - key: "environment"
@@ -117,7 +117,7 @@ EXAMPLES = r"""
     - name: Create a plan-only run for review
       hashicorp.terraform.runs:
         workspace_id: "ws-abc123def456"
-        message: "Review infrastructure changes"
+        run_message: "Review infrastructure changes"
         plan_only: true
         state: "present"
 
@@ -125,7 +125,7 @@ EXAMPLES = r"""
       hashicorp.terraform.runs:
         workspace: "staging-workspace"
         organization: "my-org"
-        message: "Clean up staging environment"
+        run_message: "Clean up staging environment"
         is_destroy: true
         auto_apply: false
         state: "present"
@@ -392,7 +392,7 @@ def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     Args:
         **kwargs: Keyword arguments to cancel a run.
     Returns:
-        The cancelled run in the form of a dictionary.
+        The canceled run in the form of a dictionary.
     """
     run_id = kwargs.get("run_id")
     response = cancel_run(client, run_id)
@@ -424,13 +424,13 @@ def main():
             poll_interval=dict(type="int", default=5),
             poll_timeout=dict(type="int", default=25),
             configuration_version=dict(type="str"),
-            message=dict(type="str"),
+            run_message=dict(type="str"),
             auto_apply=dict(type="bool"),
             save_plan=dict(type="bool"),
-            variables=dict(type="list"),
+            variables=dict(type="list", elements="dict"),
             plan_only=dict(type="bool"),
             is_destroy=dict(type="bool"),
-            target_addrs=dict(type="list"),
+            target_addrs=dict(type="list", elements="str"),
             state=dict(type="str", choices=["present", "applied", "discarded", "canceled"], default="present"),
             run_id=dict(type="str"),
         ),
@@ -441,6 +441,7 @@ def main():
             ("state", "discarded", ("run_id", "workspace_id", "workspace"), True),
             ("state", "canceled", ("run_id", "workspace_id", "workspace"), True),
         ],
+        supports_check_mode=True,
         mutually_exclusive=[
             ("workspace", "workspace_id"),
             ("plan_only", "save_plan"),

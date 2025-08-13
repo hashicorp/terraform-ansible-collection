@@ -563,7 +563,7 @@ class TestRunsModuleIntegration:
             "poll_interval",
             "poll_timeout",
             "configuration_version",
-            "message",
+            "run_message",
             "auto_apply",
             "save_plan",
             "variables",

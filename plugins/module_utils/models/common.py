@@ -1,7 +1,22 @@
 from datetime import datetime
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
-from pydantic import BaseModel, Field
+
+try:
+    from pydantic import BaseModel, Field
+
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
+
+    class BaseModel:
+        """Fallback BaseModel class for when pydantic is not available."""
+
+        pass
+
+    def Field(*args, **kwargs):
+        """Fallback Field class for when pydantic is not available."""
+        return None
 
 
 T = TypeVar("T")

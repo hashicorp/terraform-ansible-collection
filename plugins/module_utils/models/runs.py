@@ -6,7 +6,24 @@ This module contains models specifically for run-related API operations.
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, StrictBool, StrictStr
+
+try:
+    from pydantic import BaseModel, Field, StrictBool, StrictStr
+
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
+
+    class BaseModel:
+        """Fallback BaseModel class for when pydantic is not available."""
+        pass
+
+    def Field(*args, **kwargs):
+        """Fallback Field class for when pydantic is not available."""
+        return None
+
+    StrictBool = bool
+    StrictStr = str
 
 from .common import (
     BaseAttributes,
@@ -23,16 +40,20 @@ from .common import (
 class RunAttributes(BaseAttributes):
     """Attributes for run resources with comprehensive run-specific fields."""
 
-    message: Optional[StrictStr] = None
-    status: Optional[StrictStr] = None
+    message: Optional[StrictStr] = Field(None, alias="run_message")
     refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
     plan_only: Optional[StrictBool] = Field(None, alias="plan-only")
     auto_apply: Optional[StrictBool] = Field(None, alias="auto-apply")
     save_plan: Optional[StrictBool] = Field(None, alias="save-plan")
     is_destroy: Optional[StrictBool] = Field(None, alias="is-destroy")
     target_addrs: Optional[List[StrictStr]] = Field(None, alias="target-addrs")
+    replace_addrs: Optional[List[StrictStr]] = Field(None, alias="replace-addrs")
     refresh: Optional[StrictBool] = None
     variables: Optional[Dict[str, Any]] = None
+    allow_empty_apply: Optional[StrictBool] = Field(None, alias="allow-empty-apply")
+    allow_config_generation: Optional[StrictBool] = Field(None, alias="allow-config-generation")
+    debugging_mode: Optional[StrictBool] = Field(None, alias="debugging-mode")
+    terraform_version: Optional[StrictStr] = Field(None, alias="terraform-version")
 
 
 class RunRelationships(BaseRelationships):
@@ -78,7 +99,6 @@ class RunRequest(BaseRequest[RunData]):
         # Create relationships using common utilities
         relationships = RunRelationships(workspace=Relationship(data=create_workspace_reference(workspace_id)))
 
-        # Add configuration version if provided
         if configuration_version_id:
             relationships.configuration_version = Relationship(data=create_configuration_version_reference(configuration_version_id))
 
@@ -87,29 +107,6 @@ class RunRequest(BaseRequest[RunData]):
                 attributes=RunAttributes(**attributes),
                 relationships=relationships,
             )
-        )
-
-    @classmethod
-    def create_with_workspace_name(cls, workspace_name: str, organization: str, **attributes) -> "RunRequest":
-        """
-        Create a RunRequest using workspace name and organization.
-
-        Note: This is a convenience method. In practice, you should resolve
-        the workspace name to workspace_id before creating the request.
-
-        Args:
-            workspace_name: The workspace name
-            organization: The organization name
-            **attributes: Any run attributes
-
-        Returns:
-            A RunRequest (workspace_id should be resolved separately)
-        """
-        # This method would typically be used in conjunction with workspace lookup
-        # For now, we create a placeholder that requires workspace_id resolution
-        raise ValueError(
-            "workspace_id must be provided. Use workspace lookup to resolve "
-            f"workspace '{workspace_name}' in organization '{organization}' to workspace_id first."
         )
 
 
