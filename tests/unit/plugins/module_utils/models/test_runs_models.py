@@ -88,7 +88,7 @@ class TestRunAttributes:
 
         attrs = RunAttributes.model_validate(data)
 
-        assert attrs.message == "Test message"
+        assert attrs.run_message == "Test message"
         assert attrs.refresh_only is True
         assert attrs.plan_only is False
         assert attrs.auto_apply is True
@@ -224,18 +224,18 @@ class TestRunData:
 
     def test_run_data_creation_minimal(self):
         """Test creating RunData with minimal required fields."""
-        attrs = RunAttributes(message="Test run")
+        attrs = RunAttributes(run_message="Test run")
         rels = RunRelationships()
 
         data = RunData(attributes=attrs, relationships=rels)
 
         assert data.type == "runs"
-        assert data.attributes.message == "Test run"
+        assert data.attributes.run_message == "Test run"
         assert data.relationships is not None
 
     def test_run_data_creation_full(self):
         """Test creating RunData with full configuration."""
-        attrs = RunAttributes(message="Full test run", auto_apply=True, is_destroy=False)
+        attrs = RunAttributes(run_message="Full test run", auto_apply=True, is_destroy=False)
 
         workspace_ref = create_workspace_reference("ws-123")
         rels = RunRelationships(workspace=Relationship(data=workspace_ref))
@@ -243,7 +243,7 @@ class TestRunData:
         data = RunData(attributes=attrs, relationships=rels, type="runs")
 
         assert data.type == "runs"
-        assert data.attributes.message == "Full test run"
+        assert data.attributes.run_message == "Full test run"
         assert data.attributes.auto_apply is True
         assert data.relationships.workspace.data.id == "ws-123"
 
@@ -276,10 +276,10 @@ class TestRunRequest:
 
     def test_run_request_create_basic(self):
         """Test RunRequest.create with basic parameters."""
-        request = RunRequest.create(workspace_id="ws-123", message="Test run")
+        request = RunRequest.create(workspace_id="ws-123", run_message="Test run")
 
         assert request.data.type == "runs"
-        assert request.data.attributes.message == "Test run"
+        assert request.data.attributes.run_message == "Test run"
         assert request.data.relationships.workspace.data.type == "workspaces"
         assert request.data.relationships.workspace.data.id == "ws-123"
 
@@ -288,11 +288,11 @@ class TestRunRequest:
         request = RunRequest.create(
             workspace_id="ws-123",
             configuration_version_id="cv-456",
-            message="Test run with config version",
+            run_message="Test run with config version",
             auto_apply=True,
         )
 
-        assert request.data.attributes.message == "Test run with config version"
+        assert request.data.attributes.run_message == "Test run with config version"
         assert request.data.attributes.auto_apply is True
         assert request.data.relationships.workspace.data.id == "ws-123"
         assert request.data.relationships.configuration_version.data.type == "configuration-versions"
@@ -302,7 +302,7 @@ class TestRunRequest:
         """Test RunRequest.create with all possible attributes."""
         request = RunRequest.create(
             workspace_id="ws-123",
-            message="Complete test run",
+            run_message="Complete test run",
             auto_apply=True,
             plan_only=False,
             save_plan=True,
@@ -314,7 +314,7 @@ class TestRunRequest:
         )
 
         attrs = request.data.attributes
-        assert attrs.message == "Complete test run"
+        assert attrs.run_message == "Complete test run"
         assert attrs.auto_apply is True
         assert attrs.plan_only is False
         assert attrs.save_plan is True
@@ -431,18 +431,18 @@ class TestRunResourceAndResponse:
 
     def test_run_resource_creation(self):
         """Test creating RunResource (type alias)."""
-        attrs = RunAttributes(message="Test resource")
+        attrs = RunAttributes(run_message="Test resource")
         rels = RunRelationships()
 
         resource = RunResource(id="run-123", type="runs", attributes=attrs, relationships=rels)
 
         assert resource.id == "run-123"
         assert resource.type == "runs"
-        assert resource.attributes.message == "Test resource"
+        assert resource.attributes.run_message == "Test resource"
 
     def test_run_response_creation(self):
         """Test creating RunResponse (type alias)."""
-        attrs = RunAttributes(message="Test response")
+        attrs = RunAttributes(run_message="Test response")
         rels = RunRelationships()
 
         resource = RunResource(id="run-456", type="runs", attributes=attrs, relationships=rels)
@@ -450,13 +450,13 @@ class TestRunResourceAndResponse:
         response = RunResponse(data=resource)
 
         assert response.data.id == "run-456"
-        assert response.data.attributes.message == "Test response"
+        assert response.data.attributes.run_message == "Test response"
 
     def test_run_response_with_multiple_resources(self):
         """Test RunResponse with multiple resources."""
         resources = []
         for i in range(3):
-            attrs = RunAttributes(message=f"Test run {i}")
+            attrs = RunAttributes(run_message=f"Test run {i}")
             rels = RunRelationships()
             resources.append(RunResource(id=f"run-{i}", type="runs", attributes=attrs, relationships=rels))
 
@@ -464,7 +464,7 @@ class TestRunResourceAndResponse:
 
         assert len(response.data) == 3
         assert response.data[0].id == "run-0"
-        assert response.data[1].attributes.message == "Test run 1"
+        assert response.data[1].attributes.run_message == "Test run 1"
         assert response.data[2].id == "run-2"
 
 
@@ -473,10 +473,10 @@ class TestCreateRunRequest:
 
     def test_create_run_request_basic(self):
         """Test create_run_request with basic parameters."""
-        request = create_run_request(workspace_id="ws-123", message="Factory test")
+        request = create_run_request(workspace_id="ws-123", run_message="Factory test")
 
         assert request.data.type == "runs"
-        assert request.data.attributes.message == "Factory test"
+        assert request.data.attributes.run_message == "Factory test"
         assert request.data.relationships.workspace.data.id == "ws-123"
 
     def test_create_run_request_with_all_params(self):
@@ -484,7 +484,7 @@ class TestCreateRunRequest:
         request = create_run_request(
             workspace_id="ws-123",
             configuration_version_id="cv-456",
-            message="Complete factory test",
+            run_message="Complete factory test",
             auto_apply=True,
             plan_only=False,
             save_plan=True,
@@ -496,7 +496,7 @@ class TestCreateRunRequest:
         )
 
         attrs = request.data.attributes
-        assert attrs.message == "Complete factory test"
+        assert attrs.run_message == "Complete factory test"
         assert attrs.auto_apply is True
         assert attrs.plan_only is False
         assert attrs.save_plan is True
@@ -531,9 +531,9 @@ class TestRunsModelsEdgeCases:
     def test_run_request_with_special_characters_in_message(self):
         """Test RunRequest with special characters in message."""
         special_message = "Deploy 🚀 with émojis & spëcial chars: @#$%^&*()"
-        request = RunRequest.create(workspace_id="ws-special", message=special_message)
+        request = RunRequest.create(workspace_id="ws-special", run_message=special_message)
 
-        assert request.data.attributes.message == special_message
+        assert request.data.attributes.run_message == special_message
 
     def test_run_relationships_with_missing_data(self):
         """Test RunRelationships with relationships missing data."""
