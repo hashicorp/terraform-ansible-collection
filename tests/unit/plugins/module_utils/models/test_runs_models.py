@@ -40,8 +40,7 @@ class TestRunAttributes:
         assert attrs.created_at is None
         assert attrs.updated_at is None
         # Should have run-specific fields
-        assert attrs.message is None
-        assert attrs.status is None
+        assert attrs.run_message is None
         assert attrs.auto_apply is None
 
     def test_run_attributes_creation_full(self):
@@ -50,8 +49,7 @@ class TestRunAttributes:
         attrs = RunAttributes(
             created_at=now,
             updated_at=now,
-            message="Test run message",
-            status="planned",
+            run_message="Test run message",
             refresh_only=True,
             plan_only=False,
             auto_apply=True,
@@ -64,8 +62,7 @@ class TestRunAttributes:
 
         assert attrs.created_at == now
         assert attrs.updated_at == now
-        assert attrs.message == "Test run message"
-        assert attrs.status == "planned"
+        assert attrs.run_message == "Test run message"
         assert attrs.refresh_only is True
         assert attrs.plan_only is False
         assert attrs.auto_apply is True
@@ -104,7 +101,7 @@ class TestRunAttributes:
     def test_run_attributes_serialization_with_aliases(self):
         """Test RunAttributes serialization uses field aliases."""
         attrs = RunAttributes(
-            message="Test message",
+            run_message="Test message",
             refresh_only=True,
             auto_apply=True,
             is_destroy=False,
@@ -329,7 +326,7 @@ class TestRunRequest:
 
     def test_run_request_serialization(self):
         """Test RunRequest serialization for API calls."""
-        request = RunRequest.create(workspace_id="ws-123", message="Serialization test", auto_apply=True)
+        request = RunRequest.create(workspace_id="ws-123", run_message="Serialization test", auto_apply=True)
 
         # Test serialization with exclude_unset to get clean API payload
         data = request.model_dump(by_alias=True, exclude_unset=True)

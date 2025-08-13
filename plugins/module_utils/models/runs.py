@@ -40,7 +40,7 @@ from .common import (
 class RunAttributes(BaseAttributes):
     """Attributes for run resources with comprehensive run-specific fields."""
 
-    message: Optional[StrictStr] = Field(None, alias="run_message")
+    run_message: Optional[StrictStr] = Field(None, alias="message")
     refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
     plan_only: Optional[StrictBool] = Field(None, alias="plan-only")
     auto_apply: Optional[StrictBool] = Field(None, alias="auto-apply")
