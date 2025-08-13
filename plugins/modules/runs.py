@@ -21,6 +21,7 @@ description:
   - The I(applied) state applies an existing run using its run ID.
   - The I(discarded) state discards a run without applying it.
   - The I(canceled) state cancels a run that is currently in progress.
+extends_documentation_fragment: hashicorp.terraform.common
 options:
     workspace_id:
         description: The unique identifier of the workspace where the run will be created or managed.
