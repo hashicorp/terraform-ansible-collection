@@ -16,6 +16,7 @@ except ImportError:
 
     class BaseModel:
         """Fallback BaseModel class for when pydantic is not available."""
+
         pass
 
     def Field(*args, **kwargs):
