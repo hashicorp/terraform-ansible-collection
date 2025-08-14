@@ -4,6 +4,7 @@ pytest-mock
 pytest-ansible
 pytest-xdist
 requests
+pydantic
 # Linting and code formatting tools
 tox
 black
