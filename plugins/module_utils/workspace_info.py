@@ -58,8 +58,8 @@ def get_workspace_by_id(client: TerraformClient, workspace_id: str) -> Dict[str,
     Retrieves a specified workspace from Terraform Cloud by its ID.
 
     Sends a GET request to fetch details of a workspace identified by its unique ID.
-    If the workspace is not found, returns an empty dictionary. If successful, 
-    returns the workspace data with an added "status" field. For any other error 
+    If the workspace is not found, returns an empty dictionary. If successful,
+    returns the workspace data with an added "status" field. For any other error
     status, raises a TerraformError.
 
     Args:
