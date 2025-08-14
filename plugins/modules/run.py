@@ -265,7 +265,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run import RunRequest, RunStates
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, cancel_run, create_run, discard_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
-
+from ansible.module_utils.basic import AnsibleModule
 
 def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
@@ -416,7 +416,7 @@ def get_workspace_id(client: TerraformClient, workspace: str, organization: str)
 
 
 def main():
-    module = AnsibleTerraformModule(
+    module = AnsibleModule(
         argument_spec=dict(
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
