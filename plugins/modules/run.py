@@ -102,7 +102,7 @@ options:
 """
 
 EXAMPLES = r"""
-- name: Create a new Terraform run with auto-apply
+- name : Create a new Terraform run with auto-apply
   hashicorp.terraform.run:
     workspace: "my-app-workspace"
     organization: "my-org"
@@ -265,7 +265,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run import RunRequest, RunStates
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, cancel_run, create_run, discard_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
-from ansible.module_utils.basic import AnsibleModule
+
 
 def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
@@ -416,25 +416,25 @@ def get_workspace_id(client: TerraformClient, workspace: str, organization: str)
 
 
 def main():
-    module = AnsibleModule(
-        argument_spec=dict(
-            workspace_id=dict(type="str"),
-            workspace=dict(type="str"),
-            organization=dict(type="str"),
-            poll=dict(type="bool", default=True),
-            poll_interval=dict(type="int", default=5),
-            poll_timeout=dict(type="int", default=25),
-            configuration_version=dict(type="str"),
-            run_message=dict(type="str"),
-            auto_apply=dict(type="bool"),
-            save_plan=dict(type="bool"),
-            variables=dict(type="list", elements="dict"),
-            plan_only=dict(type="bool"),
-            is_destroy=dict(type="bool"),
-            target_addrs=dict(type="list", elements="str"),
-            state=dict(type="str", choices=["present", "applied", "discarded", "canceled"], default="present"),
-            run_id=dict(type="str"),
-        ),
+    module = AnsibleTerraformModule(
+        argument_spec={
+            "workspace_id": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
+            "poll": {"type": "bool", "default": True},
+            "poll_interval": {"type": "int", "default": 5},
+            "poll_timeout": {"type": "int", "default": 25},
+            "configuration_version": {"type": "str"},
+            "run_message": {"type": "str"},
+            "auto_apply": {"type": "bool"},
+            "save_plan": {"type": "bool"},
+            "variables": {"type": "list", "elements": "dict"},
+            "plan_only": {"type": "bool"},
+            "is_destroy": {"type": "bool"},
+            "target_addrs": {"type": "list", "elements": "str"},
+            "state": {"type": "str", "choices": ["present", "applied", "discarded", "canceled"], "default": "present"},
+            "run_id": {"type": "str"},
+        },
         required_together=[["workspace", "organization"]],
         required_if=[
             ("state", "present", ("workspace_id", "workspace"), True),
