@@ -102,51 +102,51 @@ options:
 """
 
 EXAMPLES = r"""
-    - name: Create a new Terraform run with auto-apply
-      hashicorp.terraform.run:
-        workspace: "my-app-workspace"
-        organization: "my-org"
-        run_message: "Deploy new application version"
-        auto_apply: true
-        variables:
-          - key: "environment"
-            value: "production"
-          - key: "app_version"
-            value: "v1.2.3"
-        state: "present"
+- name: Create a new Terraform run with auto-apply
+  hashicorp.terraform.run:
+    workspace: "my-app-workspace"
+    organization: "my-org"
+    run_message: "Deploy new application version"
+    auto_apply: true
+    variables:
+      - key: "environment"
+        value: "production"
+      - key: "app_version"
+        value: "v1.2.3"
+    state: "present"
 
-    - name: Create a plan-only run for review
-      hashicorp.terraform.run:
-        workspace_id: "ws-abc123def456"
-        run_message: "Review infrastructure changes"
-        plan_only: true
-        state: "present"
+- name: Create a plan-only run for review
+  hashicorp.terraform.run:
+    workspace_id: "ws-abc123def456"
+    run_message: "Review infrastructure changes"
+    plan_only: true
+    state: "present"
 
-    - name: Create a destroy run to remove resources
-      hashicorp.terraform.run:
-        workspace: "staging-workspace"
-        organization: "my-org"
-        run_message: "Clean up staging environment"
-        is_destroy: true
-        auto_apply: false
-        state: "present"
+- name: Create a destroy run to remove resources
+  hashicorp.terraform.run:
+    workspace: "staging-workspace"
+    organization: "my-org"
+    run_message: "Clean up staging environment"
+    is_destroy: true
+    auto_apply: false
+    state: "present"
 
-    - name: Apply an existing run
-      hashicorp.terraform.run:
-        run_id: "run-abc123def456"
-        state: "applied"
-        poll: true
-        poll_timeout: 300
+- name: Apply an existing run
+  hashicorp.terraform.run:
+    run_id: "run-abc123def456"
+    state: "applied"
+    poll: true
+    poll_timeout: 300
 
-    - name: Cancel a running Terraform operation
-      hashicorp.terraform.run:
-        run_id: "run-abc123def456"
-        state: "canceled"
+- name: Cancel a running Terraform operation
+  hashicorp.terraform.run:
+    run_id: "run-abc123def456"
+    state: "canceled"
 
-    - name: Discard a planned run without applying
-      hashicorp.terraform.run:
-        run_id: "run-abc123def456"
-        state: "discarded"
+- name: Discard a planned run without applying
+  hashicorp.terraform.run:
+    run_id: "run-abc123def456"
+    state: "discarded"
 """
 # todo add task outputs above
 RETURN = r"""
