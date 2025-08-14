@@ -125,7 +125,13 @@ workspace:
 """
 
 
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING
+
+from ansible.module_utils._text import to_text
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
@@ -144,6 +150,7 @@ def main() -> None:
             workspace_name=dict(type="str"),
             organization_name=dict(type="str"),
         ),
+        supports_check_mode=True,
         mutually_exclusive=[
             ["workspace_id", "workspace_name"],
             ["workspace_id", "organization_name"],
@@ -156,43 +163,35 @@ def main() -> None:
         ],
     )
 
-    workspace_id: Optional[str] = module.params.get("workspace_id")
-    workspace_name: Optional[str] = module.params.get("workspace_name")
-    organization_name: Optional[str] = module.params.get("organization_name")
-
+    warnings: list[str] = []
+    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+    params: Dict[str, Any] = module.params
+    params["check_mode"] = module.check_mode
     try:
-        # Create the Terraform client
-        client: TerraformClient = TerraformClient(**module.params)
+        client = TerraformClient(**module.params)
 
-        # Determine which method to use for workspace retrieval
-        workspace_data: Dict[str, Any]
-        if workspace_id:
+        workspace_data: Optional[Dict[str, Any]] = None
+        if params["workspace_id"]:
             # Retrieve workspace by ID
-            workspace_data = get_workspace_by_id(client, workspace_id)
+            workspace_data = get_workspace_by_id(client, params["workspace_id"])
+            if not workspace_data:
+                module.fail_json(msg=f"Workspace with ID '{params['workspace_id']}' not found")
         else:
             # Retrieve workspace by name and organization
-            workspace_data = get_workspace(client, organization_name, workspace_name)
-
-        # Check if workspace was found
-        if not workspace_data:
-            error_msg: str
-            if workspace_id:
-                error_msg = f"Workspace with ID '{workspace_id}' not found"
-            else:
-                error_msg = f"Workspace '{workspace_name}' not found in organization '{organization_name}'"
-            module.fail_json(msg=error_msg)
+            workspace_data = get_workspace(client, params["organization_name"], params["workspace_name"])
+            if not workspace_data:
+                module.fail_json(msg=f"Workspace '{params['workspace_name']}' not found in organization '{params['organization_name']}'")
 
         # Remove the status field from the response as it's internal
         workspace_data.pop("status", None)
 
-        # Return the workspace information
-        module.exit_json(
-            changed=False,
-            workspace=workspace_data,
-        )
+        # Update result with workspace information
+        result["workspace"] = workspace_data
+
+        module.exit_json(**result)
 
     except Exception as e:
-        module.fail_from_exception(e)
+        module.fail_json(msg=to_text(e))
 
 
 if __name__ == "__main__":
