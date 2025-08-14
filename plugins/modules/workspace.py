@@ -15,24 +15,31 @@ version_added: 1.0.0
 short_description: Manage workspaces in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
-  - Create, Update or Delete workspaces in Terraform Enterprise/Cloud.
+  - Create, Update, Lock, Unlock or Delete workspaces in Terraform Enterprise/Cloud.
   - If I(workspace) and I(organization) is specified for a non-existent workspace and the I(state) is C(present),
     this module will create a new workspace.
   - If either I(workspace) (and I(organization)) or I(workspace_id) is specified for an existing workspace and the I(state) is C(present),
     this module will update the existing workspace.
-  - If a I(workspace_id) is specified, the I(state) is C(absent) and the I(force_delete) is set C(true)
-    this module will force delete the workspace without checking whether it is managing resources.
+  - If a I(workspace_id) is specified, the I(state) is C(absent) and the I(force) is set C(true),
+    this module will force delete the workspace, if it exists, without checking whether it is managing resources.
   - If a I(workspace_id) is specified, the I(state) is C(absent), this module will safe delete the
-    workspace. This would only delete the workspace if it is not managing any resources.
+    workspace, if it exists. This would only delete the workspace if it is not managing any resources.
+  - If a I(workspace_id) is specified, the I(state) is C(locked) and I(lock_reason) is set, this module will lock the workspace, if it exists.
+  - If a I(workspace_id) is specified, the I(state) is C(unlocked) and I(force) is set C(true), this module will unlock the workspace,
+    if it exists.
+  - If a I(workspace_id) is specified, the I(state) is C(unlock) and I(force) is set C(true), this module will force unlock the workspace,
+    if it exists.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   state:
     description:
-      - The state the configuration version should be in.
-      - Setting `state=present` creates/updates a workspace.
+      - The state the workspace should be in.
+      - Setting `state=present` create a workspace if it does not exist, and updates the workspace, if it exists.
       - Setting `state=absent` deletes an existing workspace, if it exists.
+      - Setting `state=locked` locks an existing workspace, if it exists.
+      - Setting `state=unlocked` unlocks an existing workspace, if it exists.
     type: str
-    choices: ["present", "absent"]
+    choices: ["present", "absent", "locked", "unlocked"]
     default: present
   organization:
     description:
@@ -83,6 +90,7 @@ options:
   auto_destroy_at:
     description:
       - The timestamp when the next scheduled destroy run will occur.
+      - The recommended timestamp format is the ISO format for UTC time [YYYY-MM-DDTHH:mm:ssZ].
     type: str
   auto_destroy_activity_duration:
     description:
@@ -140,11 +148,17 @@ options:
           - Defines if the project I(agent_pool) is inherited.
         type: bool
         default: false
-  force_delete:
+  lock_reason:
     description:
-      - Identifies if a workspace needs to be force deleted.
-      - It removes the specified workspace without checking whether it is managing resources.
-      - This works in conjunction with state `absent`.
+      - The reason for locking the workspace.
+      - This is only applicable with I(state) is C(locked).
+    type: str
+  force:
+    description:
+      - Determines if the specified operation should be forced.
+      - This parameter is applicable only with states C(unlocked) and C(absent).
+      - When set to C(True) with state C(absent), the module will attempt a force delete operation.
+      - When set to C(True) with state C(unlocked), the module will attempt a force unlock.
     type: bool
     default: false
 """
@@ -202,8 +216,25 @@ EXAMPLES = r"""
 - name: Force delete a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
-    force_delete: true
+    force: true
     state: absent
+  
+- name: Lock a workspace
+  hashicorp.terraform.workspace:
+    workspace_id: <your-workspace-id>
+    lock_reason: "your specific reason"
+    state: locked
+
+- name: Unlock a workspace
+  hashicorp.terraform.workspace:
+    workspace_id: <your-workspace-id>
+    state: unlocked
+
+- name: Force unlock a workspace
+  hashicorp.terraform.workspace:
+    workspace_id: <your-workspace-id>
+    force: true
+    state: unlocked
 """
 
 RETURN = r"""
