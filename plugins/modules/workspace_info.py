@@ -145,11 +145,11 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 
 def main() -> None:
     module = AnsibleTerraformModule(
-        argument_spec=dict(
-            workspace_id=dict(type="str"),
-            workspace_name=dict(type="str"),
-            organization_name=dict(type="str"),
-        ),
+        argument_spec={
+            "workspace_id": {"type": "str"},
+            "workspace_name": {"type": "str"},
+            "organization_name": {"type": "str"},
+        },
         supports_check_mode=True,
         mutually_exclusive=[
             ["workspace_id", "workspace_name"],
