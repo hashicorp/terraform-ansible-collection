@@ -13,7 +13,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 )
 
 
-def get_workspace(client: TerraformClient, organization: str, workspace_name: str) -> Dict[str, Any]:
+def get_workspace(client: TerraformClient, organization: str, workspace: str) -> Dict[str, Any]:
     """
     Retrieves a specified workspace from Terraform Cloud.
 
@@ -26,7 +26,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         client (TerraformClient): An authenticated client used to interact with
             the Terraform Cloud API.
         organization (str): The name of the Terraform Cloud organization.
-        workspace_name (str): The name of the workspace to retrieve.
+        workspace (str): The name of the workspace to retrieve.
 
     Returns:
         dict: A dictionary containing the workspace data (with an added "status" field)
@@ -35,7 +35,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
     Raises:
         TerraformError: If the request fails with a non-404 status code.
     """
-    response = client.get(f"/organizations/{organization}/workspaces/{workspace_name}")
+    response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
     response_data = response.get("data", {})
     response_status = response["status"]
 
