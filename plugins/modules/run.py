@@ -7,7 +7,7 @@
 
 DOCUMENTATION = r"""
 ---
-module: runs
+module: run
 version_added: "1.0.0"
 short_description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
 author: "Siddarth Sharma (@siddasha)"
@@ -103,7 +103,7 @@ options:
 
 EXAMPLES = r"""
     - name: Create a new Terraform run with auto-apply
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         workspace: "my-app-workspace"
         organization: "my-org"
         run_message: "Deploy new application version"
@@ -116,14 +116,14 @@ EXAMPLES = r"""
         state: "present"
 
     - name: Create a plan-only run for review
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         workspace_id: "ws-abc123def456"
         run_message: "Review infrastructure changes"
         plan_only: true
         state: "present"
 
     - name: Create a destroy run to remove resources
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         workspace: "staging-workspace"
         organization: "my-org"
         run_message: "Clean up staging environment"
@@ -132,19 +132,19 @@ EXAMPLES = r"""
         state: "present"
 
     - name: Apply an existing run
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         run_id: "run-abc123def456"
         state: "applied"
         poll: true
         poll_timeout: 300
 
     - name: Cancel a running Terraform operation
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         run_id: "run-abc123def456"
         state: "canceled"
 
     - name: Discard a planned run without applying
-      hashicorp.terraform.runs:
+      hashicorp.terraform.run:
         run_id: "run-abc123def456"
         state: "discarded"
 """
@@ -438,9 +438,9 @@ def main():
         required_together=[["workspace", "organization"]],
         required_if=[
             ("state", "present", ("workspace_id", "workspace"), True),
-            ("state", "applied", ("run_id"), True),
-            ("state", "discarded", ("run_id"), True),
-            ("state", "canceled", ("run_id"), True),
+            ("state", "applied", ("run_id",), True),
+            ("state", "discarded", ("run_id",), True),
+            ("state", "canceled", ("run_id",), True),
         ],
         supports_check_mode=True,
         mutually_exclusive=[
