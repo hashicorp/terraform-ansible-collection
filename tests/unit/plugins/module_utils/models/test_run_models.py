@@ -17,7 +17,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common 
     create_configuration_version_reference,
     create_workspace_reference,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.runs import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run import (
     RunAttributes,
     RunData,
     RunRelationships,
