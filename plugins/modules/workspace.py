@@ -218,7 +218,7 @@ EXAMPLES = r"""
     workspace_id: <your-workspace-id>
     force: true
     state: absent
-  
+
 - name: Lock a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
@@ -245,14 +245,14 @@ outputs:
   contains:
     attributes:
         type: dict
-        returned: always
-        description: The attributes of the workspace created.
+        returned: when state is 'present'
+        description: The attributes of the workspace created/updated.
     workspace_id:
       type: str
       returned: always
       description: ID of the workspace created/updated/deleted.
     msg:
       type: str
-      returned: when state is 'absent'
-      description: The successfull completion of delete.
+      returned: when state is 'absent'/'locked'/'unlocked'.
+      description: The status of the operation.
 """
