@@ -123,3 +123,77 @@ workspace:
           returned: always
           description: Web UI URL for this workspace.
 """
+
+
+from typing import Any, Dict, Optional
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace_info import (
+    get_workspace,
+    get_workspace_by_id,
+)
+
+
+def main() -> None:
+    module = AnsibleTerraformModule(
+        argument_spec=dict(
+            workspace_id=dict(type="str"),
+            workspace_name=dict(type="str"),
+            organization_name=dict(type="str"),
+        ),
+        mutually_exclusive=[
+            ["workspace_id", "workspace_name"],
+            ["workspace_id", "organization_name"],
+        ],
+        required_one_of=[
+            ["workspace_id", "workspace_name"],
+        ],
+        required_together=[
+            ["workspace_name", "organization_name"],
+        ],
+    )
+
+    workspace_id: Optional[str] = module.params.get("workspace_id")
+    workspace_name: Optional[str] = module.params.get("workspace_name")
+    organization_name: Optional[str] = module.params.get("organization_name")
+
+    try:
+        # Create the Terraform client
+        client: TerraformClient = TerraformClient(**module.params)
+
+        # Determine which method to use for workspace retrieval
+        workspace_data: Dict[str, Any]
+        if workspace_id:
+            # Retrieve workspace by ID
+            workspace_data = get_workspace_by_id(client, workspace_id)
+        else:
+            # Retrieve workspace by name and organization
+            workspace_data = get_workspace(client, organization_name, workspace_name)
+
+        # Check if workspace was found
+        if not workspace_data:
+            error_msg: str
+            if workspace_id:
+                error_msg = f"Workspace with ID '{workspace_id}' not found"
+            else:
+                error_msg = f"Workspace '{workspace_name}' not found in organization '{organization_name}'"
+            module.fail_json(msg=error_msg)
+
+        # Remove the status field from the response as it's internal
+        workspace_data.pop("status", None)
+
+        # Return the workspace information
+        module.exit_json(
+            changed=False,
+            workspace=workspace_data,
+        )
+
+    except Exception as e:
+        module.fail_from_exception(e)
+
+
+if __name__ == "__main__":
+    main()
