@@ -18,7 +18,7 @@ description:
   - This module retrieves information about a given workspace in Terraform Enterprise/Cloud.
   - It can be used to check if a workspace exists or to gather detailed information about it.
   - If I(workspace_id) is provided, the module will return information about that specific workspace.
-  - If I(workspace_name) and I(organization_name) are provided, the module will return information about the workspace \
+  - If I(workspace) and I(organization) are provided, the module will return information about the workspace \
     with that name in the specified organization.
   - If the workspace does not exist, the module will fail with an error message.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -26,18 +26,18 @@ options:
   workspace_id:
     description:
       - The unique identifier of the workspace to retrieve information about.
-      - Either I(workspace_id) or a combination of I(workspace_name) and I(organization_name) must be given to fetch workspace information.
+      - Either I(workspace_id) or a combination of I(workspace) and I(organization) must be given to fetch workspace information.
     type: str
-  workspace_name:
+  workspace:
     description:
       - The name of the workspace to retrieve information about.
-      - When this parameter is used, I(organization_name) must also be provided.
-      - Either a combination of I(workspace_name) and I(organization_name) or I(workspace_id) must be given to fetch workspace information.
+      - When this parameter is used, I(organization) must also be provided.
+      - Either a combination of I(workspace) and I(organization) or I(workspace_id) must be given to fetch workspace information.
     type: str
-  organization_name:
+  organization:
     description:
       - The name of the organization that contains the workspace.
-      - This parameter is required when I(workspace_name) is provided.
+      - This parameter is required when I(workspace) is provided.
     type: str
 """
 EXAMPLES = r"""
@@ -48,8 +48,8 @@ EXAMPLES = r"""
 
 - name: Gather information about a workspace by name and organization
   hashicorp.terraform.workspace_info:
-    workspace_name: "sample_workspace"
-    organization_name: "sample_organization"
+    workspace: "sample_workspace"
+    organization: "sample_organization"
   register: workspace_info
 
 # Example output from workspace_info task:
@@ -147,19 +147,19 @@ def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
             "workspace_id": {"type": "str"},
-            "workspace_name": {"type": "str"},
-            "organization_name": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
         },
         supports_check_mode=True,
         mutually_exclusive=[
-            ["workspace_id", "workspace_name"],
-            ["workspace_id", "organization_name"],
+            ["workspace_id", "workspace"],
+            ["workspace_id", "organization"],
         ],
         required_one_of=[
-            ["workspace_id", "workspace_name"],
+            ["workspace_id", "workspace"],
         ],
         required_together=[
-            ["workspace_name", "organization_name"],
+            ["workspace", "organization"],
         ],
     )
 
@@ -178,9 +178,9 @@ def main() -> None:
                 module.fail_json(msg=f"Workspace with ID '{params['workspace_id']}' not found")
         else:
             # Retrieve workspace by name and organization
-            workspace_data = get_workspace(client, params["organization_name"], params["workspace_name"])
+            workspace_data = get_workspace(client, params["organization"], params["workspace"])
             if not workspace_data:
-                module.fail_json(msg=f"Workspace '{params['workspace_name']}' not found in organization '{params['organization_name']}'")
+                module.fail_json(msg=f"Workspace '{params['workspace']}' not found in organization '{params['organization']}'")
 
         # Remove the status field from the response as it's internal
         workspace_data.pop("status", None)
