@@ -131,7 +131,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     TerraformClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace_info import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     get_workspace,
     get_workspace_by_id,
 )
