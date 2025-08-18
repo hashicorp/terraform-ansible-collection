@@ -72,7 +72,7 @@ class WorkspaceData(BaseModel):
 class WorkspaceRequest(BaseRequest[WorkspaceData]):
     """Model for the complete workspace request."""
 
-    def create_tag_bindings_reference(tag_bindings: Dict[str, str]) -> List[TagBindingResourceData]:
+    def create_tag_bindings_reference(self, tag_bindings: Dict[str, str]) -> List[TagBindingResourceData]:
         return [TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key=key, value=value)) for key, value in tag_bindings.items()]
 
     @classmethod

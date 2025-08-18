@@ -188,7 +188,7 @@ EXAMPLES = r"""
       execution_mode: true
       agent_pool: true
     auto_destroy_activity_duration: 14d
-    auto_destroy_at: 2025-08-10T15:00:00Z
+    auto_destroy_at: "2025-08-10T15:00:00Z"
     state: present
 
 - name: Update an existing workspace
@@ -259,6 +259,7 @@ outputs:
 
 
 from typing import TYPE_CHECKING
+from datetime import datetime
 
 from ansible.module_utils._text import to_text
 
@@ -589,6 +590,8 @@ def main():
             # either workspace_id or workspace MUST be provided when state is present
             # when a workspace is provided, organization must be given
             # we use both these to get the workspace_id which is required when creating configuration-versions
+            if params["auto_destroy_at"]:
+                datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
             if not params["workspace_id"]:
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
