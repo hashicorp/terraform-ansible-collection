@@ -260,8 +260,8 @@ outputs:
 
 from typing import TYPE_CHECKING
 from datetime import datetime
-
 from ansible.module_utils._text import to_text
+import q
 
 
 if TYPE_CHECKING:
@@ -280,9 +280,97 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     unlock_workspace,
     lock_workspace,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace, get_workspace_by_id
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace, get_workspace_by_id, get_tag_bindings, dict_diff
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 
+def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
+    """
+    Fetch actual tag key-value pairs for a workspace's tag bindings.
+
+    Args:
+        client_terraform: An instance of TerraformClient.
+        workspace_id (str): The workspace ID.
+
+    Returns:
+        Dict[str, str]: A mapping of tag keys to values.
+    """
+    response = get_tag_bindings(client_terraform, workspace_id)
+
+    if not response or "data" not in response:
+        return {}
+
+    tag_values = {}
+    for item in response["data"]:
+        if item.get("type") == "tag-bindings":
+            attributes = item.get("attributes", {})
+            key = attributes.get("key")
+            value = attributes.get("value")
+            if key is not None:
+                tag_values[key] = value
+
+    return tag_values
+
+
+def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
+    field_map = {
+        "new_workspace_name": "name",
+        "workspace": "name",  # fallback
+        "description": "description",
+        "allow_destroy_plan": "allow_destroy_plan",
+        "assessments_enabled": "assessments_enabled",
+        "auto_apply": "auto_apply",
+        "auto_apply_run_trigger": "auto_apply_run_trigger",
+        "auto_destroy_at": "auto_destroy_at",
+        "auto_destroy_activity_duration": "auto_destroy_activity_duration",
+        "terraform_version": "terraform_version",
+        "execution_mode": "execution_mode",
+        "source_name": "source_name",
+        "soruce_url": "soruce_url",
+        "agent_pool_id": "agent_pool_id",
+        "project_id": "project_id",
+        "tag_bindings": "tag_bindings",
+    }
+
+    want = {}
+    for param_key, api_key in field_map.items():
+        if param_key in params and params[param_key] is not None:
+            # name logic: prefer new_workspace_name over workspace
+            if api_key == "name":
+                want["name"] = params.get("new_workspace_name") or params.get("workspace")
+            else:
+                want[api_key] = params[param_key]
+    return want
+
+def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
+    auto_destroy_at_raw = response_data.get("attributes", {}).get("auto-destroy-at")
+    auto_destroy_at = auto_destroy_at_raw
+    if auto_destroy_at_raw:
+        try:
+            dt = datetime.strptime(auto_destroy_at_raw, "%Y-%m-%dT%H:%M:%S.%fZ")
+            auto_destroy_at = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            # if parsing fails, keep original value
+            pass
+    normalized = {
+        "name": response_data.get("attributes", {}).get("name"),
+        "description": response_data.get("attributes", {}).get("description"),
+        "allow_destroy_plan": response_data.get("attributes", {}).get("allow-destroy-plan"),
+        "assessments_enabled": response_data.get("attributes", {}).get("assessments-enabled"),
+        "auto_apply": response_data.get("attributes", {}).get("auto-apply"),
+        "auto_apply_run_trigger": response_data.get("attributes", {}).get("auto-apply-run-trigger"),
+        "auto_destroy_at": auto_destroy_at,
+        "auto_destroy_activity_duration": response_data.get("attributes", {}).get("auto-destroy-activity-duration"),
+        "terraform_version": response_data.get("attributes", {}).get("terraform-version"),
+        "execution_mode": response_data.get("attributes", {}).get("execution-mode"),
+        "source_name": response_data.get("attributes", {}).get("source-name"),
+        "soruce_url": response_data.get("attributes", {}).get("source-url"),
+        "agent_pool_id": response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id"),
+        "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id"),
+    }
+    # Include real tag bindings
+    tag_bindings = fetch_workspace_tag_bindings(client_terraform, workspace_id)
+    normalized["tag_bindings"] = tag_bindings
+    return {k: v for k, v in normalized.items() if v is not None}
 
 def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -356,9 +444,20 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         workspace_params["name"] = workspace_params.pop("workspace")
     workspace_id = workspace_params.pop("workspace_id")
     try:
-        workspace_exists(client_terraform, workspace_id)
+        workspace_response=workspace_exists(client_terraform, workspace_id)
     except ValueError as e:
         raise ValueError(f"Cannot update workspace. Reason: {e}")
+    have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
+    want = build_want_from_user_input(params)
+    have = {k: v for k, v in have.items() if k in want}
+    q(want)
+    q(have)
+    updates_response=dict_diff(have, want)
+    if not updates_response:
+        action_result.update(
+        {"changed": False, "msg": "No changes we encountered"},
+        )
+        return action_result
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
     workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
@@ -419,6 +518,7 @@ def workspace_exists(client_terraform: Any, workspace_id: str) -> None:
     workspace_response = get_workspace_by_id(client_terraform, workspace_id)
     if not workspace_response:
         raise ValueError(f"The workspace {workspace_id} was not found.")
+    return workspace_response
 
 
 def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -539,7 +639,6 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
         {"changed": True, "msg": "The workspace is locked successfully", **response["data"]},
     )
     return action_result
-
 
 def main():
     module = AnsibleTerraformModule(
