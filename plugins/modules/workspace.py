@@ -102,10 +102,12 @@ options:
   source_name:
     description:
       - A friendly name for the application or client creating this workspace.
+      - This is applicable only for creating workspaces.
     type: str
   source_url:
     description:
       - A URL for the application or client creating this workspace.
+      - This is applicable only for creating workspaces.
     type: str
   description:
     description:
@@ -261,7 +263,6 @@ outputs:
 from typing import TYPE_CHECKING
 from datetime import datetime
 from ansible.module_utils._text import to_text
-import q
 
 
 if TYPE_CHECKING:
@@ -324,8 +325,6 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
         "auto_destroy_activity_duration": "auto_destroy_activity_duration",
         "terraform_version": "terraform_version",
         "execution_mode": "execution_mode",
-        "source_name": "source_name",
-        "soruce_url": "soruce_url",
         "agent_pool_id": "agent_pool_id",
         "project_id": "project_id",
         "tag_bindings": "tag_bindings",
@@ -339,6 +338,7 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
                 want["name"] = params.get("new_workspace_name") or params.get("workspace")
             else:
                 want[api_key] = params[param_key]
+    q(want)
     return want
 
 def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
@@ -351,6 +351,10 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
         except ValueError:
             # if parsing fails, keep original value
             pass
+    execution_mode= response_data.get("attributes", {}).get("execution-mode")
+    agent_pool_id= None
+    if execution_mode == "agent":
+        agent_pool_id= response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id", None)
     normalized = {
         "name": response_data.get("attributes", {}).get("name"),
         "description": response_data.get("attributes", {}).get("description"),
@@ -361,11 +365,9 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
         "auto_destroy_at": auto_destroy_at,
         "auto_destroy_activity_duration": response_data.get("attributes", {}).get("auto-destroy-activity-duration"),
         "terraform_version": response_data.get("attributes", {}).get("terraform-version"),
-        "execution_mode": response_data.get("attributes", {}).get("execution-mode"),
-        "source_name": response_data.get("attributes", {}).get("source-name"),
-        "soruce_url": response_data.get("attributes", {}).get("source-url"),
-        "agent_pool_id": response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id"),
-        "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id"),
+        "execution_mode": execution_mode,
+        "agent_pool_id": agent_pool_id,
+        "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id", None),
     }
     # Include real tag bindings
     tag_bindings = fetch_workspace_tag_bindings(client_terraform, workspace_id)
@@ -433,6 +435,9 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         Any exceptions raised by the underlying Terraform client or request methods
         will propagate up to the caller.
     """
+    #remove source_name and source_url if present as they are not applicable for updateoperations
+    params.pop("source_name", None)
+    params.pop("source_url", None)
     action_result = {}
     ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
     workspace_params = params.copy()
@@ -450,8 +455,6 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
     want = build_want_from_user_input(params)
     have = {k: v for k, v in have.items() if k in want}
-    q(want)
-    q(have)
     updates_response=dict_diff(have, want)
     if not updates_response:
         action_result.update(
@@ -656,7 +659,7 @@ def main():
             auto_destroy_at=dict(type="str"),
             auto_destroy_activity_duration=dict(type="str"),
             source_name=dict(type="str"),
-            soruce_url=dict(type="str"),
+            source_url=dict(type="str"),
             description=dict(type="str"),
             terraform_version=dict(type="str"),
             execution_mode=dict(type="str"),
