@@ -264,7 +264,6 @@ from typing import TYPE_CHECKING
 from datetime import datetime
 from ansible.module_utils._text import to_text
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict
 
@@ -313,6 +312,23 @@ def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
 
 
 def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Constructs a dictionary representing the desired (target) state of a Terraform workspace 
+    from user-provided input parameters.
+
+    This function maps user-facing Ansible module parameters to the corresponding API field names
+    expected by Terraform Cloud's workspace API. It filters out any parameters that are not set 
+    (i.e., None) and handles precedence where applicable—for example, it prefers 'new_workspace_name'
+    over 'workspace' for the workspace name.
+
+    Args:
+        params (Dict[str, Any]): A dictionary of parameters passed by the Ansible module.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the filtered and mapped parameters
+                        ready to be sent in the API payload to represent the desired state.
+    """
+     
     field_map = {
         "new_workspace_name": "name",
         "workspace": "name",  # fallback
@@ -338,10 +354,28 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
                 want["name"] = params.get("new_workspace_name") or params.get("workspace")
             else:
                 want[api_key] = params[param_key]
-    q(want)
     return want
 
 def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
+    """
+    Normalizes the raw workspace API response into a simplified, structured dictionary 
+    representing the current state of a workspace.
+
+    This function extracts key attributes and relationships from the Terraform workspace 
+    API response and formats certain fields for consistency (e.g., converting the 
+    `auto-destroy-at` timestamp to a standard format). It also includes related data such 
+    as tag bindings and conditionally includes the agent pool ID if the execution mode is 'agent'.
+
+    Args:
+        response_data (dict): The raw JSON response from the workspace API.
+        client_terraform (Any): A client instance used to fetch additional workspace data 
+        workspace_id (str): The ID of the workspace whose data is being normalized.
+
+    Returns:
+        dict: A dictionary representing the normalized state of the workspace, excluding 
+              any fields that are `None`.
+    """
+
     auto_destroy_at_raw = response_data.get("attributes", {}).get("auto-destroy-at")
     auto_destroy_at = auto_destroy_at_raw
     if auto_destroy_at_raw:
@@ -369,7 +403,7 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
         "agent_pool_id": agent_pool_id,
         "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id", None),
     }
-    # Include real tag bindings
+    # Include tag bindings
     tag_bindings = fetch_workspace_tag_bindings(client_terraform, workspace_id)
     normalized["tag_bindings"] = tag_bindings
     return {k: v for k, v in normalized.items() if v is not None}
@@ -458,7 +492,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     updates_response=dict_diff(have, want)
     if not updates_response:
         action_result.update(
-        {"changed": False, "msg": "No changes we encountered"},
+        {"changed": False, "msg": "No changes were encountered"},
         )
         return action_result
     project_id = workspace_params.pop("project_id", None)
@@ -593,9 +627,15 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
     try:
-        workspace_exists(client_terraform, params["workspace_id"])
+        workspace_response=workspace_exists(client_terraform, params["workspace_id"])
     except ValueError as e:
         raise ValueError(f"The workspace could not be unlocked. Reason: {e}")
+    locked_status=workspace_response.get("data").get("attributes", {}).get("locked")
+    if not locked_status:
+        action_result.update(
+        {"changed": False, "msg": f"The workspace {params['workspace_id']} is already unlocked"},
+        )
+        return action_result
     if params["force"]:
         response = force_unlock_workspace(client_terraform, params["workspace_id"])
     elif not params["force"]:
@@ -634,9 +674,15 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
     try:
-        workspace_exists(client_terraform, params["workspace_id"])
+        workspace_response=workspace_exists(client_terraform, params["workspace_id"])
     except ValueError as e:
         raise ValueError(f"The workspace could not be locked. Reason: {e}")
+    locked_status=workspace_response.get("data").get("attributes", {}).get("locked")
+    if locked_status:
+        action_result.update(
+        {"changed": False, "msg": f"The workspace {params['workspace_id']} is already locked"},
+        )
+        return action_result
     response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
     action_result.update(
         {"changed": True, "msg": "The workspace is locked successfully", **response["data"]},
@@ -689,11 +735,11 @@ def main():
         client_terraform = TerraformClient(**module.params)
 
         if params["state"] == "present":
-            # either workspace_id or workspace MUST be provided when state is present
-            # when a workspace is provided, organization must be given
-            # we use both these to get the workspace_id which is required when creating configuration-versions
+            # validate the format of the timestamp
             if params["auto_destroy_at"]:
                 datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
+            # either workspace_id or workspace MUST be provided when state is present
+            # when a workspace is provided, organization must be given
             if not params["workspace_id"]:
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
@@ -710,6 +756,7 @@ def main():
                     params["workspace_id"] = workspace_id
                     action_result = workspace_update(client_terraform, params)
             else:
+                # if workspace_id is provided then update is triggered
                 action_result = workspace_update(client_terraform, params)
 
         elif params["state"] == "absent":
