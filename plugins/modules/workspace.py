@@ -318,7 +318,7 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = create_workspace(client_terraform, organization, workspace_payload)
     action_result.update(
-        {"changed": True, "msg": f"The workspace is created successfully ", **response["data"]},
+        {"changed": True, "msg": "The workspace is created successfully", **response["data"]},
     )
     return action_result
 
@@ -364,7 +364,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = update_workspace(client_terraform, workspace_id, workspace_payload)
     action_result.update(
-        {"changed": True, "msg": f"The workspace is updated successfully ", **response["data"]},
+        {"changed": True, "msg": "The workspace is updated successfully", **response["data"]},
     )
     return action_result
 
@@ -535,7 +535,7 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
         raise ValueError(f"The workspace could not be locked. Reason: {e}")
     response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
     action_result.update(
-        {"changed": True, "msg": f"The workspace is locked successfully ", **response["data"]},
+        {"changed": True, "msg": "The workspace is locked successfully", **response["data"]},
     )
     return action_result
 
