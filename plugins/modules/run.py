@@ -102,7 +102,7 @@ options:
 """
 
 EXAMPLES = r"""
-- name : Create a new Terraform run with auto-apply
+- name: Create a new Terraform run with auto-apply
   hashicorp.terraform.run:
     workspace: "my-app-workspace"
     organization: "my-org"
