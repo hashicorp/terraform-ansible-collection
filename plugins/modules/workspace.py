@@ -283,7 +283,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 
 
-def workspace_create(client_terraform: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Creates a new Terraform workspace using the provided client and parameters.
 
@@ -323,7 +323,7 @@ def workspace_create(client_terraform: TerraformClient, params: Dict[str, Any]) 
     return action_result
 
 
-def workspace_update(client_terraform: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Updates an existing Terraform workspace using the provided client and parameters.
 
@@ -369,7 +369,7 @@ def workspace_update(client_terraform: TerraformClient, params: Dict[str, Any]) 
     return action_result
 
 
-def get_workspace_id(client_terraform: TerraformClient, params: Dict[str, Any]) -> str:
+def get_workspace_id(client_terraform: Any, params: Dict[str, Any]) -> str:
     """
     Retrieves the ID of a Terraform workspace based on its name and organization.
 
@@ -398,7 +398,7 @@ def get_workspace_id(client_terraform: TerraformClient, params: Dict[str, Any]) 
     return workspace_id
 
 
-def workspace_exists(client_terraform: TerraformClient, workspace_id: str) -> None:
+def workspace_exists(client_terraform: Any, workspace_id: str) -> None:
     """
     Validates that a Terraform workspace exists by its ID.
 
@@ -420,7 +420,7 @@ def workspace_exists(client_terraform: TerraformClient, workspace_id: str) -> No
         raise ValueError(f"The workspace {workspace_id} was not found.")
 
 
-def workspace_delete(client_terraform: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Deletes a Terraform workspace using either a safe or force delete method.
 
@@ -453,17 +453,17 @@ def workspace_delete(client_terraform: TerraformClient, params: Dict[str, Any]) 
         raise ValueError(f"The workspace could not be deleted. Reason: {e}")
     if params["force_delete"]:
         force_delete_workspace(client_terraform, params["workspace_id"])
-        msg = f"Configuration version {params["workspace_id"]} force deleted successfully."
+        msg = f"Configuration version {params['workspace_id']} force deleted successfully."
         action_result["changed"] = True
     else:
         safe_delete_workspace(client_terraform, params["workspace_id"])
-        msg = f"Configuration version {params["workspace_id"]} safe deleted successfully."
+        msg = f"Configuration version {params['workspace_id']} safe deleted successfully."
         action_result["changed"] = True
     action_result["msg"] = msg
     return action_result
 
 
-def workspace_unlock(client_terraform: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def workspace_unlock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Unlocks a Terraform workspace, either forcefully or gracefully depending on the provided parameters.
 
@@ -497,12 +497,12 @@ def workspace_unlock(client_terraform: TerraformClient, params: Dict[str, Any]) 
     elif not params["force"]:
         response = unlock_workspace(client_terraform, params["workspace_id"])
     action_result.update(
-        {"changed": True, "msg": f"Workspace {params["workspace_id"]} unlocked successfully.", **response["data"]},
+        {"changed": True, "msg": f"Workspace {params['workspace_id']} unlocked successfully.", **response["data"]},
     )
     return action_result
 
 
-def workspace_lock(client_terraform: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Locks a Terraform workspace.
 
