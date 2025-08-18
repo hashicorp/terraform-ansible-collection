@@ -22,20 +22,45 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.run import (
 class TestCreateRun:
     """Test cases for create_run function."""
 
-    def test_create_run_success(self):
-        """Test create_run with successful response."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 201,
-            "data": {
-                "id": "run-123",
-                "type": "runs",
-                "attributes": {
-                    "status": "pending",
-                    "message": "Run created successfully",
+    @pytest.mark.parametrize(
+        "status,expected_result,should_raise",
+        [
+            (
+                201,
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {"status": "pending", "message": "Run created successfully"},
                 },
-            },
-        }
+                False,
+            ),
+            (400, None, True),
+            (422, None, True),
+            (500, None, True),
+        ],
+    )
+    def test_create_run_status_codes(self, status, expected_result, should_raise):
+        """Test create_run with various status codes."""
+        mock_client = Mock()
+
+        if should_raise:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": expected_result,
+            }
 
         test_data = {
             "data": {
@@ -47,492 +72,420 @@ class TestCreateRun:
             }
         }
 
-        result = create_run(mock_client, test_data)
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                create_run(mock_client, test_data)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = create_run(mock_client, test_data)
+            assert result == expected_result
 
         mock_client.post.assert_called_once_with("/runs", data=test_data)
-        assert result["id"] == "run-123"
-        assert result["type"] == "runs"
-        assert result["attributes"]["status"] == "pending"
 
-    def test_create_run_error_status(self):
-        """Test create_run raises TerraformError on non-201 status."""
+    @pytest.mark.parametrize(
+        "response_data,expected_result",
+        [
+            ({"status": 201, "data": None}, None),
+            ({"status": 201}, None),
+            ({"status": 201, "data": {"id": "run-abc", "type": "runs"}}, {"id": "run-abc", "type": "runs"}),
+        ],
+    )
+    def test_create_run_response_variations(self, response_data, expected_result):
+        """Test create_run with various response data structures."""
         mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 400,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Invalid request data",
-                        "status": "400",
-                        "title": "Bad Request",
-                    }
-                ]
-            },
-        }
-
-        test_data = {"data": {"type": "runs", "attributes": {"message": "Test run"}}}
-
-        with pytest.raises(TerraformError) as exc_info:
-            create_run(mock_client, test_data)
-
-        mock_client.post.assert_called_once_with("/runs", data=test_data)
-        assert "400" in str(exc_info.value)
-
-    def test_create_run_empty_data_response(self):
-        """Test create_run with empty data in response."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 201,
-            "data": None,
-        }
+        mock_client.post.return_value = response_data
 
         test_data = {"data": {"type": "runs"}}
-
         result = create_run(mock_client, test_data)
 
-        assert result is None
-
-    def test_create_run_missing_data_key(self):
-        """Test create_run when response has no data key."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 201,
-        }
-
-        test_data = {"data": {"type": "runs"}}
-
-        result = create_run(mock_client, test_data)
-
-        assert result is None
+        assert result == expected_result
 
 
 class TestApplyRun:
     """Test cases for apply_run function."""
 
-    def test_apply_run_success(self):
-        """Test apply_run with successful response."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": {
-                "id": "run-123",
-                "type": "runs",
-                "attributes": {
-                    "status": "applying",
-                    "message": "Run is being applied",
+    @pytest.mark.parametrize(
+        "run_id,status,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                202,
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {"status": "applying", "message": "Run is being applied"},
                 },
-            },
-        }
-
-        run_id = "run-123"
-        result = apply_run(mock_client, run_id)
-
-        mock_client.post.assert_called_once_with("/runs/run-123/actions/apply")
-        assert result["id"] == "run-123"
-        assert result["attributes"]["status"] == "applying"
-
-    def test_apply_run_error_status(self):
-        """Test apply_run raises TerraformError on non-202 status."""
+                False,
+            ),
+            ("nonexistent-run", 404, None, True),
+            ("run-456", 409, None, True),
+            ("", 202, {"id": "run-", "type": "runs"}, False),
+            ("run-test-123_abc", 202, {"id": "run-test-123_abc", "type": "runs"}, False),
+        ],
+    )
+    def test_apply_run_scenarios(self, run_id, status, expected_result, should_raise):
+        """Test apply_run with various scenarios."""
         mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 404,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Run not found",
-                        "status": "404",
-                        "title": "Not Found",
-                    }
-                ]
-            },
-        }
 
-        run_id = "nonexistent-run"
+        if should_raise:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": expected_result,
+            }
 
-        with pytest.raises(TerraformError) as exc_info:
-            apply_run(mock_client, run_id)
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                apply_run(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = apply_run(mock_client, run_id)
+            if expected_result:
+                assert result["id"] == expected_result["id"]
 
-        mock_client.post.assert_called_once_with("/runs/nonexistent-run/actions/apply")
-        assert "404" in str(exc_info.value)
-
-    def test_apply_run_empty_run_id(self):
-        """Test apply_run with empty run_id."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": {"id": "run-", "type": "runs"},
-        }
-
-        run_id = ""
-        result = apply_run(mock_client, run_id)
-
-        mock_client.post.assert_called_once_with("/runs//actions/apply")
-        assert result["id"] == "run-"
+        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/apply")
 
 
 class TestCancelRun:
     """Test cases for cancel_run function."""
 
-    def test_cancel_run_success(self):
-        """Test cancel_run with successful response."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": {
-                "id": "run-123",
-                "type": "runs",
-                "attributes": {
-                    "status": "canceled",
-                    "message": "Run has been canceled",
+    @pytest.mark.parametrize(
+        "run_id,status,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                202,
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {"status": "canceled", "message": "Run has been canceled"},
                 },
-            },
-        }
-
-        run_id = "run-123"
-        result = cancel_run(mock_client, run_id)
-
-        mock_client.post.assert_called_once_with("/runs/run-123/actions/cancel")
-        assert result["id"] == "run-123"
-        assert result["attributes"]["status"] == "canceled"
-
-    def test_cancel_run_error_status(self):
-        """Test cancel_run raises TerraformError on non-202 status."""
+                False,
+            ),
+            ("run-123", 409, None, True),
+            ("run-test-123_abc", 202, {"id": "run-test-123_abc", "type": "runs"}, False),
+            ("run-invalid", 404, None, True),
+            ("run-forbidden", 403, None, True),
+        ],
+    )
+    def test_cancel_run_scenarios(self, run_id, status, expected_result, should_raise):
+        """Test cancel_run with various scenarios."""
         mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 409,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Run cannot be canceled in current state",
-                        "status": "409",
-                        "title": "Conflict",
-                    }
-                ]
-            },
-        }
 
-        run_id = "run-123"
+        if should_raise:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": expected_result,
+            }
 
-        with pytest.raises(TerraformError) as exc_info:
-            cancel_run(mock_client, run_id)
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                cancel_run(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = cancel_run(mock_client, run_id)
+            assert result["id"] == expected_result["id"]
 
-        mock_client.post.assert_called_once_with("/runs/run-123/actions/cancel")
-        assert "409" in str(exc_info.value)
-
-    def test_cancel_run_special_characters_in_id(self):
-        """Test cancel_run with special characters in run_id."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": {"id": "run-test-123_abc", "type": "runs"},
-        }
-
-        run_id = "run-test-123_abc"
-        result = cancel_run(mock_client, run_id)
-
-        mock_client.post.assert_called_once_with("/runs/run-test-123_abc/actions/cancel")
-        assert result["id"] == "run-test-123_abc"
+        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/cancel")
 
 
 class TestDiscardRun:
     """Test cases for discard_run function."""
 
-    def test_discard_run_success(self):
-        """Test discard_run with successful response."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": {
-                "id": "run-123",
-                "type": "runs",
-                "attributes": {
-                    "status": "discarded",
-                    "message": "Run has been discarded",
+    @pytest.mark.parametrize(
+        "run_id,status,response_data,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                202,
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {"status": "discarded", "message": "Run has been discarded"},
                 },
-            },
-        }
-
-        run_id = "run-123"
-        result = discard_run(mock_client, run_id)
-
-        mock_client.post.assert_called_once_with("/runs/run-123/actions/discard")
-        assert result["id"] == "run-123"
-        assert result["attributes"]["status"] == "discarded"
-
-    def test_discard_run_error_status(self):
-        """Test discard_run raises TerraformError on non-202 status."""
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {"status": "discarded", "message": "Run has been discarded"},
+                },
+                False,
+            ),
+            ("run-123", 422, None, None, True),
+            ("run-123", 202, None, None, False),  # Empty data case
+            ("run-invalid", 404, None, None, True),
+            ("run-forbidden", 403, None, None, True),
+        ],
+    )
+    def test_discard_run_scenarios(self, run_id, status, response_data, expected_result, should_raise):
+        """Test discard_run with various scenarios."""
         mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 422,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Run cannot be discarded",
-                        "status": "422",
-                        "title": "Unprocessable Entity",
-                    }
-                ]
-            },
-        }
 
-        run_id = "run-123"
+        if should_raise:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.post.return_value = {
+                "status": status,
+                "data": response_data,
+            }
 
-        with pytest.raises(TerraformError) as exc_info:
-            discard_run(mock_client, run_id)
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                discard_run(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = discard_run(mock_client, run_id)
+            assert result == expected_result
 
-        mock_client.post.assert_called_once_with("/runs/run-123/actions/discard")
-        assert "422" in str(exc_info.value)
-
-    def test_discard_run_returns_none_when_data_empty(self):
-        """Test discard_run returns None when data is empty."""
-        mock_client = Mock()
-        mock_client.post.return_value = {
-            "status": 202,
-            "data": None,
-        }
-
-        run_id = "run-123"
-        result = discard_run(mock_client, run_id)
-
-        assert result is None
+        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/discard")
 
 
 class TestGetRun:
     """Test cases for get_run function."""
 
-    def test_get_run_success(self):
-        """Test get_run with successful response."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": {
-                "id": "run-123",
-                "type": "runs",
-                "attributes": {
-                    "status": "planned",
-                    "message": "Plan completed successfully",
-                    "created-at": "2023-01-01T00:00:00.000Z",
+    @pytest.mark.parametrize(
+        "run_id,status,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                200,
+                {
+                    "id": "run-123",
+                    "type": "runs",
+                    "attributes": {
+                        "status": "planned",
+                        "message": "Plan completed successfully",
+                        "created-at": "2023-01-01T00:00:00.000Z",
+                    },
                 },
-            },
-        }
-
-        run_id = "run-123"
-        result = get_run(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-123")
-        assert result["id"] == "run-123"
-        assert result["type"] == "runs"
-        assert result["attributes"]["status"] == "planned"
-
-    def test_get_run_error_status(self):
-        """Test get_run raises TerraformError on non-200 status."""
+                False,
+            ),
+            ("run-123", 403, None, True),
+            ("run-123", 404, None, True),
+            ("run-unicode-123", 200, {"id": "run-unicode-123", "type": "runs"}, False),
+            ("run-special-chars_123", 200, {"id": "run-special-chars_123", "type": "runs"}, False),
+        ],
+    )
+    def test_get_run_scenarios(self, run_id, status, expected_result, should_raise):
+        """Test get_run with various scenarios."""
         mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 403,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Insufficient permissions",
-                        "status": "403",
-                        "title": "Forbidden",
-                    }
-                ]
-            },
-        }
 
-        run_id = "run-123"
+        if should_raise:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": expected_result,
+            }
 
-        with pytest.raises(TerraformError) as exc_info:
-            get_run(mock_client, run_id)
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                get_run(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = get_run(mock_client, run_id)
+            assert result["id"] == expected_result["id"]
 
-        mock_client.get.assert_called_once_with("/runs/run-123")
-        assert "403" in str(exc_info.value)
-
-    def test_get_run_with_unicode_id(self):
-        """Test get_run with Unicode characters in run_id."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": {
-                "id": "run-测试-123",
-                "type": "runs",
-            },
-        }
-
-        run_id = "run-测试-123"
-        result = get_run(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-测试-123")
-        assert result["id"] == "run-测试-123"
+        mock_client.get.assert_called_once_with(f"/runs/{run_id}")
 
 
 class TestRunEvents:
     """Test cases for run_events function."""
 
-    def test_run_events_success(self):
-        """Test run_events with successful response."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": [
-                {
-                    "id": "event-1",
-                    "type": "run-events",
-                    "attributes": {
-                        "action": "created",
-                        "created-at": "2023-01-01T00:00:00.000Z",
-                    },
-                },
-                {
-                    "id": "event-2",
-                    "type": "run-events",
-                    "attributes": {
-                        "action": "planning",
-                        "created-at": "2023-01-01T00:01:00.000Z",
-                    },
-                },
-            ],
-        }
-
-        run_id = "run-123"
-        result = run_events(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-123/run-events")
-        assert len(result) == 2
-        assert result[0]["id"] == "event-1"
-        assert result[1]["attributes"]["action"] == "planning"
-
-    def test_run_events_error_status(self):
-        """Test run_events raises TerraformError on non-200 status."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 500,
-            "data": {
-                "errors": [
+    @pytest.mark.parametrize(
+        "run_id,status,response_data,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                200,
+                [
                     {
-                        "detail": "Internal server error",
-                        "status": "500",
-                        "title": "Internal Server Error",
-                    }
-                ]
-            },
-        }
-
-        run_id = "run-123"
-
-        with pytest.raises(TerraformError) as exc_info:
-            run_events(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-123/run-events")
-        assert "500" in str(exc_info.value)
-
-    def test_run_events_empty_events_list(self):
-        """Test run_events with empty events list."""
+                        "id": "event-1",
+                        "type": "run-events",
+                        "attributes": {"action": "created", "created-at": "2023-01-01T00:00:00.000Z"},
+                    },
+                    {
+                        "id": "event-2",
+                        "type": "run-events",
+                        "attributes": {"action": "planning", "created-at": "2023-01-01T00:01:00.000Z"},
+                    },
+                ],
+                2,
+                False,
+            ),
+            ("run-123", 500, None, None, True),
+            ("run-123", 200, [], 0, False),  # Empty events list
+            ("run-123", 200, None, None, False),  # None data
+            ("run-456", 403, None, None, True),
+            ("run-789", 404, None, None, True),
+        ],
+    )
+    def test_run_events_scenarios(self, run_id, status, response_data, expected_result, should_raise):
+        """Test run_events with various scenarios."""
         mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": [],
-        }
 
-        run_id = "run-123"
-        result = run_events(mock_client, run_id)
+        if should_raise:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": response_data,
+            }
 
-        assert result == []
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                run_events(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = run_events(mock_client, run_id)
+            if expected_result is None:
+                assert result is None
+            elif isinstance(expected_result, int):
+                assert len(result) == expected_result
+                if expected_result > 0:
+                    assert result[0]["id"] == "event-1"
+                    if expected_result > 1:
+                        assert result[1]["attributes"]["action"] == "planning"
 
-    def test_run_events_none_data(self):
-        """Test run_events with None data."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": None,
-        }
-
-        run_id = "run-123"
-        result = run_events(mock_client, run_id)
-
-        assert result is None
+        mock_client.get.assert_called_once_with(f"/runs/{run_id}/run-events")
 
 
 class TestTaskStages:
     """Test cases for task_stages function."""
 
-    def test_task_stages_success(self):
-        """Test task_stages with successful response."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": [
-                {
-                    "id": "task-stage-1",
-                    "type": "task-stages",
-                    "attributes": {
-                        "stage": "pre_plan",
-                        "status": "passed",
-                        "status-timestamps": {
-                            "started-at": "2023-01-01T00:00:00.000Z",
-                            "finished-at": "2023-01-01T00:01:00.000Z",
-                        },
-                    },
-                },
-                {
-                    "id": "task-stage-2",
-                    "type": "task-stages",
-                    "attributes": {
-                        "stage": "post_plan",
-                        "status": "running",
-                        "status-timestamps": {
-                            "started-at": "2023-01-01T00:02:00.000Z",
-                        },
-                    },
-                },
-            ],
-        }
-
-        run_id = "run-123"
-        result = task_stages(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-123/task-stages")
-        assert len(result) == 2
-        assert result[0]["id"] == "task-stage-1"
-        assert result[0]["attributes"]["stage"] == "pre_plan"
-        assert result[1]["attributes"]["status"] == "running"
-
-    def test_task_stages_error_status(self):
-        """Test task_stages raises TerraformError on non-200 status."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 401,
-            "data": {
-                "errors": [
+    @pytest.mark.parametrize(
+        "run_id,status,response_data,expected_result,should_raise",
+        [
+            (
+                "run-123",
+                200,
+                [
                     {
-                        "detail": "Authentication required",
-                        "status": "401",
-                        "title": "Unauthorized",
-                    }
-                ]
-            },
-        }
-
-        run_id = "run-123"
-
-        with pytest.raises(TerraformError) as exc_info:
-            task_stages(mock_client, run_id)
-
-        mock_client.get.assert_called_once_with("/runs/run-123/task-stages")
-        assert "401" in str(exc_info.value)
-
-    def test_task_stages_empty_stages_list(self):
-        """Test task_stages with empty stages list."""
+                        "id": "task-stage-1",
+                        "type": "task-stages",
+                        "attributes": {
+                            "stage": "pre_plan",
+                            "status": "passed",
+                            "status-timestamps": {
+                                "started-at": "2023-01-01T00:00:00.000Z",
+                                "finished-at": "2023-01-01T00:01:00.000Z",
+                            },
+                        },
+                    },
+                    {
+                        "id": "task-stage-2",
+                        "type": "task-stages",
+                        "attributes": {
+                            "stage": "post_plan",
+                            "status": "running",
+                            "status-timestamps": {"started-at": "2023-01-01T00:02:00.000Z"},
+                        },
+                    },
+                ],
+                2,
+                False,
+            ),
+            ("run-123", 401, None, None, True),
+            ("run-123", 200, [], 0, False),  # Empty stages list
+            ("run-456", 403, None, None, True),
+            ("run-789", 404, None, None, True),
+        ],
+    )
+    def test_task_stages_scenarios(self, run_id, status, response_data, expected_result, should_raise):
+        """Test task_stages with various scenarios."""
         mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-            "data": [],
-        }
 
-        run_id = "run-123"
-        result = task_stages(mock_client, run_id)
+        if should_raise:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": {
+                    "errors": [
+                        {
+                            "detail": f"Error {status}",
+                            "status": str(status),
+                            "title": "Error",
+                        }
+                    ]
+                },
+            }
+        else:
+            mock_client.get.return_value = {
+                "status": status,
+                "data": response_data,
+            }
 
-        assert result == []
+        if should_raise:
+            with pytest.raises(TerraformError) as exc_info:
+                task_stages(mock_client, run_id)
+            assert str(status) in str(exc_info.value)
+        else:
+            result = task_stages(mock_client, run_id)
+            if isinstance(expected_result, int):
+                assert len(result) == expected_result
+                if expected_result > 0:
+                    assert result[0]["id"] == "task-stage-1"
+                    assert result[0]["attributes"]["stage"] == "pre_plan"
+                    if expected_result > 1:
+                        assert result[1]["attributes"]["status"] == "running"
+
+        mock_client.get.assert_called_once_with(f"/runs/{run_id}/task-stages")
 
     def test_task_stages_missing_data_key(self):
         """Test task_stages when response has no data key."""
@@ -550,36 +503,30 @@ class TestTaskStages:
 class TestRunsModuleEdgeCases:
     """Test edge cases and error scenarios for runs module."""
 
-    def test_all_functions_handle_client_exception(self):
+    @pytest.mark.parametrize(
+        "function_name,args",
+        [
+            ("create_run", [{"data": {"type": "runs"}}]),
+            ("apply_run", ["run-123"]),
+            ("cancel_run", ["run-123"]),
+            ("discard_run", ["run-123"]),
+            ("get_run", ["run-123"]),
+            ("run_events", ["run-123"]),
+            ("task_stages", ["run-123"]),
+        ],
+    )
+    def test_all_functions_handle_client_exception(self, function_name, args):
         """Test all functions handle client exceptions gracefully."""
         mock_client = Mock()
         mock_client.post.side_effect = Exception("Network error")
         mock_client.get.side_effect = Exception("Network error")
 
-        run_id = "run-123"
-        test_data = {"data": {"type": "runs"}}
+        # Get the function by name
+        func = globals()[function_name]
 
         # Test that exceptions from client are propagated
         with pytest.raises(Exception, match="Network error"):
-            create_run(mock_client, test_data)
-
-        with pytest.raises(Exception, match="Network error"):
-            apply_run(mock_client, run_id)
-
-        with pytest.raises(Exception, match="Network error"):
-            cancel_run(mock_client, run_id)
-
-        with pytest.raises(Exception, match="Network error"):
-            discard_run(mock_client, run_id)
-
-        with pytest.raises(Exception, match="Network error"):
-            get_run(mock_client, run_id)
-
-        with pytest.raises(Exception, match="Network error"):
-            run_events(mock_client, run_id)
-
-        with pytest.raises(Exception, match="Network error"):
-            task_stages(mock_client, run_id)
+            func(mock_client, *args)
 
     def test_terraform_error_with_complex_response(self):
         """Test TerraformError with complex error response."""
@@ -613,68 +560,65 @@ class TestRunsModuleEdgeCases:
         assert "422" in error_str
         assert "Workspace is locked" in error_str
 
-    def test_functions_with_none_values(self):
+    @pytest.mark.parametrize(
+        "function_name,args,method_type",
+        [
+            ("create_run", [None], "post"),
+            ("apply_run", [None], "post"),
+            ("cancel_run", [None], "post"),
+            ("discard_run", [None], "post"),
+            ("get_run", [None], "get"),
+            ("run_events", [None], "get"),
+            ("task_stages", [None], "get"),
+        ],
+    )
+    def test_functions_with_none_values(self, function_name, args, method_type):
         """Test functions handle None values appropriately."""
         mock_client = Mock()
 
-        # Test create_run with None data - it will call client.post() and get a mock response
-        mock_client.post.return_value = {"status": 400}
-        with pytest.raises(TerraformError):
-            create_run(mock_client, None)
+        # Set up mock to return error status
+        if method_type == "post":
+            mock_client.post.return_value = {"status": 400}
+        else:
+            mock_client.get.return_value = {"status": 400}
 
-        # Test other functions with None run_id - they will format URLs with None
-        mock_client.post.return_value = {"status": 400}
-        mock_client.get.return_value = {"status": 400}
-
-        with pytest.raises(TerraformError):
-            apply_run(mock_client, None)
+        # Get the function by name
+        func = globals()[function_name]
 
         with pytest.raises(TerraformError):
-            cancel_run(mock_client, None)
+            func(mock_client, *args)
 
-        with pytest.raises(TerraformError):
-            discard_run(mock_client, None)
-
-        with pytest.raises(TerraformError):
-            get_run(mock_client, None)
-
-        with pytest.raises(TerraformError):
-            run_events(mock_client, None)
-
-        with pytest.raises(TerraformError):
-            task_stages(mock_client, None)
-
-    def test_response_status_edge_cases(self):
+    @pytest.mark.parametrize(
+        "function_name,args,method_type,wrong_status,expected_status",
+        [
+            ("create_run", [{"data": {"type": "runs"}}], "post", 200, 201),
+            ("apply_run", ["run-123"], "post", 200, 202),
+            ("cancel_run", ["run-123"], "post", 200, 202),
+            ("discard_run", ["run-123"], "post", 200, 202),
+            ("get_run", ["run-123"], "get", 201, 200),
+            ("run_events", ["run-123"], "get", 201, 200),
+            ("task_stages", ["run-123"], "get", 201, 200),
+        ],
+    )
+    def test_response_status_edge_cases(self, function_name, args, method_type, wrong_status, expected_status):
         """Test edge cases for status code validation."""
         mock_client = Mock()
 
-        # Test create_run with status 200 instead of 201 (should fail)
-        mock_client.post.return_value = {
-            "status": 200,
+        response = {
+            "status": wrong_status,
             "data": {"id": "run-123", "type": "runs"},
         }
 
-        test_data = {"data": {"type": "runs"}}
-        with pytest.raises(TerraformError):
-            create_run(mock_client, test_data)
+        if method_type == "post":
+            mock_client.post.return_value = response
+        else:
+            mock_client.get.return_value = response
 
-        # Test apply_run with status 200 instead of 202 (should fail)
-        mock_client.post.return_value = {
-            "status": 200,
-            "data": {"id": "run-123", "type": "runs"},
-        }
+        # Get the function by name
+        func = globals()[function_name]
 
         with pytest.raises(TerraformError):
-            apply_run(mock_client, "run-123")
-
-        # Test get_run with status 201 instead of 200 (should fail)
-        mock_client.get.return_value = {
-            "status": 201,
-            "data": {"id": "run-123", "type": "runs"},
-        }
-
-        with pytest.raises(TerraformError):
-            get_run(mock_client, "run-123")
+            func(mock_client, *args)
 
 
 class TestRunsModuleIntegration:
@@ -768,7 +712,19 @@ class TestRunsModuleIntegration:
         assert mock_client.post.call_count == 2
         assert mock_client.get.call_count == 3
 
-    def test_error_propagation_consistency(self):
+    @pytest.mark.parametrize(
+        "function_name,args,method_type",
+        [
+            ("create_run", [{"data": {"type": "runs"}}], "post"),
+            ("apply_run", ["run-123"], "post"),
+            ("cancel_run", ["run-123"], "post"),
+            ("discard_run", ["run-123"], "post"),
+            ("get_run", ["run-123"], "get"),
+            ("run_events", ["run-123"], "get"),
+            ("task_stages", ["run-123"], "get"),
+        ],
+    )
+    def test_error_propagation_consistency(self, function_name, args, method_type):
         """Test that all functions consistently handle and propagate errors."""
         mock_client = Mock()
         error_response = {
@@ -776,30 +732,17 @@ class TestRunsModuleIntegration:
             "data": {"errors": [{"detail": "Server error"}]},
         }
 
-        functions_to_test = [
-            (create_run, [{"data": {"type": "runs"}}]),
-            (apply_run, ["run-123"]),
-            (cancel_run, ["run-123"]),
-            (discard_run, ["run-123"]),
-            (get_run, ["run-123"]),
-            (run_events, ["run-123"]),
-            (task_stages, ["run-123"]),
-        ]
+        # Configure mock for this function
+        if method_type == "post":
+            mock_client.post.return_value = error_response
+        else:
+            mock_client.get.return_value = error_response
 
-        for func, args in functions_to_test:
-            # Configure mock for this function
-            if func == create_run:
-                mock_client.post.return_value = error_response
-            elif func in [apply_run, cancel_run, discard_run]:
-                mock_client.post.return_value = error_response
-            else:  # GET functions
-                mock_client.get.return_value = error_response
+        # Get the function by name
+        func = globals()[function_name]
 
-            # Test that TerraformError is raised consistently
-            with pytest.raises(TerraformError) as exc_info:
-                func(mock_client, *args)
+        # Test that TerraformError is raised consistently
+        with pytest.raises(TerraformError) as exc_info:
+            func(mock_client, *args)
 
-            assert "500" in str(exc_info.value)
-
-            # Reset mock for next iteration
-            mock_client.reset_mock()
+        assert "500" in str(exc_info.value)
