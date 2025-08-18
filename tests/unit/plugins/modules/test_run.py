@@ -60,9 +60,7 @@ class TestWaitForState:
     )
     @patch("time.sleep")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
-    def test_wait_for_state_final_states(
-        self, mock_get_run, mock_sleep, run_id, final_status, expected_state, is_success, is_failure
-    ):
+    def test_wait_for_state_final_states(self, mock_get_run, mock_sleep, run_id, final_status, expected_state, is_success, is_failure):
         """Test wait_for_state with various final states."""
         mock_client = Mock()
 
@@ -164,9 +162,7 @@ class TestHandlePollingAndResult:
             expected_run_id = custom_run_id or "run-123"
             expected_timeout = poll_timeout or 25
             expected_interval = poll_interval or 5
-            mock_wait_for_state.assert_called_once_with(
-                mock_client, expected_run_id, expected_timeout, expected_interval
-            )
+            mock_wait_for_state.assert_called_once_with(mock_client, expected_run_id, expected_timeout, expected_interval)
         else:
             mock_wait_for_state.assert_not_called()
 
@@ -305,9 +301,7 @@ class TestStateActions:
         mock_client = Mock()
 
         # Mock the specific action function
-        with patch(
-            f"ansible_collections.hashicorp.terraform.plugins.modules.run.{action_function_name}"
-        ) as mock_action:
+        with patch(f"ansible_collections.hashicorp.terraform.plugins.modules.run.{action_function_name}") as mock_action:
             mock_action.return_value = {"data": {"id": "run-123"}}
             mock_handle_polling.return_value = {"changed": True, "id": "run-123"}
 
@@ -320,21 +314,15 @@ class TestStateActions:
 
                 assert result["changed"] is True
                 mock_action.assert_called_once_with(mock_client, "run-123")
-                mock_handle_polling.assert_called_once_with(
-                    mock_client, mock_action.return_value, default_poll, "run-123"
-                )
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, default_poll, "run-123")
 
     @pytest.mark.parametrize("poll_value", [True, False])
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
-    def test_state_action_poll_parameter(
-        self, mock_handle_polling, state_function_name, action_function_name, default_poll, poll_value
-    ):
+    def test_state_action_poll_parameter(self, mock_handle_polling, state_function_name, action_function_name, default_poll, poll_value):
         """Test state action functions with different poll values."""
         mock_client = Mock()
 
-        with patch(
-            f"ansible_collections.hashicorp.terraform.plugins.modules.run.{action_function_name}"
-        ) as mock_action:
+        with patch(f"ansible_collections.hashicorp.terraform.plugins.modules.run.{action_function_name}") as mock_action:
             mock_action.return_value = {"data": {"id": "run-456"}}
             mock_handle_polling.return_value = {"changed": True, "id": "run-456"}
 
@@ -346,9 +334,7 @@ class TestStateActions:
                 result = state_func(mock_client, run_id="run-456", poll=poll_value)
 
                 assert result["changed"] is True
-                mock_handle_polling.assert_called_once_with(
-                    mock_client, mock_action.return_value, poll_value, "run-456"
-                )
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, poll_value, "run-456")
 
 
 class TestGetWorkspaceId:
@@ -375,9 +361,7 @@ class TestGetWorkspaceId:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_workspace")
-    def test_get_workspace_id_scenarios(
-        self, mock_get_workspace, workspace_name, organization, workspace_response, expected_result, should_raise
-    ):
+    def test_get_workspace_id_scenarios(self, mock_get_workspace, workspace_name, organization, workspace_response, expected_result, should_raise):
         """Test get_workspace_id with various scenarios."""
         mock_client = Mock()
         mock_get_workspace.return_value = workspace_response
@@ -441,9 +425,7 @@ class TestMainFunction:
         mock_client_instance = Mock()
         mock_tf_client.return_value = mock_client_instance
 
-        with patch(
-            f"ansible_collections.hashicorp.terraform.plugins.modules.run.{state_function_name}"
-        ) as mock_state_func:
+        with patch(f"ansible_collections.hashicorp.terraform.plugins.modules.run.{state_function_name}") as mock_state_func:
             mock_state_func.return_value = {"changed": True, "id": "run-123"}
 
             with pytest.raises(SystemExit):
@@ -456,9 +438,7 @@ class TestMainFunction:
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.state_present")
-    def test_main_state_present_with_workspace_name(
-        self, mock_state_present, mock_get_workspace_id, mock_tf_client, mock_module_class
-    ):
+    def test_main_state_present_with_workspace_name(self, mock_state_present, mock_get_workspace_id, mock_tf_client, mock_module_class):
         """Test main function with state=present and workspace name provided."""
         mock_module = EnhancedDummyModule(
             {
@@ -597,9 +577,7 @@ class TestRunsModuleIntegration:
                     mock_wait.return_value = ("success", {"data": {"id": "run-123", "status": "applied"}})
 
                     # Execute the workflow
-                    result = state_present(
-                        mock_client, workspace_id="ws-123", message="Test run", auto_apply=True, poll=True
-                    )
+                    result = state_present(mock_client, workspace_id="ws-123", message="Test run", auto_apply=True, poll=True)
 
                     # Verify the complete flow
                     assert result["changed"] is True
@@ -612,9 +590,7 @@ class TestRunsModuleIntegration:
         mock_client = Mock()
 
         # Test that all state functions can handle exceptions from their dependencies
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.run.create_run", side_effect=Exception("API Error")
-        ):
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.create_run", side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 state_present(mock_client, workspace_id="ws-123")
 
@@ -653,9 +629,7 @@ class TestRunsModuleEdgeCases:
         with patch("time.sleep") as mock_sleep:
             with patch("time.time", side_effect=[0, 20, 100]):  # Simulate timeout after one iteration
                 with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
-                    with patch(
-                        "ansible_collections.hashicorp.terraform.plugins.modules.run.RunStates"
-                    ) as mock_run_states:
+                    with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.RunStates") as mock_run_states:
                         mock_get_run.return_value = {"data": {"attributes": {"status": "pending"}}}
                         mock_run_states.is_success_state.return_value = False
                         mock_run_states.is_failure_state.return_value = False
