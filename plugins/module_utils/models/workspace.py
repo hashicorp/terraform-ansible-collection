@@ -5,8 +5,9 @@ This module contains models specifically for run-related API operations.
 
 from typing import Dict, List, Literal, Optional
 
+
 try:
-    from pydantic import BaseModel, Field, StrictBool, StrictStr, ConfigDict
+    from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 
     HAS_PYDANTIC = True
 except ImportError:

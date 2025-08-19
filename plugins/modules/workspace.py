@@ -260,9 +260,11 @@ outputs:
 """
 
 
-from typing import TYPE_CHECKING
 from datetime import datetime
+from typing import TYPE_CHECKING
+
 from ansible.module_utils._text import to_text
+
 
 if TYPE_CHECKING:
     from typing import Any, Dict
@@ -271,17 +273,20 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     TerraformClient,
 )
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     create_workspace,
+    dict_diff,
     force_delete_workspace,
-    safe_delete_workspace,
-    update_workspace,
     force_unlock_workspace,
-    unlock_workspace,
+    get_tag_bindings,
+    get_workspace,
+    get_workspace_by_id,
     lock_workspace,
+    safe_delete_workspace,
+    unlock_workspace,
+    update_workspace,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace, get_workspace_by_id, get_tag_bindings, dict_diff
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 
 
 def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
