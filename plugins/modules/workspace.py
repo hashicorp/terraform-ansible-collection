@@ -102,12 +102,12 @@ options:
   source_name:
     description:
       - A friendly name for the application or client creating this workspace.
-      - This is applicable only for creating workspaces.
+      - This parameter is applicable only for creating new workspaces.
     type: str
   source_url:
     description:
       - A URL for the application or client creating this workspace.
-      - This is applicable only for creating workspaces.
+      - This parameter is applicable only for creating new workspaces.
     type: str
   description:
     description:
@@ -133,7 +133,7 @@ options:
     type: str
   tag_bindings:
     description:
-      - The tags to attach to the workspace.
+      - The tags to be bound to the workspace.
     type: dict
   setting_overwrites:
     description:
@@ -289,6 +289,9 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 )
 
 
+IGNORE_LIST = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
+
+
 def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
     """
     Fetch actual tag key-value pairs for a workspace's tag bindings.
@@ -394,7 +397,8 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     """
 
     action_result = {}
-    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state", "lock_reson", "force"]
+    ignore_list = ["force"]
+    ignore_list.extend(IGNORE_LIST)
     workspace_params = params.copy()
     # pop unwanted values
     for value in ignore_list:
@@ -441,17 +445,12 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     action_result = {}
     # pop unwanted values
     ignore_list = [
-        "tf_hostname",
-        "tf_token",
-        "tf_timeout",
-        "tf_max_retries",
-        "tf_validate_certs",
-        "check_mode",
-        "state",
         "lock_reason",
         "force",
         "organization",
     ]
+    ignore_list.extend(IGNORE_LIST)
+    q(ignore_list)
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
