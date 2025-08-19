@@ -4,6 +4,8 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 
+import time
+
 from datetime import datetime
 
 import pytest
@@ -43,84 +45,225 @@ class TestRunAttributes:
         assert attrs.run_message is None
         assert attrs.auto_apply is None
 
-    def test_run_attributes_creation_full(self):
-        """Test creating RunAttributes with all fields."""
+    @pytest.mark.parametrize(
+        "attribute_values,expected_values",
+        [
+            # Full configuration test case 1
+            (
+                {
+                    "run_message": "Test run message",
+                    "refresh_only": True,
+                    "plan_only": False,
+                    "auto_apply": True,
+                    "save_plan": False,
+                    "is_destroy": False,
+                    "target_addrs": ["module.vpc", "module.ec2"],
+                    "refresh": True,
+                    "variables": {"env": "production", "region": "us-west-2"},
+                },
+                {
+                    "run_message": "Test run message",
+                    "refresh_only": True,
+                    "plan_only": False,
+                    "auto_apply": True,
+                    "save_plan": False,
+                    "is_destroy": False,
+                    "target_addrs": ["module.vpc", "module.ec2"],
+                    "refresh": True,
+                    "variables": {"env": "production", "region": "us-west-2"},
+                },
+            ),
+            # Full configuration test case 2 - opposite boolean values
+            (
+                {
+                    "run_message": "Destroy run",
+                    "refresh_only": False,
+                    "plan_only": True,
+                    "auto_apply": False,
+                    "save_plan": True,
+                    "is_destroy": True,
+                    "target_addrs": ["module.database"],
+                    "refresh": False,
+                    "variables": {"env": "staging"},
+                },
+                {
+                    "run_message": "Destroy run",
+                    "refresh_only": False,
+                    "plan_only": True,
+                    "auto_apply": False,
+                    "save_plan": True,
+                    "is_destroy": True,
+                    "target_addrs": ["module.database"],
+                    "refresh": False,
+                    "variables": {"env": "staging"},
+                },
+            ),
+            # Empty collections
+            (
+                {
+                    "run_message": "Empty collections test",
+                    "target_addrs": [],
+                    "variables": {},
+                },
+                {
+                    "run_message": "Empty collections test",
+                    "target_addrs": [],
+                    "variables": {},
+                },
+            ),
+            # Special characters and unicode
+            (
+                {
+                    "run_message": "Test with émojis 🚀 and spëcial chars: @#$%",
+                    "target_addrs": ["module.test-with_special.chars"],
+                    "variables": {"unicode_key_こんにちは": "unicode_value_世界"},
+                },
+                {
+                    "run_message": "Test with émojis 🚀 and spëcial chars: @#$%",
+                    "target_addrs": ["module.test-with_special.chars"],
+                    "variables": {"unicode_key_こんにちは": "unicode_value_世界"},
+                },
+            ),
+        ],
+    )
+    def test_run_attributes_creation_full(self, attribute_values, expected_values):
+        """Test creating RunAttributes with various full configurations."""
         now = datetime.now()
-        attrs = RunAttributes(
-            created_at=now,
-            updated_at=now,
-            run_message="Test run message",
-            refresh_only=True,
-            plan_only=False,
-            auto_apply=True,
-            save_plan=False,
-            is_destroy=False,
-            target_addrs=["module.vpc", "module.ec2"],
-            refresh=True,
-            variables={"env": "production", "region": "us-west-2"},
-        )
+        attrs = RunAttributes(created_at=now, updated_at=now, **attribute_values)
 
         assert attrs.created_at == now
         assert attrs.updated_at == now
-        assert attrs.run_message == "Test run message"
-        assert attrs.refresh_only is True
-        assert attrs.plan_only is False
-        assert attrs.auto_apply is True
-        assert attrs.save_plan is False
-        assert attrs.is_destroy is False
-        assert attrs.target_addrs == ["module.vpc", "module.ec2"]
-        assert attrs.refresh is True
-        assert attrs.variables == {"env": "production", "region": "us-west-2"}
 
-    def test_run_attributes_field_aliases(self):
-        """Test RunAttributes field aliases."""
-        data = {
-            "message": "Test message",
-            "refresh-only": True,
-            "plan-only": False,
-            "auto-apply": True,
-            "save-plan": False,
-            "is-destroy": True,
-            "target-addrs": ["module.test"],
-            "created-at": "2023-01-01T00:00:00Z",
-            "updated-at": "2023-01-02T00:00:00Z",
-        }
+        for key, expected_value in expected_values.items():
+            actual_value = getattr(attrs, key)
+            assert actual_value == expected_value, f"Expected {key}={expected_value}, got {actual_value}"
 
-        attrs = RunAttributes.model_validate(data)
+    @pytest.mark.parametrize(
+        "alias_data,expected_values",
+        [
+            # Standard alias test
+            (
+                {
+                    "message": "Test message",
+                    "refresh-only": True,
+                    "plan-only": False,
+                    "auto-apply": True,
+                    "save-plan": False,
+                    "is-destroy": True,
+                    "target-addrs": ["module.test"],
+                    "created-at": "2023-01-01T00:00:00Z",
+                    "updated-at": "2023-01-02T00:00:00Z",
+                },
+                {
+                    "run_message": "Test message",
+                    "refresh_only": True,
+                    "plan_only": False,
+                    "auto_apply": True,
+                    "save_plan": False,
+                    "is_destroy": True,
+                    "target_addrs": ["module.test"],
+                },
+            ),
+            # Minimal alias test
+            (
+                {
+                    "message": "Minimal test",
+                    "auto-apply": False,
+                },
+                {
+                    "run_message": "Minimal test",
+                    "auto_apply": False,
+                },
+            ),
+            # New fields test
+            (
+                {
+                    "message": "Extended test",
+                    "replace-addrs": ["module.to_replace"],
+                    "allow-empty-apply": True,
+                    "allow-config-generation": False,
+                    "debugging-mode": True,
+                    "terraform-version": "1.5.0",
+                },
+                {
+                    "run_message": "Extended test",
+                    "replace_addrs": ["module.to_replace"],
+                    "allow_empty_apply": True,
+                    "allow_config_generation": False,
+                    "debugging_mode": True,
+                    "terraform_version": "1.5.0",
+                },
+            ),
+        ],
+    )
+    def test_run_attributes_field_aliases(self, alias_data, expected_values):
+        """Test RunAttributes field aliases with various configurations."""
+        attrs = RunAttributes.model_validate(alias_data)
 
-        assert attrs.run_message == "Test message"
-        assert attrs.refresh_only is True
-        assert attrs.plan_only is False
-        assert attrs.auto_apply is True
-        assert attrs.save_plan is False
-        assert attrs.is_destroy is True
-        assert attrs.target_addrs == ["module.test"]
-        assert attrs.created_at is not None
-        assert attrs.updated_at is not None
+        for field_name, expected_value in expected_values.items():
+            actual_value = getattr(attrs, field_name)
+            assert actual_value == expected_value, f"Expected {field_name}={expected_value}, got {actual_value}"
 
-    def test_run_attributes_serialization_with_aliases(self):
-        """Test RunAttributes serialization uses field aliases."""
-        attrs = RunAttributes(
-            run_message="Test message",
-            refresh_only=True,
-            auto_apply=True,
-            is_destroy=False,
-            target_addrs=["module.test"],
-        )
+        # Check timestamp fields if present
+        if "created-at" in alias_data:
+            assert attrs.created_at is not None
+        if "updated-at" in alias_data:
+            assert attrs.updated_at is not None
 
+    @pytest.mark.parametrize(
+        "attrs_data,expected_aliases,excluded_fields",
+        [
+            # Basic serialization test
+            (
+                {
+                    "run_message": "Test message",
+                    "refresh_only": True,
+                    "auto_apply": True,
+                    "is_destroy": False,
+                    "target_addrs": ["module.test"],
+                },
+                {
+                    "message": "Test message",
+                    "refresh-only": True,
+                    "auto-apply": True,
+                    "is-destroy": False,
+                    "target-addrs": ["module.test"],
+                },
+                ["refresh_only", "auto_apply", "is_destroy", "target_addrs"],
+            ),
+            # Extended fields serialization test
+            (
+                {
+                    "run_message": "Extended test",
+                    "replace_addrs": ["module.replace"],
+                    "allow_empty_apply": True,
+                    "debugging_mode": False,
+                    "terraform_version": "1.6.0",
+                },
+                {
+                    "message": "Extended test",
+                    "replace-addrs": ["module.replace"],
+                    "allow-empty-apply": True,
+                    "debugging-mode": False,
+                    "terraform-version": "1.6.0",
+                },
+                ["replace_addrs", "allow_empty_apply", "debugging_mode", "terraform_version"],
+            ),
+        ],
+    )
+    def test_run_attributes_serialization_with_aliases(self, attrs_data, expected_aliases, excluded_fields):
+        """Test RunAttributes serialization uses field aliases with various configurations."""
+        attrs = RunAttributes(**attrs_data)
         data = attrs.model_dump(by_alias=True, exclude_unset=True)
 
-        assert data["message"] == "Test message"
-        assert data["refresh-only"] is True
-        assert data["auto-apply"] is True
-        assert data["is-destroy"] is False
-        assert data["target-addrs"] == ["module.test"]
+        # Check expected aliases are present
+        for alias_key, expected_value in expected_aliases.items():
+            assert alias_key in data, f"Expected alias '{alias_key}' not found in serialized data"
+            assert data[alias_key] == expected_value, f"Expected {alias_key}={expected_value}, got {data[alias_key]}"
 
-        # Should not contain underscore versions
-        assert "refresh_only" not in data
-        assert "auto_apply" not in data
-        assert "is_destroy" not in data
-        assert "target_addrs" not in data
+        # Check underscore versions are not present
+        for field_name in excluded_fields:
+            assert field_name not in data, f"Underscore field '{field_name}' should not be in serialized data"
 
     def test_run_attributes_inheritance(self):
         """Test RunAttributes inherits from BaseAttributes."""
@@ -357,9 +500,9 @@ class TestRunRequest:
 class TestRunStates:
     """Test cases for RunStates utility class."""
 
-    def test_success_states(self):
-        """Test success state recognition."""
-        success_states = [
+    @pytest.mark.parametrize(
+        "state",
+        [
             "planned",
             "planned_and_finished",
             "planned_and_saved",
@@ -370,43 +513,63 @@ class TestRunStates:
             "policy_override",
             "post_plan_completed",
             "post_plan_awaiting_decision",
-        ]
+        ],
+    )
+    def test_success_states(self, state):
+        """Test success state recognition for all success states."""
+        assert RunStates.is_success_state(state), f"State '{state}' should be success state"
+        assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
+        assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
+        assert RunStates.is_final_state(state), f"State '{state}' should be final state"
 
-        for state in success_states:
-            assert RunStates.is_success_state(state), f"State '{state}' should be success state"
-            assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
-            assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
-            assert RunStates.is_final_state(state), f"State '{state}' should be final state"
+    @pytest.mark.parametrize(
+        "state",
+        [
+            "errored",
+            "policy_soft_failed",
+        ],
+    )
+    def test_failure_states(self, state):
+        """Test failure state recognition for all failure states."""
+        assert RunStates.is_failure_state(state), f"State '{state}' should be failure state"
+        assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
+        assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
+        assert RunStates.is_final_state(state), f"State '{state}' should be final state"
 
-    def test_failure_states(self):
-        """Test failure state recognition."""
-        failure_states = ["errored", "policy_soft_failed"]
+    @pytest.mark.parametrize(
+        "state",
+        [
+            "plan_queued",
+            "queuing",
+            "planning",
+            "applying",
+        ],
+    )
+    def test_intermediate_states(self, state):
+        """Test intermediate state recognition for all intermediate states."""
+        assert RunStates.is_intermediate_state(state), f"State '{state}' should be intermediate state"
+        assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
+        assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
+        assert not RunStates.is_final_state(state), f"State '{state}' should not be final state"
 
-        for state in failure_states:
-            assert RunStates.is_failure_state(state), f"State '{state}' should be failure state"
-            assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
-            assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
-            assert RunStates.is_final_state(state), f"State '{state}' should be final state"
-
-    def test_intermediate_states(self):
-        """Test intermediate state recognition."""
-        intermediate_states = ["plan_queued", "queuing", "planning", "applying"]
-
-        for state in intermediate_states:
-            assert RunStates.is_intermediate_state(state), f"State '{state}' should be intermediate state"
-            assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
-            assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
-            assert not RunStates.is_final_state(state), f"State '{state}' should not be final state"
-
-    def test_unknown_states(self):
-        """Test unknown state handling."""
-        unknown_states = ["unknown", "custom_state", "", "pending"]
-
-        for state in unknown_states:
-            assert not RunStates.is_success_state(state), f"Unknown state '{state}' should not be success"
-            assert not RunStates.is_failure_state(state), f"Unknown state '{state}' should not be failure"
-            assert not RunStates.is_intermediate_state(state), f"Unknown state '{state}' should not be intermediate"
-            assert not RunStates.is_final_state(state), f"Unknown state '{state}' should not be final"
+    @pytest.mark.parametrize(
+        "state",
+        [
+            "unknown",
+            "custom_state",
+            "",
+            "pending",
+            "new_future_state",
+            "PLANNED",  # Case sensitivity test
+            "applied_with_typo",
+        ],
+    )
+    def test_unknown_states(self, state):
+        """Test unknown state handling for various unknown states."""
+        assert not RunStates.is_success_state(state), f"Unknown state '{state}' should not be success"
+        assert not RunStates.is_failure_state(state), f"Unknown state '{state}' should not be failure"
+        assert not RunStates.is_intermediate_state(state), f"Unknown state '{state}' should not be intermediate"
+        assert not RunStates.is_final_state(state), f"Unknown state '{state}' should not be final"
 
     def test_state_constants(self):
         """Test state constant lists."""
@@ -513,40 +676,246 @@ class TestCreateRunRequest:
 class TestRunsModelsEdgeCases:
     """Test edge cases and error scenarios."""
 
-    def test_run_attributes_with_empty_lists(self):
-        """Test RunAttributes with empty target_addrs list."""
-        attrs = RunAttributes(target_addrs=[])
-        assert attrs.target_addrs == []
+    @pytest.mark.parametrize(
+        "list_value,expected",
+        [
+            ([], []),
+            (["module.single"], ["module.single"]),
+            (["module.a", "module.b", "module.c"], ["module.a", "module.b", "module.c"]),
+            (None, None),
+        ],
+    )
+    def test_run_attributes_with_list_fields(self, list_value, expected):
+        """Test RunAttributes with various list field configurations."""
+        attrs = RunAttributes(
+            target_addrs=list_value,
+            replace_addrs=list_value,
+        )
+        assert attrs.target_addrs == expected
+        assert attrs.replace_addrs == expected
 
-    def test_run_attributes_with_none_variables(self):
-        """Test RunAttributes with None variables."""
-        attrs = RunAttributes(variables=None)
-        assert attrs.variables is None
+    @pytest.mark.parametrize(
+        "variables_value,expected",
+        [
+            (None, None),
+            ({}, {}),
+            ({"key": "value"}, {"key": "value"}),
+            ({"env": "prod", "debug": True, "count": 42}, {"env": "prod", "debug": True, "count": 42}),
+            ({"unicode_こんにちは": "value_世界"}, {"unicode_こんにちは": "value_世界"}),
+        ],
+    )
+    def test_run_attributes_with_variables(self, variables_value, expected):
+        """Test RunAttributes with various variable configurations."""
+        attrs = RunAttributes(variables=variables_value)
+        assert attrs.variables == expected
 
-    def test_run_attributes_with_empty_variables(self):
-        """Test RunAttributes with empty variables dict."""
-        attrs = RunAttributes(variables={})
-        assert attrs.variables == {}
-
-    def test_run_request_with_special_characters_in_message(self):
-        """Test RunRequest with special characters in message."""
-        special_message = "Deploy 🚀 with émojis & spëcial chars: @#$%^&*()"
+    @pytest.mark.parametrize(
+        "special_message",
+        [
+            "Deploy 🚀 with émojis & spëcial chars: @#$%^&*()",
+            "Multi-line\nmessage\nwith\ntabs\t\t",
+            "Message with 'single' and \"double\" quotes",
+            "Very long message: " + "x" * 1000,
+            "",  # Empty message
+            'Message with JSON: {"key": "value", "array": [1, 2, 3]}',
+        ],
+    )
+    def test_run_request_with_special_characters_in_message(self, special_message):
+        """Test RunRequest with various special characters and edge cases in message."""
         request = RunRequest.create(workspace_id="ws-special", run_message=special_message)
-
         assert request.data.attributes.run_message == special_message
 
-    def test_run_relationships_with_missing_data(self):
-        """Test RunRelationships with relationships missing data."""
-        rels = RunRelationships(workspace=Relationship(links={"self": "/api/v2/workspaces/ws-123"}))
+    @pytest.mark.parametrize(
+        "links_config",
+        [
+            {"self": "/api/v2/workspaces/ws-123"},
+            {"related": "/api/v2/workspaces/ws-123/runs"},
+            {"custom": "/custom/endpoint"},
+            {},  # Empty links
+        ],
+    )
+    def test_run_relationships_with_missing_data(self, links_config):
+        """Test RunRelationships with various link configurations but missing data."""
+        rels = RunRelationships(workspace=Relationship(links=links_config))
 
         assert rels.workspace.data is None
-        assert rels.workspace.links["self"] == "/api/v2/workspaces/ws-123"
+        assert rels.workspace.links == links_config
 
-    def test_run_data_with_invalid_type(self):
-        """Test RunData validation with invalid type."""
+        for key, value in links_config.items():
+            assert rels.workspace.links[key] == value
+
+    def test_run_data_type_immutability(self):
+        """Test RunData type field behavior and immutability."""
         attrs = RunAttributes()
         rels = RunRelationships()
 
-        # Try to create with invalid type (not literal "runs")
+        # Type should default to "runs"
         data = RunData(attributes=attrs, relationships=rels)
-        assert data.type == "runs"  # Should default to "runs"
+        assert data.type == "runs"
+
+        # Type should be literal "runs" even if explicitly set
+        data_explicit = RunData(attributes=attrs, relationships=rels, type="runs")
+        assert data_explicit.type == "runs"
+
+    @pytest.mark.parametrize(
+        "boolean_field,test_values",
+        [
+            ("auto_apply", [True, False, None]),
+            ("plan_only", [True, False, None]),
+            ("is_destroy", [True, False, None]),
+            ("refresh_only", [True, False, None]),
+            ("save_plan", [True, False, None]),
+            ("refresh", [True, False, None]),
+            ("allow_empty_apply", [True, False, None]),
+            ("allow_config_generation", [True, False, None]),
+            ("debugging_mode", [True, False, None]),
+        ],
+    )
+    def test_run_attributes_boolean_fields(self, boolean_field, test_values):
+        """Test RunAttributes boolean fields with various values."""
+        for value in test_values:
+            attrs = RunAttributes(**{boolean_field: value})
+            assert getattr(attrs, boolean_field) == value
+
+
+class TestRunModelsPerformance:
+    """Test performance characteristics of run models."""
+
+    def test_run_request_creation_performance(self):
+        """Test performance of RunRequest creation with large data."""
+        start_time = time.time()
+
+        # Create many run requests
+        requests = []
+        for i in range(100):
+            request = RunRequest.create(
+                workspace_id=f"ws-{i}",
+                run_message=f"Performance test run {i}",
+                auto_apply=i % 2 == 0,
+                target_addrs=[f"module.test_{j}" for j in range(10)],
+                variables={f"var_{j}": f"value_{j}" for j in range(5)},
+            )
+            requests.append(request)
+
+        end_time = time.time()
+
+        assert len(requests) == 100
+        # Should complete in reasonable time (less than 2 seconds)
+        assert (end_time - start_time) < 2.0
+
+        # Verify some random requests
+        assert requests[0].data.attributes.run_message == "Performance test run 0"
+        assert requests[50].data.relationships.workspace.data.id == "ws-50"
+
+    def test_run_attributes_large_data_handling(self):
+        """Test RunAttributes with large data sets."""
+        # Large target addresses list
+        large_target_addrs = [f"module.target_{i}" for i in range(1000)]
+
+        # Large variables dictionary
+        large_variables = {f"var_{i}": f"value_{i}" * 10 for i in range(100)}
+
+        start_time = time.time()
+
+        attrs = RunAttributes(
+            run_message="Large data test",
+            target_addrs=large_target_addrs,
+            variables=large_variables,
+        )
+
+        # Test serialization
+        data = attrs.model_dump(by_alias=True)
+
+        end_time = time.time()
+
+        assert len(attrs.target_addrs) == 1000
+        assert len(attrs.variables) == 100
+        assert data["target-addrs"] == large_target_addrs
+        assert data["variables"] == large_variables
+
+        # Should complete in reasonable time
+        assert (end_time - start_time) < 1.0
+
+
+class TestRunModelsIntegration:
+    """Integration tests for run models working together."""
+
+    def test_complete_run_workflow_simulation(self):
+        """Test a complete run workflow with all models working together."""
+        # Step 1: Create a run request
+        request = RunRequest.create(
+            workspace_id="ws-integration-test",
+            configuration_version_id="cv-integration-test",
+            run_message="Integration test run",
+            auto_apply=False,
+            plan_only=True,
+            target_addrs=["module.vpc", "module.security_group"],
+            variables={"environment": "test", "region": "us-east-1"},
+        )
+
+        # Verify request structure
+        assert request.data.type == "runs"
+        assert request.data.attributes.run_message == "Integration test run"
+        assert request.data.relationships.workspace.data.id == "ws-integration-test"
+        assert request.data.relationships.configuration_version.data.id == "cv-integration-test"
+
+        # Step 2: Simulate API response structure
+        response_attrs = RunAttributes(
+            run_message="Integration test run",
+            auto_apply=False,
+            plan_only=True,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+        response_rels = RunRelationships(
+            workspace=Relationship(data=create_workspace_reference("ws-integration-test")),
+            configuration_version=Relationship(data=create_configuration_version_reference("cv-integration-test")),
+        )
+
+        run_resource = RunResource(
+            id="run-integration-test",
+            type="runs",
+            attributes=response_attrs,
+            relationships=response_rels,
+        )
+
+        # Step 3: Test state transitions
+        states_to_test = ["plan_queued", "planning", "planned"]
+        for state in states_to_test:
+            if RunStates.is_intermediate_state(state):
+                assert not RunStates.is_final_state(state)
+            elif RunStates.is_success_state(state):
+                assert RunStates.is_final_state(state)
+
+        # Verify final response structure
+        assert run_resource.id == "run-integration-test"
+        assert run_resource.attributes.run_message == "Integration test run"
+        assert run_resource.relationships.workspace.data.type == "workspaces"
+
+    @pytest.mark.parametrize(
+        "factory_function,workspace_id,expected_type",
+        [
+            (RunRequest.create, "ws-factory-1", "runs"),
+            (create_run_request, "ws-factory-2", "runs"),
+        ],
+    )
+    def test_factory_functions_consistency(self, factory_function, workspace_id, expected_type):
+        """Test that different factory functions produce consistent results."""
+        request1 = factory_function(
+            workspace_id=workspace_id,
+            message="Factory test",
+            auto_apply=True,
+        )
+
+        request2 = factory_function(
+            workspace_id=workspace_id,
+            run_message="Factory test",  # Alternative parameter name
+            auto_apply=True,
+        )
+
+        # Both should produce valid requests
+        assert request1.data.type == expected_type
+        assert request2.data.type == expected_type
+        assert request1.data.relationships.workspace.data.id == workspace_id
+        assert request2.data.relationships.workspace.data.id == workspace_id
