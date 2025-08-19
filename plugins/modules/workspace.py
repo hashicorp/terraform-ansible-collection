@@ -312,53 +312,6 @@ def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
     return tag_values
 
 
-def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Constructs a dictionary representing the desired (target) state of a Terraform workspace
-    from user-provided input parameters.
-
-    This function maps user-facing Ansible module parameters to the corresponding API field names
-    expected by Terraform Cloud's workspace API. It filters out any parameters that are not set
-    (i.e., None) and handles precedence where applicable—for example, it prefers 'new_workspace_name'
-    over 'workspace' for the workspace name.
-
-    Args:
-        params (Dict[str, Any]): A dictionary of parameters passed by the Ansible module.
-
-    Returns:
-        Dict[str, Any]: A dictionary containing the filtered and mapped parameters
-                        ready to be sent in the API payload to represent the desired state.
-    """
-
-    field_map = {
-        "new_workspace_name": "name",
-        "workspace": "name",  # fallback
-        "description": "description",
-        "allow_destroy_plan": "allow_destroy_plan",
-        "assessments_enabled": "assessments_enabled",
-        "auto_apply": "auto_apply",
-        "auto_apply_run_trigger": "auto_apply_run_trigger",
-        "auto_destroy_at": "auto_destroy_at",
-        "auto_destroy_activity_duration": "auto_destroy_activity_duration",
-        "terraform_version": "terraform_version",
-        "execution_mode": "execution_mode",
-        "agent_pool_id": "agent_pool_id",
-        "project_id": "project_id",
-        "tag_bindings": "tag_bindings",
-        "setting_overwrites": "setting_overwrites",
-    }
-
-    want = {}
-    for param_key, api_key in field_map.items():
-        if param_key in params and params[param_key] is not None:
-            # name logic: prefer new_workspace_name over workspace
-            if api_key == "name":
-                want["name"] = params.get("new_workspace_name") or params.get("workspace")
-            else:
-                want[api_key] = params[param_key]
-    return want
-
-
 def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
     """
     Normalizes the raw workspace API response into a simplified, structured dictionary
@@ -436,7 +389,7 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     """
 
     action_result = {}
-    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
+    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state", "lock_reson", "force"]
     workspace_params = params.copy()
     # pop unwanted values
     for value in ignore_list:
@@ -482,7 +435,18 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     params.pop("source_url", None)
     action_result = {}
     # pop unwanted values
-    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
+    ignore_list = [
+        "tf_hostname",
+        "tf_token",
+        "tf_timeout",
+        "tf_max_retries",
+        "tf_validate_certs",
+        "check_mode",
+        "state",
+        "lock_reason",
+        "force",
+        "organization",
+    ]
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
@@ -499,7 +463,9 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     # the keys and their corresponding values the workspace already has
     have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
     # the keys input by the user
-    want = build_want_from_user_input(params)
+    want = workspace_params.copy()
+    have = {k: v for k, v in have.items() if v is not None}
+    want = {k: v for k, v in want.items() if v is not None}
     # removing excessive keys from have to match it to want
     have = {k: v for k, v in have.items() if k in want}
     updates_response = dict_diff(have, want)
@@ -603,7 +569,7 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         workspace_details(client_terraform, params["workspace_id"])
     except ValueError as e:
         raise ValueError(f"The delete operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
-    if params["force_delete"]:
+    if params["force"]:
         force_delete_workspace(client_terraform, params["workspace_id"])
         msg = f"Configuration version {params['workspace_id']} force deleted successfully."
         action_result["changed"] = True

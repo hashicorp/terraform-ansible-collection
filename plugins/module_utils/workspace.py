@@ -9,6 +9,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 )
 from ansible.module_utils.six import iteritems
 
+
 def get_workspace(client: TerraformClient, organization: str, workspace_name: str):
     """
     Retrieves a specified workspace from Terraform Cloud.
@@ -86,6 +87,7 @@ def get_workspace_by_id(client: TerraformClient, workspace_id: str):
         # A failure status code was received when attempting to fetch the specified configuration version
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
+
 
 def get_tag_bindings(client: TerraformClient, workspace_id: str):
 
@@ -381,6 +383,7 @@ def force_unlock_workspace(client: TerraformClient, workspace_id: str):
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
 
+
 def sort_list(val):
     if isinstance(val, list):
         if isinstance(val[0], dict):
@@ -392,6 +395,7 @@ def sort_list(val):
             return sorted(val, key=lambda d: tuple(d[k] for k in sorted_keys[0]))
         return sorted(val)
     return val
+
 
 def dict_diff(base, comparable):
     """Generate a dict object of differences
