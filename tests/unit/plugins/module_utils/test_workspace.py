@@ -31,7 +31,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
     def test_get_workspace_error_status_codes(self):
         """Test get_workspace raises TerraformError for various error status codes."""
         error_codes = [400, 401, 403, 422, 500, 502, 503]
-        
+
         for status_code in error_codes:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
@@ -44,19 +44,13 @@ class TestWorkspaceFunctions(unittest.TestCase):
         """Test get_workspace with various response formats."""
         test_cases = [
             # Successful response with full data
-            ({
-                "data": {
-                    "id": "ws-123abc456def789",
-                    "type": "workspaces",
-                    "attributes": {"name": "test-workspace", "environment": "production"}
+            (
+                {
+                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "status": 200,
                 },
-                "status": 200
-            }, {
-                "id": "ws-123abc456def789",
-                "type": "workspaces",
-                "attributes": {"name": "test-workspace", "environment": "production"},
-                "status": 200
-            }),
+                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
+            ),
             # Empty data section
             ({"data": {}, "status": 200}, {"status": 200}),
             # No data key
@@ -64,7 +58,7 @@ class TestWorkspaceFunctions(unittest.TestCase):
             # Workspace not found
             ({"status": 404}, {}),
         ]
-        
+
         for response_data, expected_result in test_cases:
             with self.subTest(response_data=response_data):
                 self.mock_tf_client.get.return_value = response_data
@@ -80,13 +74,10 @@ class TestWorkspaceFunctions(unittest.TestCase):
             ("special$org", "workspace@123"),
             ("unicode-тест", "workspace-测试"),
         ]
-        
+
         for org, workspace in test_cases:
             with self.subTest(org=org, workspace=workspace):
-                expected_response = {
-                    "data": {"id": self.workspace_id, "attributes": {"name": workspace}},
-                    "status": 200
-                }
+                expected_response = {"data": {"id": self.workspace_id, "attributes": {"name": workspace}}, "status": 200}
                 self.mock_tf_client.get.return_value = expected_response
 
                 result = get_workspace(self.mock_tf_client, org, workspace)
@@ -134,7 +125,7 @@ class TestGetWorkspaceById(unittest.TestCase):
     def test_get_workspace_by_id_error_status_codes(self):
         """Test get_workspace_by_id raises TerraformError for various error status codes."""
         error_codes = [400, 401, 403, 422, 500, 502, 503]
-        
+
         for status_code in error_codes:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
@@ -147,19 +138,13 @@ class TestGetWorkspaceById(unittest.TestCase):
         """Test get_workspace_by_id with various response formats."""
         test_cases = [
             # Successful response with full data
-            ({
-                "data": {
-                    "id": "ws-123abc456def789",
-                    "type": "workspaces",
-                    "attributes": {"name": "test-workspace", "environment": "production"}
+            (
+                {
+                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "status": 200,
                 },
-                "status": 200
-            }, {
-                "id": "ws-123abc456def789",
-                "type": "workspaces",
-                "attributes": {"name": "test-workspace", "environment": "production"},
-                "status": 200
-            }),
+                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
+            ),
             # Empty data section
             ({"data": {}, "status": 200}, {"status": 200}),
             # No data key
@@ -167,7 +152,7 @@ class TestGetWorkspaceById(unittest.TestCase):
             # Workspace not found
             ({"status": 404}, {}),
         ]
-        
+
         for response_data, expected_result in test_cases:
             with self.subTest(response_data=response_data):
                 self.mock_tf_client.get.return_value = response_data
@@ -183,13 +168,10 @@ class TestGetWorkspaceById(unittest.TestCase):
             "ws-dev-67890",
             "ws-test_workspace_id",
         ]
-        
+
         for workspace_id in workspace_ids:
             with self.subTest(workspace_id=workspace_id):
-                expected_response = {
-                    "data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}},
-                    "status": 200
-                }
+                expected_response = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}, "status": 200}
                 self.mock_tf_client.get.return_value = expected_response
 
                 result = get_workspace_by_id(self.mock_tf_client, workspace_id)
@@ -210,26 +192,15 @@ class TestGetWorkspaceById(unittest.TestCase):
                     "auto-apply": True,
                     "terraform-version": "1.5.0",
                     "working-directory": "/terraform/modules",
-                    "vcs-repo": {
-                        "identifier": "company/infrastructure",
-                        "branch": "develop",
-                        "oauth-token-id": "ot-987654321"
-                    },
+                    "vcs-repo": {"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
                     "tags": ["staging", "infrastructure", "automated"],
-                    "permissions": {
-                        "can-update": True,
-                        "can-destroy": False,
-                        "can-queue-run": True
-                    }
+                    "permissions": {"can-update": True, "can-destroy": False, "can-queue-run": True},
                 },
                 "relationships": {
                     "organization": {"data": {"id": "org-456", "type": "organizations"}},
-                    "current-run": {"data": {"id": "run-789", "type": "runs"}}
+                    "current-run": {"data": {"id": "run-789", "type": "runs"}},
                 },
-                "links": {
-                    "self": "/api/v2/workspaces/ws-123abc456def789",
-                    "self-html": "/app/org-456/workspaces/complex-workspace"
-                }
+                "links": {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"},
             },
             "status": 200,
         }
