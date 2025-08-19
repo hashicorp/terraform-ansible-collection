@@ -450,7 +450,6 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         "organization",
     ]
     ignore_list.extend(IGNORE_LIST)
-    q(ignore_list)
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
