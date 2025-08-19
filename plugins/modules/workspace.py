@@ -283,6 +283,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace, get_workspace_by_id, get_tag_bindings, dict_diff
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 
+
 def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
     """
     Fetch actual tag key-value pairs for a workspace's tag bindings.
@@ -313,11 +314,11 @@ def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
 
 def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Constructs a dictionary representing the desired (target) state of a Terraform workspace 
+    Constructs a dictionary representing the desired (target) state of a Terraform workspace
     from user-provided input parameters.
 
     This function maps user-facing Ansible module parameters to the corresponding API field names
-    expected by Terraform Cloud's workspace API. It filters out any parameters that are not set 
+    expected by Terraform Cloud's workspace API. It filters out any parameters that are not set
     (i.e., None) and handles precedence where applicable—for example, it prefers 'new_workspace_name'
     over 'workspace' for the workspace name.
 
@@ -328,7 +329,7 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
         Dict[str, Any]: A dictionary containing the filtered and mapped parameters
                         ready to be sent in the API payload to represent the desired state.
     """
-     
+
     field_map = {
         "new_workspace_name": "name",
         "workspace": "name",  # fallback
@@ -344,6 +345,7 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
         "agent_pool_id": "agent_pool_id",
         "project_id": "project_id",
         "tag_bindings": "tag_bindings",
+        "setting_overwrites": "setting_overwrites",
     }
 
     want = {}
@@ -356,23 +358,24 @@ def build_want_from_user_input(params: Dict[str, Any]) -> Dict[str, Any]:
                 want[api_key] = params[param_key]
     return want
 
+
 def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
     """
-    Normalizes the raw workspace API response into a simplified, structured dictionary 
+    Normalizes the raw workspace API response into a simplified, structured dictionary
     representing the current state of a workspace.
 
-    This function extracts key attributes and relationships from the Terraform workspace 
-    API response and formats certain fields for consistency (e.g., converting the 
-    `auto-destroy-at` timestamp to a standard format). It also includes related data such 
+    This function extracts key attributes and relationships from the Terraform workspace
+    API response and formats certain fields for consistency (e.g., converting the
+    `auto-destroy-at` timestamp to a standard format). It also includes related data such
     as tag bindings and conditionally includes the agent pool ID if the execution mode is 'agent'.
 
     Args:
         response_data (dict): The raw JSON response from the workspace API.
-        client_terraform (Any): A client instance used to fetch additional workspace data 
+        client_terraform (Any): A client instance used to fetch additional workspace data
         workspace_id (str): The ID of the workspace whose data is being normalized.
 
     Returns:
-        dict: A dictionary representing the normalized state of the workspace, excluding 
+        dict: A dictionary representing the normalized state of the workspace, excluding
               any fields that are `None`.
     """
 
@@ -385,10 +388,10 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
         except ValueError:
             # if parsing fails, keep original value
             pass
-    execution_mode= response_data.get("attributes", {}).get("execution-mode")
-    agent_pool_id= None
+    execution_mode = response_data.get("attributes", {}).get("execution-mode")
+    agent_pool_id = None
     if execution_mode == "agent":
-        agent_pool_id= response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id", None)
+        agent_pool_id = response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id", None)
     normalized = {
         "name": response_data.get("attributes", {}).get("name"),
         "description": response_data.get("attributes", {}).get("description"),
@@ -401,12 +404,14 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
         "terraform_version": response_data.get("attributes", {}).get("terraform-version"),
         "execution_mode": execution_mode,
         "agent_pool_id": agent_pool_id,
+        "setting_overwrites": {k.replace("-", "_"): v for k, v in response_data.get("attributes", {}).get("setting-overwrites", {}).items()},
         "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id", None),
     }
     # Include tag bindings
     tag_bindings = fetch_workspace_tag_bindings(client_terraform, workspace_id)
     normalized["tag_bindings"] = tag_bindings
     return {k: v for k, v in normalized.items() if v is not None}
+
 
 def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -433,12 +438,15 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     action_result = {}
     ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
     workspace_params = params.copy()
+    # pop unwanted values
     for value in ignore_list:
         workspace_params.pop(value, None)
+    # store required values for the api endpoint and relationships
     workspace_params["name"] = workspace_params.pop("workspace")
     organization = workspace_params.pop("organization")
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
+    # create the model and use the payload for the creation request of workspace
     workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = create_workspace(client_terraform, organization, workspace_payload)
@@ -469,34 +477,40 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         Any exceptions raised by the underlying Terraform client or request methods
         will propagate up to the caller.
     """
-    #remove source_name and source_url if present as they are not applicable for updateoperations
+    # remove source_name and source_url if present as they are not applicable for update operations
     params.pop("source_name", None)
     params.pop("source_url", None)
     action_result = {}
+    # pop unwanted values
     ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
+    # if a name update needs to be made
     if workspace_params["new_workspace_name"]:
         workspace_params["name"] = workspace_params.pop("new_workspace_name")
     else:
         workspace_params["name"] = workspace_params.pop("workspace")
     workspace_id = workspace_params.pop("workspace_id")
     try:
-        workspace_response=workspace_exists(client_terraform, workspace_id)
+        workspace_response = workspace_details(client_terraform, workspace_id)
     except ValueError as e:
-        raise ValueError(f"Cannot update workspace. Reason: {e}")
+        raise ValueError(f"The update operation for the workspace {workspace_id} could not be completed. Reason: {e}")
+    # the keys and their corresponding values the workspace already has
     have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
+    # the keys input by the user
     want = build_want_from_user_input(params)
+    # removing excessive keys from have to match it to want
     have = {k: v for k, v in have.items() if k in want}
-    updates_response=dict_diff(have, want)
+    updates_response = dict_diff(have, want)
     if not updates_response:
         action_result.update(
-        {"changed": False, "msg": "No changes were encountered"},
+            {"changed": False, "msg": "No changes were encountered between the existing state and proposed changes via the update operation."},
         )
         return action_result
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
+    # create the model and use the payload for the update request of workspace
     workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = update_workspace(client_terraform, workspace_id, workspace_payload)
@@ -535,7 +549,7 @@ def get_workspace_id(client_terraform: Any, params: Dict[str, Any]) -> str:
     return workspace_id
 
 
-def workspace_exists(client_terraform: Any, workspace_id: str) -> None:
+def workspace_details(client_terraform: Any, workspace_id: str) -> None:
     """
     Validates that a Terraform workspace exists by its ID.
 
@@ -586,9 +600,9 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
     try:
-        workspace_exists(client_terraform, params["workspace_id"])
+        workspace_details(client_terraform, params["workspace_id"])
     except ValueError as e:
-        raise ValueError(f"The workspace could not be deleted. Reason: {e}")
+        raise ValueError(f"The delete operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
     if params["force_delete"]:
         force_delete_workspace(client_terraform, params["workspace_id"])
         msg = f"Configuration version {params['workspace_id']} force deleted successfully."
@@ -627,13 +641,13 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
     try:
-        workspace_response=workspace_exists(client_terraform, params["workspace_id"])
+        workspace_response = workspace_details(client_terraform, params["workspace_id"])
     except ValueError as e:
-        raise ValueError(f"The workspace could not be unlocked. Reason: {e}")
-    locked_status=workspace_response.get("data").get("attributes", {}).get("locked")
+        raise ValueError(f"The unlock operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
+    locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if not locked_status:
         action_result.update(
-        {"changed": False, "msg": f"The workspace {params['workspace_id']} is already unlocked"},
+            {"changed": False, "msg": f"The workspace {params['workspace_id']} is already unlocked"},
         )
         return action_result
     if params["force"]:
@@ -674,13 +688,13 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
     try:
-        workspace_response=workspace_exists(client_terraform, params["workspace_id"])
+        workspace_response = workspace_details(client_terraform, params["workspace_id"])
     except ValueError as e:
-        raise ValueError(f"The workspace could not be locked. Reason: {e}")
-    locked_status=workspace_response.get("data").get("attributes", {}).get("locked")
+        raise ValueError(f"The lock operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
+    locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if locked_status:
         action_result.update(
-        {"changed": False, "msg": f"The workspace {params['workspace_id']} is already locked"},
+            {"changed": False, "msg": f"The workspace {params['workspace_id']} is already locked"},
         )
         return action_result
     response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
@@ -688,6 +702,7 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
         {"changed": True, "msg": "The workspace is locked successfully", **response["data"]},
     )
     return action_result
+
 
 def main():
     module = AnsibleTerraformModule(
