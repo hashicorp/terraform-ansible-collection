@@ -459,10 +459,9 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     else:
         workspace_params["name"] = workspace_params.pop("workspace")
     workspace_id = workspace_params.pop("workspace_id")
-    try:
-        workspace_response = workspace_details(client_terraform, workspace_id)
-    except ValueError as e:
-        raise ValueError(f"The update operation for the workspace {workspace_id} could not be completed. Reason: {e}")
+    workspace_response = get_workspace_by_id(client_terraform, workspace_id)
+    if not workspace_response:
+        raise ValueError(f"The workspace {workspace_id} was not found.")
     # the keys and their corresponding values the workspace already has
     have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
     # the keys input by the user
@@ -518,29 +517,6 @@ def get_workspace_id(client_terraform: Any, params: Dict[str, Any]) -> str:
     return workspace_id
 
 
-def workspace_details(client_terraform: Any, workspace_id: str) -> None:
-    """
-    Validates that a Terraform workspace exists by its ID.
-
-    This function checks whether a workspace with the specified ID exists
-    by attempting to retrieve it from the Terraform API. If the workspace
-    does not exist, it raises a ValueError. Otherwise, it completes silently.
-
-    Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
-        workspace_id (str): The unique ID of the Terraform workspace to validate.
-
-    Raises:
-        ValueError: If the specified workspace does not exist or cannot be retrieved.
-    """
-
-    # get the workspace from workspace_id
-    workspace_response = get_workspace_by_id(client_terraform, workspace_id)
-    if not workspace_response:
-        raise ValueError(f"The workspace {workspace_id} was not found.")
-    return workspace_response
-
-
 def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Deletes a Terraform workspace using either a safe or force delete method.
@@ -568,17 +544,18 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     if not params["workspace_id"]:
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
-    try:
-        workspace_details(client_terraform, params["workspace_id"])
-    except ValueError as e:
-        raise ValueError(f"The delete operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
+    workspace_response = get_workspace_by_id(client_terraform, workspace_id)
+    if not workspace_response:
+        action_result["msg"] = f"Workspace {params['workspace_id']} was not found."
+        action_result["changed"] = False
+        return action_result
     if params["force"]:
         force_delete_workspace(client_terraform, params["workspace_id"])
-        msg = f"Configuration version {params['workspace_id']} force deleted successfully."
+        msg = f"Workspace {params['workspace_id']} force deleted successfully."
         action_result["changed"] = True
     else:
         safe_delete_workspace(client_terraform, params["workspace_id"])
-        msg = f"Configuration version {params['workspace_id']} safe deleted successfully."
+        msg = f"Workspace{params['workspace_id']} safe deleted successfully."
         action_result["changed"] = True
     action_result["msg"] = msg
     return action_result
@@ -609,10 +586,7 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str,
     if not params["workspace_id"]:
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
-    try:
-        workspace_response = workspace_details(client_terraform, params["workspace_id"])
-    except ValueError as e:
-        raise ValueError(f"The unlock operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
+    workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if not locked_status:
         action_result.update(
@@ -656,10 +630,7 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any]) -> Dict[str, A
     if not params["workspace_id"]:
         workspace_id = get_workspace_id(client_terraform, params)
         params["workspace_id"] = workspace_id
-    try:
-        workspace_response = workspace_details(client_terraform, params["workspace_id"])
-    except ValueError as e:
-        raise ValueError(f"The lock operation for the workspace {params['workspace_id']} could not be completed. Reason: {e}")
+    workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if locked_status:
         action_result.update(
