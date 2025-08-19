@@ -5,7 +5,24 @@ This module contains models specifically for run-related API operations.
 
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, StrictBool, StrictStr, ConfigDict
+try:
+    from pydantic import BaseModel, Field, StrictBool, StrictStr, ConfigDict
+
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
+
+    class BaseModel:
+        """Fallback BaseModel class for when pydantic is not available."""
+
+        pass
+
+    def Field(*args, **kwargs):
+        """Fallback Field class for when pydantic is not available."""
+        return None
+
+    StrictBool = bool
+    StrictStr = str
 
 from .common import (
     BaseRelationships,
