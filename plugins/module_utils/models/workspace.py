@@ -22,6 +22,10 @@ except ImportError:
         """Fallback Field class for when pydantic is not available."""
         return None
 
+    def ConfigDict(*args, **kwargs):
+        """Fallback Field class for when pydantic is not available."""
+        return None
+
     StrictBool = bool
     StrictStr = str
 
