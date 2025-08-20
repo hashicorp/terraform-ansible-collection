@@ -73,6 +73,7 @@ class WorkspaceData(BaseTerraformResource[WorkspaceAttributes, WorkspaceRelation
 class WorkspaceRequest(BaseRequest[WorkspaceData]):
     """Model for the complete workspace request."""
 
+    @staticmethod
     def create_tag_bindings_reference(tag_bindings: Dict[str, str]) -> List[Dict[str, Any]]:
         """
         Create a list of tag-binding resource dictionaries for use in relationships.
@@ -86,7 +87,7 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
         return [{"type": "tag-bindings", "attributes": {"key": key, "value": value}} for key, value in tag_bindings.items()]
 
     @classmethod
-    def create(cls, project_id: Optional[str] = None, tag_bindings: Optional[str] = None, **attributes) -> "WorkspaceRequest":
+    def create(cls, project_id: Optional[str] = None, tag_bindings: Optional[Dict[str, str]] = None, **attributes) -> "WorkspaceRequest":
         """
         Create a WorkspaceRequest with organization.
         Args:
