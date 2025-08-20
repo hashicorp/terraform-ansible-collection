@@ -1,40 +1,21 @@
 """
 Pydantic models for Terraform Cloud/Enterprise Run resources.
+
 This module contains models specifically for run-related API operations.
 """
 
-from typing import Dict, List, Literal, Optional
-
-
-try:
-    from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-
-    HAS_PYDANTIC = True
-except ImportError:
-    HAS_PYDANTIC = False
-
-    class BaseModel:
-        """Fallback BaseModel class for when pydantic is not available."""
-
-        pass
-
-    def Field(*args, **kwargs):
-        """Fallback Field class for when pydantic is not available."""
-        return None
-
-    def ConfigDict(*args, **kwargs):
-        """Fallback Field class for when pydantic is not available."""
-        return None
-
-    StrictBool = bool
-    StrictStr = str
+from typing import Any, Dict, List, Literal, Optional
 
 from .common import (
-    BaseRelationships,
+    BaseModel,
     BaseRequest,
+    BaseTerraformResource,
+    ConfigDict,
+    Field,
     Relationship,
+    StrictBool,
+    StrictStr,
     create_project_reference,
-    create_tag_bindings_reference,
 )
 
 
@@ -56,7 +37,7 @@ class WorkspaceAttributes(BaseModel):
     agent_pool_id: Optional[StrictStr] = Field(None, alias="agent-pool-id")
     setting_overwrites: Optional[Dict[str, bool]] = Field(None, alias="setting-overwrites")
 
-    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True, extra="ignore")
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class TagBindingAttributes(BaseModel):
@@ -73,29 +54,36 @@ class TagBindingsRelationship(BaseModel):
     data: Optional[List[TagBindingResourceData]] = None
 
 
-class WorkspaceRelationships(BaseRelationships):
+class WorkspaceRelationships(BaseModel):
     """Relationships for workspace resources."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     project: Optional[Relationship] = None
     tag_bindings: Optional[TagBindingsRelationship] = Field(None, alias="tag-bindings")
 
 
-class WorkspaceData(BaseModel):
+class WorkspaceData(BaseTerraformResource[WorkspaceAttributes, WorkspaceRelationships]):
     """Model for workspace data."""
 
-    attributes: WorkspaceAttributes
+    model_config = ConfigDict(populate_by_name=True)
     type: Literal["workspaces"]
-    relationships: WorkspaceRelationships
-
-    class Config:
-        populate_by_name = True
 
 
 class WorkspaceRequest(BaseRequest[WorkspaceData]):
     """Model for the complete workspace request."""
 
-    def create_tag_bindings_reference(self, tag_bindings: Dict[str, str]) -> List[TagBindingResourceData]:
-        return [TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key=key, value=value)) for key, value in tag_bindings.items()]
+    def create_tag_bindings_reference(tag_bindings: Dict[str, str]) -> List[Dict[str, Any]]:
+        """
+        Create a list of tag-binding resource dictionaries for use in relationships.
+
+        Args:
+            tag_bindings: A dictionary like {"environment": "uat", "team": "devops"}
+
+        Returns:
+            A list of dictionaries representing tag-binding resources
+        """
+        return [{"type": "tag-bindings", "attributes": {"key": key, "value": value}} for key, value in tag_bindings.items()]
 
     @classmethod
     def create(cls, project_id: Optional[str] = None, tag_bindings: Optional[str] = None, **attributes) -> "WorkspaceRequest":
@@ -114,11 +102,11 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
 
         # Add configuration version if provided
         if tag_bindings:
-            relationships.tag_bindings = TagBindingsRelationship(data=create_tag_bindings_reference(tag_bindings))
+            relationships.tag_bindings = TagBindingsRelationship(data=cls.create_tag_bindings_reference(tag_bindings))
         return cls(
             data=WorkspaceData(
                 type="workspaces",
-                attributes=WorkspaceAttributes(**attributes),
+                attributes=WorkspaceAttributes.model_validate(attributes),
                 relationships=relationships,
             )
         )
