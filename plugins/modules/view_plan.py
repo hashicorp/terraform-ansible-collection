@@ -1,4 +1,3 @@
-# 273 lines wala
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -18,6 +17,7 @@ description:
   - By default, returns diff-formatted output similar to 'terraform plan' CLI command.
   - Can optionally return raw plan information including metadata and JSON output.
   - Automatically masks sensitive values in diff output with descriptive messages.
+  - Provides resource context at before_header and after_header in the output for better understanding of changes.
 options:
   plan_id:
     description:
@@ -76,7 +76,6 @@ EXAMPLES = r"""
   ansible.builtin.debug:
     msg: |
       Plan has changes: {{ plan_result.changed }}
-      Resource changes: {{ plan_result.diff | length }}
   when: plan_result.output_format == 'diff'
 """
 
@@ -109,13 +108,19 @@ json_output:
   description: The JSON output of the Terraform plan (when output_format is 'raw')
   returned: when output_format is 'raw'
   type: dict
+msg:
+  description: Informational message when no changes are detected
+  returned: when no changes are found in diff format
+  type: str
 """
+
+from typing import Any, Dict, List, Optional, Union
 
 from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
-    AnsibleTerraformModule,
     TerraformClient,
+    TerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_json_output,
@@ -123,67 +128,306 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
 )
 
 
-def _mask_sensitive_value(value, is_sensitive, is_before=True):
-    """Apply descriptive sensitivity masking."""
-    if is_sensitive:
-        return "<sensitive> changed from" if is_before else "<sensitive> changed to"
-    return value
+# Action mapping constants
+ACTION_MAPPING = {
+    "create": "created",
+    "update": "updated",
+    "delete": "destroyed",
+    "read": "read",
+}
+
+REPLACEMENT_ACTIONS = [["delete", "create"], ["create", "delete"]]
 
 
-def _mask_object_values(obj, sensitive_flags, is_before=True):
-    """
-    Recursively applies sensitivity masking to an object.
-    Supports nested dictionaries and lists of dictionaries.
+def _mask_sensitive_object(
+    obj: Union[Dict, List, Any],
+    sensitive_flags: Union[Dict, bool],
+    replacement_text: str = "<sensitive>",
+) -> Union[Dict, List, str]:
+    """Apply masking to sensitive values in an object based on sensitivity flags.
+
+    Args:
+        obj: The object (dict/list) to mask sensitive values in
+        sensitive_flags: Dictionary/structure indicating which values are sensitive
+        replacement_text: Text to replace sensitive values with
+
+    Returns:
+        Object with sensitive values replaced by replacement_text
     """
     if isinstance(obj, dict) and isinstance(sensitive_flags, dict):
-        masked_obj = {}
-        for key, value in obj.items():
-            sensitive_flag = sensitive_flags.get(key, False)
-
-            if isinstance(value, dict) and isinstance(sensitive_flag, dict):
-                masked_obj[key] = _mask_object_values(value, sensitive_flag, is_before)
-            elif isinstance(value, list):
-                masked_obj[key] = [_mask_object_values(v, sensitive_flag if isinstance(sensitive_flag, dict) else {}, is_before) for v in value]
-            else:
-                is_sensitive = sensitive_flag is True
-                masked_obj[key] = _mask_sensitive_value(value, is_sensitive, is_before)
-        return masked_obj
-
+        return {
+            key: (
+                _mask_sensitive_object(value, sensitive_flags.get(key, {}), replacement_text)
+                if isinstance(value, (dict, list)) and isinstance(sensitive_flags.get(key), dict)
+                else replacement_text if sensitive_flags.get(key) is True else value
+            )
+            for key, value in obj.items()
+        }
     elif isinstance(obj, list):
-        return [_mask_object_values(item, {}, is_before) for item in obj]
+        return [_mask_sensitive_object(item, {}, replacement_text) for item in obj]
+    return obj
 
+
+def _update_changed_sensitive_values(
+    before_obj: Dict,
+    after_obj: Dict,
+    before_sensitive,
+    after_sensitive,
+    before_raw: Dict,
+    after_raw: Dict,
+) -> tuple:
+    """Update masked values to show change indicators for sensitive values that actually changed.
+
+    Args:
+        before_obj: Masked before object
+        after_obj: Masked after object
+        before_sensitive: Sensitivity flags for before object
+        after_sensitive: Sensitivity flags for after object
+        before_raw: Original unmasked before object
+        after_raw: Original unmasked after object
+
+    Returns:
+        tuple: (updated_before_obj, updated_after_obj) with change indicators
+    """
+    if not isinstance(before_obj, dict) or not isinstance(after_obj, dict):
+        return before_obj, after_obj
+
+    result_before, result_after = {}, {}
+    all_keys = set(before_obj.keys()) | set(after_obj.keys())
+
+    for key in all_keys:
+        before_item = before_obj.get(key)
+        after_item = after_obj.get(key)
+        before_sens = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
+        after_sens = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
+        before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
+        after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
+
+        if isinstance(before_item, dict) or isinstance(after_item, dict):
+            updated_before, updated_after = _update_changed_sensitive_values(
+                before_item or {},
+                after_item or {},
+                before_sens,
+                after_sens,
+                before_raw_item or {},
+                after_raw_item or {},
+            )
+            if key in before_obj:
+                result_before[key] = updated_before
+            if key in after_obj:
+                result_after[key] = updated_after
+        else:
+            if before_sens is True or after_sens is True:
+                if before_raw_item != after_raw_item:
+                    if key in before_obj:
+                        result_before[key] = "<sensitive> changed from"
+                    if key in after_obj:
+                        result_after[key] = "<sensitive> changed to"
+                else:
+                    if key in before_obj:
+                        result_before[key] = "<sensitive>"
+                    if key in after_obj:
+                        result_after[key] = "<sensitive>"
+            else:
+                if key in before_obj:
+                    result_before[key] = before_item
+                if key in after_obj:
+                    result_after[key] = after_item
+
+    return result_before, result_after
+
+
+def _mask_sensitive_values_in_objects(
+    before_obj: Dict,
+    after_obj: Dict,
+    before_sensitive,
+    after_sensitive,
+):
+    """Apply sensitivity masking to both before and after objects, preserving unchanged sensitive values.
+
+    Args:
+        before_obj: Object representing state before changes
+        after_obj: Object representing state after changes
+        before_sensitive: Sensitivity flags for before object
+        after_sensitive: Sensitivity flags for after object
+
+    Returns:
+        tuple: (masked_before, masked_after) with sensitive values appropriately masked
+    """
+    masked_before = _mask_sensitive_object(before_obj, before_sensitive)
+    masked_after = _mask_sensitive_object(after_obj, after_sensitive)
+
+    return _update_changed_sensitive_values(
+        masked_before,
+        masked_after,
+        before_sensitive,
+        after_sensitive,
+        before_obj,
+        after_obj,
+    )
+
+
+def _action_to_str(actions: List[str]) -> str:
+    """Convert action list to a better-readable string.
+
+    Args:
+        actions: List of Terraform actions (e.g., ['create'], ['delete', 'create'])
+
+    Returns:
+        str: Better-readable action description (e.g., 'created', 'replaced', 'updated')
+    """
+    if not actions:
+        return "no-op"
+
+    if len(actions) == 1:
+        return ACTION_MAPPING.get(actions[0], actions[0])
+
+    if actions in REPLACEMENT_ACTIONS or set(actions) == {"delete", "create"}:
+        return "replaced"
+
+    actions_set = set(actions)
+    if "update" in actions_set:
+        return "updated" if len(actions_set) == 1 else f"updated ({', '.join(sorted(actions_set))})"
+
+    mapped_actions = [ACTION_MAPPING.get(action, action) for action in actions]
+    return " + ".join(mapped_actions)
+
+
+def _process_resource_changes(
+    resource_changes: List[Dict],
+    resource_drift: List[Dict],
+) -> List[Dict]:
+    """Process and unify resource changes with drift data.
+
+    Args:
+        resource_changes: List of resource changes from Terraform plan
+        resource_drift: List of resource drift data from Terraform plan
+
+    Returns:
+        list: Unified resource data with both changes and drift information
+    """
+    changes_by_address = {item.get("address", ""): item for item in resource_changes}
+    drift_by_address = {item.get("address", ""): item for item in resource_drift}
+
+    unified_resources = []
+
+    # Process resources with changes
+    for address, changes_item in changes_by_address.items():
+        drift_item = drift_by_address.pop(address, None)
+        unified_resources.append(
+            {
+                "address": address,
+                "resource_changes": changes_item,
+                "resource_drift": drift_item,
+                "has_drift": drift_item is not None,
+            },
+        )
+
+    # Process remaining drift-only resources
+    for address, drift_item in drift_by_address.items():
+        unified_resources.append(
+            {
+                "address": address,
+                "resource_changes": None,
+                "resource_drift": drift_item,
+                "has_drift": True,
+            },
+        )
+
+    return unified_resources
+
+
+def _create_diff_entry(resource_data: Dict) -> Optional[Dict]:
+    """Create a diff entry for a resource.
+
+    Args:
+        resource_data: Dictionary containing unified resource change and drift information
+
+    Returns:
+        dict or None: Diff entry with before/after states and headers, or None if no changes
+    """
+    address = resource_data["address"]
+    changes_item = resource_data["resource_changes"]
+    drift_item = resource_data["resource_drift"]
+    has_drift = resource_data["has_drift"]
+
+    # Determine primary item and scenario
+    primary_item = None
+    scenario_type = None
+
+    if changes_item:
+        changes_actions = changes_item.get("change", {}).get("actions", [])
+        if changes_actions and "no-op" not in changes_actions:
+            primary_item = changes_item
+            scenario_type = "changes_with_actions"
+        elif has_drift and drift_item:
+            drift_actions = drift_item.get("change", {}).get("actions", [])
+            if drift_actions and "no-op" not in drift_actions:
+                primary_item = drift_item
+                scenario_type = "drift_only"
+    elif drift_item:
+        drift_actions = drift_item.get("change", {}).get("actions", [])
+        if drift_actions and "no-op" not in drift_actions:
+            primary_item = drift_item
+            scenario_type = "drift_only"
+
+    if not primary_item:
+        return None
+
+    # Extract change information
+    change = primary_item.get("change", {})
+    before = change.get("before", {})
+    after = change.get("after", {})
+    before_sensitive = change.get("before_sensitive", {})
+    after_sensitive = change.get("after_sensitive", {})
+
+    # Apply sensitivity masking
+    masked_before, masked_after = _mask_sensitive_values_in_objects(
+        before,
+        after,
+        before_sensitive,
+        after_sensitive,
+    )
+
+    if masked_before == masked_after:
+        return None
+
+    actions_list = change.get("actions", [])
+    action_type = _action_to_str(actions_list)
+    resource_id = str((before or after or {}).get("id", ""))
+    id_part = f" (ID={resource_id})" if resource_id else ""
+
+    diff_entry = {
+        "before": masked_before,
+        "after": masked_after,
+    }
+
+    if scenario_type == "drift_only":
+        diff_entry["before_header"] = f"Resource changed outside Terraform ({action_type})."
+        diff_entry["after_header"] = f"{address}{id_part}: Drift detected\n No Planned changes to apply for this resource."
+    elif has_drift and drift_item:
+        drift_actions = drift_item.get("change", {}).get("actions", [])
+        drift_action_type = _action_to_str(drift_actions)
+        diff_entry["before_header"] = f"Resource changed outside Terraform ({drift_action_type})."
+        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
     else:
-        return obj
+        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
+
+    return diff_entry
 
 
-def _get_diff_sequences(json_output_data):
-    """Extract diff sequences from plan data - simplified approach."""
+def _process_output_changes(output_changes: Dict) -> List[Dict]:
+    """Process output changes and return diff entries.
+
+    Args:
+        output_changes: Dictionary of Terraform output changes
+
+    Returns:
+        list: List of diff entries for changed outputs
+    """
     diffs = []
 
-    # Process resource changes and resource drift
-    for change_type in ["resource_changes", "resource_drift"]:
-        for item in json_output_data.get(change_type, []):
-            # Skip no-op actions - no changes to show
-            if "no-op" in item.get("actions", []):
-                continue
-
-            change = item.get("change", {})
-            before = change.get("before", {})
-            after = change.get("after", {})
-            before_sensitive = change.get("before_sensitive", {})
-            after_sensitive = change.get("after_sensitive", {})
-
-            # Apply sensitivity masking
-            masked_before = _mask_object_values(before, before_sensitive, is_before=True)
-            masked_after = _mask_object_values(after, after_sensitive, is_before=False)
-
-            # Only add if there are actual differences
-            if masked_before != masked_after:
-                diffs.append({"before": masked_before, "after": masked_after})
-
-    # Process output changes
-    for output_name, change in json_output_data.get("output_changes", {}).items():
-        # Skip no-op actions
+    for output_name, change in output_changes.items():
         if "no-op" in change.get("actions", []):
             continue
 
@@ -192,11 +436,14 @@ def _get_diff_sequences(json_output_data):
         before_sensitive = change.get("before_sensitive", False)
         after_sensitive = change.get("after_sensitive", False)
 
-        # Only show outputs that actually changed
         if before != after:
-            # Apply descriptive masking to output values
-            before_val = _mask_sensitive_value(before, before_sensitive, is_before=True)
-            after_val = _mask_sensitive_value(after, after_sensitive, is_before=False)
+            # Handle sensitive outputs
+            if before_sensitive or after_sensitive:
+                before_val = "<sensitive> changed from" if before_sensitive else before
+                after_val = "<sensitive> changed to" if after_sensitive else after
+            else:
+                before_val = before
+                after_val = after
 
             diff_entry = {"before": {}, "after": {output_name: after_val}}
             if before is not None:
@@ -207,8 +454,38 @@ def _get_diff_sequences(json_output_data):
     return diffs
 
 
-def main():
-    module = AnsibleTerraformModule(
+def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
+    """Extract diff sequences from plan data using unified resource processing.
+
+    Args:
+        json_output_data: The JSON output data from Terraform plan
+
+    Returns:
+        list: List of diff entries showing all changes in the plan
+    """
+    resource_changes = json_output_data.get("resource_changes", [])
+    resource_drift = json_output_data.get("resource_drift", [])
+    output_changes = json_output_data.get("output_changes", {})
+
+    diffs = []
+
+    # Process resource changes
+    unified_resources = _process_resource_changes(resource_changes, resource_drift)
+
+    for resource_data in unified_resources:
+        diff_entry = _create_diff_entry(resource_data)
+        if diff_entry:
+            diffs.append(diff_entry)
+
+    # Process output changes
+    output_diffs = _process_output_changes(output_changes)
+    diffs.extend(output_diffs)
+
+    return diffs
+
+
+def main() -> None:
+    module = TerraformModule(
         argument_spec=dict(
             plan_id=dict(type="str", aliases=["id"]),
             run_id=dict(type="str"),
@@ -230,12 +507,8 @@ def main():
         client = TerraformClient(**params)
 
         # Determine which ID is provided
-        if plan_id:
-            identifier = plan_id
-            use_plan_id = True
-        else:  # run_id is provided
-            identifier = run_id
-            use_plan_id = False
+        identifier = plan_id if plan_id else run_id
+        use_plan_id = plan_id is not None
 
         # Get plan information
         metadata_response = get_plan_metadata(client, identifier, use_plan_id)
@@ -243,29 +516,27 @@ def main():
 
         # Check if plan was found
         if not metadata_response:
-            if use_plan_id:
-                raise ValueError(f"Plan with ID '{identifier}' was not found.")
-            else:
-                raise ValueError(f"Plan for run with ID '{identifier}' was not found.")
+            id_type = "Plan" if use_plan_id else "Plan for run"
+            raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
 
         if output_format == "raw":
-            # Return raw format - metadata and json_output as-is
+            # Return raw format
             result.update(
                 {
                     "metadata": metadata_response.get("data", {}),
                     "json_output": json_output_response.get("data", {}),
                 },
             )
-        else:  # output_format == "diff" (default)
+        else:
             # Return diff format
             json_output_data = json_output_response.get("data", {})
             diff_sequences = _get_diff_sequences(json_output_data)
-
             result["diff"] = diff_sequences
 
-            # Set changed=True if there are any changes in the diff
             if diff_sequences:
                 result["changed"] = True
+            else:
+                result["msg"] = "No changes. Your infrastructure matches the configuration."
 
         module.exit_json(**result)
 
