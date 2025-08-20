@@ -333,18 +333,14 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     Raises:
         TerraformError: If the response does not return a 201 status code.
     """
-    ignore_list = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state", "organization", "workspace"]
-    run_params = kwargs.copy()
-    for value in ignore_list:
-        run_params.pop(value, None)
+    # Filter out Terraform client params (tf_*), polling params (poll_*), and Ansible-specific params
+    excluded_params = {"check_mode", "state", "organization", "workspace"}
+    run_params = {key: value for key, value in kwargs.items() if not key.startswith(("tf_", "poll_")) and key not in excluded_params}
 
     workspace_id = run_params.pop("workspace_id")
     configuration_version_id = run_params.pop("configuration_version", None)
 
-    if configuration_version_id:
-        run_request = RunRequest.create(workspace_id=workspace_id, configuration_version_id=configuration_version_id, **run_params)
-    else:
-        run_request = RunRequest.create(workspace_id=workspace_id, **run_params)
+    run_request = RunRequest.create(workspace_id=workspace_id, configuration_version_id=configuration_version_id, **run_params)
 
     run_payload = run_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     response = create_run(client, run_payload)
