@@ -6,9 +6,10 @@
 import os
 import sys
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
+
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
@@ -25,49 +26,55 @@ class TestGetWorkspace:
         mock_tf_client = Mock()
         organization = "test-org"
         workspace_name = "test-workspace"
-        
+
         response = {"status": status_code}
         mock_tf_client.get.return_value = response
 
         with pytest.raises(TerraformError):
             get_workspace(mock_tf_client, organization, workspace_name)
 
-    @pytest.mark.parametrize("response_data,expected_result", [
-        # Successful response with full data
-        (
-            {
-                "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
-                "status": 200,
-            },
-            {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
-        ),
-        # Empty data section
-        ({"data": {}, "status": 200}, {"status": 200}),
-        # No data key
-        ({"status": 200}, {"status": 200}),
-        # Workspace not found
-        ({"status": 404}, {}),
-    ])
+    @pytest.mark.parametrize(
+        "response_data,expected_result",
+        [
+            # Successful response with full data
+            (
+                {
+                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "status": 200,
+                },
+                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
+            ),
+            # Empty data section
+            ({"data": {}, "status": 200}, {"status": 200}),
+            # No data key
+            ({"status": 200}, {"status": 200}),
+            # Workspace not found
+            ({"status": 404}, {}),
+        ],
+    )
     def test_get_workspace_responses(self, response_data, expected_result):
         """Test get_workspace with various response formats."""
         mock_tf_client = Mock()
         organization = "test-org"
         workspace_name = "test-workspace"
-        
+
         mock_tf_client.get.return_value = response_data
         result = get_workspace(mock_tf_client, organization, workspace_name)
         assert result == expected_result
 
-    @pytest.mark.parametrize("organization,workspace_name", [
-        ("test-org", "test-workspace"),
-        ("my-company", "production-app"),
-        ("dev-team", "staging-environment"),
-    ])
+    @pytest.mark.parametrize(
+        "organization,workspace_name",
+        [
+            ("test-org", "test-workspace"),
+            ("my-company", "production-app"),
+            ("dev-team", "staging-environment"),
+        ],
+    )
     def test_get_workspace_with_valid_names(self, organization, workspace_name):
         """Test get_workspace with realistic organization and workspace names."""
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
-        
+
         expected_response = {"data": {"id": workspace_id, "attributes": {"name": workspace_name}}, "status": 200}
         mock_tf_client.get.return_value = expected_response
 
@@ -83,7 +90,7 @@ class TestGetWorkspace:
         organization = "test-org"
         workspace_name = "test-workspace"
         workspace_id = "ws-123abc456def789"
-        
+
         expected_response = {
             "data": {
                 "id": workspace_id,
@@ -118,34 +125,37 @@ class TestGetWorkspaceById:
         """Test get_workspace_by_id raises TerraformError for error status codes."""
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
-        
+
         response = {"status": status_code}
         mock_tf_client.get.return_value = response
 
         with pytest.raises(TerraformError):
             get_workspace_by_id(mock_tf_client, workspace_id)
 
-    @pytest.mark.parametrize("response_data,expected_result", [
-        # Successful response with full data
-        (
-            {
-                "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
-                "status": 200,
-            },
-            {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
-        ),
-        # Empty data section
-        ({"data": {}, "status": 200}, {"status": 200}),
-        # No data key
-        ({"status": 200}, {"status": 200}),
-        # Workspace not found
-        ({"status": 404}, {}),
-    ])
+    @pytest.mark.parametrize(
+        "response_data,expected_result",
+        [
+            # Successful response with full data
+            (
+                {
+                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "status": 200,
+                },
+                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
+            ),
+            # Empty data section
+            ({"data": {}, "status": 200}, {"status": 200}),
+            # No data key
+            ({"status": 200}, {"status": 200}),
+            # Workspace not found
+            ({"status": 404}, {}),
+        ],
+    )
     def test_get_workspace_by_id_responses(self, response_data, expected_result):
         """Test get_workspace_by_id with various response formats."""
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
-        
+
         mock_tf_client.get.return_value = response_data
         result = get_workspace_by_id(mock_tf_client, workspace_id)
         assert result == expected_result
@@ -154,7 +164,7 @@ class TestGetWorkspaceById:
         """Test get_workspace_by_id with a valid workspace ID."""
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
-        
+
         expected_response = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}, "status": 200}
         mock_tf_client.get.return_value = expected_response
 
@@ -168,7 +178,7 @@ class TestGetWorkspaceById:
         """Test get_workspace_by_id with complex nested data structure."""
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
-        
+
         expected_response = {
             "data": {
                 "id": workspace_id,
@@ -198,5 +208,3 @@ class TestGetWorkspaceById:
         expected_result = expected_response["data"].copy()
         expected_result["status"] = 200
         assert result == expected_result
-
-
