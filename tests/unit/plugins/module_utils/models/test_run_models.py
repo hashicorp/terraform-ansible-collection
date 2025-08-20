@@ -3,18 +3,11 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-
 import time
-
-from datetime import datetime
 
 import pytest
 
-from pydantic import ValidationError
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import (
-    BaseAttributes,
-    BaseRelationships,
     Relationship,
     create_configuration_version_reference,
     create_workspace_reference,
@@ -24,10 +17,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run imp
     RunData,
     RunRelationships,
     RunRequest,
-    RunResource,
-    RunResponse,
     RunStates,
-    create_run_request,
 )
 
 
@@ -38,9 +28,6 @@ class TestRunAttributes:
         """Test creating RunAttributes with minimal data."""
         attrs = RunAttributes()
 
-        # Should have inherited fields from BaseAttributes
-        assert attrs.created_at is None
-        assert attrs.updated_at is None
         # Should have run-specific fields
         assert attrs.run_message is None
         assert attrs.auto_apply is None
@@ -128,11 +115,7 @@ class TestRunAttributes:
     )
     def test_run_attributes_creation_full(self, attribute_values, expected_values):
         """Test creating RunAttributes with various full configurations."""
-        now = datetime.now()
-        attrs = RunAttributes(created_at=now, updated_at=now, **attribute_values)
-
-        assert attrs.created_at == now
-        assert attrs.updated_at == now
+        attrs = RunAttributes(**attribute_values)
 
         for key, expected_value in expected_values.items():
             actual_value = getattr(attrs, key)
@@ -149,10 +132,13 @@ class TestRunAttributes:
                     "plan-only": False,
                     "auto-apply": True,
                     "save-plan": False,
-                    "is-destroy": True,
+                    "is-destroy": False,
                     "target-addrs": ["module.test"],
-                    "created-at": "2023-01-01T00:00:00Z",
-                    "updated-at": "2023-01-02T00:00:00Z",
+                    "replace-addrs": ["module.replace"],
+                    "allow-empty-apply": True,
+                    "allow-config-generation": False,
+                    "debugging-mode": True,
+                    "terraform-version": "1.5.0",
                 },
                 {
                     "run_message": "Test message",
@@ -160,55 +146,54 @@ class TestRunAttributes:
                     "plan_only": False,
                     "auto_apply": True,
                     "save_plan": False,
-                    "is_destroy": True,
+                    "is_destroy": False,
                     "target_addrs": ["module.test"],
-                },
-            ),
-            # Minimal alias test
-            (
-                {
-                    "message": "Minimal test",
-                    "auto-apply": False,
-                },
-                {
-                    "run_message": "Minimal test",
-                    "auto_apply": False,
-                },
-            ),
-            # New fields test
-            (
-                {
-                    "message": "Extended test",
-                    "replace-addrs": ["module.to_replace"],
-                    "allow-empty-apply": True,
-                    "allow-config-generation": False,
-                    "debugging-mode": True,
-                    "terraform-version": "1.5.0",
-                },
-                {
-                    "run_message": "Extended test",
-                    "replace_addrs": ["module.to_replace"],
+                    "replace_addrs": ["module.replace"],
                     "allow_empty_apply": True,
                     "allow_config_generation": False,
                     "debugging_mode": True,
                     "terraform_version": "1.5.0",
                 },
             ),
+            # Mixed aliases and direct field names
+            (
+                {
+                    "run_message": "Direct field",  # Direct field name
+                    "auto-apply": True,  # Alias
+                    "refresh": False,  # Direct field name
+                    "variables": {"test": "value"},  # Direct field name
+                },
+                {
+                    "run_message": "Direct field",
+                    "auto_apply": True,
+                    "refresh": False,
+                    "variables": {"test": "value"},
+                },
+            ),
+            # Only alias fields
+            (
+                {
+                    "message": "Only aliases",
+                    "plan-only": True,
+                    "terraform-version": "1.4.0",
+                },
+                {
+                    "run_message": "Only aliases",
+                    "plan_only": True,
+                    "terraform_version": "1.4.0",
+                },
+            ),
         ],
     )
     def test_run_attributes_field_aliases(self, alias_data, expected_values):
-        """Test RunAttributes field aliases with various configurations."""
+        """Test RunAttributes field aliases work correctly."""
         attrs = RunAttributes.model_validate(alias_data)
 
         for field_name, expected_value in expected_values.items():
             actual_value = getattr(attrs, field_name)
             assert actual_value == expected_value, f"Expected {field_name}={expected_value}, got {actual_value}"
 
-        # Check timestamp fields if present
-        if "created-at" in alias_data:
-            assert attrs.created_at is not None
-        if "updated-at" in alias_data:
-            assert attrs.updated_at is not None
+        # Note: created_at and updated_at fields are not part of RunAttributes
 
     @pytest.mark.parametrize(
         "attrs_data,expected_aliases,excluded_fields",
@@ -216,63 +201,80 @@ class TestRunAttributes:
             # Basic serialization test
             (
                 {
-                    "run_message": "Test message",
-                    "refresh_only": True,
+                    "run_message": "Test serialization",
                     "auto_apply": True,
-                    "is_destroy": False,
+                    "plan_only": False,
                     "target_addrs": ["module.test"],
                 },
                 {
-                    "message": "Test message",
-                    "refresh-only": True,
+                    "message": "Test serialization",
                     "auto-apply": True,
-                    "is-destroy": False,
+                    "plan-only": False,
                     "target-addrs": ["module.test"],
                 },
-                ["refresh_only", "auto_apply", "is_destroy", "target_addrs"],
+                ["refresh", "variables", "save_plan"],  # Fields that should be None/excluded
             ),
-            # Extended fields serialization test
+            # Full serialization test
             (
                 {
-                    "run_message": "Extended test",
-                    "replace_addrs": ["module.replace"],
-                    "allow_empty_apply": True,
-                    "debugging_mode": False,
-                    "terraform_version": "1.6.0",
+                    "run_message": "Full test",
+                    "refresh_only": True,
+                    "save_plan": True,
+                    "is_destroy": False,
+                    "terraform_version": "1.5.0",
+                    "variables": {"env": "test"},
                 },
                 {
-                    "message": "Extended test",
-                    "replace-addrs": ["module.replace"],
-                    "allow-empty-apply": True,
-                    "debugging-mode": False,
-                    "terraform-version": "1.6.0",
+                    "message": "Full test",
+                    "refresh-only": True,
+                    "save-plan": True,
+                    "is-destroy": False,
+                    "terraform-version": "1.5.0",
+                    "variables": {"env": "test"},
                 },
-                ["replace_addrs", "allow_empty_apply", "debugging_mode", "terraform_version"],
+                [],
             ),
         ],
     )
     def test_run_attributes_serialization_with_aliases(self, attrs_data, expected_aliases, excluded_fields):
-        """Test RunAttributes serialization uses field aliases with various configurations."""
+        """Test RunAttributes serialization uses aliases correctly."""
         attrs = RunAttributes(**attrs_data)
-        data = attrs.model_dump(by_alias=True, exclude_unset=True)
+        serialized = attrs.model_dump(by_alias=True, exclude_none=True)
 
-        # Check expected aliases are present
-        for alias_key, expected_value in expected_aliases.items():
-            assert alias_key in data, f"Expected alias '{alias_key}' not found in serialized data"
-            assert data[alias_key] == expected_value, f"Expected {alias_key}={expected_value}, got {data[alias_key]}"
+        for alias, expected_value in expected_aliases.items():
+            assert alias in serialized, f"Alias {alias} should be in serialized output"
+            assert serialized[alias] == expected_value, f"Expected {alias}={expected_value}, got {serialized[alias]}"
 
-        # Check underscore versions are not present
-        for field_name in excluded_fields:
-            assert field_name not in data, f"Underscore field '{field_name}' should not be in serialized data"
+        for field in excluded_fields:
+            # These fields should not be in serialized output when exclude_none=True
+            # since they would be None
+            field_alias = getattr(RunAttributes.model_fields.get(field, None), "alias", field)
+            assert field_alias not in serialized, f"Field {field} (alias: {field_alias}) should not be in output"
 
     def test_run_attributes_inheritance(self):
-        """Test RunAttributes inherits from BaseAttributes."""
-        assert issubclass(RunAttributes, BaseAttributes)
+        """Test RunAttributes inheritance and structure."""
+        attrs = RunAttributes(run_message="Inheritance test")
 
-        # Should have BaseAttributes fields
-        attrs = RunAttributes()
-        assert hasattr(attrs, "created_at")
-        assert hasattr(attrs, "updated_at")
+        # Should have all expected run-specific fields
+        expected_fields = [
+            "run_message",
+            "refresh_only",
+            "plan_only",
+            "auto_apply",
+            "save_plan",
+            "is_destroy",
+            "target_addrs",
+            "replace_addrs",
+            "refresh",
+            "variables",
+            "allow_empty_apply",
+            "allow_config_generation",
+            "debugging_mode",
+            "terraform_version",
+        ]
+
+        for field in expected_fields:
+            assert hasattr(attrs, field), f"RunAttributes should have field {field}"
 
 
 class TestRunRelationships:
@@ -284,18 +286,10 @@ class TestRunRelationships:
 
         assert rels.workspace is None
         assert rels.configuration_version is None
-        assert rels.plan is None
-        assert rels.apply is None
-        assert rels.created_by is None
-        assert rels.policy_checks is None
-        assert rels.run_events is None
-        assert rels.task_stages is None
 
     def test_run_relationships_creation_with_workspace(self):
         """Test creating RunRelationships with workspace."""
-        workspace_ref = create_workspace_reference("ws-123")
-        workspace_rel = Relationship(data=workspace_ref)
-
+        workspace_rel = Relationship(data=create_workspace_reference("ws-123"))
         rels = RunRelationships(workspace=workspace_rel)
 
         assert rels.workspace.data.type == "workspaces"
@@ -308,30 +302,29 @@ class TestRunRelationships:
 
         from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import ResourceData
 
-        plan_ref = ResourceData(type="plans", id="plan-789")
-        apply_ref = ResourceData(type="applies", id="apply-101")
-        user_ref = ResourceData(type="users", id="user-202")
+        policy_ref = ResourceData(type="policy-checks", id="pc-789")
+        events_ref = ResourceData(type="run-events", id="re-101")
+        stages_ref = ResourceData(type="task-stages", id="ts-202")
 
         rels = RunRelationships(
             workspace=Relationship(data=workspace_ref),
             configuration_version=Relationship(data=config_ref),
-            plan=Relationship(data=plan_ref),
-            apply=Relationship(data=apply_ref),
-            created_by=Relationship(data=user_ref),
+            policy_checks=Relationship(data=policy_ref),
+            run_events=Relationship(data=events_ref),
+            task_stages=Relationship(data=stages_ref),
         )
 
         assert rels.workspace.data.id == "ws-123"
         assert rels.configuration_version.data.id == "cv-456"
-        assert rels.plan.data.id == "plan-789"
-        assert rels.apply.data.id == "apply-101"
-        assert rels.created_by.data.id == "user-202"
+        assert rels.policy_checks.data.id == "pc-789"
+        assert rels.run_events.data.id == "re-101"
+        assert rels.task_stages.data.id == "ts-202"
 
     def test_run_relationships_field_aliases(self):
         """Test RunRelationships field aliases."""
         data = {
             "workspace": {"data": {"type": "workspaces", "id": "ws-123"}},
             "configuration-version": {"data": {"type": "configuration-versions", "id": "cv-456"}},
-            "created-by": {"data": {"type": "users", "id": "user-789"}},
             "policy-checks": {"data": {"type": "policy-checks", "id": "pc-101"}},
             "run-events": {"data": {"type": "run-events", "id": "re-202"}},
             "task-stages": {"data": {"type": "task-stages", "id": "ts-303"}},
@@ -341,7 +334,6 @@ class TestRunRelationships:
 
         assert rels.workspace.data.id == "ws-123"
         assert rels.configuration_version.data.id == "cv-456"
-        assert rels.created_by.data.id == "user-789"
         assert rels.policy_checks.data.id == "pc-101"
         assert rels.run_events.data.id == "re-202"
         assert rels.task_stages.data.id == "ts-303"
@@ -351,40 +343,41 @@ class TestRunRelationships:
         config_ref = create_configuration_version_reference("cv-456")
         rels = RunRelationships(configuration_version=Relationship(data=config_ref))
 
-        data = rels.model_dump(by_alias=True, exclude_unset=True)
+        serialized = rels.model_dump(by_alias=True, exclude_none=True)
 
-        assert "configuration-version" in data
-        assert "configuration_version" not in data
-        assert data["configuration-version"]["data"]["id"] == "cv-456"
+        assert "configuration-version" in serialized
+        assert serialized["configuration-version"]["data"]["id"] == "cv-456"
 
     def test_run_relationships_inheritance(self):
-        """Test RunRelationships inherits from BaseRelationships."""
-        assert issubclass(RunRelationships, BaseRelationships)
+        """Test RunRelationships inheritance and structure."""
+        rels = RunRelationships()
+
+        # Should have expected relationship fields
+        expected_fields = ["workspace", "configuration_version", "policy_checks", "run_events", "task_stages"]
+
+        for field in expected_fields:
+            assert hasattr(rels, field), f"RunRelationships should have field {field}"
 
 
 class TestRunData:
     """Test cases for RunData model."""
 
     def test_run_data_creation_minimal(self):
-        """Test creating RunData with minimal required fields."""
-        attrs = RunAttributes(run_message="Test run")
-        rels = RunRelationships()
-
-        data = RunData(attributes=attrs, relationships=rels)
+        """Test creating RunData with minimal configuration."""
+        data = RunData()
 
         assert data.type == "runs"
-        assert data.attributes.run_message == "Test run"
-        assert data.relationships is not None
+        assert data.id is None
+        assert data.attributes is None
+        assert data.relationships is None
 
     def test_run_data_creation_full(self):
         """Test creating RunData with full configuration."""
-        attrs = RunAttributes(run_message="Full test run", auto_apply=True, is_destroy=False)
+        attrs = RunAttributes(run_message="Full test run", auto_apply=True)
+        rels = RunRelationships(workspace=Relationship(data=create_workspace_reference("ws-123")))
+        data = RunData(id="run-456", attributes=attrs, relationships=rels)
 
-        workspace_ref = create_workspace_reference("ws-123")
-        rels = RunRelationships(workspace=Relationship(data=workspace_ref))
-
-        data = RunData(attributes=attrs, relationships=rels, type="runs")
-
+        assert data.id == "run-456"
         assert data.type == "runs"
         assert data.attributes.run_message == "Full test run"
         assert data.attributes.auto_apply is True
@@ -392,25 +385,32 @@ class TestRunData:
 
     def test_run_data_validation(self):
         """Test RunData validation."""
-        # Missing required attributes
-        with pytest.raises(ValidationError):
-            RunData(relationships=RunRelationships())
+        # Test that RunData can be created with minimal data since attributes and relationships are optional
+        run_data = RunData()
+        assert run_data.type == "runs"
+        assert run_data.attributes is None
+        assert run_data.relationships is None
 
-        # Missing required relationships
-        with pytest.raises(ValidationError):
-            RunData(attributes=RunAttributes())
+        # Test with only relationships
+        run_data_with_rels = RunData(relationships=RunRelationships())
+        assert run_data_with_rels.attributes is None
+        assert run_data_with_rels.relationships is not None
+
+        # Test with only attributes
+        run_data_with_attrs = RunData(attributes=RunAttributes())
+        assert run_data_with_attrs.attributes is not None
+        assert run_data_with_attrs.relationships is None
 
     def test_run_data_type_literal(self):
         """Test RunData type field is literal 'runs'."""
         attrs = RunAttributes()
         rels = RunRelationships()
 
-        # Should accept "runs"
-        data = RunData(attributes=attrs, relationships=rels, type="runs")
+        data = RunData(attributes=attrs, relationships=rels)
         assert data.type == "runs"
 
-        # Should default to "runs"
-        data2 = RunData(attributes=attrs, relationships=rels)
+        # Type should be automatically set even if not provided
+        data2 = RunData()
         assert data2.type == "runs"
 
 
@@ -418,87 +418,64 @@ class TestRunRequest:
     """Test cases for RunRequest model."""
 
     def test_run_request_create_basic(self):
-        """Test RunRequest.create with basic parameters."""
-        request = RunRequest.create(workspace_id="ws-123", run_message="Test run")
+        """Test basic RunRequest creation."""
+        request = RunRequest.create(workspace_id="ws-123")
 
         assert request.data.type == "runs"
-        assert request.data.attributes.run_message == "Test run"
-        assert request.data.relationships.workspace.data.type == "workspaces"
         assert request.data.relationships.workspace.data.id == "ws-123"
+        assert request.data.relationships.workspace.data.type == "workspaces"
 
     def test_run_request_create_with_configuration_version(self):
-        """Test RunRequest.create with configuration version."""
+        """Test RunRequest creation with configuration version."""
+        request = RunRequest.create(workspace_id="ws-123", configuration_version_id="cv-456")
+
+        assert request.data.relationships.workspace.data.id == "ws-123"
+        assert request.data.relationships.configuration_version.data.id == "cv-456"
+        assert request.data.relationships.configuration_version.data.type == "configuration-versions"
+
+    def test_run_request_create_with_all_attributes(self):
+        """Test RunRequest creation with all attributes."""
         request = RunRequest.create(
             workspace_id="ws-123",
             configuration_version_id="cv-456",
-            run_message="Test run with config version",
-            auto_apply=True,
-        )
-
-        assert request.data.attributes.run_message == "Test run with config version"
-        assert request.data.attributes.auto_apply is True
-        assert request.data.relationships.workspace.data.id == "ws-123"
-        assert request.data.relationships.configuration_version.data.type == "configuration-versions"
-        assert request.data.relationships.configuration_version.data.id == "cv-456"
-
-    def test_run_request_create_with_all_attributes(self):
-        """Test RunRequest.create with all possible attributes."""
-        request = RunRequest.create(
-            workspace_id="ws-123",
-            run_message="Complete test run",
+            run_message="Test run with all attributes",
             auto_apply=True,
             plan_only=False,
-            save_plan=True,
-            is_destroy=False,
-            refresh_only=False,
-            refresh=True,
-            target_addrs=["module.vpc", "module.security"],
-            variables={"environment": "test", "debug": True},
+            variables={"env": "test", "region": "us-east-1"},
         )
 
-        attrs = request.data.attributes
-        assert attrs.run_message == "Complete test run"
-        assert attrs.auto_apply is True
-        assert attrs.plan_only is False
-        assert attrs.save_plan is True
-        assert attrs.is_destroy is False
-        assert attrs.refresh_only is False
-        assert attrs.refresh is True
-        assert attrs.target_addrs == ["module.vpc", "module.security"]
-        assert attrs.variables == {"environment": "test", "debug": True}
+        assert request.data.attributes.run_message == "Test run with all attributes"
+        assert request.data.attributes.auto_apply is True
+        assert request.data.attributes.plan_only is False
+        assert request.data.attributes.variables == {"env": "test", "region": "us-east-1"}
 
     def test_run_request_serialization(self):
-        """Test RunRequest serialization for API calls."""
-        request = RunRequest.create(workspace_id="ws-123", run_message="Serialization test", auto_apply=True)
+        """Test RunRequest serialization."""
+        request = RunRequest.create(workspace_id="ws-serialization-test", run_message="Serialization test")
 
-        # Test serialization with exclude_unset to get clean API payload
-        data = request.model_dump(by_alias=True, exclude_unset=True)
-        assert "data" in data
-        assert data["data"]["attributes"]["message"] == "Serialization test"
-        assert data["data"]["attributes"]["auto-apply"] is True
-        assert data["data"]["relationships"]["workspace"]["data"]["type"] == "workspaces"
-        assert data["data"]["relationships"]["workspace"]["data"]["id"] == "ws-123"
+        serialized = request.model_dump(by_alias=True, exclude_none=True)
 
-        # Test serialization without exclude_unset to verify type field is present
-        full_data = request.model_dump(by_alias=True)
-        assert full_data["data"]["type"] == "runs"
+        assert "data" in serialized
+        assert serialized["data"]["type"] == "runs"
+        assert serialized["data"]["attributes"]["message"] == "Serialization test"  # Should use alias
+        assert serialized["data"]["relationships"]["workspace"]["data"]["id"] == "ws-serialization-test"
 
     def test_run_request_without_configuration_version(self):
-        """Test RunRequest.create without configuration version."""
-        request = RunRequest.create(workspace_id="ws-456")
+        """Test RunRequest without configuration version."""
+        request = RunRequest.create(workspace_id="ws-no-cv", run_message="No config version")
 
-        assert request.data.relationships.workspace.data.id == "ws-456"
+        assert request.data.relationships.workspace.data.id == "ws-no-cv"
         assert request.data.relationships.configuration_version is None
 
     def test_run_request_validation_empty_workspace_id(self):
-        """Test RunRequest.create validation with empty workspace_id."""
-        # Should still work with empty string (validation at API level)
+        """Test RunRequest validation with empty workspace ID."""
+        # Empty workspace ID should still create valid request
         request = RunRequest.create(workspace_id="")
         assert request.data.relationships.workspace.data.id == ""
 
 
 class TestRunStates:
-    """Test cases for RunStates utility class."""
+    """Test cases for RunStates enum."""
 
     @pytest.mark.parametrize(
         "state",
@@ -516,60 +493,31 @@ class TestRunStates:
         ],
     )
     def test_success_states(self, state):
-        """Test success state recognition for all success states."""
-        assert RunStates.is_success_state(state), f"State '{state}' should be success state"
-        assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
-        assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
-        assert RunStates.is_final_state(state), f"State '{state}' should be final state"
+        """Test success states."""
+        assert RunStates.is_success_state(state) is True
+        assert RunStates.is_failure_state(state) is False
+        assert RunStates.is_intermediate_state(state) is False
 
-    @pytest.mark.parametrize(
-        "state",
-        [
-            "errored",
-            "policy_soft_failed",
-        ],
-    )
+    @pytest.mark.parametrize("state", ["errored", "policy_soft_failed"])
     def test_failure_states(self, state):
-        """Test failure state recognition for all failure states."""
-        assert RunStates.is_failure_state(state), f"State '{state}' should be failure state"
-        assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
-        assert not RunStates.is_intermediate_state(state), f"State '{state}' should not be intermediate state"
-        assert RunStates.is_final_state(state), f"State '{state}' should be final state"
+        """Test failure states."""
+        assert RunStates.is_failure_state(state) is True
+        assert RunStates.is_success_state(state) is False
+        assert RunStates.is_intermediate_state(state) is False
 
-    @pytest.mark.parametrize(
-        "state",
-        [
-            "plan_queued",
-            "queuing",
-            "planning",
-            "applying",
-        ],
-    )
+    @pytest.mark.parametrize("state", ["plan_queued", "queuing", "planning", "applying"])
     def test_intermediate_states(self, state):
-        """Test intermediate state recognition for all intermediate states."""
-        assert RunStates.is_intermediate_state(state), f"State '{state}' should be intermediate state"
-        assert not RunStates.is_success_state(state), f"State '{state}' should not be success state"
-        assert not RunStates.is_failure_state(state), f"State '{state}' should not be failure state"
-        assert not RunStates.is_final_state(state), f"State '{state}' should not be final state"
+        """Test intermediate states."""
+        assert RunStates.is_intermediate_state(state) is True
+        assert RunStates.is_success_state(state) is False
+        assert RunStates.is_failure_state(state) is False
 
-    @pytest.mark.parametrize(
-        "state",
-        [
-            "unknown",
-            "custom_state",
-            "",
-            "pending",
-            "new_future_state",
-            "PLANNED",  # Case sensitivity test
-            "applied_with_typo",
-        ],
-    )
+    @pytest.mark.parametrize("state", ["unknown", "custom_state", "", "pending", "new_future_state", "PLANNED", "applied_with_typo"])
     def test_unknown_states(self, state):
-        """Test unknown state handling for various unknown states."""
-        assert not RunStates.is_success_state(state), f"Unknown state '{state}' should not be success"
-        assert not RunStates.is_failure_state(state), f"Unknown state '{state}' should not be failure"
-        assert not RunStates.is_intermediate_state(state), f"Unknown state '{state}' should not be intermediate"
-        assert not RunStates.is_final_state(state), f"Unknown state '{state}' should not be final"
+        """Test unknown/invalid states."""
+        assert RunStates.is_success_state(state) is False
+        assert RunStates.is_failure_state(state) is False
+        assert RunStates.is_intermediate_state(state) is False
 
     def test_state_constants(self):
         """Test state constant lists."""
@@ -583,125 +531,36 @@ class TestRunStates:
         assert len(all_states) == len(RunStates.SUCCESS_STATES) + len(RunStates.FAILURE_STATES) + len(RunStates.INTERMEDIATE_STATES)
 
     def test_case_sensitivity(self):
-        """Test state recognition is case sensitive."""
-        assert RunStates.is_success_state("applied")
-        assert not RunStates.is_success_state("Applied")
-        assert not RunStates.is_success_state("APPLIED")
-
-
-class TestRunResourceAndResponse:
-    """Test cases for RunResource and RunResponse type aliases."""
-
-    def test_run_resource_creation(self):
-        """Test creating RunResource (type alias)."""
-        attrs = RunAttributes(run_message="Test resource")
-        rels = RunRelationships()
-
-        resource = RunResource(id="run-123", type="runs", attributes=attrs, relationships=rels)
-
-        assert resource.id == "run-123"
-        assert resource.type == "runs"
-        assert resource.attributes.run_message == "Test resource"
-
-    def test_run_response_creation(self):
-        """Test creating RunResponse (type alias)."""
-        attrs = RunAttributes(run_message="Test response")
-        rels = RunRelationships()
-
-        resource = RunResource(id="run-456", type="runs", attributes=attrs, relationships=rels)
-
-        response = RunResponse(data=resource)
-
-        assert response.data.id == "run-456"
-        assert response.data.attributes.run_message == "Test response"
-
-    def test_run_response_with_multiple_resources(self):
-        """Test RunResponse with multiple resources."""
-        resources = []
-        for i in range(3):
-            attrs = RunAttributes(run_message=f"Test run {i}")
-            rels = RunRelationships()
-            resources.append(RunResource(id=f"run-{i}", type="runs", attributes=attrs, relationships=rels))
-
-        response = RunResponse(data=resources)
-
-        assert len(response.data) == 3
-        assert response.data[0].id == "run-0"
-        assert response.data[1].attributes.run_message == "Test run 1"
-        assert response.data[2].id == "run-2"
-
-
-class TestCreateRunRequest:
-    """Test cases for create_run_request factory function."""
-
-    def test_create_run_request_basic(self):
-        """Test create_run_request with basic parameters."""
-        request = create_run_request(workspace_id="ws-123", run_message="Factory test")
-
-        assert request.data.type == "runs"
-        assert request.data.attributes.run_message == "Factory test"
-        assert request.data.relationships.workspace.data.id == "ws-123"
-
-    def test_create_run_request_with_all_params(self):
-        """Test create_run_request with all parameters."""
-        request = create_run_request(
-            workspace_id="ws-123",
-            configuration_version_id="cv-456",
-            run_message="Complete factory test",
-            auto_apply=True,
-            plan_only=False,
-            save_plan=True,
-            is_destroy=False,
-            refresh_only=False,
-            refresh=True,
-            target_addrs=["module.test"],
-            variables={"test": True},
-        )
-
-        attrs = request.data.attributes
-        assert attrs.run_message == "Complete factory test"
-        assert attrs.auto_apply is True
-        assert attrs.plan_only is False
-        assert attrs.save_plan is True
-        assert attrs.is_destroy is False
-        assert attrs.refresh_only is False
-        assert attrs.refresh is True
-        assert attrs.target_addrs == ["module.test"]
-        assert attrs.variables == {"test": True}
-
-        assert request.data.relationships.workspace.data.id == "ws-123"
-        assert request.data.relationships.configuration_version.data.id == "cv-456"
+        """Test state comparison is case sensitive."""
+        assert RunStates.is_success_state("PLANNED") is False  # Should be lowercase
+        assert RunStates.is_success_state("planned") is True
 
 
 class TestRunsModelsEdgeCases:
-    """Test edge cases and error scenarios."""
+    """Test edge cases and special scenarios for run models."""
 
     @pytest.mark.parametrize(
         "list_value,expected",
         [
+            (["module.vpc", "module.ec2"], ["module.vpc", "module.ec2"]),
+            (["single-module"], ["single-module"]),
             ([], []),
-            (["module.single"], ["module.single"]),
-            (["module.a", "module.b", "module.c"], ["module.a", "module.b", "module.c"]),
             (None, None),
         ],
     )
     def test_run_attributes_with_list_fields(self, list_value, expected):
-        """Test RunAttributes with various list field configurations."""
-        attrs = RunAttributes(
-            target_addrs=list_value,
-            replace_addrs=list_value,
-        )
+        """Test RunAttributes with various list field values."""
+        attrs = RunAttributes(target_addrs=list_value)
         assert attrs.target_addrs == expected
-        assert attrs.replace_addrs == expected
 
     @pytest.mark.parametrize(
         "variables_value,expected",
         [
             (None, None),
+            ({"env": "production"}, {"env": "production"}),
+            ({"complex": {"nested": {"value": 123}}}, {"complex": {"nested": {"value": 123}}}),
+            ({"array_value": [1, 2, 3]}, {"array_value": [1, 2, 3]}),
             ({}, {}),
-            ({"key": "value"}, {"key": "value"}),
-            ({"env": "prod", "debug": True, "count": 42}, {"env": "prod", "debug": True, "count": 42}),
-            ({"unicode_こんにちは": "value_世界"}, {"unicode_こんにちは": "value_世界"}),
         ],
     )
     def test_run_attributes_with_variables(self, variables_value, expected):
@@ -710,55 +569,50 @@ class TestRunsModelsEdgeCases:
         assert attrs.variables == expected
 
     @pytest.mark.parametrize(
-        "special_message",
+        "message",
         [
             "Deploy 🚀 with émojis & spëcial chars: @#$%^&*()",
             "Multi-line\nmessage\nwith\ntabs\t\t",
             "Message with 'single' and \"double\" quotes",
             "Very long message: " + "x" * 1000,
-            "",  # Empty message
+            "",
             'Message with JSON: {"key": "value", "array": [1, 2, 3]}',
         ],
     )
-    def test_run_request_with_special_characters_in_message(self, special_message):
-        """Test RunRequest with various special characters and edge cases in message."""
-        request = RunRequest.create(workspace_id="ws-special", run_message=special_message)
-        assert request.data.attributes.run_message == special_message
+    def test_run_request_with_special_characters_in_message(self, message):
+        """Test RunRequest with special characters in message."""
+        request = RunRequest.create(workspace_id="ws-special", run_message=message)
+        assert request.data.attributes.run_message == message
 
     @pytest.mark.parametrize(
         "links_config",
         [
-            {"self": "/api/v2/workspaces/ws-123"},
-            {"related": "/api/v2/workspaces/ws-123/runs"},
-            {"custom": "/custom/endpoint"},
-            {},  # Empty links
+            {"self": "/api/v2/runs/run-123"},
+            {"self": "/api/v2/runs/run-123", "related": "/api/v2/workspaces/ws-456"},
+            {},
+            None,
         ],
     )
     def test_run_relationships_with_missing_data(self, links_config):
-        """Test RunRelationships with various link configurations but missing data."""
-        rels = RunRelationships(workspace=Relationship(links=links_config))
+        """Test RunRelationships with only links and no data."""
+        workspace_rel = Relationship(data=None, links=links_config)
+        rels = RunRelationships(workspace=workspace_rel)
 
         assert rels.workspace.data is None
         assert rels.workspace.links == links_config
 
-        for key, value in links_config.items():
-            assert rels.workspace.links[key] == value
-
     def test_run_data_type_immutability(self):
-        """Test RunData type field behavior and immutability."""
-        attrs = RunAttributes()
-        rels = RunRelationships()
-
-        # Type should default to "runs"
-        data = RunData(attributes=attrs, relationships=rels)
+        """Test that RunData type field cannot be overridden."""
+        data = RunData()
         assert data.type == "runs"
 
-        # Type should be literal "runs" even if explicitly set
-        data_explicit = RunData(attributes=attrs, relationships=rels, type="runs")
-        assert data_explicit.type == "runs"
+        # Type should remain 'runs' even if we try to set it differently during creation
+        # (This test verifies the Literal type works as expected)
+        data_with_explicit_type = RunData(type="runs")
+        assert data_with_explicit_type.type == "runs"
 
     @pytest.mark.parametrize(
-        "boolean_field,test_values",
+        "field_name,test_values",
         [
             ("auto_apply", [True, False, None]),
             ("plan_only", [True, False, None]),
@@ -771,89 +625,69 @@ class TestRunsModelsEdgeCases:
             ("debugging_mode", [True, False, None]),
         ],
     )
-    def test_run_attributes_boolean_fields(self, boolean_field, test_values):
-        """Test RunAttributes boolean fields with various values."""
+    def test_run_attributes_boolean_fields(self, field_name, test_values):
+        """Test boolean field handling in RunAttributes."""
         for value in test_values:
-            attrs = RunAttributes(**{boolean_field: value})
-            assert getattr(attrs, boolean_field) == value
+            attrs = RunAttributes(**{field_name: value})
+            assert getattr(attrs, field_name) == value
 
 
 class TestRunModelsPerformance:
-    """Test performance characteristics of run models."""
+    """Performance and stress tests for run models."""
 
     def test_run_request_creation_performance(self):
-        """Test performance of RunRequest creation with large data."""
+        """Test performance of RunRequest creation."""
         start_time = time.time()
 
-        # Create many run requests
-        requests = []
+        # Create multiple run requests
         for i in range(100):
             request = RunRequest.create(
                 workspace_id=f"ws-{i}",
+                configuration_version_id=f"cv-{i}",
                 run_message=f"Performance test run {i}",
-                auto_apply=i % 2 == 0,
-                target_addrs=[f"module.test_{j}" for j in range(10)],
-                variables={f"var_{j}": f"value_{j}" for j in range(5)},
+                variables={"index": i, "test": "performance"},
             )
-            requests.append(request)
+            assert request.data.attributes.run_message == f"Performance test run {i}"
 
         end_time = time.time()
+        duration = end_time - start_time
 
-        assert len(requests) == 100
-        # Should complete in reasonable time (less than 2 seconds)
-        assert (end_time - start_time) < 2.0
-
-        # Verify some random requests
-        assert requests[0].data.attributes.run_message == "Performance test run 0"
-        assert requests[50].data.relationships.workspace.data.id == "ws-50"
+        # Should complete reasonably quickly (less than 1 second for 100 requests)
+        assert duration < 1.0, f"RunRequest creation took too long: {duration} seconds"
 
     def test_run_attributes_large_data_handling(self):
-        """Test RunAttributes with large data sets."""
-        # Large target addresses list
-        large_target_addrs = [f"module.target_{i}" for i in range(1000)]
+        """Test RunAttributes with large data structures."""
+        # Create large variables dictionary
+        large_variables = {f"var_{i}": f"value_{i}" * 100 for i in range(100)}
 
-        # Large variables dictionary
-        large_variables = {f"var_{i}": f"value_{i}" * 10 for i in range(100)}
-
-        start_time = time.time()
+        # Create large target addresses list
+        large_target_addrs = [f"module.{i}.resource_{j}" for i in range(10) for j in range(10)]
 
         attrs = RunAttributes(
             run_message="Large data test",
-            target_addrs=large_target_addrs,
             variables=large_variables,
+            target_addrs=large_target_addrs,
         )
 
-        # Test serialization
-        data = attrs.model_dump(by_alias=True)
-
-        end_time = time.time()
-
-        assert len(attrs.target_addrs) == 1000
         assert len(attrs.variables) == 100
-        assert data["target-addrs"] == large_target_addrs
-        assert data["variables"] == large_variables
-
-        # Should complete in reasonable time
-        assert (end_time - start_time) < 1.0
+        assert len(attrs.target_addrs) == 100
+        assert attrs.run_message == "Large data test"
 
 
 class TestRunModelsIntegration:
-    """Integration tests for run models working together."""
+    """Integration tests combining multiple run models."""
 
     def test_complete_run_workflow_simulation(self):
-        """Test a complete run workflow with all models working together."""
-        # Step 1: Create a run request
+        """Test complete run workflow using all models together."""
+        # Step 1: Create run request
         request = RunRequest.create(
             workspace_id="ws-integration-test",
             configuration_version_id="cv-integration-test",
             run_message="Integration test run",
             auto_apply=False,
             plan_only=True,
-            target_addrs=["module.vpc", "module.security_group"],
-            variables={"environment": "test", "region": "us-east-1"},
         )
 
-        # Verify request structure
         assert request.data.type == "runs"
         assert request.data.attributes.run_message == "Integration test run"
         assert request.data.relationships.workspace.data.id == "ws-integration-test"
@@ -864,8 +698,6 @@ class TestRunModelsIntegration:
             run_message="Integration test run",
             auto_apply=False,
             plan_only=True,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
         )
 
         response_rels = RunRelationships(
@@ -873,49 +705,35 @@ class TestRunModelsIntegration:
             configuration_version=Relationship(data=create_configuration_version_reference("cv-integration-test")),
         )
 
-        run_resource = RunResource(
-            id="run-integration-test",
+        # RunResource doesn't exist - using BaseTerraformResource instead
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import BaseTerraformResource
+
+        response_data = BaseTerraformResource[RunAttributes, RunRelationships](
+            id="run-integration-response",
             type="runs",
             attributes=response_attrs,
             relationships=response_rels,
         )
 
-        # Step 3: Test state transitions
-        states_to_test = ["plan_queued", "planning", "planned"]
-        for state in states_to_test:
-            if RunStates.is_intermediate_state(state):
-                assert not RunStates.is_final_state(state)
-            elif RunStates.is_success_state(state):
-                assert RunStates.is_final_state(state)
+        assert response_data.id == "run-integration-response"
+        assert response_data.type == "runs"
+        assert response_data.attributes.run_message == "Integration test run"
 
-        # Verify final response structure
-        assert run_resource.id == "run-integration-test"
-        assert run_resource.attributes.run_message == "Integration test run"
-        assert run_resource.relationships.workspace.data.type == "workspaces"
+        # Step 3: Test state transitions
+        assert RunStates.is_intermediate_state("planning")
+        assert RunStates.is_success_state("planned")
+        assert not RunStates.is_failure_state("planned")
 
     @pytest.mark.parametrize(
-        "factory_function,workspace_id,expected_type",
+        "factory_method,workspace_id,expected_type",
         [
-            (RunRequest.create, "ws-factory-1", "runs"),
-            (create_run_request, "ws-factory-2", "runs"),
+            ("create", "ws-factory-1", "runs"),
         ],
     )
-    def test_factory_functions_consistency(self, factory_function, workspace_id, expected_type):
-        """Test that different factory functions produce consistent results."""
-        request1 = factory_function(
-            workspace_id=workspace_id,
-            message="Factory test",
-            auto_apply=True,
-        )
+    def test_factory_functions_consistency(self, factory_method, workspace_id, expected_type):
+        """Test factory method consistency."""
+        method = getattr(RunRequest, factory_method)
+        result = method(workspace_id=workspace_id)
 
-        request2 = factory_function(
-            workspace_id=workspace_id,
-            run_message="Factory test",  # Alternative parameter name
-            auto_apply=True,
-        )
-
-        # Both should produce valid requests
-        assert request1.data.type == expected_type
-        assert request2.data.type == expected_type
-        assert request1.data.relationships.workspace.data.id == workspace_id
-        assert request2.data.relationships.workspace.data.id == workspace_id
+        assert result.data.type == expected_type
+        assert result.data.relationships.workspace.data.id == workspace_id

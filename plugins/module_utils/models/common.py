@@ -1,22 +1,35 @@
-from datetime import datetime
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 
+HAS_PYDANTIC = False
+
+# Import pydantic components with fallbacks
 try:
-    from pydantic import BaseModel, Field
+    from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 
     HAS_PYDANTIC = True
 except ImportError:
-    HAS_PYDANTIC = False
-
-    class BaseModel:
+    # Fallback implementations when pydantic is not available
+    class BaseModel:  # type: ignore[no-redef]
         """Fallback BaseModel class for when pydantic is not available."""
 
         pass
 
-    def Field(*args, **kwargs):
-        """Fallback Field class for when pydantic is not available."""
+    def Field(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
+        """Fallback Field function for when pydantic is not available."""
         return None
+
+    # Create fallback types - use built-in types directly
+    StrictBool = bool  # type: ignore[misc,assignment]
+    StrictStr = str  # type: ignore[misc,assignment]
+
+    class ConfigDict:  # type: ignore[no-redef]
+        """Fallback ConfigDict for when pydantic is not available."""
+
+        def __init__(self, populate_by_name: Any = None, **kwargs: Any) -> None:
+            self.populate_by_name = populate_by_name
+            for key, value in kwargs.items():
+                setattr(self, key, value)
 
 
 T = TypeVar("T")
@@ -38,14 +51,6 @@ class Relationship(BaseModel):
     links: Optional[Dict[str, str]] = None
 
 
-class Links(BaseModel):
-    """Common links structure for API responses."""
-
-    self: Optional[str] = None
-    related: Optional[str] = None
-    download: Optional[str] = None
-
-
 class BaseTerraformResource(BaseModel, Generic[AttributesType, RelationshipsType]):
     """
     Generic base model for Terraform Cloud/Enterprise API resources.
@@ -62,34 +67,15 @@ class BaseTerraformResource(BaseModel, Generic[AttributesType, RelationshipsType
     type: str
     attributes: Optional[AttributesType] = None
     relationships: Optional[RelationshipsType] = None
-    links: Optional[Links] = None
 
 
-class BaseRequest(BaseModel, Generic[T]):
+ResourceType = TypeVar("ResourceType", bound="BaseTerraformResource")
+
+
+class BaseRequest(BaseModel, Generic[ResourceType]):
     """Base model for API request payloads."""
 
-    data: T
-
-    class Config:
-        populate_by_name = True
-
-
-class BaseAttributes(BaseModel):
-    """Base attributes model with common timestamp fields."""
-
-    created_at: Optional[datetime] = Field(None, alias="created-at")
-    updated_at: Optional[datetime] = Field(None, alias="updated-at")
-
-    class Config:
-        populate_by_name = True
-
-
-class BaseRelationships(BaseModel):
-    """Base relationships model."""
-
-    class Config:
-        populate_by_name = True
-        extra = "allow"
+    data: ResourceType
 
 
 class TerraformAPIResponse(BaseModel, Generic[T]):

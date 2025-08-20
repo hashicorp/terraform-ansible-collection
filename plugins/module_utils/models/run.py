@@ -6,40 +6,24 @@ This module contains models specifically for run-related API operations.
 
 from typing import Any, Dict, List, Literal, Optional
 
-
-try:
-    from pydantic import BaseModel, Field, StrictBool, StrictStr
-
-    HAS_PYDANTIC = True
-except ImportError:
-    HAS_PYDANTIC = False
-
-    class BaseModel:
-        """Fallback BaseModel class for when pydantic is not available."""
-
-        pass
-
-    def Field(*args, **kwargs):
-        """Fallback Field class for when pydantic is not available."""
-        return None
-
-    StrictBool = bool
-    StrictStr = str
-
 from .common import (
-    BaseAttributes,
-    BaseRelationships,
+    BaseModel,
     BaseRequest,
     BaseTerraformResource,
+    ConfigDict,
+    Field,
     Relationship,
-    TerraformAPIResponse,
+    StrictBool,
+    StrictStr,
     create_configuration_version_reference,
     create_workspace_reference,
 )
 
 
-class RunAttributes(BaseAttributes):
+class RunAttributes(BaseModel):
     """Attributes for run resources with comprehensive run-specific fields."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     run_message: Optional[StrictStr] = Field(None, alias="message")
     refresh_only: Optional[StrictBool] = Field(None, alias="refresh-only")
@@ -57,28 +41,24 @@ class RunAttributes(BaseAttributes):
     terraform_version: Optional[StrictStr] = Field(None, alias="terraform-version")
 
 
-class RunRelationships(BaseRelationships):
+class RunRelationships(BaseModel):
     """Relationships for run resources."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     workspace: Optional[Relationship] = None
     configuration_version: Optional[Relationship] = Field(default=None, alias="configuration-version")
-    plan: Optional[Relationship] = None
-    apply: Optional[Relationship] = None
-    created_by: Optional[Relationship] = Field(default=None, alias="created-by")
+    # the below relationships are not used in the run request, but are used in the run response
     policy_checks: Optional[Relationship] = Field(default=None, alias="policy-checks")
     run_events: Optional[Relationship] = Field(default=None, alias="run-events")
     task_stages: Optional[Relationship] = Field(default=None, alias="task-stages")
 
 
-class RunData(BaseModel):
+class RunData(BaseTerraformResource[RunAttributes, RunRelationships]):
     """Model for run data in API requests."""
 
-    attributes: RunAttributes
+    model_config = ConfigDict(populate_by_name=True)
     type: Literal["runs"] = "runs"
-    relationships: RunRelationships
-
-    class Config:
-        populate_by_name = True
 
 
 class RunRequest(BaseRequest[RunData]):
@@ -93,6 +73,7 @@ class RunRequest(BaseRequest[RunData]):
             workspace_id: The workspace ID
             configuration_version_id: Optional configuration version ID
             **attributes: Any run attributes (message, plan_only, auto_apply, etc.)
+                         Can use either field names (run_message) or aliases (message)
 
         Returns:
             A complete RunRequest with all nested structure built automatically
@@ -105,15 +86,11 @@ class RunRequest(BaseRequest[RunData]):
 
         return cls(
             data=RunData(
-                attributes=RunAttributes(**attributes),
+                type="runs",
+                attributes=RunAttributes.model_validate(attributes),
                 relationships=relationships,
             )
         )
-
-
-# aliases using common models
-RunResource = BaseTerraformResource[RunAttributes, RunRelationships]
-RunResponse = TerraformAPIResponse[RunResource]
 
 
 class RunStates:
@@ -155,52 +132,3 @@ class RunStates:
     def is_final_state(cls, state: str) -> bool:
         """Check if the given state is a final state (success or failure)."""
         return cls.is_success_state(state) or cls.is_failure_state(state)
-
-
-def create_run_request(
-    workspace_id: str,
-    message: Optional[str] = None,
-    auto_apply: Optional[bool] = None,
-    plan_only: Optional[bool] = None,
-    is_destroy: Optional[bool] = None,
-    configuration_version_id: Optional[str] = None,
-    **kwargs,
-) -> RunRequest:
-    """
-    Enhanced factory function to create run requests with better API.
-
-    Args:
-        workspace_id: The workspace ID
-        message: Optional message for the run
-        auto_apply: Whether to auto-apply the run
-        plan_only: Whether this is a plan-only run
-        is_destroy: Whether this is a destroy run
-        configuration_version_id: Optional configuration version ID
-        **kwargs: Additional run attributes
-
-    Returns:
-        A configured RunRequest instance
-    """
-    attributes: Dict[str, Any] = {}
-    if message is not None:
-        attributes["message"] = message
-    if auto_apply is not None:
-        attributes["auto_apply"] = auto_apply
-    if plan_only is not None:
-        attributes["plan_only"] = plan_only
-    if is_destroy is not None:
-        attributes["is_destroy"] = is_destroy
-
-    attributes.update(kwargs)
-
-    return RunRequest.create(workspace_id=workspace_id, configuration_version_id=configuration_version_id, **attributes)
-
-
-def create_workspace_run_relationship(workspace_id: str) -> Relationship:
-    """Create a workspace relationship for run requests."""
-    return Relationship(data=create_workspace_reference(workspace_id))
-
-
-def create_configuration_version_run_relationship(config_version_id: str) -> Relationship:
-    """Create a configuration version relationship for run requests."""
-    return Relationship(data=create_configuration_version_reference(config_version_id))
