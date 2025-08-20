@@ -106,3 +106,27 @@ def create_organization_reference(organization_name: str) -> ResourceData:
 def create_run_reference(run_id: str) -> ResourceData:
     """Create a run reference for use in relationships."""
     return ResourceData(type="runs", id=run_id)
+
+
+# Explicitly declare exports to avoid pylint unused-import warnings
+__all__ = [
+    # Pydantic re-exports (used by other model files)
+    "BaseModel",
+    "ConfigDict",
+    "Field",
+    "StrictBool",
+    "StrictStr",
+    # Model classes
+    "ResourceData",
+    "Relationship",
+    "BaseTerraformResource",
+    "BaseRequest",
+    "TerraformAPIResponse",
+    # Utility functions
+    "create_workspace_reference",
+    "create_configuration_version_reference",
+    "create_organization_reference",
+    "create_run_reference",
+    # Constants
+    "HAS_PYDANTIC",
+]
