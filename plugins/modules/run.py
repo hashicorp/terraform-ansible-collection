@@ -17,10 +17,10 @@ description:
   - Can trigger plan or apply operations on specified workspaces with customizable settings.
   - Provides comprehensive options for managing run attributes including messages, variables, and auto-apply settings.
   - Compatible with both Terraform Cloud and Terraform Enterprise environments.
-  - The I(present) state creates a new run with the specified parameters.
-  - The I(applied) state applies an existing run using its run ID.
-  - The I(discarded) state discards a run without applying it.
-  - The I(canceled) state cancels a run that is currently in progress.
+  - The C(present) state creates a new run with the specified parameters.
+  - The C(applied) state applies an existing run using its run ID.
+  - The C(discarded) state discards a run without applying it.
+  - The C(canceled) state cancels a run that is currently in progress.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
     workspace_id:
@@ -46,11 +46,15 @@ options:
         type: str
         required: false
     auto_apply:
-        description: Whether to automatically apply the run after the planning phase completes successfully.
+        description:
+        - Whether to automatically apply the run after the planning phase completes successfully.
+        - Mutually exclusive with I(plan_only) and I(save_plan).
         type: bool
         required: false
     save_plan:
-        description: Whether to save the plan and check the configuration without making it the workspace's current run.
+        description:
+        - Whether to save the plan and check the configuration without making it the workspace's current run.
+        - Mutually exclusive with I(auto_apply) and I(plan_only).
         type: bool
         required: false
     variables:
@@ -59,7 +63,9 @@ options:
         elements: dict
         required: false
     plan_only:
-        description: Whether to only create a plan without applying any changes.
+        description:
+        - Whether to only create a plan without applying any changes.
+        - Mutually exclusive with I(auto_apply) and I(save_plan).
         type: bool
         required: false
     run_id:
@@ -76,7 +82,9 @@ options:
         elements: str
         required: false
     state:
-        description: The desired state of the run to manage.
+        description:
+        - The desired state of the run to manage.
+        - The applied, discarded, and canceled states require the I(run_id) while the other parameters do not have any effect on the run.
         type: str
         choices: ['present', 'applied', 'discarded', 'canceled']
         default: 'present'
@@ -239,21 +247,6 @@ data:
             sample: {
                 "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
             }
-changed:
-    description: Whether any changes were made.
-    returned: always
-    type: bool
-    sample: true
-failed:
-    description: Whether the operation failed.
-    returned: when operation fails
-    type: bool
-    sample: false
-msg:
-    description: Human readable message describing the result.
-    returned: when operation fails or during polling timeout
-    type: str
-    sample: "Run reached status 'timeout' instead of expected success state"
 """
 
 import time
