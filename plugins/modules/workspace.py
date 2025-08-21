@@ -27,7 +27,7 @@ description:
   - If a I(workspace_id) is specified, the I(state) is C(locked) and I(lock_reason) is set, this module will lock the workspace, if it exists.
   - If a I(workspace_id) is specified, the I(state) is C(unlocked) and I(force) is set C(true), this module will unlock the workspace,
     if it exists.
-  - If a I(workspace_id) is specified, the I(state) is C(unlock) and I(force) is set C(true), this module will force unlock the workspace,
+  - If a I(workspace_id) is specified, the I(state) is C(unlocked) and I(force) is set C(true), this module will force unlock the workspace,
     if it exists.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
@@ -265,7 +265,6 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict
 
@@ -420,7 +419,7 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any], check_mode: 
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace']} would be created with the given payload. Skipped delete due to check-mode.",
+                "msg": f"The workspace {params['workspace']} would be created with the given payload. Skipped create due to check-mode.",
                 **workspace_payload["data"],
             },
         )
@@ -492,7 +491,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     if not check_mode:
         response = update_workspace(client_terraform, workspace_id, workspace_payload)
         action_result.update(
-            {"changed": True, "msg": "The workspace is updated successfully", **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace']} is updated successfully", **response["data"]},
         )
     else:
         action_result.update(
@@ -534,7 +533,7 @@ def get_workspace_id(client_terraform: Any, params: Dict[str, Any]) -> str:
     return workspace_id
 
 
-def workspace_delete(client_terraform: Any, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def workspace_delete(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Deletes a Terraform workspace using either a safe or force delete method.
 
@@ -558,10 +557,6 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], check_mode: 
     action_result = {
         "changed": False,
     }
-    if not params["workspace_id"]:
-        workspace_id = get_workspace_id(client_terraform, params)
-        params["workspace_id"] = workspace_id
-    workspace_response = get_workspace_by_id(client_terraform, workspace_id)
     if not workspace_response:
         action_result["msg"] = f"Workspace {params['workspace_id']} was not found."
         action_result["changed"] = False
@@ -583,7 +578,7 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], check_mode: 
     return action_result
 
 
-def workspace_unlock(client_terraform: Any, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Unlocks a Terraform workspace, either forcefully or gracefully depending on the provided parameters.
 
@@ -605,10 +600,6 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], check_mode: 
         Any exceptions raised by the underlying unlock functions will propagate up to the caller.
     """
     action_result = {}
-    if not params["workspace_id"]:
-        workspace_id = get_workspace_id(client_terraform, params)
-        params["workspace_id"] = workspace_id
-    workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if not locked_status:
         action_result.update(
@@ -630,7 +621,7 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], check_mode: 
     return action_result
 
 
-def workspace_lock(client_terraform: Any, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def workspace_lock(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Locks a Terraform workspace.
 
@@ -654,10 +645,6 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any], check_mode: bo
     action_result = {
         "changed": False,
     }
-    if not params["workspace_id"]:
-        workspace_id = get_workspace_id(client_terraform, params)
-        params["workspace_id"] = workspace_id
-    workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if locked_status:
         action_result.update(
@@ -746,15 +733,21 @@ def main():
             else:
                 # if workspace_id is provided then update is triggered
                 action_result = workspace_update(client_terraform, params, params["check_mode"])
+        elif params["state"] in ("absent", "locked", "unlocked"):
+            # get the workspace response
+            if not params["workspace_id"]:
+                workspace_id = get_workspace_id(client_terraform, params)
+                params["workspace_id"] = workspace_id
+            workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
 
-        elif params["state"] == "absent":
-            action_result = workspace_delete(client_terraform, params, params["check_mode"])
+            if params["state"] == "absent":
+                action_result = workspace_delete(client_terraform, params, workspace_response, params["check_mode"])
 
-        elif params["state"] == "locked":
-            action_result = workspace_lock(client_terraform, params, params["check_mode"])
+            elif params["state"] == "locked":
+                action_result = workspace_lock(client_terraform, params, workspace_response, params["check_mode"])
 
-        elif params["state"] == "unlocked":
-            action_result = workspace_unlock(client_terraform, params, params["check_mode"])
+            elif params["state"] == "unlocked":
+                action_result = workspace_unlock(client_terraform, params, workspace_response, params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)
