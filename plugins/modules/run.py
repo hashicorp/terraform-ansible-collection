@@ -356,11 +356,10 @@ def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     Returns:
         The applied run in the form of a dictionary.
     """
-    run_id = kwargs.get("run_id")
+    run_id = kwargs.pop("run_id", None)
+    poll = kwargs.pop("poll", True)
     response = apply_run(client, run_id)
-    # Filter out parameters that are already passed as positional/keyword args
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
-    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **filtered_kwargs)
+    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
 
 
 @idempotency_check
@@ -372,11 +371,10 @@ def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     Returns:
         The discarded run in the form of a dictionary.
     """
-    run_id = kwargs.get("run_id")
+    run_id = kwargs.pop("run_id", None)
+    poll = kwargs.pop("poll", True)
     response = discard_run(client, run_id)
-    # Filter out parameters that are already passed as positional/keyword args
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
-    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **filtered_kwargs)
+    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
 
 
 @idempotency_check
@@ -388,11 +386,10 @@ def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     Returns:
         The canceled run in the form of a dictionary.
     """
-    run_id = kwargs.get("run_id")
+    run_id = kwargs.pop("run_id", None)
+    poll = kwargs.pop("poll", True)
     response = cancel_run(client, run_id)
-    # Filter out parameters that are already passed as positional/keyword args
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
-    return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id, **filtered_kwargs)
+    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
 
 
 def get_workspace_id(client: TerraformClient, workspace: str, organization: str) -> str:

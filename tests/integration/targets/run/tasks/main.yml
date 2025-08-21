@@ -15,7 +15,7 @@
 
     - name: Create a Terraform workspace with unique name
       ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/Ansible-BU-TFC/workspaces"
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
         method: POST
         headers:
           Authorization: "Bearer {{ tfc_token }}"
