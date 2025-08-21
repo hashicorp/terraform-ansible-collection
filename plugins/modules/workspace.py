@@ -387,7 +387,7 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any], check_mode: 
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of parameters including workspace details.
-        chec_mode (bool): A check mode parameter.
+        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -442,7 +442,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of parameters including updated workspace details.
-        chec_mode (bool): A check mode parameter.
+        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -504,7 +504,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace_id']} would be updated with the given payload. Skipped delete due to check-mode.",
+                "msg": f"The workspace {params['workspace_id']} would be updated with the given payload. Skipped update due to check-mode.",
                 **workspace_payload["data"],
             },
         )
@@ -552,7 +552,7 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], workspace_re
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
-        chec_mode (bool): A check mode parameter.
+        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -598,7 +598,7 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_re
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
-        chec_mode (bool): A check mode parameter.
+        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary with the result of the unlock operation, including:
@@ -643,7 +643,7 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any], workspace_resp
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
-        chec_mode (bool): A check mode parameter.
+        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
