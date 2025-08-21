@@ -460,7 +460,7 @@ class TestMainFunction:
         with pytest.raises(SystemExit):
             main()
 
-        mock_get_workspace_id.assert_called_once_with(mock_client_instance, "test-org", "test-workspace")
+        mock_get_workspace_id.assert_called_once_with(mock_client_instance, "test-workspace", "test-org")
         mock_state_present.assert_called_once()
         assert mock_module.exit_args["changed"] is True
 
