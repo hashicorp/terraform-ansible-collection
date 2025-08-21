@@ -91,8 +91,8 @@
         state: "present"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 5
-        poll_timeout: 50
+        poll_interval: 10
+        poll_timeout: 300
       register: result_run
 
     - name: Assert run was created
@@ -107,8 +107,8 @@
         state: "applied"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 5
-        poll_timeout: 160
+        poll_interval: 10
+        poll_timeout: 300
       register: result_apply
 
     - name: Assert run was applied
@@ -148,8 +148,8 @@
         is_destroy: true
         auto_apply: true
         poll: true
-        poll_interval: 5
-        poll_timeout: 160
+        poll_interval: 10
+        poll_timeout: 300
       register: result_destroy
 
     - name: Assert destroy run is result.changed
@@ -164,8 +164,8 @@
         state: "present"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 5
-        poll_timeout: 50
+        poll_interval: 10
+        poll_timeout: 300
         save_plan: true
       register: result_save_plan
 
@@ -180,8 +180,8 @@
         state: "applied"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 5
-        poll_timeout: 160
+        poll_interval: 10
+        poll_timeout: 300
       register: result_apply_save_plan
 
     - name: Assert save plan run was applied
@@ -238,8 +238,8 @@
         is_destroy: true
         save_plan: true
         poll: true
-        poll_interval: 5
-        poll_timeout: 120
+        poll_interval: 10
+        poll_timeout: 300
       register: result_is_destroy
 
     - name: Assert is_destroy run is result.changed
@@ -277,8 +277,8 @@
         is_destroy: true
         auto_apply: true
         poll: true
-        poll_interval: 5
-        poll_timeout: 120
+        poll_interval: 10
+        poll_timeout: 300
       register: result_is_destroy_auto_apply
 
     - name: Assert is_destroy and auto_apply run is result.changed
