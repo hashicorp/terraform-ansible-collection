@@ -75,6 +75,7 @@ options:
   assessments_enabled:
     description:
       - When true, HCP Terraform performs health assessments for the workspace.
+      - Setting this attribute to true holds relevance in HCP Terraform Plus and Premium editions only.
     type: bool
     default: false
   auto_apply:
@@ -91,6 +92,7 @@ options:
     description:
       - The timestamp when the next scheduled destroy run will occur.
       - The recommended timestamp format is the ISO format for UTC time [YYYY-MM-DDTHH:mm:ssZ].
+      - Setting this attribute value holds relevance in HCP Terraform Plus and Premium editions only.
     type: str
   auto_destroy_activity_duration:
     description:
@@ -98,6 +100,7 @@ options:
       - The I(auto_destroy_activity_duration) takes precedence over I(auto_destroy_at), if both are set.
       - The valid values are greater than 0 and four digits or less.
       - The valid units are d and h.
+      - Setting this attribute value holds relevance in HCP Terraform Plus and Premium editions only.
     type: str
   source_name:
     description:
@@ -384,6 +387,7 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any], check_mode: 
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of parameters including workspace details.
+        chec_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -413,14 +417,15 @@ def workspace_create(client_terraform: Any, params: Dict[str, Any], check_mode: 
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
     if not check_mode:
         response = create_workspace(client_terraform, organization, workspace_payload)
+        params["workspace_id"] = response.get("data").get("id")
         action_result.update(
-            {"changed": True, "msg": f"The workspace {params['workspace']} is created successfully", **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} is created successfully", **response["data"]},
         )
     else:
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace']} would be created with the given payload. Skipped create due to check-mode.",
+                "msg": f"The workspace {params['workspace_id']} would be created with the given payload. Skipped create due to check-mode.",
                 **workspace_payload["data"],
             },
         )
@@ -437,6 +442,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of parameters including updated workspace details.
+        chec_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -492,7 +498,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     if not check_mode:
         response = update_workspace(client_terraform, workspace_id, workspace_payload)
         action_result.update(
-            {"changed": True, "msg": f"The workspace {params['workspace']} is updated successfully", **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} is updated successfully", **response["data"]},
         )
     else:
         action_result.update(
@@ -544,7 +550,9 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], workspace_re
 
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
-        params (Dict[str, Any]): A dictionary of module parameters
+        params (Dict[str, Any]): A dictionary of module parameters.
+        workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
+        chec_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
@@ -589,6 +597,8 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_re
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of module parameters.
+        workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
+        chec_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary with the result of the unlock operation, including:
@@ -632,6 +642,8 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any], workspace_resp
     Args:
         client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
         params (Dict[str, Any]): A dictionary of module parameters.
+        workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
+        chec_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
