@@ -265,6 +265,7 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
+
 if TYPE_CHECKING:
     from typing import Any, Dict
 
