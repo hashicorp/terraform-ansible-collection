@@ -447,8 +447,8 @@ def main():
 
     try:
         tf_client = TerraformClient(**module.params)
-        if not params.get("workspace_id"):
-            params["workspace_id"] = get_workspace_id(tf_client, params["organization"], params["workspace"])
+        if not params.get("workspace_id") and params.get("state") == "present":
+            params["workspace_id"] = get_workspace_id(tf_client, params["workspace"], params["organization"])
 
         if module.check_mode:
             action_result = {"changed": True, "msg": "Check mode is enabled, no changes will be made"}

@@ -1,0 +1,305 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Invalid workspace name
+      hashicorp.terraform.configuration_version:
+        workspace: invalid-workspace
+        organization: "{{ organization }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        provisional: true
+        tf_validate_certs: true
+        state: present
+      register: result_invalid_workspace
+      ignore_errors: true
+
+    - name: Set expected error message
+      ansible.builtin.set_fact:
+        expected_error: "The workspace invalid-workspace in {{ organization }} organization was not found."
+
+    - name: Assert failure
+      ansible.builtin.assert:
+        that:
+          - result_invalid_workspace.msg == expected_error
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        tf_validate_certs: true
+        poll_interval: 3
+        poll_timeout: 15
+        state: present
+      register: result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result.changed
+          - result.attributes.status == "uploaded"
+
+    - name: Create a new run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan a vpc creation"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        poll: true
+        poll_interval: 5
+        poll_timeout: 50
+      register: result_run
+
+    - name: Assert run was created
+      ansible.builtin.assert:
+        that:
+          - result_run.changed
+          - result_run.attributes.status == "planned"
+
+    - name: Apply the run
+      hashicorp.terraform.run: &apply_run
+        run_id: "{{ result_run.id }}"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+        poll: true
+        poll_interval: 5
+        poll_timeout: 90
+      register: result_apply
+
+    - name: Assert run was applied
+      ansible.builtin.assert:
+        that:
+          - result_apply.changed
+
+    - name: Idempotent check for apply
+      hashicorp.terraform.run: *apply_run
+      register: result_apply_idempotent
+
+    - name: Assert idempotence
+      ansible.builtin.assert:
+        that:
+          - not result_apply_idempotent.changed
+
+    - name: Create a plan only run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan-only vpc creation"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        plan_only: true
+      register: result_plan_only
+
+    - name: Assert plan only run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_plan_only.changed
+
+    - name: Create a destroy run with auto_apply
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "destroy vpc"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        is_destroy: true
+        auto_apply: true
+        poll: true
+        poll_interval: 5
+        poll_timeout: 120
+      register: result_destroy
+
+    - name: Assert destroy run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_destroy.changed
+
+    - name: Create a save plan run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "save plan vpc creation"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        poll: true
+        poll_interval: 5
+        poll_timeout: 50
+        save_plan: true
+      register: result_save_plan
+
+    - name: Assert save plan run was created
+      ansible.builtin.assert:
+        that:
+          - result_save_plan.changed
+
+    - name: Apply the save plan run
+      hashicorp.terraform.run: &apply_save_plan
+        run_id: "{{ result_save_plan.id }}"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+        poll: true
+        poll_interval: 5
+        poll_timeout: 50
+      register: result_apply_save_plan
+
+    - name: Assert save plan run was applied
+      ansible.builtin.assert:
+        that:
+          - result_apply_save_plan.changed
+
+    - name: Idempotent check for apply save plan
+      hashicorp.terraform.run: *apply_save_plan
+      register: result_apply_save_plan_idempotent
+
+    - name: Assert idempotence for apply save plan
+      ansible.builtin.assert:
+        that:
+          - not result_apply_save_plan_idempotent.changed
+
+    - name: Create an auto_apply run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "auto_apply vpc creation"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        auto_apply: true
+        poll: false
+      register: result_auto_apply
+
+    - name: Cancel the auto_apply run
+      hashicorp.terraform.run: &cancel_auto_apply
+        run_id: "{{ result_auto_apply.id }}"
+        state: "canceled"
+        tf_token: "{{ tfc_token }}"
+      register: result_cancel_auto_apply
+
+    - name: Assert auto_apply run was canceled
+      ansible.builtin.assert:
+        that:
+          - result_cancel_auto_apply.changed
+
+    - name: Idempotent check for cancel auto_apply
+      hashicorp.terraform.run: *cancel_auto_apply
+      register: result_cancel_auto_apply_idempotent
+
+    - name: Assert idempotence for cancel auto_apply
+      ansible.builtin.assert:
+        that:
+          - not result_cancel_auto_apply_idempotent.changed
+
+    - name: Create a is_destroy save plan run
+      hashicorp.terraform.run: &is_destroy_save_plan
+        workspace_id: "{{ workspace_id }}"
+        run_message: "destroy vpc"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        is_destroy: true
+        save_plan: true
+        poll: true
+        poll_interval: 5
+        poll_timeout: 120
+      register: result_is_destroy
+
+    - name: Assert is_destroy run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_is_destroy.changed
+
+    - name: Discard the is_destroy save plan run
+      hashicorp.terraform.run: &discard_is_destroy
+        run_id: "{{ result_is_destroy.id }}"
+        state: "discarded"
+        tf_token: "{{ tfc_token }}"
+      register: result_discard_is_destroy
+
+    - name: Assert discard is_destroy save plan run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_discard_is_destroy.changed
+
+    - name: Idempotent check for discard is_destroy save plan
+      hashicorp.terraform.run: *discard_is_destroy
+      register: result_discard_is_destroy_idempotent
+
+    - name: Assert idempotence for discard is_destroy save plan
+      ansible.builtin.assert:
+        that:
+          - not result_discard_is_destroy_idempotent.changed
+
+    - name: Create a is_destroy and auto_apply run
+      hashicorp.terraform.run: &is_destroy_auto_apply
+        workspace_id: "{{ workspace_id }}"
+        run_message: "destroy vpc"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        is_destroy: true
+        auto_apply: true
+        poll: true
+        poll_interval: 5
+        poll_timeout: 120
+      register: result_is_destroy_auto_apply
+
+    - name: Assert is_destroy and auto_apply run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_is_destroy_auto_apply.changed
+
+  always:
+    - name: Force delete workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: workspace_delete_response
+
+    - name: Clean up rendered config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
