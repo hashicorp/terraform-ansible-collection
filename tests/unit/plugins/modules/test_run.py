@@ -314,7 +314,7 @@ class TestStateActions:
 
                 assert result["changed"] is True
                 mock_action.assert_called_once_with(mock_client, "run-123")
-                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, default_poll, "run-123")
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, default_poll, "run-123", run_id="run-123", poll=default_poll)
 
     @pytest.mark.parametrize("poll_value", [True, False])
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
@@ -334,7 +334,7 @@ class TestStateActions:
                 result = state_func(mock_client, run_id="run-456", poll=poll_value)
 
                 assert result["changed"] is True
-                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, poll_value, "run-456")
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, poll_value, "run-456", run_id="run-456", poll=poll_value)
 
 
 class TestGetWorkspaceId:
