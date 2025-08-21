@@ -129,6 +129,7 @@
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"
         run_message: "plan-only vpc creation"
+        poll: false
         state: "present"
         tf_token: "{{ tfc_token }}"
         plan_only: true
