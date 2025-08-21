@@ -140,6 +140,27 @@
         that:
           - result_plan_only.changed
 
+    - name: Create a plan only run with variables
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan-only vpc creation"
+        poll: false
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        plan_only: true
+        variables:
+          - key: "env"
+            value: "production"
+          - key: "db_name"
+            value: "terraform_test"
+      register: result_plan_only_variables
+
+    - name: Assert plan only run with variables is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_plan_only_variables.changed
+          - result_plan_only_variables.attributes.variables != []
+
     - name: Create a destroy run with auto_apply
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"

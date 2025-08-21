@@ -4,7 +4,7 @@ Pydantic models for Terraform Cloud/Enterprise Run resources.
 This module contains models specifically for run-related API operations.
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from .common import (
     BaseModel,
@@ -18,6 +18,15 @@ from .common import (
     create_configuration_version_reference,
     create_workspace_reference,
 )
+
+
+class Variables(BaseModel):
+    """Model for variables in run requests."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    key: StrictStr
+    value: StrictStr
 
 
 class RunAttributes(BaseModel):
@@ -34,7 +43,7 @@ class RunAttributes(BaseModel):
     target_addrs: Optional[List[StrictStr]] = Field(None, alias="target-addrs")
     replace_addrs: Optional[List[StrictStr]] = Field(None, alias="replace-addrs")
     refresh: Optional[StrictBool] = None
-    variables: Optional[Dict[str, Any]] = None
+    variables: Optional[List[Variables]] = None
     allow_empty_apply: Optional[StrictBool] = Field(None, alias="allow-empty-apply")
     allow_config_generation: Optional[StrictBool] = Field(None, alias="allow-config-generation")
     debugging_mode: Optional[StrictBool] = Field(None, alias="debugging-mode")

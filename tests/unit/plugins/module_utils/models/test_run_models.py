@@ -46,7 +46,7 @@ class TestRunAttributes:
                     "is_destroy": False,
                     "target_addrs": ["module.vpc", "module.ec2"],
                     "refresh": True,
-                    "variables": {"env": "production", "region": "us-west-2"},
+                    "variables": [{"key": "env", "value": "production"}, {"key": "region", "value": "us-west-2"}],
                 },
                 {
                     "run_message": "Test run message",
@@ -57,7 +57,7 @@ class TestRunAttributes:
                     "is_destroy": False,
                     "target_addrs": ["module.vpc", "module.ec2"],
                     "refresh": True,
-                    "variables": {"env": "production", "region": "us-west-2"},
+                    "variables": [{"key": "env", "value": "production"}, {"key": "region", "value": "us-west-2"}],
                 },
             ),
             # Full configuration test case 2 - opposite boolean values
@@ -71,7 +71,7 @@ class TestRunAttributes:
                     "is_destroy": True,
                     "target_addrs": ["module.database"],
                     "refresh": False,
-                    "variables": {"env": "staging"},
+                    "variables": [{"key": "env", "value": "staging"}],
                 },
                 {
                     "run_message": "Destroy run",
@@ -82,7 +82,7 @@ class TestRunAttributes:
                     "is_destroy": True,
                     "target_addrs": ["module.database"],
                     "refresh": False,
-                    "variables": {"env": "staging"},
+                    "variables": [{"key": "env", "value": "staging"}],
                 },
             ),
             # Empty collections
@@ -90,12 +90,12 @@ class TestRunAttributes:
                 {
                     "run_message": "Empty collections test",
                     "target_addrs": [],
-                    "variables": {},
+                    "variables": [],
                 },
                 {
                     "run_message": "Empty collections test",
                     "target_addrs": [],
-                    "variables": {},
+                    "variables": [],
                 },
             ),
             # Special characters and unicode
@@ -103,12 +103,12 @@ class TestRunAttributes:
                 {
                     "run_message": "Test with émojis 🚀 and spëcial chars: @#$%",
                     "target_addrs": ["module.test-with_special.chars"],
-                    "variables": {"unicode_key_こんにちは": "unicode_value_世界"},
+                    "variables": [{"key": "unicode_key_こんにちは", "value": "unicode_value_世界"}],
                 },
                 {
                     "run_message": "Test with émojis 🚀 and spëcial chars: @#$%",
                     "target_addrs": ["module.test-with_special.chars"],
-                    "variables": {"unicode_key_こんにちは": "unicode_value_世界"},
+                    "variables": [{"key": "unicode_key_こんにちは", "value": "unicode_value_世界"}],
                 },
             ),
         ],
@@ -119,7 +119,18 @@ class TestRunAttributes:
 
         for key, expected_value in expected_values.items():
             actual_value = getattr(attrs, key)
-            assert actual_value == expected_value, f"Expected {key}={expected_value}, got {actual_value}"
+            if key == "variables" and expected_value is not None and len(expected_value) > 0:
+                # For variables, check the structure instead of direct equality
+                assert len(actual_value) == len(expected_value), f"Expected {len(expected_value)} variables, got {len(actual_value)}"
+                for i, expected_var in enumerate(expected_value):
+                    if isinstance(expected_var, dict):
+                        assert actual_value[i].key == expected_var["key"], f"Variable {i} key mismatch"
+                        assert actual_value[i].value == expected_var["value"], f"Variable {i} value mismatch"
+                    else:
+                        assert actual_value[i].key == expected_var.key, f"Variable {i} key mismatch"
+                        assert actual_value[i].value == expected_var.value, f"Variable {i} value mismatch"
+            else:
+                assert actual_value == expected_value, f"Expected {key}={expected_value}, got {actual_value}"
 
     @pytest.mark.parametrize(
         "alias_data,expected_values",
@@ -161,13 +172,13 @@ class TestRunAttributes:
                     "run_message": "Direct field",  # Direct field name
                     "auto-apply": True,  # Alias
                     "refresh": False,  # Direct field name
-                    "variables": {"test": "value"},  # Direct field name
+                    "variables": [{"key": "test", "value": "value"}],  # Direct field name
                 },
                 {
                     "run_message": "Direct field",
                     "auto_apply": True,
                     "refresh": False,
-                    "variables": {"test": "value"},
+                    "variables": [{"key": "test", "value": "value"}],
                 },
             ),
             # Only alias fields
@@ -191,7 +202,18 @@ class TestRunAttributes:
 
         for field_name, expected_value in expected_values.items():
             actual_value = getattr(attrs, field_name)
-            assert actual_value == expected_value, f"Expected {field_name}={expected_value}, got {actual_value}"
+            if field_name == "variables" and expected_value is not None and len(expected_value) > 0:
+                # For variables, check the structure instead of direct equality
+                assert len(actual_value) == len(expected_value), f"Expected {len(expected_value)} variables, got {len(actual_value)}"
+                for i, expected_var in enumerate(expected_value):
+                    if isinstance(expected_var, dict):
+                        assert actual_value[i].key == expected_var["key"], f"Variable {i} key mismatch"
+                        assert actual_value[i].value == expected_var["value"], f"Variable {i} value mismatch"
+                    else:
+                        assert actual_value[i].key == expected_var.key, f"Variable {i} key mismatch"
+                        assert actual_value[i].value == expected_var.value, f"Variable {i} value mismatch"
+            else:
+                assert actual_value == expected_value, f"Expected {field_name}={expected_value}, got {actual_value}"
 
         # Note: created_at and updated_at fields are not part of RunAttributes
 
@@ -222,7 +244,7 @@ class TestRunAttributes:
                     "save_plan": True,
                     "is_destroy": False,
                     "terraform_version": "1.5.0",
-                    "variables": {"env": "test"},
+                    "variables": [{"key": "env", "value": "test"}],
                 },
                 {
                     "message": "Full test",
@@ -230,7 +252,7 @@ class TestRunAttributes:
                     "save-plan": True,
                     "is-destroy": False,
                     "terraform-version": "1.5.0",
-                    "variables": {"env": "test"},
+                    "variables": [{"key": "env", "value": "test"}],
                 },
                 [],
             ),
@@ -441,13 +463,17 @@ class TestRunRequest:
             run_message="Test run with all attributes",
             auto_apply=True,
             plan_only=False,
-            variables={"env": "test", "region": "us-east-1"},
+            variables=[{"key": "env", "value": "test"}, {"key": "region", "value": "us-east-1"}],
         )
 
         assert request.data.attributes.run_message == "Test run with all attributes"
         assert request.data.attributes.auto_apply is True
         assert request.data.attributes.plan_only is False
-        assert request.data.attributes.variables == {"env": "test", "region": "us-east-1"}
+        assert len(request.data.attributes.variables) == 2
+        assert request.data.attributes.variables[0].key == "env"
+        assert request.data.attributes.variables[0].value == "test"
+        assert request.data.attributes.variables[1].key == "region"
+        assert request.data.attributes.variables[1].value == "us-east-1"
 
     def test_run_request_serialization(self):
         """Test RunRequest serialization."""
@@ -554,19 +580,26 @@ class TestRunsModelsEdgeCases:
         assert attrs.target_addrs == expected
 
     @pytest.mark.parametrize(
-        "variables_value,expected",
+        "variables_value,expected_length,expected_first_key,expected_first_value",
         [
-            (None, None),
-            ({"env": "production"}, {"env": "production"}),
-            ({"complex": {"nested": {"value": 123}}}, {"complex": {"nested": {"value": 123}}}),
-            ({"array_value": [1, 2, 3]}, {"array_value": [1, 2, 3]}),
-            ({}, {}),
+            (None, None, None, None),
+            ([{"key": "env", "value": "production"}], 1, "env", "production"),
+            ([{"key": "complex", "value": "nested_value"}], 1, "complex", "nested_value"),
+            ([{"key": "array_value", "value": "1,2,3"}], 1, "array_value", "1,2,3"),
+            ([], 0, None, None),
         ],
     )
-    def test_run_attributes_with_variables(self, variables_value, expected):
+    def test_run_attributes_with_variables(self, variables_value, expected_length, expected_first_key, expected_first_value):
         """Test RunAttributes with various variable configurations."""
         attrs = RunAttributes(variables=variables_value)
-        assert attrs.variables == expected
+        if expected_length is None:
+            assert attrs.variables is None
+        elif expected_length == 0:
+            assert attrs.variables == []
+        else:
+            assert len(attrs.variables) == expected_length
+            assert attrs.variables[0].key == expected_first_key
+            assert attrs.variables[0].value == expected_first_value
 
     @pytest.mark.parametrize(
         "message",
@@ -645,7 +678,7 @@ class TestRunModelsPerformance:
                 workspace_id=f"ws-{i}",
                 configuration_version_id=f"cv-{i}",
                 run_message=f"Performance test run {i}",
-                variables={"index": i, "test": "performance"},
+                variables=[{"key": "index", "value": str(i)}, {"key": "test", "value": "performance"}],
             )
             assert request.data.attributes.run_message == f"Performance test run {i}"
 
@@ -657,8 +690,8 @@ class TestRunModelsPerformance:
 
     def test_run_attributes_large_data_handling(self):
         """Test RunAttributes with large data structures."""
-        # Create large variables dictionary
-        large_variables = {f"var_{i}": f"value_{i}" * 100 for i in range(100)}
+        # Create large variables list
+        large_variables = [{"key": f"var_{i}", "value": f"value_{i}" * 100} for i in range(100)]
 
         # Create large target addresses list
         large_target_addrs = [f"module.{i}.resource_{j}" for i in range(10) for j in range(10)]
