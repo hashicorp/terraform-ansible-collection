@@ -358,7 +358,9 @@ def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     """
     run_id = kwargs.get("run_id")
     response = apply_run(client, run_id)
-    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **kwargs)
+    # Filter out parameters that are already passed as positional/keyword args
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
+    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **filtered_kwargs)
 
 
 @idempotency_check
@@ -372,7 +374,9 @@ def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     """
     run_id = kwargs.get("run_id")
     response = discard_run(client, run_id)
-    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **kwargs)
+    # Filter out parameters that are already passed as positional/keyword args
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
+    return handle_polling_and_result(client, response, kwargs.get("poll", True), run_id, **filtered_kwargs)
 
 
 @idempotency_check
@@ -386,7 +390,9 @@ def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     """
     run_id = kwargs.get("run_id")
     response = cancel_run(client, run_id)
-    return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id, **kwargs)
+    # Filter out parameters that are already passed as positional/keyword args
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["poll", "run_id"]}
+    return handle_polling_and_result(client, response, kwargs.get("poll", False), run_id, **filtered_kwargs)
 
 
 def get_workspace_id(client: TerraformClient, workspace: str, organization: str) -> str:

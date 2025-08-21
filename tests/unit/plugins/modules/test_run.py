@@ -314,7 +314,7 @@ class TestStateActions:
 
                 assert result["changed"] is True
                 mock_action.assert_called_once_with(mock_client, "run-123")
-                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, default_poll, "run-123", run_id="run-123", poll=default_poll)
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, default_poll, "run-123")
 
     @pytest.mark.parametrize("poll_value", [True, False])
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
@@ -334,7 +334,7 @@ class TestStateActions:
                 result = state_func(mock_client, run_id="run-456", poll=poll_value)
 
                 assert result["changed"] is True
-                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, poll_value, "run-456", run_id="run-456", poll=poll_value)
+                mock_handle_polling.assert_called_once_with(mock_client, mock_action.return_value, poll_value, "run-456")
 
 
 class TestGetWorkspaceId:
@@ -662,3 +662,20 @@ class TestRunsModuleEdgeCases:
 
                     # Should still call create_run successfully
                     mock_run_request.create.assert_called_once()
+
+
+@patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
+def test_state_applied_passes_timeout_parameters(mock_handle_polling):
+    """Test that state_applied passes poll_timeout and poll_interval to handle_polling_and_result."""
+    mock_client = Mock()
+
+    with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.apply_run") as mock_apply:
+        mock_apply.return_value = {"data": {"id": "run-123"}}
+        mock_handle_polling.return_value = {"changed": True, "id": "run-123"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run"):
+            result = state_applied(mock_client, run_id="run-123", poll=True, poll_timeout=600, poll_interval=10)
+
+            assert result["changed"] is True
+            # Verify that poll_timeout and poll_interval are passed in kwargs
+            mock_handle_polling.assert_called_once_with(mock_client, mock_apply.return_value, True, "run-123", poll_timeout=600, poll_interval=10)
