@@ -108,7 +108,7 @@
         tf_token: "{{ tfc_token }}"
         poll: true
         poll_interval: 5
-        poll_timeout: 90
+        poll_timeout: 160
       register: result_apply
 
     - name: Assert run was applied
@@ -149,7 +149,7 @@
         auto_apply: true
         poll: true
         poll_interval: 5
-        poll_timeout: 120
+        poll_timeout: 160
       register: result_destroy
 
     - name: Assert destroy run is result.changed
@@ -181,7 +181,7 @@
         tf_token: "{{ tfc_token }}"
         poll: true
         poll_interval: 5
-        poll_timeout: 50
+        poll_timeout: 160
       register: result_apply_save_plan
 
     - name: Assert save plan run was applied
