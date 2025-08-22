@@ -39,15 +39,15 @@ class TestGetWorkspace:
             # Successful response with full data
             (
                 {
-                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "data": {"data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}}},
                     "status": 200,
                 },
                 {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
             ),
             # Empty data section
-            ({"data": {}, "status": 200}, {"status": 200}),
+            ({"data": {"data": {}}, "status": 200}, {"status": 200}),
             # No data key
-            ({"status": 200}, {"status": 200}),
+            ({"data": {}, "status": 200}, {"status": 200}),
             # Workspace not found
             ({"status": 404}, {}),
         ],
@@ -75,7 +75,7 @@ class TestGetWorkspace:
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {"data": {"id": workspace_id, "attributes": {"name": workspace_name}}, "status": 200}
+        expected_response = {"data": {"data": {"id": workspace_id, "attributes": {"name": workspace_name}}}, "status": 200}
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace(mock_tf_client, organization, workspace_name)
@@ -93,18 +93,20 @@ class TestGetWorkspace:
 
         expected_response = {
             "data": {
-                "id": workspace_id,
-                "type": "workspaces",
-                "attributes": {
-                    "name": workspace_name,
-                    "environment": "production",
-                    "auto-apply": False,
-                    "terraform-version": "1.0.0",
-                    "working-directory": "/terraform",
-                    "vcs-repo": {"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
-                    "tags": ["production", "webapp"],
-                },
-                "relationships": {"organization": {"data": {"id": "org-123", "type": "organizations"}}},
+                "data": {
+                    "id": workspace_id,
+                    "type": "workspaces",
+                    "attributes": {
+                        "name": workspace_name,
+                        "environment": "production",
+                        "auto-apply": False,
+                        "terraform-version": "1.0.0",
+                        "working-directory": "/terraform",
+                        "vcs-repo": {"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
+                        "tags": ["production", "webapp"],
+                    },
+                    "relationships": {"organization": {"data": {"id": "org-123", "type": "organizations"}}},
+                }
             },
             "status": 200,
         }
@@ -112,7 +114,7 @@ class TestGetWorkspace:
 
         result = get_workspace(mock_tf_client, organization, workspace_name)
 
-        expected_result = expected_response["data"].copy()
+        expected_result = expected_response["data"]["data"].copy()
         expected_result["status"] = 200
         assert result == expected_result
 
@@ -138,15 +140,15 @@ class TestGetWorkspaceById:
             # Successful response with full data
             (
                 {
-                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
+                    "data": {"data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}}},
                     "status": 200,
                 },
                 {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
             ),
             # Empty data section
-            ({"data": {}, "status": 200}, {"status": 200}),
+            ({"data": {"data": {}}, "status": 200}, {"status": 200}),
             # No data key
-            ({"status": 200}, {"status": 200}),
+            ({"data": {}, "status": 200}, {"status": 200}),
             # Workspace not found
             ({"status": 404}, {}),
         ],
@@ -165,7 +167,7 @@ class TestGetWorkspaceById:
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}, "status": 200}
+        expected_response = {"data": {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}}, "status": 200}
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace_by_id(mock_tf_client, workspace_id)
@@ -181,23 +183,25 @@ class TestGetWorkspaceById:
 
         expected_response = {
             "data": {
-                "id": workspace_id,
-                "type": "workspaces",
-                "attributes": {
-                    "name": "complex-workspace",
-                    "environment": "staging",
-                    "auto-apply": True,
-                    "terraform-version": "1.5.0",
-                    "working-directory": "/terraform/modules",
-                    "vcs-repo": {"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
-                    "tags": ["staging", "infrastructure", "automated"],
-                    "permissions": {"can-update": True, "can-destroy": False, "can-queue-run": True},
-                },
-                "relationships": {
-                    "organization": {"data": {"id": "org-456", "type": "organizations"}},
-                    "current-run": {"data": {"id": "run-789", "type": "runs"}},
-                },
-                "links": {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"},
+                "data": {
+                    "id": workspace_id,
+                    "type": "workspaces",
+                    "attributes": {
+                        "name": "complex-workspace",
+                        "environment": "staging",
+                        "auto-apply": True,
+                        "terraform-version": "1.5.0",
+                        "working-directory": "/terraform/modules",
+                        "vcs-repo": {"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
+                        "tags": ["staging", "infrastructure", "automated"],
+                        "permissions": {"can-update": True, "can-destroy": False, "can-queue-run": True},
+                    },
+                    "relationships": {
+                        "organization": {"data": {"id": "org-456", "type": "organizations"}},
+                        "current-run": {"data": {"id": "run-789", "type": "runs"}},
+                    },
+                    "links": {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"},
+                }
             },
             "status": 200,
         }
@@ -205,6 +209,6 @@ class TestGetWorkspaceById:
 
         result = get_workspace_by_id(mock_tf_client, workspace_id)
 
-        expected_result = expected_response["data"].copy()
+        expected_result = expected_response["data"]["data"].copy()
         expected_result["status"] = 200
         assert result == expected_result
