@@ -63,9 +63,9 @@
       ansible.builtin.assert:
         that:
           - not result_by_id.changed
-          - result_by_id.workspace.id == workspace_id
-          - result_by_id.workspace.type == "workspaces"
-          - result_by_id.workspace.attributes.name is defined
+          - result_by_id.workspace.data.id == workspace_id
+          - result_by_id.workspace.data.type == "workspaces"
+          - result_by_id.workspace.data.attributes.name is defined
           - '"status" not in result_by_id.workspace'
 
     # Test retrieving workspace info by name and organization
@@ -80,9 +80,9 @@
       ansible.builtin.assert:
         that:
           - not result_by_name.changed
-          - result_by_name.workspace.id == workspace_id
-          - result_by_name.workspace.type == "workspaces"
-          - result_by_name.workspace.attributes.name == workspace_name
+          - result_by_name.workspace.data.id == workspace_id
+          - result_by_name.workspace.data.type == "workspaces"
+          - result_by_name.workspace.data.attributes.name == workspace_name
           - '"status" not in result_by_name.workspace'
 
     # Test that both methods return the same result
@@ -148,9 +148,9 @@
       ansible.builtin.assert:
         that:
           - not result_check_mode_id.changed
-          - result_check_mode_id.workspace.id == workspace_id
-          - result_check_mode_id.workspace.type == "workspaces"
-          - result_check_mode_id.workspace.attributes.name == workspace_name
+          - result_check_mode_id.workspace.data.id == workspace_id
+          - result_check_mode_id.workspace.data.type == "workspaces"
+          - result_check_mode_id.workspace.data.attributes.name == workspace_name
 
     # Test check mode with workspace name
     - name: Test check mode with workspace name
@@ -165,9 +165,9 @@
       ansible.builtin.assert:
         that:
           - not result_check_mode_name.changed
-          - result_check_mode_name.workspace.id == workspace_id
-          - result_check_mode_name.workspace.type == "workspaces"
-          - result_check_mode_name.workspace.attributes.name == workspace_name
+          - result_check_mode_name.workspace.data.id == workspace_id
+          - result_check_mode_name.workspace.data.type == "workspaces"
+          - result_check_mode_name.workspace.data.attributes.name == workspace_name
 
   always:
     - name: Force delete workspace

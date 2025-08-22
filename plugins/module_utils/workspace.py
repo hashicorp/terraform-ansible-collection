@@ -36,7 +36,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace: str) ->
         TerraformError: If the request fails with a non-404 status code.
     """
     response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
-    response_data = response.get("data", {}).get("data", {})
+    response_data = response.get("data", {})
     response_status = response["status"]
 
     if response_status == 404:
@@ -75,7 +75,7 @@ def get_workspace_by_id(client: TerraformClient, workspace_id: str) -> Dict[str,
         TerraformError: If the request fails with a non-404 status code.
     """
     response = client.get(f"/workspaces/{workspace_id}")
-    response_data = response.get("data", {}).get("data", {})
+    response_data = response.get("data", {})
     response_status = response["status"]
 
     if response_status == 404:
