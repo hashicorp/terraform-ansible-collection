@@ -567,17 +567,17 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], workspace_re
         "changed": False,
     }
     if not workspace_response:
-        action_result["msg"] = f"Workspace {params['workspace_id']} was not found."
+        action_result["msg"] = f"The workspace {params['workspace_id']} was not found."
         action_result["changed"] = False
         return action_result
     if not check_mode:
         if params["force"]:
             force_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"Workspace {params['workspace_id']} force deleted successfully."
+            msg = f"The workspace {params['workspace_id']} force deleted successfully."
             action_result["changed"] = True
         else:
             safe_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"Workspace{params['workspace_id']} safe deleted successfully."
+            msg = f"The workspace{params['workspace_id']} safe deleted successfully."
             action_result["changed"] = True
     else:
         action_result.update(
@@ -623,7 +623,7 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_re
         elif not params["force"]:
             response = unlock_workspace(client_terraform, params["workspace_id"])
         action_result.update(
-            {"changed": True, "msg": f"Workspace {params['workspace_id']} unlocked successfully.", **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} is unlocked successfully", **response["data"]},
         )
     else:
         action_result.update(
@@ -667,7 +667,7 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any], workspace_resp
     if not check_mode:
         response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
         action_result.update(
-            {"changed": True, "msg": "The workspace is locked successfully", **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} is locked successfully", **response["data"]},
         )
     else:
         action_result.update(
