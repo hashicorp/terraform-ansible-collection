@@ -1,0 +1,123 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    # Test retrieving workspace info by ID using existing workspace
+    - name: Get workspace info by ID
+      hashicorp.terraform.workspace_info:
+        workspace_id: "{{ workspace_id }}"
+        tf_validate_certs: true
+      register: result_by_id
+
+    - name: Assert workspace info retrieval by ID success
+      ansible.builtin.assert:
+        that:
+          - not result_by_id.changed
+          - result_by_id.workspace.id == workspace_id
+          - result_by_id.workspace.type == "workspaces"
+          - result_by_id.workspace.attributes.name is defined
+          - '"status" not in result_by_id.workspace'
+
+    # Test retrieving workspace info by name and organization
+    - name: Get workspace info by name and organization
+      hashicorp.terraform.workspace_info:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        tf_validate_certs: true
+      register: result_by_name
+
+    - name: Assert workspace info retrieval by name success
+      ansible.builtin.assert:
+        that:
+          - not result_by_name.changed
+          - result_by_name.workspace.id == workspace_id
+          - result_by_name.workspace.type == "workspaces"
+          - result_by_name.workspace.attributes.name == workspace_name
+          - '"status" not in result_by_name.workspace'
+
+    # Test that both methods return the same result
+    - name: Assert both methods return identical workspace data
+      ansible.builtin.assert:
+        that:
+          - result_by_id.workspace == result_by_name.workspace
+
+    # Test error handling - invalid workspace ID
+    - name: Test invalid workspace ID
+      hashicorp.terraform.workspace_info:
+        workspace_id: "ws-invalid-workspace-id"
+        tf_validate_certs: true
+      register: result_invalid_id
+      ignore_errors: true
+
+    - name: Assert invalid workspace ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_id.failed
+          - '"not found" in result_invalid_id.msg'
+
+    # Test error handling - invalid workspace name
+    - name: Test invalid workspace name
+      hashicorp.terraform.workspace_info:
+        workspace: "nonexistent-workspace-name"
+        organization: "{{ organization }}"
+        tf_validate_certs: true
+      register: result_invalid_name
+      ignore_errors: true
+
+    - name: Assert invalid workspace name fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_name.failed
+          - '"not found" in result_invalid_name.msg'
+          - '"nonexistent-workspace-name" in result_invalid_name.msg'
+
+    # Test error handling - invalid organization
+    - name: Test invalid organization
+      hashicorp.terraform.workspace_info:
+        workspace: "{{ workspace_name }}"
+        organization: "nonexistent-organization"
+        tf_validate_certs: true
+      register: result_invalid_org
+      ignore_errors: true
+
+    - name: Assert invalid organization fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_org.failed
+          - '"not found" in result_invalid_org.msg'
+
+    # Test check mode with workspace ID
+    - name: Test check mode with workspace ID
+      hashicorp.terraform.workspace_info:
+        workspace_id: "{{ workspace_id }}"
+        tf_validate_certs: true
+      check_mode: true
+      register: result_check_mode_id
+
+    - name: Assert check mode works correctly with workspace ID
+      ansible.builtin.assert:
+        that:
+          - not result_check_mode_id.changed
+          - result_check_mode_id.workspace.id == workspace_id
+          - result_check_mode_id.workspace.type == "workspaces"
+          - result_check_mode_id.workspace.attributes.name == workspace_name
+
+    # Test check mode with workspace name
+    - name: Test check mode with workspace name
+      hashicorp.terraform.workspace_info:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        tf_validate_certs: true
+      check_mode: true
+      register: result_check_mode_name
+
+    - name: Assert check mode works correctly with workspace name
+      ansible.builtin.assert:
+        that:
+          - not result_check_mode_name.changed
+          - result_check_mode_name.workspace.id == workspace_id
+          - result_check_mode_name.workspace.type == "workspaces"
+          - result_check_mode_name.workspace.attributes.name == workspace_name
