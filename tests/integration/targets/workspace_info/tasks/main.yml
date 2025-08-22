@@ -31,16 +31,33 @@
       no_log: true
       register: workspace_create_response
 
+    - name: Debug workspace creation response
+      ansible.builtin.debug:
+        var: workspace_create_response.json
+
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.json.data.id }}"
+
+    - name: Wait a moment for workspace to be fully created
+      ansible.builtin.pause:
+        seconds: 2
 
     # Test retrieving workspace info by ID using existing workspace
     - name: Get workspace info by ID
       hashicorp.terraform.workspace_info:
         workspace_id: "{{ workspace_id }}"
+        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_by_id
+
+    - name: Debug - Show what was actually returned
+      ansible.builtin.debug:
+        var: result_by_id
+
+    - name: Debug - Show workspace_id value
+      ansible.builtin.debug:
+        var: workspace_id
 
     - name: Assert workspace info retrieval by ID success
       ansible.builtin.assert:
