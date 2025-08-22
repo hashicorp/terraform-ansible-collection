@@ -39,7 +39,6 @@
     - name: Get workspace info by ID
       hashicorp.terraform.workspace_info:
         workspace_id: "{{ workspace_id }}"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_by_id
 
@@ -57,7 +56,6 @@
       hashicorp.terraform.workspace_info:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_by_name
 
@@ -80,7 +78,6 @@
     - name: Test invalid workspace ID
       hashicorp.terraform.workspace_info:
         workspace_id: "ws-invalid-workspace-id"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_invalid_id
       ignore_errors: true
@@ -96,7 +93,6 @@
       hashicorp.terraform.workspace_info:
         workspace: "nonexistent-workspace-name"
         organization: "{{ organization }}"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_invalid_name
       ignore_errors: true
@@ -113,7 +109,6 @@
       hashicorp.terraform.workspace_info:
         workspace: "{{ workspace_name }}"
         organization: "nonexistent-organization"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       register: result_invalid_org
       ignore_errors: true
@@ -128,7 +123,6 @@
     - name: Test check mode with workspace ID
       hashicorp.terraform.workspace_info:
         workspace_id: "{{ workspace_id }}"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       check_mode: true
       register: result_check_mode_id
@@ -146,7 +140,6 @@
       hashicorp.terraform.workspace_info:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
-        tf_token: "{{ tfc_token }}"
         tf_validate_certs: true
       check_mode: true
       register: result_check_mode_name
