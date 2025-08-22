@@ -5,6 +5,36 @@
       tf_token: "{{ tfc_token }}"
 
   block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+
     # Test retrieving workspace info by ID using existing workspace
     - name: Get workspace info by ID
       hashicorp.terraform.workspace_info:
@@ -121,3 +151,16 @@
           - result_check_mode_name.workspace.id == workspace_id
           - result_check_mode_name.workspace.type == "workspaces"
           - result_check_mode_name.workspace.attributes.name == workspace_name
+
+  always:
+    - name: Force delete workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: workspace_delete_response
