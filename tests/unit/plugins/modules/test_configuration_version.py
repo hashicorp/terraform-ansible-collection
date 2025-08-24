@@ -23,6 +23,40 @@ from ansible_collections.hashicorp.terraform.plugins.modules.configuration_versi
 )
 
 
+@pytest.fixture
+def mock_tf_client():
+    """Fixture providing a mock Terraform client."""
+    return Mock()
+
+
+@pytest.fixture
+def mock_archivist_client():
+    """Fixture providing a mock Archivist client."""
+    return Mock()
+
+
+@pytest.fixture
+def standard_params():
+    """Fixture providing standard test parameters."""
+    return {
+        "workspace_id": "ws-123abc456def789",
+        "configuration_files_path": "/fake/path/config.tar.gz",
+        "auto_queue_runs": True,
+        "speculative": False,
+        "provisional": False,
+        "poll_interval": 1,
+        "poll_timeout": 5,
+        "check_mode": False,
+    }
+
+
+@pytest.fixture
+def temp_test_dir():
+    """Fixture providing a temporary directory for testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
+
+
 class EnhancedDummyModule:
     """A mock Ansible module for better inspection in tests."""
 
@@ -54,164 +88,166 @@ class TestValidateAndPrepareTar:
 
         assert "does not exist" in str(exc_info.value)
 
-    def test_validate_prepare_tar_empty_directory(self):
+    def test_validate_prepare_tar_empty_directory(self, temp_test_dir):
         """Test handling of empty directory."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            result = validate_and_prepare_tar(Path(temp_dir))
-
-            # Verify it creates a valid tar file
-            assert tarfile.is_tarfile(result)
-
-            # Verify the tar file is empty (just the directory structure)
-            with tarfile.open(result, "r:gz") as tar:
-                members = tar.getnames()
-                assert len(members) == 0 or all(name.endswith("/") for name in members)
-
-            os.remove(result)
-
-    def test_validate_prepare_tar_directory_with_subdirectories(self):
-        """Test archiving directory with nested structure."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create nested structure
-            subdir = os.path.join(temp_dir, "subdir")
-            os.makedirs(subdir)
-
-            with open(os.path.join(temp_dir, "main.tf"), "w") as f:
-                f.write("# Main terraform file")
-
-            with open(os.path.join(subdir, "variables.tf"), "w") as f:
-                f.write("# Variables file")
-
-            result = validate_and_prepare_tar(Path(temp_dir))
-
-            # Verify structure is preserved
-            with tarfile.open(result, "r:gz") as tar:
-                names = tar.getnames()
-                assert "main.tf" in names
-                assert "subdir/variables.tf" in names
-
-            # Cleanup
-            os.remove(result)
-
-    def test_validate_prepare_tar_valid_uncompressed_tar(self):
-        """Test with valid uncompressed tar file."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a test file
-            test_file = os.path.join(temp_dir, "test.txt")
-            with open(test_file, "w") as f:
-                f.write("test content")
-
-            # Create uncompressed tar
-            tar_path = os.path.join(temp_dir, "test.tar")
-            with tarfile.open(tar_path, "w") as tar:
-                tar.add(test_file, arcname="test.txt")
-
-            # Should raise TarError because it's not gzipped
-            with pytest.raises(Exception) as exc_info:
-                validate_and_prepare_tar(Path(tar_path))
-
-            assert "bad gzip file" in str(exc_info.value).lower()
-
-    def test_validate_prepare_tar_file_permission_error(self):
-        """Test handling of permission errors when creating tar."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            test_file = os.path.join(temp_dir, "test.txt")
-            with open(test_file, "w") as f:
-                f.write("test")
-
-            # Mock tempfile.mkstemp to raise PermissionError
-            with patch("tempfile.mkstemp", side_effect=PermissionError("Permission denied")):
-                with pytest.raises(Exception) as exc_info:
-                    validate_and_prepare_tar(Path(temp_dir))
-
-                assert "Failed to create tar.gz" in str(exc_info.value)
-
-    def test_validate_prepare_tar_with_testdata_directory(self):
-        """Test using actual testdata directory from test suite."""
-        testdata_dir = Path(__file__).parent.parent.parent / "testdata" / "testdir"
-
-        # Verify testdata exists
-        assert testdata_dir.exists(), f"Testdata directory not found: {testdata_dir}"
-        assert (testdata_dir / "file.tf").exists(), "file.tf not found in testdata"
-
-        result = validate_and_prepare_tar(testdata_dir)
+        result = validate_and_prepare_tar(Path(temp_test_dir))
 
         # Verify it creates a valid tar file
         assert tarfile.is_tarfile(result)
 
-        # Verify content
+        # Verify the tar file is empty (just the directory structure)
         with tarfile.open(result, "r:gz") as tar:
-            names = tar.getnames()
-            assert "file.tf" in names
-
-            # Extract and verify terraform content
-            tf_content = tar.extractfile("file.tf").read().decode("utf-8")
-            assert 'provider "aws"' in tf_content
-            assert 'resource "aws_vpc"' in tf_content
+            members = tar.getnames()
+            assert len(members) == 0 or all(name.endswith("/") for name in members)
 
         os.remove(result)
 
-    def test_validate_prepare_tar_with_valid_testdata_archive(self):
-        """Test validation using pre-made valid tar.gz from testdata."""
-        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "valid.tar.gz"
+    def test_validate_prepare_tar_directory_with_subdirectories(self, temp_test_dir):
+        """Test archiving directory with nested structure."""
+        # Create nested structure
+        subdir = os.path.join(temp_test_dir, "subdir")
+        os.makedirs(subdir)
 
-        # Verify testdata exists
-        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+        with open(os.path.join(temp_test_dir, "main.tf"), "w") as f:
+            f.write("# Main terraform file")
 
-        # The function should accept valid gzipped tar files
-        result = validate_and_prepare_tar(testdata_file)
+        with open(os.path.join(subdir, "variables.tf"), "w") as f:
+            f.write("# Variables file")
 
-        # Should return the same file path since it's already valid
-        assert result == str(testdata_file)
+        result = validate_and_prepare_tar(Path(temp_test_dir))
 
-    def test_validate_prepare_tar_with_corrupt_testdata_archive(self):
-        """Test error handling using corrupted tar.gz from testdata."""
-        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "corrupt.tar.gz"
+        # Verify structure is preserved
+        with tarfile.open(result, "r:gz") as tar:
+            names = tar.getnames()
+            assert "main.tf" in names
+            assert "subdir/variables.tf" in names
 
-        # Verify testdata exists
-        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+        # Cleanup
+        os.remove(result)
 
-        # Should raise an exception for corrupt files
+    def test_validate_prepare_tar_valid_uncompressed_tar(self, temp_test_dir):
+        """Test with valid uncompressed tar file."""
+        # Create a test file
+        test_file = os.path.join(temp_test_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("test content")
+
+        # Create uncompressed tar
+        tar_path = os.path.join(temp_test_dir, "test.tar")
+        with tarfile.open(tar_path, "w") as tar:
+            tar.add(test_file, arcname="test.txt")
+
+        # Should raise TarError because it's not gzipped
         with pytest.raises(Exception) as exc_info:
-            validate_and_prepare_tar(testdata_file)
+            validate_and_prepare_tar(Path(tar_path))
 
-        # Should mention it's not a valid tar file
-        error_msg = str(exc_info.value).lower()
-        assert any(keyword in error_msg for keyword in ["tar", "gzip", "archive", "format"])
+        assert "bad gzip file" in str(exc_info.value).lower()
 
-    def test_validate_prepare_tar_with_unsupported_file_type(self):
-        """Test rejection of non-terraform files using testdata."""
-        testdata_file = Path(__file__).parent.parent.parent / "testdata" / "unsupported.txt"
+    def test_validate_prepare_tar_file_permission_error(self, temp_test_dir):
+        """Test handling of permission errors when creating tar."""
+        test_file = os.path.join(temp_test_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("test")
+
+        # Mock tempfile.mkstemp to raise PermissionError
+        with patch("tempfile.mkstemp", side_effect=PermissionError("Permission denied")):
+            with pytest.raises(Exception) as exc_info:
+                validate_and_prepare_tar(Path(temp_test_dir))
+
+            assert "Failed to create tar.gz" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "testdata_file,expected_behavior,description",
+        [
+            ("testdata/testdir", "success", "valid directory with terraform files"),
+            ("testdata/valid.tar.gz", "return_same", "valid gzipped tar archive"),
+            ("testdata/corrupt.tar.gz", "exception", "corrupted tar archive"),
+            ("testdata/unsupported.txt", "exception", "unsupported file type"),
+        ],
+    )
+    def test_validate_prepare_tar_with_testdata(self, testdata_file, expected_behavior, description):
+        """Test validate_and_prepare_tar with various testdata files."""
+        testdata_path = Path(__file__).parent.parent.parent / testdata_file
 
         # Verify testdata exists
-        assert testdata_file.exists(), f"Testdata file not found: {testdata_file}"
+        assert testdata_path.exists(), f"Testdata not found: {testdata_path}"
 
-        # Should raise an exception for unsupported file types
-        with pytest.raises(Exception) as exc_info:
-            validate_and_prepare_tar(testdata_file)
-
-        # Should indicate file type issue
-        error_msg = str(exc_info.value).lower()
-        assert any(keyword in error_msg for keyword in ["directory", "tar", "supported", "invalid"])
+        if expected_behavior == "success":
+            # Test directory with terraform files
+            assert (testdata_path / "file.tf").exists(), "file.tf not found in testdata"
+            
+            result = validate_and_prepare_tar(testdata_path)
+            
+            # Verify it creates a valid tar file
+            assert tarfile.is_tarfile(result)
+            
+            # Verify content
+            with tarfile.open(result, "r:gz") as tar:
+                names = tar.getnames()
+                assert "file.tf" in names
+                
+                # Extract and verify terraform content
+                tf_content = tar.extractfile("file.tf").read().decode("utf-8")
+                assert 'provider "aws"' in tf_content
+                assert 'resource "aws_vpc"' in tf_content
+            
+            os.remove(result)
+            
+        elif expected_behavior == "return_same":
+            # Test valid tar archive
+            result = validate_and_prepare_tar(testdata_path)
+            assert result == str(testdata_path)
+            
+        elif expected_behavior == "exception":
+            # Test invalid files
+            with pytest.raises(Exception) as exc_info:
+                validate_and_prepare_tar(testdata_path)
+            
+            error_msg = str(exc_info.value).lower()
+            if "corrupt" in testdata_file:
+                assert any(keyword in error_msg for keyword in ["tar", "gzip", "archive", "format"])
+            elif "unsupported" in testdata_file:
+                assert any(keyword in error_msg for keyword in ["directory", "tar", "supported", "invalid"])
 
 
 class TestConfigurationVersionOperations:
     """Tests for configuration version CRUD operations."""
 
-    def test_create_configuration_version_missing_data(self):
-        """Test that function handles missing data gracefully using .get() method."""
+    @pytest.mark.parametrize(
+        "response_data,expected_config_id,expected_upload_url,description",
+        [
+            (
+                {"data": {}},  # Missing 'id' and 'attributes'
+                None,
+                None,
+                "missing data gracefully handled with .get() method",
+            ),
+            (
+                {"data": {"id": "cv-456", "attributes": {"upload-url": "https://example.com/upload"}}},
+                "cv-456",
+                "https://example.com/upload",
+                "successful creation with all data",
+            ),
+            (
+                {"data": {"id": "cv-123"}},  # Missing attributes
+                "cv-123",
+                None,
+                "missing attributes gracefully handled",
+            ),
+        ],
+    )
+    def test_create_configuration_version_scenarios(self, response_data, expected_config_id, expected_upload_url, description):
+        """Test various create_configuration_version scenarios."""
         mock_client = Mock()
         params = {"workspace_id": "ws-123", "auto_queue_runs": True, "speculative": False, "provisional": False}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_config") as mock_create:
-            mock_create.return_value = {"data": {}}  # Missing 'id' and 'attributes'
+            mock_create.return_value = response_data
 
-            # Should NOT raise KeyError because original implementation uses .get()
             config_id, upload_url = create_configuration_version(mock_client, params)
 
-            # Should return None values since .get() returns None for missing keys
-            assert config_id is None
-            assert upload_url is None
+            assert config_id == expected_config_id
+            assert upload_url == expected_upload_url
 
     def test_create_configuration_version_with_all_options(self):
         """Test configuration version creation with all boolean options set."""
@@ -231,34 +267,20 @@ class TestConfigurationVersionOperations:
             # Verify the attributes were passed correctly
             mock_create.assert_called_once_with(mock_client, "ws-456", {"auto-queue-runs": False, "speculative": True, "provisional": True})
 
-    def test_upload_configuration_version_success(self):
-        """Test successful upload with 200 status."""
-        mock_client = Mock()
-        upload_url = "https://example.com/upload"
-        config_path = "/fake/path.tar.gz"
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_config") as mock_upload:
-            mock_upload.return_value = {"status": 200}
-
-            result = upload_configuration_version(mock_client, upload_url, config_path)
-
-            assert result == 200
-            mock_upload.assert_called_once_with(mock_client, upload_url=upload_url, configuration_files_path=config_path)
-
-    def test_upload_configuration_version_different_status_codes(self):
+    @pytest.mark.parametrize("status_code", [200, 201, 204, 400, 403, 404, 500])
+    def test_upload_configuration_version_status_codes(self, status_code):
         """Test upload with various HTTP status codes."""
         mock_client = Mock()
         upload_url = "https://example.com/upload"
         config_path = "/fake/path.tar.gz"
 
-        status_codes = [201, 204, 400, 403, 404, 500]
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_config") as mock_upload:
+            mock_upload.return_value = {"status": status_code}
 
-        for status_code in status_codes:
-            with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_config") as mock_upload:
-                mock_upload.return_value = {"status": status_code}
-
-                result = upload_configuration_version(mock_client, upload_url, config_path)
-                assert result == status_code
+            result = upload_configuration_version(mock_client, upload_url, config_path)
+            
+            assert result == status_code
+            mock_upload.assert_called_once_with(mock_client, upload_url=upload_url, configuration_files_path=config_path)
 
 
 class TestConfigurationVersionPolling:
