@@ -175,34 +175,34 @@ class TestValidateAndPrepareTar:
         if expected_behavior == "success":
             # Test directory with terraform files
             assert (testdata_path / "file.tf").exists(), "file.tf not found in testdata"
-            
+
             result = validate_and_prepare_tar(testdata_path)
-            
+
             # Verify it creates a valid tar file
             assert tarfile.is_tarfile(result)
-            
+
             # Verify content
             with tarfile.open(result, "r:gz") as tar:
                 names = tar.getnames()
                 assert "file.tf" in names
-                
+
                 # Extract and verify terraform content
                 tf_content = tar.extractfile("file.tf").read().decode("utf-8")
                 assert 'provider "aws"' in tf_content
                 assert 'resource "aws_vpc"' in tf_content
-            
+
             os.remove(result)
-            
+
         elif expected_behavior == "return_same":
             # Test valid tar archive
             result = validate_and_prepare_tar(testdata_path)
             assert result == str(testdata_path)
-            
+
         elif expected_behavior == "exception":
             # Test invalid files
             with pytest.raises(Exception) as exc_info:
                 validate_and_prepare_tar(testdata_path)
-            
+
             error_msg = str(exc_info.value).lower()
             if "corrupt" in testdata_file:
                 assert any(keyword in error_msg for keyword in ["tar", "gzip", "archive", "format"])
@@ -278,7 +278,7 @@ class TestConfigurationVersionOperations:
             mock_upload.return_value = {"status": status_code}
 
             result = upload_configuration_version(mock_client, upload_url, config_path)
-            
+
             assert result == status_code
             mock_upload.assert_called_once_with(mock_client, upload_url=upload_url, configuration_files_path=config_path)
 
