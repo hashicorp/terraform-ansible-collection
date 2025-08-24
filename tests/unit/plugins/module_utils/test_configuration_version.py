@@ -4,6 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 import re
+
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
@@ -99,6 +100,7 @@ class TestCreateConfigFunction:
         expected_result = {"id": mock_clients["config_version_id"], "status": 201}
         assert result == expected_result
 
+
 class TestArchiveConfigFunction:
     """Unit tests for archive_config function."""
 
@@ -132,6 +134,7 @@ class TestArchiveConfigFunction:
 
         with pytest.raises(TerraformError):
             archive_config(mock_clients["tf_client"], mock_clients["config_version_id"])
+
 
 class TestGetConfigFunction:
     """Unit tests for get_config function."""
@@ -184,6 +187,7 @@ class TestGetConfigFunction:
 
         with pytest.raises(TerraformError):
             get_config(mock_clients["tf_client"], mock_clients["config_version_id"])
+
 
 class TestUploadConfigFunction:
     """Unit tests for upload_config function."""

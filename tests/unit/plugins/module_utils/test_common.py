@@ -72,10 +72,10 @@ class TestAnsibleTerraformModule:
     def test_auth_argspec_structure(self, param_name, expected_properties):
         """Test the structure of AUTH_ARGSPEC parameters."""
         auth_spec = AnsibleTerraformModule.AUTH_ARGSPEC
-        
+
         assert param_name in auth_spec
         param_spec = auth_spec[param_name]
-        
+
         for prop, expected_value in expected_properties.items():
             if prop == "has_fallback":
                 assert "fallback" in param_spec
@@ -136,9 +136,9 @@ class TestClientMixin:
     def test_sanitize_response_scenarios(self, response_data, keys_to_include, expected_result, description):
         """Test various sanitize_response scenarios."""
         mixin = ClientMixin()
-        
+
         result = mixin.sanitize_response(response_data, keys_to_include)
-        
+
         if expected_result is None:
             assert result is None
         elif isinstance(expected_result, list):
@@ -1250,7 +1250,7 @@ class TestCommonUtils:
         assert result is True
 
 
-class TestAnsibleTerraformModule:
+class TestAnsibleTerraformModuleMethods:
     """Test cases for AnsibleTerraformModule methods and functionality."""
 
     @patch("ansible.module_utils.basic.AnsibleModule.__init__")
