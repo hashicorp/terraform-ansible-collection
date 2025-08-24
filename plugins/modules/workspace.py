@@ -127,6 +127,8 @@ options:
       - This specifies the execution mode for the workspace.
       - This inherits the default project mode by default.
       - The I(agent_pool_id) must be provided when the I(execution_mode) is `agent`
+      - When set to I(agent) and the I(execution_mode) inherited from the project default mode is not I(agent),
+        then I(Setting_overwrites) parameter must be provided with this.
     choices: ["remote", "local", "agent"]
     type: str
   agent_pool_id:
@@ -141,6 +143,8 @@ options:
   setting_overwrites:
     description:
       - This paramter helps in overwriting default inherited values.
+      - When the I(execution-mode) needs to be set to I(agent), this parameter needs to be specified if the I(execution_mode)
+        inherited from project default mode is I(remote) or I(local).
     type: dict
     suboptions:
       execution_mode:
@@ -181,17 +185,6 @@ EXAMPLES = r"""
     execution_mode: remote
     source_name: xyz
     auto_apply: true
-    state: present
-
-- name: Create a new workspace
-  hashicorp.terraform.workspace:
-    workspace: <your-workspace-name>
-    organization: <your-organization>
-    execution_mode: agent
-    agent_pool_id: <your-agent-pool-id>
-    setting_overwrites:
-      execution_mode: true
-      agent_pool: true
     auto_destroy_activity_duration: 14d
     auto_destroy_at: "2025-08-10T15:00:00Z"
     state: present
@@ -210,6 +203,17 @@ EXAMPLES = r"""
     source_name: xyz
     auto_apply: true
     assessments_enabled: true
+    state: present
+
+- name: Update workspace execution mode to 'agent' by overwriting inherited execution mode from project
+  hashicorp.terraform.workspace:
+    workspace: <your-workspace-name>
+    organization: <your-organization>
+    execution_mode: agent
+    agent_pool_id: <your-agent-pool-id>
+    setting_overwrites:
+      execution_mode: true
+      agent_pool: true
     state: present
 
 - name: Safe delete a workspace
@@ -290,7 +294,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     unlock_workspace,
     update_workspace,
 )
-
 
 IGNORE_LIST = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
 
