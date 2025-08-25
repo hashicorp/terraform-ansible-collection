@@ -135,7 +135,6 @@ options:
     description:
       - The tags to be bound to the workspace in key and value format.
     type: dict
-    elements: str
   setting_overwrites:
     description:
       - This paramter helps in overwriting default inherited values.
@@ -274,11 +273,11 @@ if TYPE_CHECKING:
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
     TerraformClient,
+    dict_diff,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     create_workspace,
-    dict_diff,
     force_delete_workspace,
     force_unlock_workspace,
     get_tag_bindings,
