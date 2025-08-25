@@ -33,7 +33,8 @@
       ansible.builtin.set_fact:
         workspace_id: "{{ result_create.id }}"
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is created successfully"
 
     - name: Assert create was successful
@@ -57,10 +58,6 @@
         terraform_version: 1.12.2
         state: present
       register: result_update
-
-    - name: Show  creation output
-      debug:
-        var: result_update
 
     - name: Assert create was successful
       ansible.builtin.assert:
@@ -93,11 +90,11 @@
     - name: Set a fact for 'project_id'
       ansible.builtin.set_fact:
         project_id: "{{ project_create_response.json.data.id }}"
-    
+
     - name: Generate unique agent pool name
       ansible.builtin.set_fact:
         agent_pool_name: "{{ unique_id[:30] }}-agent-pool"
-    
+
     - name: Create a Terraform agent pool with unique name
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/agent-pools"
@@ -122,7 +119,7 @@
 
     - name: Update a Terraform workspace with different data
       hashicorp.terraform.workspace:
-        workspace_id: "{{ workspace_id}}"
+        workspace_id: "{{ workspace_id }}"
         tag_bindings:
           env: dev
           owner: integration
@@ -140,7 +137,8 @@
         state: present
       register: result_update
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is updated successfully"
 
     - name: Assert update was successful
@@ -169,9 +167,10 @@
         organization: "{{ organization }}"
         lock_reason: this is my reason
         state: locked
-      register: result_lock 
+      register: result_lock
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is locked successfully"
 
     - name: Assert workspace was locked
@@ -185,9 +184,10 @@
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
         state: locked
-      register: result_lock 
+      register: result_lock
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is already locked"
 
     - name: Assert lock is idempotent
@@ -201,9 +201,10 @@
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
         state: unlocked
-      register: result_unlock 
+      register: result_unlock
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is unlocked successfully"
 
     - name: Assert workspace was unlocked
@@ -216,9 +217,10 @@
       hashicorp.terraform.workspace:
         workspace_id: '{{ workspace_id }}'
         state: unlocked
-      register: result_unlock 
+      register: result_unlock
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} is already unlocked"
 
     - name: Assert unlock was idempotent
@@ -236,7 +238,8 @@
         state: absent
       register: result_delete
 
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} force deleted successfully."
 
     - name: Assert workspace was deleted
@@ -251,7 +254,8 @@
         state: absent
       register: result_delete
     
-    - ansible.builtin.set_fact:
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
         expected_result: "The workspace {{ workspace_id }} was not found."
 
     - name: Assert delete was idempotent
@@ -260,7 +264,6 @@
           - not result_delete.changed
           - result_delete.msg == expected_result
 
-    
     - name: Force delete project
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
@@ -272,7 +275,7 @@
         return_content: true
       no_log: true
       register: project_delete_response
-    
+
     - name: Force delete agent pool
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
