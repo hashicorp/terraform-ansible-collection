@@ -744,7 +744,7 @@ def main():
                 workspace_id = get_workspace_id(client_terraform, params)
                 params["workspace_id"] = workspace_id
             workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
-            
+
             if params["state"] == "absent":
                 action_result = workspace_delete(client_terraform, params, workspace_response, params["check_mode"])
 
