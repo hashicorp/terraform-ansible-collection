@@ -25,19 +25,35 @@ from ansible_collections.hashicorp.terraform.plugins.modules.configuration_versi
 
 @pytest.fixture
 def mock_tf_client():
-    """Fixture providing a mock Terraform client."""
+    """Fixture providing a mock Terraform API client for testing.
+
+    Returns:
+        Mock: A mock object simulating the Terraform client for API interactions
+              without making actual HTTP requests.
+    """
     return Mock()
 
 
 @pytest.fixture
 def mock_archivist_client():
-    """Fixture providing a mock Archivist client."""
+    """Fixture providing a mock Archivist client for file upload testing.
+
+    Returns:
+        Mock: A mock object simulating the Archivist client for configuration
+              file upload operations without actual file transfers.
+    """
     return Mock()
 
 
 @pytest.fixture
 def standard_params():
-    """Fixture providing standard test parameters."""
+    """Fixture providing standard configuration version parameters for testing.
+
+    Returns:
+        dict: Standard parameter set including workspace ID, file paths,
+              configuration options, and polling settings commonly used
+              across configuration version tests.
+    """
     return {
         "workspace_id": "ws-123abc456def789",
         "configuration_files_path": "/fake/path/config.tar.gz",
@@ -52,13 +68,24 @@ def standard_params():
 
 @pytest.fixture
 def temp_test_dir():
-    """Fixture providing a temporary directory for testing."""
+    """Fixture providing a temporary directory for file-based testing.
+
+    Yields:
+        str: Path to a temporary directory that is automatically cleaned up
+             after the test completes. Used for testing file operations
+             like tar archive creation and validation.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
 
 
 class EnhancedDummyModule:
-    """A mock Ansible module for better inspection in tests."""
+    """Enhanced mock Ansible module for detailed test inspection and control.
+
+    Provides better testing capabilities than standard Mock objects by tracking
+    exit and failure conditions, argument inspection, and simulating actual
+    Ansible module behavior patterns for more realistic testing scenarios.
+    """
 
     def __init__(self, params=None):
         self.params = params or {}
@@ -77,7 +104,13 @@ class EnhancedDummyModule:
 
 
 class TestValidateAndPrepareTar:
-    """Tests for validate_and_prepare_tar function."""
+    """Test suite for the validate_and_prepare_tar function.
+
+    Tests the validation and preparation of Terraform configuration archives,
+    including handling of directories, existing tar files, error conditions,
+    and integration with the test data fixtures. Covers both success scenarios
+    and various error conditions like permission issues and corrupt files.
+    """
 
     def test_validate_prepare_tar_nonexistent_path(self):
         """Test that nonexistent path raises FileNotFoundError."""

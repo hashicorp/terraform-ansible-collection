@@ -18,17 +18,32 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 
 
 class TestWorkspaceFunctions(unittest.TestCase):
-    """Unit tests for Terraform workspace helper functions."""
+    """Test suite for Terraform workspace management functions.
+
+    Tests the workspace-related functionality including workspace retrieval,
+    error handling for various HTTP status codes, and proper handling of
+    different response formats from the Terraform API.
+    """
 
     def setUp(self):
-        """Set up common test variables and mocks."""
+        """Set up common test variables and mocks for workspace tests.
+
+        Initializes mock Terraform client and standard test data including
+        organization name, workspace name, and workspace ID for consistent
+        testing across all workspace-related test methods.
+        """
         self.mock_tf_client = Mock()
         self.organization = "test-org"
         self.workspace_name = "test-workspace"
         self.workspace_id = "ws-123abc456def789"
 
     def test_get_workspace_success(self):
-        """Test successful retrieval of a workspace."""
+        """Test successful workspace retrieval with complete response data.
+
+        Verifies that get_workspace correctly processes a successful API response
+        containing full workspace data including ID, type, and attributes, and
+        properly merges the status code into the returned data structure.
+        """
         expected_response = {
             "data": {
                 "id": self.workspace_id,
@@ -89,7 +104,12 @@ class TestWorkspaceFunctions(unittest.TestCase):
             get_workspace(self.mock_tf_client, self.organization, self.workspace_name)
 
     def test_get_workspace_various_failure_statuses(self):
-        """Test get_workspace with various non-success status codes."""
+        """Test get_workspace error handling across multiple HTTP error status codes.
+
+        Uses subTest to verify that get_workspace properly raises TerraformError
+        exceptions for various HTTP error conditions (400, 401, 403, 422, 500, etc.)
+        ensuring consistent error handling across different failure scenarios.
+        """
         for status_code in [400, 401, 403, 422, 500, 502, 503]:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}

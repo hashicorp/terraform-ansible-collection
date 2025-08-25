@@ -34,10 +34,21 @@ from plugins.module_utils.exceptions import (
 
 
 class TestAnsibleTerraformModule:
-    """Test cases for AnsibleTerraformModule class."""
+    """Test suite for the AnsibleTerraformModule class initialization and configuration.
+
+    Tests the core functionality of the AnsibleTerraformModule wrapper class,
+    including authentication parameter injection, argument specification merging,
+    and module initialization behaviors.
+    """
 
     def test_terraform_module_init_adds_auth_argspec(self):
-        """Test that AnsibleTerraformModule adds authentication parameters to argspec."""
+        """Test that AnsibleTerraformModule correctly injects authentication parameters.
+
+        Verifies that when creating an AnsibleTerraformModule instance, the module
+        automatically adds Terraform-specific authentication parameters (tf_token,
+        tf_hostname, etc.) to the provided argument specification while preserving
+        any existing parameters.
+        """
         argument_spec = dict(
             test_param=dict(type="str"),
         )
@@ -70,7 +81,16 @@ class TestAnsibleTerraformModule:
         ],
     )
     def test_auth_argspec_structure(self, param_name, expected_properties):
-        """Test the structure of AUTH_ARGSPEC parameters."""
+        """Test the structure and properties of authentication argument specifications.
+
+        This parameterized test validates that each authentication parameter in
+        AUTH_ARGSPEC has the correct type, default values, fallback configurations,
+        and required status as expected by the Ansible module framework.
+
+        Args:
+            param_name: Name of the authentication parameter to test
+            expected_properties: Dictionary of expected properties for the parameter
+        """
         auth_spec = AnsibleTerraformModule.AUTH_ARGSPEC
 
         assert param_name in auth_spec
@@ -84,7 +104,12 @@ class TestAnsibleTerraformModule:
 
 
 class TestClientMixin:
-    """Test cases for ClientMixin class."""
+    """Test suite for the ClientMixin base class functionality.
+
+    Tests the core HTTP client functionality provided by ClientMixin, including
+    request/response handling, JSON serialization/deserialization, response
+    sanitization, and the make_request decorator functionality.
+    """
 
     class MockClient(ClientMixin):
         """Mock client class for testing ClientMixin."""
@@ -134,7 +159,19 @@ class TestClientMixin:
         ],
     )
     def test_sanitize_response_scenarios(self, response_data, keys_to_include, expected_result, description):
-        """Test various sanitize_response scenarios."""
+        """Test response sanitization with various data structures and key filters.
+
+        This parameterized test validates that the sanitize_response method correctly
+        filters response data to include only specified keys, handles both dictionary
+        and list responses, and properly manages nested data structures while
+        excluding sensitive or unwanted information.
+
+        Args:
+            response_data: Input response data to be sanitized
+            keys_to_include: List of keys to retain in the sanitized response
+            expected_result: Expected output after sanitization
+            description: Test case description for clarity
+        """
         mixin = ClientMixin()
 
         result = mixin.sanitize_response(response_data, keys_to_include)
@@ -335,7 +372,12 @@ class TestClientMixin:
 
 
 class TestTerraformClient:
-    """Test cases for TerraformClient class."""
+    """Test suite for the TerraformClient class.
+
+    Tests the Terraform API client implementation, including initialization
+    with various hostname formats, authentication header setup, SSL validation
+    configuration, and error handling for missing credentials.
+    """
 
     @pytest.mark.parametrize(
         "hostname,validate_certs,expected_hostname,expected_base_url,description",
@@ -348,7 +390,20 @@ class TestTerraformClient:
     )
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_initialization_scenarios(self, mock_session, hostname, validate_certs, expected_hostname, expected_base_url, description):
-        """Test TerraformClient initialization with various hostname scenarios."""
+        """Test TerraformClient initialization with various hostname and URL configurations.
+
+        This parameterized test validates that the TerraformClient correctly handles
+        different hostname formats (bare hostnames, HTTP/HTTPS URLs) and properly
+        constructs the base API URL while respecting SSL validation settings.
+
+        Args:
+            mock_session: Mocked requests session
+            hostname: Input hostname or URL for the client
+            validate_certs: SSL certificate validation setting
+            expected_hostname: Expected parsed hostname value
+            expected_base_url: Expected constructed base API URL
+            description: Test case description for clarity
+        """
         mock_session_instance = Mock()
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance

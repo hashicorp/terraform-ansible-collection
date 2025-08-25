@@ -24,7 +24,18 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 
 @pytest.fixture
 def mock_clients():
-    """Fixture providing mock clients and common test data."""
+    """Fixture providing mock clients and common test data for configuration version tests.
+
+    Returns:
+        dict: A dictionary containing:
+            - tf_client: Mock Terraform client for API interactions
+            - archivist_client: Mock Archivist client for file uploads
+            - workspace_id: Sample workspace identifier
+            - config_version_id: Sample configuration version identifier
+            - attributes: Sample configuration version attributes
+            - upload_url: Sample upload URL for archivist operations
+            - file_path: Sample file path for configuration archives
+    """
     return {
         "tf_client": Mock(),
         "archivist_client": Mock(),
@@ -38,7 +49,12 @@ def mock_clients():
 
 @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version.re", re)
 class TestCreateConfigFunction:
-    """Unit tests for create_config function."""
+    """Test suite for the create_config function.
+
+    Tests the creation of Terraform configuration versions via the Terraform API.
+    Covers success scenarios, error handling, and edge cases for configuration
+    version creation with various attributes and response formats.
+    """
 
     @pytest.mark.parametrize(
         "response_data,expected_result,description",
@@ -61,7 +77,18 @@ class TestCreateConfigFunction:
         ],
     )
     def test_create_config_success_scenarios(self, mock_clients, response_data, expected_result, description):
-        """Test various successful create_config scenarios."""
+        """Test various successful create_config scenarios.
+
+        This parameterized test verifies that create_config properly handles
+        different API response formats including full data, empty data sections,
+        and missing data keys, ensuring graceful degradation in all cases.
+
+        Args:
+            mock_clients: Fixture providing mock clients and test data
+            response_data: Simulated API response from Terraform
+            expected_result: Expected parsed result from create_config
+            description: Test case description for clarity
+        """
         mock_clients["tf_client"].post.return_value = response_data
 
         result = create_config(mock_clients["tf_client"], mock_clients["workspace_id"], mock_clients["attributes"])
@@ -82,7 +109,16 @@ class TestCreateConfigFunction:
 
     @pytest.mark.parametrize("status_code", [400, 500, 502, 503])
     def test_create_config_failure_scenarios(self, mock_clients, status_code):
-        """Test create_config raises HTTPError on non-201 status codes."""
+        """Test create_config error handling for various HTTP error status codes.
+
+        Verifies that create_config properly raises TerraformError exceptions
+        when the Terraform API returns error status codes, ensuring proper
+        error propagation to calling code.
+
+        Args:
+            mock_clients: Fixture providing mock clients and test data
+            status_code: HTTP status code to simulate from the API
+        """
         response = {"data": {}, "status": status_code}
         mock_clients["tf_client"].post.return_value = response
 
@@ -90,7 +126,15 @@ class TestCreateConfigFunction:
             create_config(mock_clients["tf_client"], mock_clients["workspace_id"], mock_clients["attributes"])
 
     def test_create_config_with_empty_attributes(self, mock_clients):
-        """Test create_config with empty attributes dict."""
+        """Test create_config behavior when provided with empty attributes.
+
+        Verifies that create_config can handle empty attribute dictionaries
+        gracefully, which may occur when no specific configuration version
+        attributes need to be set.
+
+        Args:
+            mock_clients: Fixture providing mock clients and test data
+        """
         expected_response = {"data": {"id": mock_clients["config_version_id"]}, "status": 201}
         mock_clients["tf_client"].post.return_value = expected_response
         empty_attributes = {}
@@ -102,10 +146,23 @@ class TestCreateConfigFunction:
 
 
 class TestArchiveConfigFunction:
-    """Unit tests for archive_config function."""
+    """Test suite for the archive_config function.
+
+    Tests the archiving of Terraform configuration versions via the Terraform API.
+    Covers successful archiving, 404 handling for non-existent configurations,
+    and error scenarios with various HTTP status codes.
+    """
 
     def test_archive_config_success(self, mock_clients):
-        """Test successful archiving of a configuration version."""
+        """Test successful archiving of a configuration version.
+
+        Verifies that archive_config properly handles successful API responses
+        and returns the expected status information when archiving a configuration
+        version that exists and can be archived.
+
+        Args:
+            mock_clients: Fixture providing mock clients and test data
+        """
         response = {"status": 202}
         mock_clients["tf_client"].post.return_value = response
 
@@ -137,7 +194,12 @@ class TestArchiveConfigFunction:
 
 
 class TestGetConfigFunction:
-    """Unit tests for get_config function."""
+    """Test suite for the get_config function.
+
+    Tests the retrieval of Terraform configuration versions via the Terraform API.
+    Covers successful retrieval with various response formats, 404 handling for
+    non-existent configurations, and error scenarios with different HTTP status codes.
+    """
 
     @pytest.mark.parametrize(
         "response_data,expected_result,description",
@@ -190,7 +252,12 @@ class TestGetConfigFunction:
 
 
 class TestUploadConfigFunction:
-    """Unit tests for upload_config function."""
+    """Test suite for the upload_config function.
+
+    Tests the uploading of configuration files to the Terraform Archivist service.
+    Covers successful uploads with various URL formats, file handling scenarios,
+    and error conditions during the upload process.
+    """
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"file-content")
     def test_upload_config_success_full_url(self, mock_file, mock_clients):
