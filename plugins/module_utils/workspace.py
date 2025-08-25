@@ -284,12 +284,7 @@ def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str)
     response_data = response.get("data", {})
     response_status = response["status"]
 
-    if response["status"] == 404:
-        # Workspace was not found
-        # This should not raise an exception
-        return {}
-
-    elif response_status == 200:
+    if response_status == 200:
         # workspace was locked successfully
         response_data.update({"status": response_status})
         return response_data
@@ -326,12 +321,7 @@ def unlock_workspace(client: TerraformClient, workspace_id: str):
     response_data = response.get("data", {})
     response_status = response["status"]
 
-    if response["status"] == 404:
-        # Workspace was not found
-        # This should not raise an exception
-        return {}
-
-    elif response_status == 200:
+    if response_status == 200:
         # workspace was unlocked successfully
         response_data.update({"status": response_status})
         return response_data
@@ -368,12 +358,7 @@ def force_unlock_workspace(client: TerraformClient, workspace_id: str):
     response_data = response.get("data", {})
     response_status = response["status"]
 
-    if response["status"] == 404:
-        # Workspace was not found
-        # This should not raise an exception
-        return {}
-
-    elif response_status == 200:
+    if response_status == 200:
         # workspace was force unlocked successfully
         response_data.update({"status": response_status})
         return response_data

@@ -604,6 +604,8 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_re
         Any exceptions raised by the underlying unlock functions will propagate up to the caller.
     """
     action_result = {}
+    if not workspace_response:
+        raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with locking.")
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if not locked_status:
         action_result.update(
@@ -651,6 +653,8 @@ def workspace_lock(client_terraform: Any, params: Dict[str, Any], workspace_resp
     action_result = {
         "changed": False,
     }
+    if not workspace_response:
+        raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with locking.")
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if locked_status:
         action_result.update(
@@ -740,7 +744,7 @@ def main():
                 workspace_id = get_workspace_id(client_terraform, params)
                 params["workspace_id"] = workspace_id
             workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
-
+            
             if params["state"] == "absent":
                 action_result = workspace_delete(client_terraform, params, workspace_response, params["check_mode"])
 
