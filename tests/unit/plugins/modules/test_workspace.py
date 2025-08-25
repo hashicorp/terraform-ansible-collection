@@ -4,7 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -145,7 +145,7 @@ class TestWorkspaceDelete:
             result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
             mock_safe_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
-            assert f"safe deleted successfully" in result["msg"]
+            assert "safe deleted successfully" in result["msg"]
 
     def test_force_delete_success(self, params, mock_workspace_response):
         params["force"] = True
@@ -155,7 +155,7 @@ class TestWorkspaceDelete:
             result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
             mock_force_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
-            assert f"force deleted successfully" in result["msg"]
+            assert "force deleted successfully" in result["msg"]
 
     def test_delete_check_mode(self, params, mock_workspace_response):
         mock_client = Mock()
