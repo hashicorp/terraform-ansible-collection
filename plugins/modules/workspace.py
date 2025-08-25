@@ -52,11 +52,6 @@ options:
       - When this key is set, I(organization) must be specified so that the ID of the workspace can be retrieved.
       - Workspace names can only include letters, numbers, -, and _.
     type: str
-  new_workspace_name:
-    description:
-      - This is the new name of the workspace.
-      - It is tied to updating workspaces only and applicable to existing workspaces.
-    type: str
   workspace_id:
     description:
       - ID of the workspace.
@@ -193,7 +188,6 @@ EXAMPLES = r"""
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
     organization: <your-organization>
-    new_workspace_name: <new-name-for-the-workspace>
     description: This is an updated dev workspace.
     project_id: <your-new-project-id>
     tag_bindings:
@@ -471,11 +465,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
-    # if a name update needs to be made
-    if workspace_params["new_workspace_name"]:
-        workspace_params["name"] = workspace_params.pop("new_workspace_name")
-    else:
-        workspace_params["name"] = workspace_params.pop("workspace")
+    workspace_params["name"] = workspace_params.pop("workspace")
     workspace_id = workspace_params.pop("workspace_id")
     workspace_response = get_workspace_by_id(client_terraform, workspace_id)
     if not workspace_response:
@@ -687,7 +677,6 @@ def main():
             workspace=dict(type="str"),
             organization=dict(type="str"),
             state=dict(type="str", default="present", choices=["present", "absent", "unlocked", "locked"]),
-            new_workspace_name=dict(type="str"),
             project_id=dict(type="str"),
             allow_destroy_plan=dict(type="bool", default=True),
             assessments_enabled=dict(type="bool", default=False),
@@ -735,10 +724,6 @@ def main():
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
                 if not workspace_response:
-                    if params["new_workspace_name"]:
-                        raise ValueError(
-                            f"The workspace {params['workspace']} in {params['organization']} organization was not found so workspace name cannot be updated"
-                        )
                     action_result = workspace_create(client_terraform, params, params["check_mode"])
                 else:
                     # retrieve the workspace ID
