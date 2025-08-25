@@ -133,8 +133,9 @@ options:
     type: str
   tag_bindings:
     description:
-      - The tags to be bound to the workspace.
+      - The tags to be bound to the workspace in key and value format.
     type: dict
+    elements: str
   setting_overwrites:
     description:
       - This paramter helps in overwriting default inherited values.
@@ -574,9 +575,8 @@ def workspace_delete(client_terraform: Any, params: Dict[str, Any], workspace_re
             msg = f"The workspace{params['workspace_id']} safe deleted successfully."
             action_result["changed"] = True
     else:
-        action_result.update(
-            {"changed": True, "msg": f"The workspace {params['workspace_id']} was found. Skipped delete due to check-mode."},
-        )
+        msg = f"The workspace {params['workspace_id']} was found. Skipped delete due to check-mode."
+        action_result["changed"] = True
     action_result["msg"] = msg
     return action_result
 
