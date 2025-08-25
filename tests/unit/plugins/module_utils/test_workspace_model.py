@@ -5,7 +5,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common 
     create_project_reference,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import (
-    Relationship,
     TagBindingsRelationship,
     WorkspaceAttributes,
     WorkspaceRequest,
