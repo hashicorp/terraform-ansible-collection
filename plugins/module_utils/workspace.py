@@ -3,6 +3,9 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import annotations
+
+from typing import Any, Dict
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
@@ -10,7 +13,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 )
 
 
-def get_workspace(client: TerraformClient, organization: str, workspace_name: str):
+def get_workspace(client: TerraformClient, organization: str, workspace: str) -> Dict[str, Any]:
     """
     Retrieves a specified workspace from Terraform Cloud.
 
@@ -23,7 +26,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         client (TerraformClient): An authenticated client used to interact with
             the Terraform Cloud API.
         organization (str): The name of the Terraform Cloud organization.
-        workspace_name (str): The name of the workspace to retrieve.
+        workspace (str): The name of the workspace to retrieve.
 
     Returns:
         dict: A dictionary containing the workspace data (with an added "status" field)
@@ -32,7 +35,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
     Raises:
         TerraformError: If the request fails with a non-404 status code.
     """
-    response = client.get(f"/organizations/{organization}/workspaces/{workspace_name}")
+    response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
     response_data = response.get("data", {})
     response_status = response["status"]
 
@@ -45,24 +48,24 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         response_data.update({"status": response_status})
         return response_data
     else:
-        # A failure status code was received when attempting to fetch the specified configuration version
+        # A failure status code was received when attempting to fetch the specified workspace
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
 
 
-def get_workspace_by_id(client: TerraformClient, workspace_id: str):
+def get_workspace_by_id(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
-    Retrieves a specified workspace from Terraform Cloud.
+    Retrieves a specified workspace from Terraform Cloud by its ID.
 
-    Sends a GET request to fetch details of a workspace identified by id. If the workspace is not found, returns an empty
-    dictionary. If successful, returns the workspace data with an added "status" field.
-    For any other error status, raises an HTTPError.
+    Sends a GET request to fetch details of a workspace identified by its unique ID.
+    If the workspace is not found, returns an empty dictionary. If successful,
+    returns the workspace data with an added "status" field. For any other error
+    status, raises a TerraformError.
 
     Args:
         client (TerraformClient): An authenticated client used to interact with
             the Terraform Cloud API.
-        organization (str): The name of the Terraform Cloud organization.
-        workspace_name (str): The name of the workspace to retrieve.
+        workspace_id (str): The unique ID of the workspace to retrieve.
 
     Returns:
         dict: A dictionary containing the workspace data (with an added "status" field)
@@ -84,12 +87,31 @@ def get_workspace_by_id(client: TerraformClient, workspace_id: str):
         response_data.update({"status": response_status})
         return response_data
     else:
-        # A failure status code was received when attempting to fetch the specified configuration version
+        # A failure status code was received when attempting to fetch the specified workspace
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
 
 
-def get_tag_bindings(client: TerraformClient, workspace_id: str):
+def get_tag_bindings(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Fetch tag bindings for a given Terraform workspace.
+
+    This function calls the Terraform API to retrieve tag bindings associated
+    with the specified workspace. It gracefully handles a 404 status (workspace not found),
+    returns the response with status on success (200), and raises a TerraformError for
+    all other response codes.
+
+    Args:
+        client (TerraformClient): The Terraform API client instance.
+        workspace_id (str): The ID of the workspace for which to fetch tag bindings.
+
+    Returns:
+        Dict[str, Any]: The tag bindings data, including the response status.
+                        Returns an empty dict if the workspace is not found (404).
+
+    Raises:
+        TerraformError: If the response status code is anything other than 200 or 404.
+    """
 
     response = client.get(f"/workspaces/{workspace_id}/tag-bindings")
     response_data = response.get("data", {})
@@ -108,7 +130,7 @@ def get_tag_bindings(client: TerraformClient, workspace_id: str):
         raise TerraformError(response)
 
 
-def create_workspace(client: TerraformClient, organization: str, data: dict):
+def create_workspace(client: TerraformClient, organization: str, data: dict) -> Dict[str, Any]:
     """
     Creates a new workspace for a specified Terraform Cloud workspace.
 
@@ -142,7 +164,7 @@ def create_workspace(client: TerraformClient, organization: str, data: dict):
         raise TerraformError(response)
 
 
-def update_workspace(client: TerraformClient, workspace_id: str, data: dict):
+def update_workspace(client: TerraformClient, workspace_id: str, data: dict) -> Dict[str, Any]:
     """
     Updates an existing workspace for a specified Terraform Cloud workspace.
 
@@ -177,7 +199,7 @@ def update_workspace(client: TerraformClient, workspace_id: str, data: dict):
         raise TerraformError(response)
 
 
-def safe_delete_workspace(client: TerraformClient, workspace_id: str):
+def safe_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
     Safe deletes a specified workspace in Terraform Cloud.
 
@@ -216,7 +238,7 @@ def safe_delete_workspace(client: TerraformClient, workspace_id: str):
         raise TerraformError(response)
 
 
-def force_delete_workspace(client: TerraformClient, workspace_id: str):
+def force_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
     Force deletes a specified workspace in Terraform Cloud.
 
@@ -255,7 +277,7 @@ def force_delete_workspace(client: TerraformClient, workspace_id: str):
         raise TerraformError(response)
 
 
-def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str):
+def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str) -> Dict[str, Any]:
     """
     Lock a specified workspace in Terraform Cloud.
 
@@ -295,7 +317,7 @@ def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str)
         raise TerraformError(response)
 
 
-def unlock_workspace(client: TerraformClient, workspace_id: str):
+def unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
     Unlock a specified workspace in Terraform Cloud.
 
@@ -332,7 +354,7 @@ def unlock_workspace(client: TerraformClient, workspace_id: str):
         raise TerraformError(response)
 
 
-def force_unlock_workspace(client: TerraformClient, workspace_id: str):
+def force_unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
     Force unlock a specified workspace in Terraform Cloud.
 
