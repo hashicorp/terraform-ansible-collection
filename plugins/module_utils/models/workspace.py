@@ -84,7 +84,7 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
         Returns:
             A list of dictionaries representing tag-binding resources
         """
-        return [{"type": "tag-bindings", "attributes": {"key": key, "value": value}} for key, value in tag_bindings.items()]
+        return [TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key=key, value=value)) for key, value in tag_bindings.items()]
 
     @classmethod
     def create(cls, project_id: Optional[str] = None, tag_bindings: Optional[Dict[str, str]] = None, **attributes) -> "WorkspaceRequest":
