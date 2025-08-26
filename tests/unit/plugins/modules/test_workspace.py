@@ -71,7 +71,7 @@ class TestWorkspaceLockAndUnlock:
             result = workspace_lock(mock_client, params, mock_workspace_response_unlocked, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == f"The workspace {params['workspace_id']} is locked successfully"
+            assert result["msg"] == f"Workspace {params['workspace_id']} locked successfully."
             assert result["id"] == params["workspace_id"]
             assert result["attributes"]["locked"] is True
 
@@ -94,7 +94,7 @@ class TestWorkspaceLockAndUnlock:
             result = workspace_unlock(mock_client, params, mock_workspace_response_locked, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == f"The workspace {params['workspace_id']} is unlocked successfully"
+            assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
             assert result["id"] == params["workspace_id"]
 
     def test_workspace_force_unlock_success(self, params, mock_workspace_response_locked):
@@ -106,7 +106,7 @@ class TestWorkspaceLockAndUnlock:
         ):
             result = workspace_unlock(mock_client, params, mock_workspace_response_locked, check_mode=False)
             assert result["changed"] is True
-            assert result["msg"] == f"The workspace {params['workspace_id']} is unlocked successfully"
+            assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
             assert result["id"] == params["workspace_id"]
 
     def test_workspace_unlock_check_mode(self, params, mock_workspace_response_locked):
@@ -145,7 +145,7 @@ class TestWorkspaceDelete:
             result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
             mock_safe_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
-            assert "safe deleted successfully" in result["msg"]
+            assert "safe-deleted successfully" in result["msg"]
 
     def test_force_delete_success(self, params, mock_workspace_response):
         params["force"] = True
@@ -155,7 +155,7 @@ class TestWorkspaceDelete:
             result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
             mock_force_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
-            assert "force deleted successfully" in result["msg"]
+            assert "force-deleted successfully" in result["msg"]
 
     def test_delete_check_mode(self, params, mock_workspace_response):
         mock_client = Mock()
@@ -348,7 +348,7 @@ class TestWorkspaceCreate:
             result = workspace_create(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == "The workspace ws-123 is created successfully"
+            assert result["msg"] == "Workspace ws-123 created successfully."
             assert result["id"] == "ws-123"
             assert result["attributes"]["description"] == "Test workspace"
 
