@@ -84,31 +84,33 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
 
-def main()-> None:
+
+def main() -> None:
     module = AnsibleTerraformModule(
-        argument_spec = dict(
-          run_id=dict(type="str", required=True),
+        argument_spec=dict(
+            run_id=dict(type="str", required=True),
         ),
     )
 
     warnings: list[str] = []
-    result: Dict[str, Any] = {"changed":False, "warnings": warnings}
+    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = module.params
     params["check_mode"] = module.check_mode
 
     try:
-      client = TerraformClient(**module.params)
+        client = TerraformClient(**module.params)
 
-      run_info_data =  get_run(client=client,run_id=params["run_id"])
-      if not run_info_data:
-          module.fail_json(msg=f"run with ID {params['run_id']} not found")
+        run_info_data = get_run(client=client, run_id=params["run_id"])
+        if not run_info_data:
+            module.fail_json(msg=f"run with ID {params['run_id']} not found")
 
-      result["run"] = run_info_data
+        result["run"] = run_info_data
 
-      module.exit_json(**result)
+        module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
 
 if __name__ == "__main__":
     main()
