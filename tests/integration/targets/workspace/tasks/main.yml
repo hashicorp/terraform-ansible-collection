@@ -35,7 +35,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is created successfully"
+        expected_result: "Workspace {{ workspace_id }} created successfully."
 
     - name: Assert create was successful
       ansible.builtin.assert:
@@ -139,7 +139,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is updated successfully"
+        expected_result: "Workspace {{ workspace_id }} updated successfully."
 
     - name: Assert update was successful
       ansible.builtin.assert:
@@ -171,7 +171,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is locked successfully"
+        expected_result: "Workspace {{ workspace_id }} locked successfully."
 
     - name: Assert workspace was locked
       ansible.builtin.assert:
@@ -188,7 +188,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is already locked"
+        expected_result: "The workspace {{ workspace_id }} is already locked."
 
     - name: Assert lock is idempotent
       ansible.builtin.assert:
@@ -205,7 +205,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is unlocked successfully"
+        expected_result: "Workspace {{ workspace_id }} unlocked successfully."
 
     - name: Assert workspace was unlocked
       ansible.builtin.assert:
@@ -221,7 +221,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} is already unlocked"
+        expected_result: "The workspace {{ workspace_id }} is already unlocked."
 
     - name: Assert unlock was idempotent
       ansible.builtin.assert:
@@ -240,7 +240,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "The workspace {{ workspace_id }} force deleted successfully."
+        expected_result: "Workspace {{ workspace_id }} force-deleted successfully."
 
     - name: Assert workspace was deleted
       ansible.builtin.assert:
