@@ -5,6 +5,8 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common 
     create_project_reference,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import (
+    TagBindingAttributes,
+    TagBindingResourceData,
     TagBindingsRelationship,
     WorkspaceAttributes,
     WorkspaceRequest,
@@ -16,13 +18,13 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspa
     [
         (
             {"environment": "uat"},
-            [{"type": "tag-bindings", "attributes": {"key": "environment", "value": "uat"}}],
+            [TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key="environment", value="uat"))],
         ),
         (
             {"team": "devops", "region": "us-east"},
             [
-                {"type": "tag-bindings", "attributes": {"key": "team", "value": "devops"}},
-                {"type": "tag-bindings", "attributes": {"key": "region", "value": "us-east"}},
+                TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key="team", value="devops")),
+                TagBindingResourceData(type="tag-bindings", attributes=TagBindingAttributes(key="region", value="us-east")),
             ],
         ),
         ({}, []),

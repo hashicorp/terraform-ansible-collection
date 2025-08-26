@@ -626,7 +626,7 @@ class ArchivistClient(ClientMixin):
 
 class DataUtils:
     @classmethod
-    def sort_list(self, val):
+    def sort_list(cls, val):
         if isinstance(val, list):
             if isinstance(val[0], dict):
                 sorted_keys = [tuple(sorted(dict_.keys())) for dict_ in val]
