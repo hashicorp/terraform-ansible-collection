@@ -81,7 +81,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     TerraformClient,
 )
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
 
 
@@ -90,6 +89,7 @@ def main() -> None:
         argument_spec=dict(
             run_id=dict(type="str", required=True),
         ),
+        supports_check_mode=True,
     )
 
     warnings: list[str] = []
