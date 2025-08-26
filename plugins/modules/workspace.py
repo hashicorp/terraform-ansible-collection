@@ -341,14 +341,13 @@ def normalize_workspace_response(response_data: dict, client_terraform: Any, wor
               any fields that are `None`.
     """
 
-    auto_destroy_at_raw = response_data.get("attributes", {}).get("auto-destroy-at")
-    auto_destroy_at = auto_destroy_at_raw
-    if auto_destroy_at_raw:
+    auto_destroy_at = response_data.get("attributes", {}).get("auto-destroy-at")
+    if auto_destroy_at:
         try:
-            dt = datetime.strptime(auto_destroy_at_raw, "%Y-%m-%dT%H:%M:%S.%fZ")
+            dt = datetime.strptime(auto_destroy_at, "%Y-%m-%dT%H:%M:%S.%fZ")
             auto_destroy_at = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         except ValueError:
-            # if parsing fails, keep original value
+            # if parsing fails, keep the original value
             pass
     execution_mode = response_data.get("attributes", {}).get("execution-mode")
     agent_pool_id = None
@@ -478,6 +477,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     want = {k: v for k, v in want.items() if v is not None}
     # removing excessive keys from have to match it to want
     have = {k: v for k, v in have.items() if k in want}
+    # comparing the two dictionaries
     updates_response = DataUtils.dict_diff(have, want)
     if not updates_response:
         action_result.update(
