@@ -1,5 +1,7 @@
 from typing import Any, Optional
 
+from ansible.module_utils.common.text.converters import to_text
+
 from .exceptions import TerraformError
 
 
@@ -15,7 +17,7 @@ def create_run(client, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     response = client.post("/runs", data=data)
     if response.get("status") != 201:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -31,7 +33,7 @@ def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.post(f"/runs/{run_id}/actions/apply")
     if response.get("status") != 202:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -47,7 +49,7 @@ def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.post(f"/runs/{run_id}/actions/cancel")
     if response.get("status") != 202:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -63,7 +65,7 @@ def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.post(f"/runs/{run_id}/actions/discard")
     if response.get("status") != 202:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -79,7 +81,7 @@ def get_run(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.get(f"/runs/{run_id}")
     if response.get("status") != 200:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -96,7 +98,7 @@ def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.get(f"/runs/{run_id}/run-events")
     if response.get("status") != 200:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
 
 
@@ -113,5 +115,5 @@ def task_stages(client, run_id: str) -> Optional[dict[str, Any]]:
     """
     response = client.get(f"/runs/{run_id}/task-stages")
     if response.get("status") != 200:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
     return response.get("data")
