@@ -67,3 +67,48 @@ run:
           returned: always
           description: API endpoint for this run.
 """
+
+
+from typing import TYPE_CHECKING
+
+from ansible.module_utils._text import to_text
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
+
+def main()-> None:
+    module = AnsibleTerraformModule(
+        argument_spec = dict(
+          run_id=dict(type="str", required=True),
+        ),
+    )
+
+    warnings: list[str] = []
+    result: Dict[str, Any] = {"changed":False, "warnings": warnings}
+    params: Dict[str, Any] = module.params
+    params["check_mode"] = module.check_mode
+
+    try:
+      client = TerraformClient(**module.params)
+
+      run_info_data =  get_run(client=client,run_id=params["run_id"])
+      if not run_info_data:
+          module.fail_json(msg=f"run with ID {params['run_id']} not found")
+
+      result["run"] = run_info_data
+
+      module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=to_text(e))
+
+if __name__ == "__main__":
+    main()
