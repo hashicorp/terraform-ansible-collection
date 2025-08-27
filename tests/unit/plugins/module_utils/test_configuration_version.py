@@ -43,7 +43,7 @@ def mock_clients():
         "config_version_id": "cv-123abc456def789",
         "attributes": {"auto-queue-runs": False, "speculative": True},
         "upload_url": "https://archivist.example.com/object/dummy-object-id",
-        "file_path": "/fake/path/config.tar.gz",
+        "file_path": "/fake/path/dummy-object-id",
     }
 
 
@@ -312,13 +312,13 @@ class TestUploadConfigFunction:
             ),
             (
                 "https://app.terraform.io",
-                "https://archivist.example.com/object/v1/config.tar.gz",
-                "https://archivist.example.com/object/v1/config.tar.gz",
+                "https://archivist.example.com/object/v1/dummy-object-id",
+                "https://archivist.example.com/object/v1/dummy-object-id",
                 "HTTPS with /object in upload path",
             ),
             (
                 "ftp://example.com",
-                "config.tar.gz",
+                "dummy-object-id",
                 "/object/dummy-object-id",
                 "non-HTTP base URL",
             ),

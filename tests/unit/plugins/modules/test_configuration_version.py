@@ -56,7 +56,7 @@ def standard_params():
     """
     return {
         "workspace_id": "ws-123abc456def789",
-        "configuration_files_path": "/fake/path/config.tar.gz",
+        "configuration_files_path": "/fake/path/dummy-object-id",
         "auto_queue_runs": True,
         "speculative": False,
         "provisional": False,
@@ -406,7 +406,7 @@ class TestStateOperations:
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version",
         ) as mock_get:
 
-            mock_validate.return_value = "/tmp/config.tar.gz"
+            mock_validate.return_value = "/tmp/dummy-object-id"
             mock_create.return_value = ("cv-123", "https://upload.url")
             mock_upload.return_value = 200
             mock_get.return_value = final_response
@@ -434,7 +434,7 @@ class TestStateOperations:
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
         ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_configuration_version") as mock_upload:
 
-            mock_validate.return_value = "/tmp/config.tar.gz"
+            mock_validate.return_value = "/tmp/dummy-object-id"
             mock_create.return_value = ("cv-123", "https://upload.url")
             mock_upload.side_effect = Exception("Upload failed")
 
@@ -468,7 +468,7 @@ class TestStateOperations:
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_configuration_version",
         ) as mock_get:
 
-            mock_validate.return_value = "/tmp/config.tar.gz"
+            mock_validate.return_value = "/tmp/dummy-object-id"
             mock_create.return_value = ("cv-123", "https://upload.url")
             mock_upload.return_value = 200
             mock_get.return_value = final_response
@@ -782,7 +782,7 @@ class TestCheckMode:
     def test_state_present_check_mode(self):
         """Test return value structure when running in check mode."""
         params = {
-            "configuration_files_path": "/fake/path/config.tar.gz",
+            "configuration_files_path": "/fake/path/dummy-object-id",
             "workspace_id": "ws-12345",
             "auto_queue_runs": True,
             "speculative": False,
