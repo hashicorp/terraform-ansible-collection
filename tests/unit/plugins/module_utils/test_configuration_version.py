@@ -319,7 +319,7 @@ class TestUploadConfigFunction:
             (
                 "ftp://example.com",
                 "config.tar.gz",
-                "/object/config.tar.gz",
+                "/object/dummy-object-id",
                 "non-HTTP base URL",
             ),
         ],
