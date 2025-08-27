@@ -105,9 +105,7 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
             relationships.tag_bindings = TagBindingsRelationship(data=cls.create_tag_bindings_reference(tag_bindings))
 
         # Only include relationships if any were set
-        relationships_to_include = relationships if any(
-            [relationships.project, relationships.tag_bindings]
-        ) else None
+        relationships_to_include = relationships if any([relationships.project, relationships.tag_bindings]) else None
 
         return cls(
             data=WorkspaceData(
