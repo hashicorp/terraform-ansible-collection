@@ -450,15 +450,15 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
         Any exceptions raised by the underlying Terraform client or request methods
         will propagate up to the caller.
     """
-    # remove source_name and source_url if present as they are not applicable for update operations
-    params.pop("source_name", None)
-    params.pop("source_url", None)
+
     action_result = {}
-    # pop unwanted values
+    # pop unwanted values and also remove source_name and source_url if present as they are not applicable for update operations
     ignore_list = [
         "lock_reason",
         "force",
         "organization",
+        "source_name",
+        "source_url",
     ]
     ignore_list.extend(IGNORE_LIST)
     workspace_params = params.copy()
