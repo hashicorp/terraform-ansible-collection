@@ -42,7 +42,7 @@ def mock_clients():
         "workspace_id": "ws-123abc456def789",
         "config_version_id": "cv-123abc456def789",
         "attributes": {"auto-queue-runs": False, "speculative": True},
-        "upload_url": "https://archivist.example.com/object/config.tar.gz",
+        "upload_url": "https://archivist.example.com/object/dummy-object-id",
         "file_path": "/fake/path/config.tar.gz",
     }
 
