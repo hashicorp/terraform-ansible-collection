@@ -658,11 +658,11 @@ class DataUtils:
             raise TerraformError("`base` must be of type <dict>")
         if not isinstance(comparable, dict):
             if comparable is None:
-                comparable = dict()
+                comparable = {}
             else:
                 raise TerraformError("`comparable` must be of type <dict>")
 
-        updates = dict()
+        updates = {}
 
         for key, value in iteritems(base):
             if isinstance(value, dict):
