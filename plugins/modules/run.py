@@ -276,15 +276,15 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, poll
     start_time = time.time()
     run = None
     while True:
-        if time.time() - start_time > timeout:
-            break
-
         run = get_run(client, run_id)
         state = run.get("data").get("attributes").get("status")
         if run and RunStates.is_success_state(state):
             return "success", run
         elif run and RunStates.is_failure_state(state):
             return "failure", run
+
+        if time.time() - start_time > timeout:
+            break
 
         time.sleep(polling_interval)
     return "timeout", run
