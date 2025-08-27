@@ -101,13 +101,18 @@ class WorkspaceRequest(BaseRequest[WorkspaceData]):
         if project_id:
             relationships.project = Relationship(data=create_project_reference(project_id))
 
-        # Add configuration version if provided
         if tag_bindings:
             relationships.tag_bindings = TagBindingsRelationship(data=cls.create_tag_bindings_reference(tag_bindings))
+        
+        # Only include relationships if any were set
+        relationships_to_include = relationships if any(
+            [relationships.project, relationships.tag_bindings]
+        ) else None
+
         return cls(
             data=WorkspaceData(
                 type="workspaces",
                 attributes=WorkspaceAttributes.model_validate(attributes),
-                relationships=relationships,
+                relationships=relationships_to_include,
             )
         )

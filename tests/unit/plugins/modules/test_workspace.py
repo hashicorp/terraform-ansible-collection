@@ -253,7 +253,6 @@ class TestWorkspaceUpdate:
 
             result = workspace_update(mock_client, params, check_mode=True)
             assert "attributes" in result
-            assert "name" in result["attributes"]
             assert "description" in result["attributes"]
 
     def test_workspace_update_no_changes(self, params, existing_workspace_response):

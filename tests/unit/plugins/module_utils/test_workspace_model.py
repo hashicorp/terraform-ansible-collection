@@ -36,44 +36,50 @@ def test_create_tag_bindings_reference(input_dict, expected_output):
 
 
 @pytest.mark.parametrize(
-    "project_id, tag_bindings, attributes, expected_keys",
+    "project_id, tag_bindings, attributes",
     [
-        ("proj-123", None, {"name": "dev-workspace"}, ["project"]),
-        (None, {"env": "prod"}, {"name": "prod-workspace"}, ["tag_bindings"]),
-        ("proj-456", {"team": "infra"}, {"name": "infra-workspace"}, ["project", "tag_bindings"]),
-        (None, None, {"name": "basic-workspace"}, []),
+        ("proj-123", None, {"name": "dev-workspace"}),
+        (None, {"env": "prod"}, {"name": "prod-workspace"}),
+        ("proj-456", {"team": "infra"}, {"name": "infra-workspace"}),
+        (None, None, {"name": "basic-workspace"}),
     ],
 )
-def test_workspace_request_create(project_id, tag_bindings, attributes, expected_keys):
+def test_workspace_request_create(project_id, tag_bindings, attributes):
     req = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **attributes)
 
     assert req.data.type == "workspaces"
 
-    # Since WorkspaceAttributes likely doesn't support direct instantiation,
-    # check dict instead of isinstance
     attr_dict = req.data.attributes.__dict__
     assert attr_dict["name"] == attributes["name"]
 
     rel = req.data.relationships
-    if "project" in expected_keys:
-        expected_project_rel = create_project_reference(project_id)
-        assert rel.project is not None
-        assert isinstance(rel.project, Relationship)
-        assert rel.project.data.type == "projects"
-        assert expected_project_rel.type == rel.project.data.type
-        assert expected_project_rel.id == rel.project.data.id
-    else:
-        assert rel.project is None
 
-    if "tag_bindings" in expected_keys:
-        assert isinstance(rel.tag_bindings, TagBindingsRelationship)
-        assert rel.tag_bindings.data is not None
-        for item in rel.tag_bindings.data:
-            assert item.type == "tag-bindings"
-            assert isinstance(item.attributes.key, str)
-            assert isinstance(item.attributes.value, str)
+    if project_id or tag_bindings:
+        # relationships should be set
+        assert rel is not None
+
+        if project_id:
+            expected_project_rel = create_project_reference(project_id)
+            assert rel.project is not None
+            assert isinstance(rel.project, Relationship)
+            assert rel.project.data.type == "projects"
+            assert expected_project_rel.id == rel.project.data.id
+
+        else:
+            assert rel.project is None
+
+        if tag_bindings:
+            assert isinstance(rel.tag_bindings, TagBindingsRelationship)
+            assert rel.tag_bindings.data is not None
+            for item in rel.tag_bindings.data:
+                assert item.type == "tag-bindings"
+                assert isinstance(item.attributes.key, str)
+                assert isinstance(item.attributes.value, str)
+        else:
+            assert rel.tag_bindings is None
     else:
-        assert rel.tag_bindings is None
+        # neither project_id nor tag_bindings passed, so relationships should be None
+        assert rel is None
 
 
 def test_workspace_attributes_alias_parsing():

@@ -194,7 +194,6 @@ EXAMPLES = r"""
       env: uat
       owner: abc
     execution_mode: remote
-    source_name: xyz
     auto_apply: true
     assessments_enabled: true
     state: present
@@ -479,16 +478,25 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     have = {k: v for k, v in have.items() if k in want}
     # comparing the two dictionaries
     updates_response = DataUtils.dict_diff(have, want)
+
     if not updates_response:
         action_result.update(
             {"changed": False, "msg": "No changes were encountered between the existing state and proposed changes via the update operation."},
         )
         return action_result
+
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
+
+    # If there are differences to be updated
+    for key in list(workspace_params.keys()):
+        if key not in updates_response:
+            workspace_params.pop(key)
+
     # create the model and use the payload for the update request of workspace
     workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
     workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
+
     if not check_mode:
         response = update_workspace(client_terraform, workspace_id, workspace_payload)
         action_result.update(
