@@ -9,8 +9,6 @@ import traceback
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from ansible.module_utils.six import iteritems
-
 
 try:
     import requests
@@ -664,7 +662,7 @@ class DataUtils:
 
         updates = {}
 
-        for key, value in iteritems(base):
+        for key, value in base.items():
             if isinstance(value, dict):
                 item = comparable.get(key)
                 if item is not None:
