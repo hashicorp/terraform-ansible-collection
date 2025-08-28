@@ -21,7 +21,6 @@
           env: dev
           owner: integration
         execution_mode: remote
-        allow_destroy_plan: true
         auto_apply: true
         auto_apply_run_trigger: true
         description: integration test workspace
@@ -43,6 +42,8 @@
           - result_create.changed
           - result_create.msg == expected_result
           - result_create.attributes["execution-mode"] == "remote"
+          - result_create.attributes["auto-apply"] == true
+          - result_create.attributes["auto-apply-run-trigger"] == true
 
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
@@ -52,9 +53,6 @@
           env: dev
           owner: integration
         execution_mode: remote
-        allow_destroy_plan: true
-        auto_apply: true
-        auto_apply_run_trigger: true
         description: integration test workspace
         terraform_version: 1.12.2
         state: present
@@ -128,7 +126,6 @@
           agent_pool: true
         allow_destroy_plan: true
         project_id: "{{ project_id }}"
-        auto_apply: false
         auto_apply_run_trigger: false
         description: integration test workspace
         state: present
@@ -145,6 +142,9 @@
           - result_update.changed
           - result_update.attributes["execution-mode"] == "agent"
           - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.attributes["auto-apply"] == true
+          - result_update.attributes["auto-apply-run-trigger"] == false
+          - result_update.attributes["allow-destroy-plan"] == true
           - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
           - result_update.msg == expected_result
 
@@ -169,6 +169,9 @@
           - result_update.attributes["terraform-version"] == "1.12.2"
           - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
           - result_update.relationships["project"]["data"]["id"] == project_id
+          - result_update.attributes["auto-apply"] == true
+          - result_update.attributes["auto-apply-run-trigger"] == false
+          - result_update.attributes["allow-destroy-plan"] == true
           - result_update.attributes["description"] == "integration test workspace updated"
           - result_update.msg == expected_result
 
