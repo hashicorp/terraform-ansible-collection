@@ -10,16 +10,18 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   run-integration-tests:
-    name: Run Integration Tests
+    name: Run Tests (ansible-${{ matrix.ansible-version }}, py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ansible-version:
-          - stable-2.19
-          - devel
-        python-version:
-          - "3.13"
+        include:
+          - ansible-version: stable-2.16
+            python-version: "3.12"
+          - ansible-version: stable-2.19
+            python-version: "3.13"
+          - ansible-version: devel
+            python-version: "3.13"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +31,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "${{ matrix.python-version }}"
 
       - name: Install ansible-core (${{ matrix.ansible-version }})
         run: python3 -m pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible-version }}.tar.gz --disable-pip-version-check
@@ -57,6 +59,6 @@ jobs:
       - name: Run integration tests (${{ matrix.ansible-version }})
         run: >-
           cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
-            ansible-test integration --python ${{ matrix.python-version }} --continue-on-error
+            ansible-test integration --python ${{ matrix.python-version }} --continue-on-error -vvvv
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
