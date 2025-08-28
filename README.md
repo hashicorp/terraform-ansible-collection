@@ -73,12 +73,38 @@ for more details.
 
 ## Use Cases
 
-WIP
+Modules in the collection can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
+For examples on how to use modules included in this collection, please refer to their documentation.
 
+```yaml
+---
+- name: Playbook using hashicorp.terraform collection
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create a new configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        state: present
+        configuration_files_path: "{{ configuration_files }}"
+        poll_interval: 3
+        poll_timeout: 15
+        tf_token: "{{ terraform_cloud_token }}"
+```
 
 ## Testing
 
-WIP
+GitHub Actions workflows are used to run tests for the `hashicorp.terraform` collection. These workflows include jobs to run the unit tests, integration tests, sanity tests, linters, changelog check and doc related checks. The following table lists the python and ansible versions against which these jobs are run.
+
+| Jobs | Description | Python Versions | Ansible Versions |
+| ------ |-------| ------ | -----------|
+| changelog |Checks for the presence of Changelog fragments | 3.12 | N/A |
+| Linters | Runs `black`, `flake8` and `isort` on plugins and tests | 3.11 | N/A |
+| Sanity | Runs ansible-test sanity | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
+| Unit tests | Executes the unit test cases | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
+| Integration tests | Executes the integration test suites| 3.13 | devel, 2.19 |
+
+**Note:** For sanity and unit tests, not all listed Python versions are applicable to all ansible-core versions. The actual compatibility depends on ansible-core supported Python versions for a given release.
 
 ## Support
 
