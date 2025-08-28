@@ -8,6 +8,8 @@
     - name: Generate a unique ID
       ansible.builtin.set_fact:
         unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
 
     - name: Generate unique workspace name
       ansible.builtin.set_fact:
@@ -73,8 +75,8 @@
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
         tf_validate_certs: true
-        poll_interval: 3
-        poll_timeout: 15
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
         state: present
       register: result
 
@@ -90,9 +92,10 @@
         run_message: "plan a vpc creation"
         state: "present"
         tf_token: "{{ tfc_token }}"
+        configuration_version: "{{ result.id }}"
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
       register: result_run
 
     - name: Assert run was created
@@ -107,8 +110,8 @@
         state: "applied"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
       register: result_apply
 
     - name: Assert run was applied
@@ -170,8 +173,8 @@
         is_destroy: true
         auto_apply: true
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
       register: result_destroy
 
     - name: Assert destroy run is result.changed
@@ -186,8 +189,8 @@
         state: "present"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
         save_plan: true
       register: result_save_plan
 
@@ -202,8 +205,8 @@
         state: "applied"
         tf_token: "{{ tfc_token }}"
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
       register: result_apply_save_plan
 
     - name: Assert save plan run was applied
@@ -260,8 +263,8 @@
         is_destroy: true
         save_plan: true
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
       register: result_is_destroy
 
     - name: Assert is_destroy run is result.changed
@@ -299,8 +302,11 @@
         is_destroy: true
         auto_apply: true
         poll: true
-        poll_interval: 10
-        poll_timeout: 300
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        target_addrs:
+          - "aws_vpc.vpc1-{{ unique_id }}"
+          - "aws_vpc.vpc2-{{ unique_id }}"
       register: result_is_destroy_auto_apply
 
     - name: Assert is_destroy and auto_apply run is result.changed
