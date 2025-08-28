@@ -59,6 +59,6 @@ jobs:
       - name: Run integration tests (${{ matrix.ansible-version }})
         run: >-
           cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && \
-            ansible-test integration --python ${{ matrix.python-version }} --continue-on-error
+            ansible-test integration --python ${{ matrix.python-version }} --continue-on-error -vvvv
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
