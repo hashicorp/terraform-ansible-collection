@@ -148,6 +148,30 @@
           - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
           - result_update.msg == expected_result
 
+    - name: Update a Terraform workspace with minimal data
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        description: integration test workspace updated
+        state: present
+      register: result_update
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        expected_result: "Workspace {{ workspace_id }} updated successfully."
+        agent_pool_id: "{{ agent_pool_id }}"
+        project_id: "{{ project_id }}"
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.attributes["execution-mode"] == "agent"
+          - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
+          - result_update.relationships["project"]["data"]["id"] == project_id
+          - result_update.attributes["description"] == "integration test workspace updated"
+          - result_update.msg == expected_result
+
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
         workspace: "{{ workspace_name }}"
