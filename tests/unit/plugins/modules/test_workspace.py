@@ -204,7 +204,7 @@ class TestWorkspaceUpdate:
                 "description": "Old description",
             },
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.DataUtils.dict_diff",
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
             return_value={
                 "description": params["description"],
                 "auto_destroy_at": params["auto_destroy_at"],
@@ -245,7 +245,7 @@ class TestWorkspaceUpdate:
                 "description": "Old description",
             },
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.DataUtils.dict_diff",
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
             return_value={
                 "description": params["description"],
             },
@@ -265,7 +265,7 @@ class TestWorkspaceUpdate:
                 "name": params["workspace"],
                 "description": params["description"],
             },
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.DataUtils.dict_diff", return_value={}):
+        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff", return_value={}):
 
             result = workspace_update(mock_client, params, check_mode=False)
             assert result["changed"] is False
@@ -288,7 +288,7 @@ class TestWorkspaceUpdate:
                 "description": "Old description",
             },
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.DataUtils.dict_diff",
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
             return_value={
                 "description": params["description"],
             },

@@ -22,13 +22,12 @@ from plugins.module_utils.common import (
     AnsibleTerraformModule,
     ArchivistClient,
     ClientMixin,
-    DataUtils,
     TerraformClient,
     gather_versions,
     has_at_least,
     requires,
 )
-from plugins.module_utils.exceptions import TerraformError, TerraformHostnameNotFoundError, TerraformTokenNotFoundError
+from plugins.module_utils.exceptions import TerraformHostnameNotFoundError, TerraformTokenNotFoundError
 
 
 class TestTerraformModuleUtil:
