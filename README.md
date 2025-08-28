@@ -104,9 +104,9 @@ GitHub Actions workflows are used to run tests for the `hashicorp.terraform` col
 | Linters | Runs `black`, `flake8` and `isort` on plugins and tests | 3.11 | N/A |
 | Sanity | Runs ansible-test sanity | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
 | Unit tests | Executes the unit test cases | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
-| Integration tests | Executes the integration test suites| 3.13 | devel, 2.19 |
+| Integration tests | Executes the integration test suite | 3.12, 3.13 | devel, stable-2.19, stable-2.16 |
 
-**Note:** For sanity and unit tests, not all listed Python versions are applicable to all ansible-core versions. The actual compatibility depends on ansible-core supported Python versions for a given release.
+**Note:** Not all listed Python versions are applicable to all ansible-core versions. The actual compatibility depends on ansible-core supported Python versions for a given release.
 
 ## Support
 
