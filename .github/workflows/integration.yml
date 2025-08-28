@@ -10,16 +10,18 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   run-integration-tests:
-    name: Run Integration Tests
+    name: Run Tests (ansible-${{ matrix.ansible-version }}, py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ansible-version:
-          - stable-2.19
-          - devel
-        python-version:
-          - "3.13"
+        include:
+          - ansible-version: stable-2.16
+            python-version: "3.12"
+          - ansible-version: stable-2.19
+            python-version: "3.13"
+          - ansible-version: devel
+            python-version: "3.13"
     steps:
       - uses: actions/checkout@v4
         with:
