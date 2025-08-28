@@ -21,7 +21,7 @@ def _handle_api_response(response: dict) -> dict:
     Raises:
         TerraformError: If the request fails with a non-404 or non-200 status code
     """
-    response_status = response["status"]
+    response_status = response.get("status")
 
     if response_status == 404:
         # Resource was not found - return empty dict without raising exception
@@ -32,6 +32,36 @@ def _handle_api_response(response: dict) -> dict:
     else:
         # A failure status code was received - raise exception with response
         raise TerraformError(response)
+
+
+def _get_plan_data(client: TerraformClient, identifier: str, use_plan_id: bool, endpoint_suffix: str = "") -> dict:
+    """
+    Generic helper to retrieve plan data from Terraform Cloud/Enterprise API.
+
+    Constructs the appropriate API path based on whether a plan ID or run ID is used,
+    appends the specified endpoint suffix, and handles the API response.
+
+    Args:
+        client: An authenticated client instance used to interact
+            with the Terraform Cloud/Enterprise API.
+        identifier: Either the plan ID or run ID depending on use_plan_id flag.
+        use_plan_id: True if identifier is plan_id, False if it's run_id.
+        endpoint_suffix: Additional path segment to append (e.g., "/json-output").
+
+    Returns:
+        The full response data if the resource is found (status 200),
+        or an empty dictionary if not found (status 404).
+
+    Raises:
+        TerraformError: If the request fails with a non-404 or non-200 status code.
+    """
+    if use_plan_id:
+        path = f"/plans/{identifier}{endpoint_suffix}"
+    else:
+        path = f"/runs/{identifier}/plan{endpoint_suffix}"
+
+    response = client.get(path)
+    return _handle_api_response(response)
 
 
 def get_plan_metadata(client: TerraformClient, identifier: str, use_plan_id: bool) -> dict:
@@ -57,13 +87,7 @@ def get_plan_metadata(client: TerraformClient, identifier: str, use_plan_id: boo
     Raises:
         TerraformError: If the request fails with a non-404 or non-200 status code.
     """
-    if use_plan_id:
-        path = f"/plans/{identifier}"
-    else:
-        path = f"/runs/{identifier}/plan"
-
-    response = client.get(path)
-    return _handle_api_response(response)
+    return _get_plan_data(client, identifier, use_plan_id)
 
 
 def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: bool) -> dict:
@@ -89,10 +113,4 @@ def get_plan_json_output(client: TerraformClient, identifier: str, use_plan_id: 
     Raises:
         TerraformError: If the request fails with a non-404 or non-200 status code.
     """
-    if use_plan_id:
-        path = f"/plans/{identifier}/json-output"
-    else:
-        path = f"/runs/{identifier}/plan/json-output"
-
-    response = client.get(path)
-    return _handle_api_response(response)
+    return _get_plan_data(client, identifier, use_plan_id, "/json-output")

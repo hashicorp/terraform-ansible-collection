@@ -137,12 +137,13 @@ ACTION_MAPPING = {
 }
 
 REPLACEMENT_ACTIONS = [["delete", "create"], ["create", "delete"]]
+SENSITIVE_MASK = "<sensitive>"
 
 
 def _mask_sensitive_object(
     obj: Union[Dict, List, Any],
     sensitive_flags: Union[Dict, bool],
-    replacement_text: str = "<sensitive>",
+    replacement_text: str = SENSITIVE_MASK,
 ) -> Union[Dict, List, str]:
     """Apply masking to sensitive values in an object based on sensitivity flags.
 
@@ -166,6 +167,69 @@ def _mask_sensitive_object(
     elif isinstance(obj, list):
         return [_mask_sensitive_object(item, {}, replacement_text) for item in obj]
     return obj
+
+
+def _get_change_indicator_text(before_raw_item, after_raw_item, is_sensitive_before, is_sensitive_after):
+    """Get appropriate text for sensitive value changes."""
+    if not (is_sensitive_before or is_sensitive_after):
+        return None, None
+
+    if before_raw_item != after_raw_item:
+        return "<sensitive> changed from", "<sensitive> changed to"
+    return SENSITIVE_MASK, SENSITIVE_MASK
+
+
+def _process_sensitive_value_update(
+    key,
+    all_keys,
+    before_obj,
+    after_obj,
+    before_sensitive,
+    after_sensitive,
+    before_raw,
+    after_raw,
+    result_before,
+    result_after,
+):
+    """Process a single key for sensitive value updates."""
+    before_item = before_obj.get(key)
+    after_item = after_obj.get(key)
+    before_sens = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
+    after_sens = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
+    before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
+    after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
+
+    if isinstance(before_item, dict) or isinstance(after_item, dict):
+        updated_before, updated_after = _update_changed_sensitive_values(
+            before_item or {},
+            after_item or {},
+            before_sens,
+            after_sens,
+            before_raw_item or {},
+            after_raw_item or {},
+        )
+        if key in before_obj:
+            result_before[key] = updated_before
+        if key in after_obj:
+            result_after[key] = updated_after
+    else:
+        before_text, after_text = _get_change_indicator_text(
+            before_raw_item,
+            after_raw_item,
+            before_sens is True,
+            after_sens is True,
+        )
+
+        if before_text is not None:
+            if key in before_obj:
+                result_before[key] = before_text
+            if key in after_obj:
+                result_after[key] = after_text
+        else:
+            if key in before_obj:
+                result_before[key] = before_item
+            if key in after_obj:
+                result_after[key] = after_item
 
 
 def _update_changed_sensitive_values(
@@ -196,43 +260,18 @@ def _update_changed_sensitive_values(
     all_keys = set(before_obj.keys()) | set(after_obj.keys())
 
     for key in all_keys:
-        before_item = before_obj.get(key)
-        after_item = after_obj.get(key)
-        before_sens = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
-        after_sens = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
-        before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
-        after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
-
-        if isinstance(before_item, dict) or isinstance(after_item, dict):
-            updated_before, updated_after = _update_changed_sensitive_values(
-                before_item or {},
-                after_item or {},
-                before_sens,
-                after_sens,
-                before_raw_item or {},
-                after_raw_item or {},
-            )
-            if key in before_obj:
-                result_before[key] = updated_before
-            if key in after_obj:
-                result_after[key] = updated_after
-        else:
-            if before_sens is True or after_sens is True:
-                if before_raw_item != after_raw_item:
-                    if key in before_obj:
-                        result_before[key] = "<sensitive> changed from"
-                    if key in after_obj:
-                        result_after[key] = "<sensitive> changed to"
-                else:
-                    if key in before_obj:
-                        result_before[key] = "<sensitive>"
-                    if key in after_obj:
-                        result_after[key] = "<sensitive>"
-            else:
-                if key in before_obj:
-                    result_before[key] = before_item
-                if key in after_obj:
-                    result_after[key] = after_item
+        _process_sensitive_value_update(
+            key,
+            all_keys,
+            before_obj,
+            after_obj,
+            before_sensitive,
+            after_sensitive,
+            before_raw,
+            after_raw,
+            result_before,
+            result_after,
+        )
 
     return result_before, result_after
 
@@ -337,6 +376,47 @@ def _process_resource_changes(
     return unified_resources
 
 
+def _determine_primary_item_and_scenario(resource_data: Dict):
+    """Determine the primary item and scenario type for diff processing."""
+    changes_item = resource_data["resource_changes"]
+    drift_item = resource_data["resource_drift"]
+    has_drift = resource_data["has_drift"]
+
+    if changes_item:
+        changes_actions = changes_item.get("change", {}).get("actions", [])
+        if changes_actions and "no-op" not in changes_actions:
+            return changes_item, "changes_with_actions"
+        elif has_drift and drift_item:
+            drift_actions = drift_item.get("change", {}).get("actions", [])
+            if drift_actions and "no-op" not in drift_actions:
+                return drift_item, "drift_only"
+    elif drift_item:
+        drift_actions = drift_item.get("change", {}).get("actions", [])
+        if drift_actions and "no-op" not in drift_actions:
+            return drift_item, "drift_only"
+
+    return None, None
+
+
+def _create_diff_headers(scenario_type, address, resource_id, action_type, has_drift, drift_item):
+    """Create appropriate headers for diff entry based on scenario."""
+    id_part = f" (ID={resource_id})" if resource_id else ""
+    diff_entry = {}
+
+    if scenario_type == "drift_only":
+        diff_entry["before_header"] = f"Resource changed outside Terraform ({action_type})."
+        diff_entry["after_header"] = f"{address}{id_part}: Drift detected\n No Planned changes to apply for this resource."
+    elif has_drift and drift_item:
+        drift_actions = drift_item.get("change", {}).get("actions", [])
+        drift_action_type = _action_to_str(drift_actions)
+        diff_entry["before_header"] = f"Resource changed outside Terraform ({drift_action_type})."
+        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
+    else:
+        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
+
+    return diff_entry
+
+
 def _create_diff_entry(resource_data: Dict) -> Optional[Dict]:
     """Create a diff entry for a resource.
 
@@ -347,29 +427,11 @@ def _create_diff_entry(resource_data: Dict) -> Optional[Dict]:
         dict or None: Diff entry with before/after states and headers, or None if no changes
     """
     address = resource_data["address"]
-    changes_item = resource_data["resource_changes"]
-    drift_item = resource_data["resource_drift"]
     has_drift = resource_data["has_drift"]
+    drift_item = resource_data["resource_drift"]
 
     # Determine primary item and scenario
-    primary_item = None
-    scenario_type = None
-
-    if changes_item:
-        changes_actions = changes_item.get("change", {}).get("actions", [])
-        if changes_actions and "no-op" not in changes_actions:
-            primary_item = changes_item
-            scenario_type = "changes_with_actions"
-        elif has_drift and drift_item:
-            drift_actions = drift_item.get("change", {}).get("actions", [])
-            if drift_actions and "no-op" not in drift_actions:
-                primary_item = drift_item
-                scenario_type = "drift_only"
-    elif drift_item:
-        drift_actions = drift_item.get("change", {}).get("actions", [])
-        if drift_actions and "no-op" not in drift_actions:
-            primary_item = drift_item
-            scenario_type = "drift_only"
+    primary_item, scenario_type = _determine_primary_item_and_scenario(resource_data)
 
     if not primary_item:
         return None
@@ -395,23 +457,44 @@ def _create_diff_entry(resource_data: Dict) -> Optional[Dict]:
     actions_list = change.get("actions", [])
     action_type = _action_to_str(actions_list)
     resource_id = str((before or after or {}).get("id", ""))
-    id_part = f" (ID={resource_id})" if resource_id else ""
 
     diff_entry = {
         "before": masked_before,
         "after": masked_after,
     }
 
-    if scenario_type == "drift_only":
-        diff_entry["before_header"] = f"Resource changed outside Terraform ({action_type})."
-        diff_entry["after_header"] = f"{address}{id_part}: Drift detected\n No Planned changes to apply for this resource."
-    elif has_drift and drift_item:
-        drift_actions = drift_item.get("change", {}).get("actions", [])
-        drift_action_type = _action_to_str(drift_actions)
-        diff_entry["before_header"] = f"Resource changed outside Terraform ({drift_action_type})."
-        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
+    # Create headers
+    headers = _create_diff_headers(scenario_type, address, resource_id, action_type, has_drift, drift_item)
+    diff_entry.update(headers)
+
+    return diff_entry
+
+
+def _process_single_output_change(output_name, change):
+    """Process a single output change and return diff entry if changed."""
+    if "no-op" in change.get("actions", []):
+        return None
+
+    before = change.get("before")
+    after = change.get("after")
+
+    if before == after:
+        return None
+
+    before_sensitive = change.get("before_sensitive", False)
+    after_sensitive = change.get("after_sensitive", False)
+
+    # Handle sensitive outputs
+    if before_sensitive or after_sensitive:
+        before_val = "<sensitive> changed from" if before_sensitive else before
+        after_val = "<sensitive> changed to" if after_sensitive else after
     else:
-        diff_entry["after_header"] = f"{address}{id_part} will be {action_type}\n Changes to apply."
+        before_val = before
+        after_val = after
+
+    diff_entry = {"before": {}, "after": {output_name: after_val}}
+    if before is not None:
+        diff_entry["before"][output_name] = before_val
 
     return diff_entry
 
@@ -428,27 +511,8 @@ def _process_output_changes(output_changes: Dict) -> List[Dict]:
     diffs = []
 
     for output_name, change in output_changes.items():
-        if "no-op" in change.get("actions", []):
-            continue
-
-        before = change.get("before")
-        after = change.get("after")
-        before_sensitive = change.get("before_sensitive", False)
-        after_sensitive = change.get("after_sensitive", False)
-
-        if before != after:
-            # Handle sensitive outputs
-            if before_sensitive or after_sensitive:
-                before_val = "<sensitive> changed from" if before_sensitive else before
-                after_val = "<sensitive> changed to" if after_sensitive else after
-            else:
-                before_val = before
-                after_val = after
-
-            diff_entry = {"before": {}, "after": {output_name: after_val}}
-            if before is not None:
-                diff_entry["before"][output_name] = before_val
-
+        diff_entry = _process_single_output_change(output_name, change)
+        if diff_entry:
             diffs.append(diff_entry)
 
     return diffs
@@ -486,11 +550,11 @@ def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
 
 def main() -> None:
     module = TerraformModule(
-        argument_spec=dict(
-            plan_id=dict(type="str", aliases=["id"]),
-            run_id=dict(type="str"),
-            output_format=dict(type="str", choices=["diff", "raw"], default="diff"),
-        ),
+        argument_spec={
+            "plan_id": {"type": "str", "aliases": ["id"]},
+            "run_id": {"type": "str"},
+            "output_format": {"type": "str", "choices": ["diff", "raw"], "default": "diff"},
+        },
         mutually_exclusive=[["plan_id", "run_id"]],
         required_one_of=[["plan_id", "run_id"]],
         supports_check_mode=True,
@@ -517,7 +581,7 @@ def main() -> None:
         # Check if plan was found
         if not metadata_response:
             id_type = "Plan" if use_plan_id else "Plan for run"
-            raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
+            module.fail_json(msg=f"{id_type} with ID '{identifier}' was not found.")
 
         if output_format == "raw":
             # Return raw format
