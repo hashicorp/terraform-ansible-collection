@@ -42,6 +42,7 @@
         that:
           - result_create.changed
           - result_create.msg == expected_result
+          - result_create.attributes["execution-mode"] == "remote"
 
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
@@ -120,9 +121,6 @@
     - name: Update a Terraform workspace with different data
       hashicorp.terraform.workspace:
         workspace_id: "{{ workspace_id }}"
-        tag_bindings:
-          env: dev
-          owner: integration
         execution_mode: agent
         agent_pool_id: "{{ agent_pool_id }}"
         setting_overwrites:
@@ -133,19 +131,21 @@
         auto_apply: false
         auto_apply_run_trigger: false
         description: integration test workspace
-        terraform_version: 1.12.2
         state: present
       register: result_update
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
         expected_result: "Workspace {{ workspace_id }} updated successfully."
+        agent_pool_id: "{{ agent_pool_id }}"
 
     - name: Assert update was successful
       ansible.builtin.assert:
         that:
           - result_update.changed
           - result_update.attributes["execution-mode"] == "agent"
+          - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
           - result_update.msg == expected_result
 
     - name: Update a Terraform workspace with same data to ensure idempotency

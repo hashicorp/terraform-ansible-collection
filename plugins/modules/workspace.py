@@ -623,7 +623,7 @@ def workspace_unlock(client_terraform: Any, params: Dict[str, Any], workspace_re
     if not check_mode:
         if params["force"]:
             response = force_unlock_workspace(client_terraform, params["workspace_id"])
-        elif not params["force"]:
+        else:
             response = unlock_workspace(client_terraform, params["workspace_id"])
         action_result.update(
             {"changed": True, "msg": f"Workspace {params['workspace_id']} unlocked successfully.", **response["data"]},
