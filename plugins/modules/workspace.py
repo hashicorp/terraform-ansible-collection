@@ -267,10 +267,10 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
-    DataUtils,
     TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     create_workspace,
     force_delete_workspace,
@@ -473,7 +473,7 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
     # removing excessive keys from have to match it to want
     have = {k: v for k, v in have.items() if k in want}
     # comparing the two dictionaries
-    updates_response = DataUtils.dict_diff(have, want)
+    updates_response = dict_diff(have, want)
 
     if not updates_response:
         action_result.update(
