@@ -66,23 +66,19 @@ options:
     description:
       - When true, allows destroy plans to be queued on the workspace.
     type: bool
-    default: true
   assessments_enabled:
     description:
       - When true, HCP Terraform performs health assessments for the workspace.
       - Setting this attribute to true holds relevance in HCP Terraform Plus and Premium editions only.
     type: bool
-    default: false
   auto_apply:
     description:
       - When true, allows changes to automatically apply when a Terraform plan is successful.
     type: bool
-    default: false
   auto_apply_run_trigger:
     description:
       - When true, allows changes to automatically apply when a Terraform plan is successful in runs initiated by run triggers.
     type: bool
-    default: false
   auto_destroy_at:
     description:
       - The timestamp when the next scheduled destroy run will occur.
