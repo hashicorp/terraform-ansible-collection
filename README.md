@@ -98,7 +98,9 @@ GitHub Actions workflows are used to run tests for the `hashicorp.terraform` col
 
 | Jobs | Description | Python Versions | Ansible Versions |
 | ------ |-------| ------ | -----------|
-| changelog |Checks for the presence of Changelog fragments | 3.12 | N/A |
+| changelog | Checks for the presence of Changelog fragments | 3.12 | N/A |
+| build-import | Builds collection and runs galaxy_importer  | 3.12 | latest ansible-core release |
+| ansible-lint | Runs latest ansible-lint in production profile | 3.12 | latest ansible-core release |
 | Linters | Runs `black`, `flake8` and `isort` on plugins and tests | 3.11 | N/A |
 | Sanity | Runs ansible-test sanity | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
 | Unit tests | Executes the unit test cases | 3.10, 3.11, 3.12, 3.13 | stable-2.16, stable-2.17, stable-2.18, stable-2.19, devel, milestone |
