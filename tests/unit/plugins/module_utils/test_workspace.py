@@ -22,7 +22,6 @@ class TestWorkspaceFunctions(unittest.TestCase):
 
     def setUp(self):
         """Set up common test variables and mocks."""
-
         self.mock_tf_client = Mock()
         self.organization = "test-org"
         self.workspace_name = "test-workspace"
@@ -30,7 +29,6 @@ class TestWorkspaceFunctions(unittest.TestCase):
 
     def test_get_workspace_success(self):
         """Test successful retrieval of a workspace."""
-
         expected_response = {
             "data": {
                 "id": self.workspace_id,
@@ -92,7 +90,6 @@ class TestWorkspaceFunctions(unittest.TestCase):
 
     def test_get_workspace_various_failure_statuses(self):
         """Test get_workspace with various non-success status codes."""
-
         for status_code in [400, 401, 403, 422, 500, 502, 503]:
             with self.subTest(status_code=status_code):
                 response = {"status": status_code}
