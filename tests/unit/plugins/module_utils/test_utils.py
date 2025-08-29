@@ -1,6 +1,3 @@
-import os
-import sys
-
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
