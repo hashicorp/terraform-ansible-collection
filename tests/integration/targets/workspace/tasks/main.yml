@@ -106,7 +106,7 @@
           data:
             attributes:
               name: "{{ agent_pool_name }}"
-            type: "projects"
+            type: "agent-pools"
         return_content: true
         status_code: 201
       no_log: true

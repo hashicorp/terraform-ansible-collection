@@ -3,9 +3,6 @@ import sys
 
 import pytest
 
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff, sort_list
 
