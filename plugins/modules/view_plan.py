@@ -11,11 +11,11 @@ short_description: View Terraform Cloud/Enterprise plan information in different
 author: "Tanwi Geetika (@tgeetika)"
 description:
   - View information about a Terraform execution plan from HashiCorp Terraform Cloud or Terraform Enterprise.
-  - Can return plan information in raw format or as a diff-formatted output (default).
+  - Can return plan information in json format or as a diff-formatted output (default).
   - Supports both Terraform Cloud and Terraform Enterprise deployments.
   - Plan information can be retrieved using either a plan ID or a run ID.
   - By default, returns diff-formatted output similar to 'terraform plan' CLI command.
-  - Can optionally return raw plan information including metadata and JSON output.
+  - Optionally return json plan information including metadata and JSON output.
   - Automatically masks sensitive values in diff output with descriptive messages.
   - Provides resource context at before_header and after_header in the output for better understanding of changes.
 options:
@@ -37,9 +37,9 @@ options:
     description:
       - Format for the module output.
       - 'diff' (default) returns a diff-formatted output similar to terraform plan CLI.
-      - 'raw' returns the raw plan information including metadata and JSON output.
+      - 'json' returns the json plan information including metadata and JSON output.
     type: str
-    choices: ['diff', 'raw']
+    choices: ['diff', 'json']
     default: 'diff'
 extends_documentation_fragment:
   - hashicorp.terraform.common
@@ -62,13 +62,13 @@ EXAMPLES = r"""
     output_format: diff
   register: plan_result
 
-# Get raw plan information
-- name: Get raw plan information by plan ID
+# Get json plan information
+- name: Get json plan information by plan ID
   hashicorp.terraform.view_plan:
     plan_id: <your-plan-id>
     token: "{{ tf_token }}"
     hostname: "{{ tf_hostname }}"
-    output_format: raw
+    output_format: json
   register: plan_result
 
 # Display diff results
@@ -101,12 +101,12 @@ diff:
       description: Resource state after changes
       type: dict
 metadata:
-  description: The metadata about the Terraform plan (when output_format is 'raw')
-  returned: when output_format is 'raw'
+  description: The metadata about the Terraform plan (when output_format is 'json')
+  returned: when output_format is 'json'
   type: dict
 json_output:
-  description: The JSON output of the Terraform plan (when output_format is 'raw')
-  returned: when output_format is 'raw'
+  description: The JSON output of the Terraform plan (when output_format is 'json')
+  returned: when output_format is 'json'
   type: dict
 msg:
   description: Informational message when no changes are detected
@@ -179,9 +179,81 @@ def _get_change_indicator_text(before_raw_item, after_raw_item, is_sensitive_bef
     return SENSITIVE_MASK, SENSITIVE_MASK
 
 
+def _extract_sensitive_value_data(key, before_obj, after_obj, before_sensitive, after_sensitive, before_raw, after_raw):
+    """Extract all necessary data for processing a sensitive value."""
+    before_item = before_obj.get(key)
+    after_item = after_obj.get(key)
+    before_sens = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
+    after_sens = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
+    before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
+    after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
+
+    return before_item, after_item, before_sens, after_sens, before_raw_item, after_raw_item
+
+
+def _process_dict_sensitive_values(
+    key,
+    before_item,
+    after_item,
+    before_sens,
+    after_sens,
+    before_raw_item,
+    after_raw_item,
+    result_before,
+    result_after,
+    before_obj,
+    after_obj,
+):
+    """Process dictionary-type sensitive values."""
+    updated_before, updated_after = _update_changed_sensitive_values(
+        before_item or {},
+        after_item or {},
+        before_sens,
+        after_sens,
+        before_raw_item or {},
+        after_raw_item or {},
+    )
+    if key in before_obj:
+        result_before[key] = updated_before
+    if key in after_obj:
+        result_after[key] = updated_after
+
+
+def _process_scalar_sensitive_values(
+    key,
+    before_item,
+    after_item,
+    before_sens,
+    after_sens,
+    before_raw_item,
+    after_raw_item,
+    result_before,
+    result_after,
+    before_obj,
+    after_obj,
+):
+    """Process scalar-type sensitive values."""
+    before_text, after_text = _get_change_indicator_text(
+        before_raw_item,
+        after_raw_item,
+        before_sens is True,
+        after_sens is True,
+    )
+
+    if before_text is not None:
+        if key in before_obj:
+            result_before[key] = before_text
+        if key in after_obj:
+            result_after[key] = after_text
+    else:
+        if key in before_obj:
+            result_before[key] = before_item
+        if key in after_obj:
+            result_after[key] = after_item
+
+
 def _process_sensitive_value_update(
     key,
-    all_keys,
     before_obj,
     after_obj,
     before_sensitive,
@@ -192,44 +264,46 @@ def _process_sensitive_value_update(
     result_after,
 ):
     """Process a single key for sensitive value updates."""
-    before_item = before_obj.get(key)
-    after_item = after_obj.get(key)
-    before_sens = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
-    after_sens = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
-    before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
-    after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
+    # Extract all necessary data
+    before_item, after_item, before_sens, after_sens, before_raw_item, after_raw_item = _extract_sensitive_value_data(
+        key,
+        before_obj,
+        after_obj,
+        before_sensitive,
+        after_sensitive,
+        before_raw,
+        after_raw,
+    )
 
+    # Check if we're dealing with dictionary values
     if isinstance(before_item, dict) or isinstance(after_item, dict):
-        updated_before, updated_after = _update_changed_sensitive_values(
-            before_item or {},
-            after_item or {},
+        _process_dict_sensitive_values(
+            key,
+            before_item,
+            after_item,
             before_sens,
             after_sens,
-            before_raw_item or {},
-            after_raw_item or {},
-        )
-        if key in before_obj:
-            result_before[key] = updated_before
-        if key in after_obj:
-            result_after[key] = updated_after
-    else:
-        before_text, after_text = _get_change_indicator_text(
             before_raw_item,
             after_raw_item,
-            before_sens is True,
-            after_sens is True,
+            result_before,
+            result_after,
+            before_obj,
+            after_obj,
         )
-
-        if before_text is not None:
-            if key in before_obj:
-                result_before[key] = before_text
-            if key in after_obj:
-                result_after[key] = after_text
-        else:
-            if key in before_obj:
-                result_before[key] = before_item
-            if key in after_obj:
-                result_after[key] = after_item
+    else:
+        _process_scalar_sensitive_values(
+            key,
+            before_item,
+            after_item,
+            before_sens,
+            after_sens,
+            before_raw_item,
+            after_raw_item,
+            result_before,
+            result_after,
+            before_obj,
+            after_obj,
+        )
 
 
 def _update_changed_sensitive_values(
@@ -262,7 +336,6 @@ def _update_changed_sensitive_values(
     for key in all_keys:
         _process_sensitive_value_update(
             key,
-            all_keys,
             before_obj,
             after_obj,
             before_sensitive,
@@ -553,7 +626,7 @@ def main() -> None:
         argument_spec={
             "plan_id": {"type": "str", "aliases": ["id"]},
             "run_id": {"type": "str"},
-            "output_format": {"type": "str", "choices": ["diff", "raw"], "default": "diff"},
+            "output_format": {"type": "str", "choices": ["diff", "json"], "default": "diff"},
         },
         mutually_exclusive=[["plan_id", "run_id"]],
         required_one_of=[["plan_id", "run_id"]],
@@ -583,8 +656,8 @@ def main() -> None:
             id_type = "Plan" if use_plan_id else "Plan for run"
             module.fail_json(msg=f"{id_type} with ID '{identifier}' was not found.")
 
-        if output_format == "raw":
-            # Return raw format
+        if output_format == "json":
+            # Return json format
             result.update(
                 {
                     "metadata": metadata_response.get("data", {}),
