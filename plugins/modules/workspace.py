@@ -724,11 +724,11 @@ def main():
 
         if params["state"] == "present":
             # validate the format of the timestamp
-            if params["auto_destroy_at"]:
+            if params.get("auto_destroy_at"):
                 datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
             # either workspace_id or workspace MUST be provided when state is present
             # when a workspace is provided, organization must be given
-            if not params["workspace_id"]:
+            if not params.get("workspace_id"):
                 # get the workspace_id from the provided workspace name
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
                 if not workspace_response:
@@ -744,7 +744,7 @@ def main():
                 action_result = workspace_update(client_terraform, params, params["check_mode"])
         elif params["state"] in ("absent", "locked", "unlocked"):
             # get the workspace response
-            if not params["workspace_id"]:
+            if not params.get("workspace_id"):
                 workspace_id = get_workspace_id(client_terraform, params)
                 params["workspace_id"] = workspace_id
             workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
