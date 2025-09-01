@@ -50,15 +50,15 @@ EXAMPLES = r"""
 - name: View plan diff by plan ID
   hashicorp.terraform.view_plan:
     plan_id: <your-plan-id>
-    token: "{{ tf_token }}"
-    hostname: "{{ tf_hostname }}"
+    tf_token: "{{ tf_token }}"
+    tf_hostname: "{{ tf_hostname }}"
   register: plan_result
 
 - name: View plan diff by run ID
   hashicorp.terraform.view_plan:
     run_id: <your-run-id>
-    token: "{{ tf_token }}"
-    hostname: "{{ tf_hostname }}"
+    tf_token: "{{ tf_token }}"
+    tf_hostname: "{{ tf_hostname }}"
     output_format: diff
   register: plan_result
 
@@ -66,8 +66,8 @@ EXAMPLES = r"""
 - name: Get json plan information by plan ID
   hashicorp.terraform.view_plan:
     plan_id: <your-plan-id>
-    token: "{{ tf_token }}"
-    hostname: "{{ tf_hostname }}"
+    tf_token: "{{ tf_token }}"
+    tf_hostname: "{{ tf_hostname }}"
     output_format: json
   register: plan_result
 
@@ -120,8 +120,8 @@ from typing import Any, Dict, List, Optional, Union
 from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
     TerraformClient,
-    TerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_json_output,
@@ -182,8 +182,8 @@ def _mask_sensitive_object(
         return {
             key: (
                 _mask_sensitive_object(value, sensitive_flags.get(key, {}), replacement_text)
-                if isinstance(value, (dict, list)) and isinstance(sensitive_flags.get(key), dict)
-                else replacement_text if sensitive_flags.get(key) is True else value
+                if isinstance(value, (dict, list)) and isinstance(sensitive_flags.get(key, None), dict)
+                else replacement_text if sensitive_flags.get(key, None) is True else value
             )
             for key, value in data.items()
         }
@@ -224,12 +224,12 @@ def _extract_sensitive_value_data(
     after_raw: Dict,
 ) -> SensitiveValueData:
     """Extract all necessary data for processing a sensitive value."""
-    before_item = before_obj.get(key)
-    after_item = after_obj.get(key)
+    before_item = before_obj.get(key, None)
+    after_item = after_obj.get(key, None)
     is_before_sensitive = before_sensitive.get(key, False) if isinstance(before_sensitive, dict) else False
     is_after_sensitive = after_sensitive.get(key, False) if isinstance(after_sensitive, dict) else False
-    before_raw_item = before_raw.get(key) if isinstance(before_raw, dict) else None
-    after_raw_item = after_raw.get(key) if isinstance(after_raw, dict) else None
+    before_raw_item = before_raw.get(key, None) if isinstance(before_raw, dict) else None
+    after_raw_item = after_raw.get(key, None) if isinstance(after_raw, dict) else None
 
     return SensitiveValueData(
         before_item=before_item,
@@ -573,16 +573,16 @@ def _has_output_changes(change: Dict) -> bool:
     if "no-op" in change.get("actions", []):
         return False
 
-    before = change.get("before")
-    after = change.get("after")
+    before = change.get("before", None)
+    after = change.get("after", None)
 
     return before != after
 
 
 def _create_sensitive_output_values(change: Dict) -> tuple[Any, Any]:
     """Create appropriate values for sensitive outputs."""
-    before = change.get("before")
-    after = change.get("after")
+    before = change.get("before", None)
+    after = change.get("after", None)
     before_sensitive = change.get("before_sensitive", False)
     after_sensitive = change.get("after_sensitive", False)
 
@@ -605,7 +605,7 @@ def _process_single_output_change(output_name: str, change: Dict) -> Optional[Di
 
     diff_entry = {"before": {}, "after": {output_name: after_val}}
 
-    if change.get("before") is not None:
+    if change.get("before", None) is not None:
         diff_entry["before"][output_name] = before_val
 
     return diff_entry
@@ -662,7 +662,7 @@ def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
 
 def main() -> None:
     """Main module execution function."""
-    module = TerraformModule(
+    module = AnsibleTerraformModule(
         argument_spec={
             "plan_id": {"type": "str", "aliases": ["id"]},
             "run_id": {"type": "str"},
