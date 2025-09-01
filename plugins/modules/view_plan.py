@@ -579,10 +579,7 @@ def _has_output_changes(change: Dict) -> bool:
     return before != after
 
 
-def _create_sensitive_output_values(
-    output_name: str,
-    change: Dict,
-) -> tuple[Any, Any]:
+def _create_sensitive_output_values(change: Dict) -> tuple[Any, Any]:
     """Create appropriate values for sensitive outputs."""
     before = change.get("before")
     after = change.get("after")
@@ -604,7 +601,7 @@ def _process_single_output_change(output_name: str, change: Dict) -> Optional[Di
     if not _has_output_changes(change):
         return None
 
-    before_val, after_val = _create_sensitive_output_values(output_name, change)
+    before_val, after_val = _create_sensitive_output_values(change)
 
     diff_entry = {"before": {}, "after": {output_name: after_val}}
 
@@ -663,69 +660,6 @@ def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
     return diffs
 
 
-def _fetch_plan_data(
-    client: TerraformClient,
-    identifier: str,
-    use_plan_id: bool,
-) -> tuple[Dict, Dict]:
-    """Fetch plan metadata and JSON output from Terraform API.
-
-    Args:
-        client: Terraform client instance
-        identifier: Plan ID or Run ID
-        use_plan_id: Whether to use plan ID (True) or run ID (False)
-
-    Returns:
-        tuple: (metadata_response, json_output_response)
-
-    Raises:
-        Exception: If API calls fail
-    """
-    metadata_response = get_plan_metadata(client, identifier, use_plan_id)
-    json_output_response = get_plan_json_output(client, identifier, use_plan_id)
-
-    return metadata_response, json_output_response
-
-
-def _validate_plan_exists(metadata_response: Dict, identifier: str, use_plan_id: bool) -> None:
-    """Validate that the plan was found and raise appropriate error if not.
-
-    Args:
-        metadata_response: Response from plan metadata API call
-        identifier: Plan ID or Run ID used in the request
-        use_plan_id: Whether plan ID or run ID was used
-
-    Raises:
-        Exception: If plan was not found
-    """
-    if not metadata_response:
-        id_type = "Plan" if use_plan_id else "Plan for run"
-        raise Exception(f"{id_type} with ID '{identifier}' was not found.")
-
-
-def _prepare_json_result(metadata_response: Dict, json_output_response: Dict) -> Dict:
-    """Prepare result dictionary for JSON output format."""
-    return {
-        "metadata": metadata_response.get("data", {}),
-        "json_output": json_output_response.get("data", {}),
-    }
-
-
-def _prepare_diff_result(json_output_response: Dict) -> Dict:
-    """Prepare result dictionary for diff output format."""
-    json_output_data = json_output_response.get("data", {})
-    diff_sequences = _get_diff_sequences(json_output_data)
-
-    result = {"diff": diff_sequences}
-
-    if diff_sequences:
-        result["changed"] = True
-    else:
-        result["msg"] = "No changes. Your infrastructure matches the configuration."
-
-    return result
-
-
 def main() -> None:
     """Main module execution function."""
     module = TerraformModule(
@@ -753,19 +687,34 @@ def main() -> None:
         identifier = plan_id if plan_id else run_id
         use_plan_id = plan_id is not None
 
-        # Fetch plan information
-        metadata_response, json_output_response = _fetch_plan_data(client, identifier, use_plan_id)
+        # Get plan information
+        metadata_response = get_plan_metadata(client, identifier, use_plan_id)
+        json_output_response = get_plan_json_output(client, identifier, use_plan_id)
 
-        # Validate plan exists
-        _validate_plan_exists(metadata_response, identifier, use_plan_id)
+        # Check if plan was found
+        if not metadata_response:
+            id_type = "Plan" if use_plan_id else "Plan for run"
+            module.fail_json(msg=f"{id_type} with ID '{identifier}' was not found.")
 
-        # Prepare result based on output format
         if output_format == "json":
-            format_result = _prepare_json_result(metadata_response, json_output_response)
+            # Return json format
+            result.update(
+                {
+                    "metadata": metadata_response.get("data", {}),
+                    "json_output": json_output_response.get("data", {}),
+                },
+            )
         else:
-            format_result = _prepare_diff_result(json_output_response)
+            # Return diff format
+            json_output_data = json_output_response.get("data", {})
+            diff_sequences = _get_diff_sequences(json_output_data)
+            result["diff"] = diff_sequences
 
-        result.update(format_result)
+            if diff_sequences:
+                result["changed"] = True
+            else:
+                result["msg"] = "No changes. Your infrastructure matches the configuration."
+
         module.exit_json(**result)
 
     except Exception as e:
