@@ -351,6 +351,20 @@
         that:
           - check_mode_discard_invalid_result.msg == "Run run-1234abcd not found in the Terraform Cloud/Enterprise workspace"
 
+    - name: Apply invalid run in check mode
+      hashicorp.terraform.run:
+        run_id: "run-5678efgh"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      ignore_errors: true
+      register: check_mode_apply_invalid_result
+
+    - name: Assert invalid run was applied in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_apply_invalid_result.msg == "Run run-5678efgh not found in the Terraform Cloud/Enterprise workspace"
+
     - name: Cancel valid run in check mode
       hashicorp.terraform.run:
         run_id: "run-1234abcd"
