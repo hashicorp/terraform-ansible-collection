@@ -80,10 +80,6 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-output_format:
-  description: The format used for the output
-  returned: always
-  type: str
 changed:
   description: Indicates if the plan has any changes (only meaningful in diff format)
   returned: always
@@ -678,7 +674,7 @@ def main() -> None:
     run_id = params.get("run_id")
     output_format = params.get("output_format")
 
-    result = {"changed": False, "output_format": output_format}
+    result = {}
 
     try:
         client = TerraformClient(**params)
