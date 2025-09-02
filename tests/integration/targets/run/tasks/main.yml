@@ -227,7 +227,7 @@
         poll: false
       register: result_auto_apply
 
-    - name: cancel the auto_apply run in check mode
+    - name: Cancel the auto_apply run in check mode
       hashicorp.terraform.run:
         run_id: "{{ result_auto_apply.id }}"
         state: "canceled"
