@@ -95,7 +95,7 @@
     - name: Debug Output of a run
       ansible.builtin.debug:
         var: run_apply
-   
+
     - name: Get the run
       hashicorp.terraform.run_info:
         run_id: "{{ run_apply.json.data.id }}"
