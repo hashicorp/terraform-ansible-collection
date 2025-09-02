@@ -10,7 +10,7 @@
         unique_id: "{{ lookup('pipe', 'uuidgen') }}"
         poll_interval: 10
         poll_timeout: 300
-  
+
     - name: Generate unique workspace name
       ansible.builtin.set_fact:
         workspace_name: "{{ unique_id }}-workspace"
@@ -84,7 +84,7 @@
                 data:
                   type: "workspaces"
                   id: "{{ workspace_id }}"
-        return_content: yes
+        return_content: true
         status_code: 201
       register: run_apply
 
@@ -95,7 +95,7 @@
     - name: Debug Output of a run
       ansible.builtin.debug:
         var: run_apply
-        
+   
     - name: Get the run
       hashicorp.terraform.run_info:
         run_id: "{{ run_apply.json.data.id }}"
