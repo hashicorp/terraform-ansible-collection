@@ -1,2 +1,3 @@
 minor_changes:
   - Adds a new module hashicorp.terraform.configuration_version for configuration-version management on TFE/C.
+  - Adds a new module hashicorp.terraform.run for run management on TFE/C.
