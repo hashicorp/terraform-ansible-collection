@@ -5,7 +5,7 @@
 # want this functionality for your collection.
 edit_on_github:
   # TO-DO: Update this if your collection lives in a different GitHub organization.
-  repository: ansible-collections/hashicorp.terraform
+  repository: ansible-automation-platform/hashicorp.terraform
   branch: main
   # If your collection root (the directory containing galaxy.yml) does not coincide with your
   # repository's root, you have to specify the path to the collection root here. For example,
@@ -27,11 +27,11 @@ edit_on_github:
 extra_links:
   - description: Report an issue
     # TO-DO: Update this if your collection lives in a different GitHub organization.
-    url: https://github.com/ansible-collections/hashicorp.terraform/issues/new/choose
+    url: https://access.redhat.com/support/
 
 # Specify communication channels for your collection. We suggest to not specify more
 # than one place for communication per communication tool to avoid confusion.
 communication:
   forum:
-    - topic: Ansible Forum
-      url: https://forum.ansible.com/
+    - topic: Support
+      url: https://access.redhat.com/support/
