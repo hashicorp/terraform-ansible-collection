@@ -83,7 +83,7 @@ def get_run(client, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, st
     if response.get("status") == 200:
         return response.get("data")
     elif response.get("status") == 404:
-        return 404, f"Run {run_id} not found in the Terraform Cloud/Enterprise workspace"
+        return {}
     else:
         raise TerraformError(to_text(response))
 

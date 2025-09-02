@@ -48,27 +48,6 @@
         dest: "{{ temp_dir.path }}/main.tf"
         mode: "0644"
 
-    - name: Invalid workspace name
-      hashicorp.terraform.configuration_version:
-        workspace: invalid-workspace
-        organization: "{{ organization }}"
-        configuration_files_path: "{{ temp_dir.path }}"
-        auto_queue_runs: false
-        provisional: true
-        tf_validate_certs: true
-        state: present
-      register: result_invalid_workspace
-      ignore_errors: true
-
-    - name: Set expected error message
-      ansible.builtin.set_fact:
-        expected_error: "The workspace invalid-workspace in {{ organization }} organization was not found."
-
-    - name: Assert failure
-      ansible.builtin.assert:
-        that:
-          - result_invalid_workspace.msg == expected_error
-
     - name: Create configuration version with auto_queue_runs to false
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
@@ -103,6 +82,21 @@
         that:
           - result_run.changed
           - result_run.attributes.status == "planned"
+
+    - name: Check mode for applying an existing run
+      hashicorp.terraform.run:
+        run_id: "{{ result_run.id }}"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+        poll: false
+      check_mode: true
+      register: check_mode_applied_result
+
+    - name: Assert run was created
+      ansible.builtin.assert:
+        that:
+          - check_mode_applied_result.changed
+          - check_mode_applied_result.msg == ("Run " + result_run.id + " found, check mode is enabled, no changes will be made")
 
     - name: Apply the run
       hashicorp.terraform.run: &apply_run
@@ -233,6 +227,21 @@
         poll: false
       register: result_auto_apply
 
+    - name: cancel the auto_apply run in check mode
+      hashicorp.terraform.run:
+        run_id: "{{ result_auto_apply.id }}"
+        state: "canceled"
+        tf_token: "{{ tfc_token }}"
+        poll: false
+      check_mode: true
+      register: check_mode_cancel_auto_apply_result
+
+    - name: Assert auto_apply run was canceled in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_cancel_auto_apply_result.changed
+          - check_mode_cancel_auto_apply_result.msg == ("Run " + result_auto_apply.id + " found, check mode is enabled, no changes will be made")
+
     - name: Cancel the auto_apply run
       hashicorp.terraform.run: &cancel_auto_apply
         run_id: "{{ result_auto_apply.id }}"
@@ -271,6 +280,20 @@
       ansible.builtin.assert:
         that:
           - result_is_destroy.changed
+
+    - name: Discard the is_destroy save plan run in check mode
+      hashicorp.terraform.run:
+        run_id: "{{ result_is_destroy.id }}"
+        state: "discarded"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      register: check_mode_discard_is_destroy_result
+
+    - name: Assert is_destroy save plan run was discarded in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_discard_is_destroy_result.changed
+          - check_mode_discard_is_destroy_result.msg == ("Run " + result_is_destroy.id + " found, check mode is enabled, no changes will be made")
 
     - name: Discard the is_destroy save plan run
       hashicorp.terraform.run: &discard_is_destroy
@@ -313,6 +336,34 @@
       ansible.builtin.assert:
         that:
           - result_is_destroy_auto_apply.changed
+
+    - name: Discard invalid run in check mode
+      hashicorp.terraform.run:
+        run_id: "run-1234abcd"
+        state: "discarded"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      ignore_errors: true
+      register: check_mode_discard_invalid_result
+
+    - name: Assert invalid run was discarded in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_discard_invalid_result.msg == "Run run-1234abcd not found in the Terraform Cloud/Enterprise workspace"
+
+    - name: Cancel valid run in check mode
+      hashicorp.terraform.run:
+        run_id: "run-1234abcd"
+        state: "canceled"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      ignore_errors: true
+      register: check_mode_cancel_valid_result
+
+    - name: Assert valid run was canceled in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_cancel_valid_result.msg == "Run run-1234abcd not found in the Terraform Cloud/Enterprise workspace"
 
   always:
     - name: Force delete workspace

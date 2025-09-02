@@ -167,14 +167,15 @@ EXAMPLES = r"""
 #     "type": "runs"
 # }
 
-- name: Create a plan-only run for review
+- name: Create a plan-only run for review (with polling)
   hashicorp.terraform.run:
     workspace_id: "ws-abc123def456"
     run_message: "Review infrastructure changes"
     plan_only: true
+    poll: true
     state: "present"
 
-# Task output:
+# Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
 #     "attributes": {
@@ -202,6 +203,52 @@ EXAMPLES = r"""
 #     "id": "run-def456ghi789",
 #     "links": {
 #         "self": "/api/v2/runs/run-def456ghi789"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-abc123def456",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+
+- name: Create a plan-only run without polling
+  hashicorp.terraform.run:
+    workspace_id: "ws-abc123def456"
+    run_message: "Quick plan check"
+    plan_only: true
+    poll: false
+    state: "present"
+
+# Task output (with poll: false):
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": true,
+#             "is-confirmable": false,
+#             "is-discardable": false,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T11:30:00.000Z",
+#         "has-changes": null,
+#         "is-destroy": false,
+#         "message": "Quick plan check",
+#         "plan-only": true,
+#         "source": "tfe-api",
+#         "status": "pending",
+#         "status-timestamps": {
+#             "queuing-at": "2025-01-15T11:30:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "id": "run-jkl012mno345",
+#     "links": {
+#         "self": "/api/v2/runs/run-jkl012mno345"
 #     },
 #     "relationships": {
 #         "workspace": {
@@ -269,8 +316,9 @@ EXAMPLES = r"""
     state: "applied"
     poll: true
     poll_timeout: 300
+    poll_interval: 10
 
-# Task output (with poll: true - default):
+# Task output (with poll: true, poll_timeout: 300, poll_interval: 10):
 # ------------
 # "result": {
 #     "attributes": {
@@ -380,7 +428,7 @@ EXAMPLES = r"""
     run_id: "run-abc123def456"
     state: "discarded"
 
-# Task output (with poll: true - default):
+# Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
 #     "attributes": {
@@ -617,8 +665,8 @@ def check_mode(func):
         run_id = kwargs.get("run_id")
         client = args[0]
         run = get_run(client, run_id)
-        if isinstance(run, tuple):
-            return {"failed": True, "msg": run[1]}
+        if not run:
+            return {"failed": True, "msg": f"Run {run_id} not found in the Terraform Cloud/Enterprise workspace"}
         return {"changed": True, "msg": f"Run {run_id} found, check mode is enabled, no changes will be made"}
 
     return wrapper
@@ -791,8 +839,6 @@ def main():
                 action_result = state_discarded(tf_client, **params)
             case "canceled":
                 action_result = state_canceled(tf_client, **params)
-            case _:
-                raise TerraformError(f"Invalid state: {params.get('state')}")
 
         result.update(action_result)
         module.exit_json(**result)

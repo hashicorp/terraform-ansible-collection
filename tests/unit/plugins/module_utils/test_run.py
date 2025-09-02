@@ -337,9 +337,7 @@ class TestGetRun:
             assert str(status) in str(exc_info.value)
         elif returns_tuple:
             result = get_run(mock_client, run_id)
-            assert isinstance(result, tuple)
-            assert result[0] == expected_result[0]
-            assert run_id in result[1]  # Check that run_id is in the error message
+            assert result == {}  # 404 now returns empty dict
         else:
             result = get_run(mock_client, run_id)
             assert result["id"] == expected_result["id"]

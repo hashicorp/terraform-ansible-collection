@@ -233,8 +233,8 @@ class TestCheckMode:
             ("state_present", False, None, None, True, False, None),  # Normal execution
             # Applied state functions - should check run existence when check_mode enabled
             ("state_applied", True, "run-123", {"id": "run-123", "attributes": {"status": "planned"}}, True, False, "Run run-123 found, check mode is enabled"),
-            ("state_applied", True, "run-456", None, True, False, "Run run-456 found, check mode is enabled"),
-            ("state_applied", True, "run-404", (404, "Run not found"), None, True, "Run not found"),
+            ("state_applied", True, "run-456", {}, None, True, "Run run-456 not found"),
+            ("state_applied", True, "run-404", {}, None, True, "Run run-404 not found"),
             ("state_applied", False, "run-123", {"id": "run-123"}, True, False, None),  # Normal execution
             # Canceled state functions - should check run existence when check_mode enabled
             (
@@ -246,8 +246,8 @@ class TestCheckMode:
                 False,
                 "Run run-123 found, check mode is enabled",
             ),
-            ("state_canceled", True, "run-456", None, True, False, "Run run-456 found, check mode is enabled"),
-            ("state_canceled", True, "run-404", (404, "Run not found"), None, True, "Run not found"),
+            ("state_canceled", True, "run-456", {}, None, True, "Run run-456 not found"),
+            ("state_canceled", True, "run-404", {}, None, True, "Run run-404 not found"),
             ("state_canceled", False, "run-123", {"id": "run-123"}, True, False, None),  # Normal execution
             # Discarded state functions - should check run existence when check_mode enabled
             (
@@ -259,8 +259,8 @@ class TestCheckMode:
                 False,
                 "Run run-123 found, check mode is enabled",
             ),
-            ("state_discarded", True, "run-456", None, True, False, "Run run-456 found, check mode is enabled"),
-            ("state_discarded", True, "run-404", (404, "Run not found"), None, True, "Run not found"),
+            ("state_discarded", True, "run-456", {}, None, True, "Run run-456 not found"),
+            ("state_discarded", True, "run-404", {}, None, True, "Run run-404 not found"),
             ("state_discarded", False, "run-123", {"id": "run-123"}, True, False, None),  # Normal execution
         ],
     )
@@ -337,12 +337,12 @@ class TestCheckMode:
         # The decorator creates a wrapper, so the name will be 'wrapper', but the logic uses func.__name__
         # which should be preserved internally
 
-    def test_check_mode_with_tuple_error_handling(self):
-        """Test check_mode decorator handles tuple errors from get_run correctly."""
+    def test_check_mode_with_empty_dict_error_handling(self):
+        """Test check_mode decorator handles empty dict (404) from get_run correctly."""
         mock_client = Mock()
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
-            mock_get_run.return_value = (404, "Run not found")
+            mock_get_run.return_value = {}
 
             @check_mode
             def state_applied(client, **kwargs):
@@ -351,7 +351,7 @@ class TestCheckMode:
             result = state_applied(mock_client, check_mode=True, run_id="run-404")
 
             assert result["failed"] is True
-            assert result["msg"] == "Run not found"
+            assert result["msg"] == "Run run-404 not found in the Terraform Cloud/Enterprise workspace"
             mock_get_run.assert_called_once_with(mock_client, "run-404")
 
 
@@ -602,7 +602,7 @@ class TestMainFunction:
         "scenario,module_params,check_mode,client_side_effect,expected_behavior",
         [
             ("check_mode", {"workspace_id": "ws-123", "state": "present"}, True, None, "check_mode_exit"),
-            ("invalid_state", {"workspace_id": "ws-123", "state": "invalid_state"}, False, None, "failure"),
+            # Note: invalid_state test removed - Ansible's argument spec validation prevents invalid states from reaching the match statement
             (
                 "client_exception",
                 {"workspace_id": "ws-123", "state": "present"},
