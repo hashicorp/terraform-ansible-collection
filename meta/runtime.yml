@@ -7,3 +7,4 @@ action_groups:
     - run
     - workspace
     - view_plan
+    - run_info

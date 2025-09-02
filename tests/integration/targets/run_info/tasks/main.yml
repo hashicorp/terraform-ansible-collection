@@ -1,0 +1,129 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+  
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        tf_validate_certs: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result.changed
+          - result.attributes.status == "uploaded"
+
+    - name: Trigger plan_only run
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/runs"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            type: "runs"
+            attributes:
+              message: "run triggered"
+              plan-only: true
+            relationships:
+              workspace:
+                data:
+                  type: "workspaces"
+                  id: "{{ workspace_id }}"
+        return_content: yes
+        status_code: 201
+      register: run_apply
+
+    - name: Wait till run completion
+      ansible.builtin.pause:
+        minutes: 1
+
+    - name: Debug Output of a run
+      ansible.builtin.debug:
+        var: run_apply
+        
+    - name: Get the run
+      hashicorp.terraform.run_info:
+        run_id: "{{ run_apply.json.data.id }}"
+        tf_token: "{{ tfc_token }}"
+      register: run_response
+
+    - name: Assert run got response
+      ansible.builtin.assert:
+        that:
+          - not run_response.changed
+          - run_response.run.data.type == "runs"
+          - run_response.run.data.attributes.status == "planned_and_finished"
+          - run_response.run.data.attributes.variables == []
+
+  always:
+    - name: Force delete workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: workspace_delete_response
+
+    - name: Clean up rendered config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
