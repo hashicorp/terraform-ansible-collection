@@ -153,7 +153,8 @@ class TestApplyRun:
         else:
             result = apply_run(mock_client, run_id)
             if expected_result:
-                assert result["id"] == expected_result["id"]
+                assert result["status"] == status
+                assert result["data"]["id"] == expected_result["id"]
 
         mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/apply")
 
@@ -209,7 +210,8 @@ class TestCancelRun:
             assert str(status) in str(exc_info.value)
         else:
             result = cancel_run(mock_client, run_id)
-            assert result["id"] == expected_result["id"]
+            assert result["status"] == status
+            assert result["data"]["id"] == expected_result["id"]
 
         mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/cancel")
 
@@ -270,7 +272,11 @@ class TestDiscardRun:
             assert str(status) in str(exc_info.value)
         else:
             result = discard_run(mock_client, run_id)
-            assert result == expected_result
+            assert result["status"] == status
+            if expected_result:
+                assert result["data"] == expected_result
+            else:
+                assert result["data"] == response_data
 
         mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/discard")
 
@@ -279,7 +285,7 @@ class TestGetRun:
     """Test cases for get_run function."""
 
     @pytest.mark.parametrize(
-        "run_id,status,expected_result,should_raise",
+        "run_id,status,expected_result,should_raise,returns_tuple",
         [
             (
                 "run-123",
@@ -294,18 +300,19 @@ class TestGetRun:
                     },
                 },
                 False,
+                False,
             ),
-            ("run-123", 403, None, True),
-            ("run-123", 404, None, True),
-            ("run-unicode-123", 200, {"id": "run-unicode-123", "type": "runs"}, False),
-            ("run-special-chars_123", 200, {"id": "run-special-chars_123", "type": "runs"}, False),
+            ("run-123", 403, None, True, False),
+            ("run-123", 404, (404, "Run run-123 not found in the Terraform Cloud/Enterprise workspace"), False, True),
+            ("run-unicode-123", 200, {"id": "run-unicode-123", "type": "runs"}, False, False),
+            ("run-special-chars_123", 200, {"id": "run-special-chars_123", "type": "runs"}, False, False),
         ],
     )
-    def test_get_run_scenarios(self, run_id, status, expected_result, should_raise):
+    def test_get_run_scenarios(self, run_id, status, expected_result, should_raise, returns_tuple):
         """Test get_run with various scenarios."""
         mock_client = Mock()
 
-        if should_raise:
+        if should_raise or returns_tuple:
             mock_client.get.return_value = {
                 "status": status,
                 "data": {
@@ -328,6 +335,11 @@ class TestGetRun:
             with pytest.raises(TerraformError) as exc_info:
                 get_run(mock_client, run_id)
             assert str(status) in str(exc_info.value)
+        elif returns_tuple:
+            result = get_run(mock_client, run_id)
+            assert isinstance(result, tuple)
+            assert result[0] == expected_result[0]
+            assert run_id in result[1]  # Check that run_id is in the error message
         else:
             result = get_run(mock_client, run_id)
             assert result["id"] == expected_result["id"]
@@ -696,7 +708,8 @@ class TestRunsModuleIntegration:
 
         # 3. Apply run
         applied_run = apply_run(mock_client, "run-workflow-123")
-        assert applied_run["attributes"]["status"] == "applying"
+        assert applied_run["status"] == 202
+        assert applied_run["data"]["attributes"]["status"] == "applying"
 
         # 4. Get run events
         events = run_events(mock_client, "run-workflow-123")

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from ansible.module_utils.common.text.converters import to_text
 
@@ -34,7 +34,7 @@ def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/apply")
     if response.get("status") != 202:
         raise TerraformError(to_text(response))
-    return response.get("data")
+    return response
 
 
 def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -50,7 +50,7 @@ def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/cancel")
     if response.get("status") != 202:
         raise TerraformError(to_text(response))
-    return response.get("data")
+    return response
 
 
 def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
@@ -66,10 +66,10 @@ def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
     response = client.post(f"/runs/{run_id}/actions/discard")
     if response.get("status") != 202:
         raise TerraformError(to_text(response))
-    return response.get("data")
+    return response
 
 
-def get_run(client, run_id: str) -> Optional[dict[str, Any]]:
+def get_run(client, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, str]]]:
     """
     Get a run with the given run_id.
     Args:
@@ -80,9 +80,12 @@ def get_run(client, run_id: str) -> Optional[dict[str, Any]]:
         TerraformError: If the response does not return a 200 status code.
     """
     response = client.get(f"/runs/{run_id}")
-    if response.get("status") != 200:
+    if response.get("status") == 200:
+        return response.get("data")
+    elif response.get("status") == 404:
+        return 404, f"Run {run_id} not found in the Terraform Cloud/Enterprise workspace"
+    else:
         raise TerraformError(to_text(response))
-    return response.get("data")
 
 
 def run_events(client, run_id: str) -> Optional[dict[str, Any]]:

@@ -123,12 +123,96 @@ EXAMPLES = r"""
         value: "v1.2.3"
     state: "present"
 
+# Task output:
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": false,
+#             "is-confirmable": false,
+#             "is-discardable": false,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": true,
+#         "created-at": "2025-01-15T10:30:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": false,
+#         "message": "Deploy new application version",
+#         "plan-only": false,
+#         "source": "tfe-api",
+#         "status": "applied",
+#         "status-timestamps": {
+#             "applied-at": "2025-01-15T10:35:00.000Z",
+#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
+#             "planning-at": "2025-01-15T10:30:10.000Z",
+#             "planned-at": "2025-01-15T10:32:00.000Z",
+#             "apply-queueable-at": "2025-01-15T10:32:05.000Z",
+#             "applying-at": "2025-01-15T10:33:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "failed": false,
+#     "id": "run-abc123def456",
+#     "links": {
+#         "self": "/api/v2/runs/run-abc123def456"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-xyz789abc123",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+
 - name: Create a plan-only run for review
   hashicorp.terraform.run:
     workspace_id: "ws-abc123def456"
     run_message: "Review infrastructure changes"
     plan_only: true
     state: "present"
+
+# Task output:
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": true,
+#             "is-confirmable": true,
+#             "is-discardable": true,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T11:00:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": false,
+#         "message": "Review infrastructure changes",
+#         "plan-only": true,
+#         "source": "tfe-api",
+#         "status": "planned",
+#         "status-timestamps": {
+#             "plan-queueable-at": "2025-01-15T11:00:05.000Z",
+#             "planning-at": "2025-01-15T11:00:10.000Z",
+#             "planned-at": "2025-01-15T11:02:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "id": "run-def456ghi789",
+#     "links": {
+#         "self": "/api/v2/runs/run-def456ghi789"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-abc123def456",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
 
 - name: Create a destroy run to remove resources
   hashicorp.terraform.run:
@@ -139,6 +223,46 @@ EXAMPLES = r"""
     auto_apply: false
     state: "present"
 
+# Task output:
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": true,
+#             "is-confirmable": true,
+#             "is-discardable": true,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T12:00:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": true,
+#         "message": "Clean up staging environment",
+#         "plan-only": false,
+#         "source": "tfe-api",
+#         "status": "planned",
+#         "status-timestamps": {
+#             "plan-queueable-at": "2025-01-15T12:00:05.000Z",
+#             "planning-at": "2025-01-15T12:00:10.000Z",
+#             "planned-at": "2025-01-15T12:01:30.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "id": "run-ghi789jkl012",
+#     "links": {
+#         "self": "/api/v2/runs/run-ghi789jkl012"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-staging123",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+
 - name: Apply an existing run
   hashicorp.terraform.run:
     run_id: "run-abc123def456"
@@ -146,17 +270,166 @@ EXAMPLES = r"""
     poll: true
     poll_timeout: 300
 
+# Task output (with poll: true - default):
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": false,
+#             "is-confirmable": false,
+#             "is-discardable": false,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T10:30:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": false,
+#         "message": "Deploy new application version",
+#         "plan-only": false,
+#         "source": "tfe-api",
+#         "status": "applied",
+#         "status-timestamps": {
+#             "applied-at": "2025-01-15T13:15:00.000Z",
+#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
+#             "planning-at": "2025-01-15T10:30:10.000Z",
+#             "planned-at": "2025-01-15T10:32:00.000Z",
+#             "apply-queueable-at": "2025-01-15T13:10:00.000Z",
+#             "applying-at": "2025-01-15T13:12:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "failed": false,
+#     "id": "run-abc123def456",
+#     "links": {
+#         "self": "/api/v2/runs/run-abc123def456"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-xyz789abc123",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+#
+# Task output (with poll: false):
+# ------------
+# "result": {
+#     "changed": true,
+#     "failed": false
+# }
+
 - name: Cancel a running Terraform operation
   hashicorp.terraform.run:
     run_id: "run-abc123def456"
     state: "canceled"
 
+# Task output (with poll: true - default):
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": false,
+#             "is-confirmable": false,
+#             "is-discardable": false,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T10:30:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": false,
+#         "message": "Deploy new application version",
+#         "plan-only": false,
+#         "source": "tfe-api",
+#         "status": "canceled",
+#         "status-timestamps": {
+#             "canceled-at": "2025-01-15T13:20:00.000Z",
+#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
+#             "planning-at": "2025-01-15T10:30:10.000Z",
+#             "planned-at": "2025-01-15T10:32:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "failed": false,
+#     "id": "run-abc123def456",
+#     "links": {
+#         "self": "/api/v2/runs/run-abc123def456"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-xyz789abc123",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+#
+# Task output (with poll: false):
+# ------------
+# "result": {
+#     "changed": true,
+#     "failed": false
+# }
+
 - name: Discard a planned run without applying
   hashicorp.terraform.run:
     run_id: "run-abc123def456"
     state: "discarded"
+
+# Task output (with poll: true - default):
+# ------------
+# "result": {
+#     "attributes": {
+#         "actions": {
+#             "is-cancelable": false,
+#             "is-confirmable": false,
+#             "is-discardable": false,
+#             "is-force-cancelable": false
+#         },
+#         "auto-apply": false,
+#         "created-at": "2025-01-15T10:30:00.000Z",
+#         "has-changes": true,
+#         "is-destroy": false,
+#         "message": "Deploy new application version",
+#         "plan-only": false,
+#         "source": "tfe-api",
+#         "status": "discarded",
+#         "status-timestamps": {
+#             "discarded-at": "2025-01-15T13:25:00.000Z",
+#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
+#             "planning-at": "2025-01-15T10:30:10.000Z",
+#             "planned-at": "2025-01-15T10:32:00.000Z"
+#         }
+#     },
+#     "changed": true,
+#     "failed": false,
+#     "id": "run-abc123def456",
+#     "links": {
+#         "self": "/api/v2/runs/run-abc123def456"
+#     },
+#     "relationships": {
+#         "workspace": {
+#             "data": {
+#                 "id": "ws-xyz789abc123",
+#                 "type": "workspaces"
+#             }
+#         }
+#     },
+#     "type": "runs"
+# }
+#
+# Task output (with poll: false):
+# ------------
+# "result": {
+#     "changed": true,
+#     "failed": false
+# }
 """
-# todo add task outputs above
+
 RETURN = r"""
 data:
     description: The main data object containing run information.
@@ -277,6 +550,8 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, poll
     run = None
     while True:
         run = get_run(client, run_id)
+        if isinstance(run, tuple):
+            return "failure", {"error": run[1]}
         state = run.get("data").get("attributes").get("status")
         if run and RunStates.is_success_state(state):
             return "success", run
@@ -306,27 +581,72 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     if poll and target_run_id:
         status, poll_response = wait_for_state(client, target_run_id, kwargs.get("poll_timeout", 25), kwargs.get("poll_interval", 5))
         if status == "success" and poll_response:
-            action_result.update({"changed": True, **poll_response.get("data", {})})
+            poll_data = poll_response.get("data") or {}
+            action_result.update({"changed": True, **poll_data})
         else:
             action_result.update({"failed": True, "msg": f"Run reached status '{status}' instead of expected success state"})
     else:
-        action_result.update({"changed": True, **response.get("data", {})})
+        data = response.get("data") or {}
+        action_result.update({"changed": True, **data})
 
     return action_result
 
 
+def check_mode(func):
+    """
+    Decorator to handle check mode and check if the run exists.
+    Args:
+        func: The function to decorate.
+    Returns:
+        The decorated function.
+    """
+
+    def wrapper(*args, **kwargs):
+        # Check if check_mode is enabled
+        check_mode_enabled = kwargs.get("check_mode", False)
+        default_return = {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
+        if check_mode_enabled:
+            if func.__name__.endswith("_present"):
+                return default_return
+            else:
+                # For states applied, discarded, and canceled, check if run exists first
+                run_id = kwargs.get("run_id")
+                if run_id:
+                    client = args[0]
+                    run = get_run(client, run_id)
+                    if isinstance(run, tuple):
+                        return {"failed": True, "msg": run[1]}
+                    elif run:
+                        return {"changed": True, "msg": f"Run {run_id} found, check mode is enabled, no changes will be made"}
+                return default_return
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def idempotency_check(func):
+    """
+    Decorator to check if the run is idempotent.
+    Args:
+        func: The function to decorate.
+    Returns:
+        The decorated function.
+    """
+
     def wrapper(*args, **kwargs):
         run_id = kwargs.get("run_id")
         if run_id:
             run = get_run(args[0], run_id)
-            if run.get("data").get("attributes").get("status") == func.__name__.split("_")[1]:
+            if isinstance(run, tuple):
+                return {"failed": True, "msg": run[1]}
+            elif run.get("data").get("attributes").get("status") == func.__name__.split("_")[1]:
                 return {"changed": False, "run": run.get("data")}
         return func(*args, **kwargs)
 
     return wrapper
 
 
+@check_mode
 def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Create a new run with the given parameters.
@@ -351,6 +671,7 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     return handle_polling_and_result(client, response, **kwargs)
 
 
+@check_mode
 @idempotency_check
 def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
@@ -366,6 +687,7 @@ def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     return handle_polling_and_result(client, response, poll, run_id, **kwargs)
 
 
+@check_mode
 @idempotency_check
 def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
@@ -381,6 +703,7 @@ def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     return handle_polling_and_result(client, response, poll, run_id, **kwargs)
 
 
+@check_mode
 @idempotency_check
 def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
@@ -454,27 +777,25 @@ def main():
 
     try:
         tf_client = TerraformClient(**module.params)
+
+        # Get workspace_id if not provided and state is present
         if not params.get("workspace_id") and params.get("state") == "present":
             params["workspace_id"] = get_workspace_id(tf_client, params["workspace"], params["organization"])
 
-        if module.check_mode:
-            action_result = {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
-            module.exit_json(**action_result)
-        else:
-            match params.get("state"):
-                case "present":
-                    action_result = state_present(tf_client, **params)
-                case "applied":
-                    action_result = state_applied(tf_client, **params)
-                case "discarded":
-                    action_result = state_discarded(tf_client, **params)
-                case "canceled":
-                    action_result = state_canceled(tf_client, **params)
-                case _:
-                    raise TerraformError(f"Invalid state: {params.get('state')}")
+        match params.get("state"):
+            case "present":
+                action_result = state_present(tf_client, **params)
+            case "applied":
+                action_result = state_applied(tf_client, **params)
+            case "discarded":
+                action_result = state_discarded(tf_client, **params)
+            case "canceled":
+                action_result = state_canceled(tf_client, **params)
+            case _:
+                raise TerraformError(f"Invalid state: {params.get('state')}")
 
-            result.update(action_result)
-            module.exit_json(**result)
+        result.update(action_result)
+        module.exit_json(**result)
 
     except Exception as e:
         module.fail_from_exception(e)
