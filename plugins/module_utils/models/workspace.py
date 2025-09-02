@@ -22,6 +22,8 @@ from .common import (
 class WorkspaceAttributes(BaseModel):
     """Model for workspace attributes."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     name: Optional[StrictStr] = None
     allow_destroy_plan: Optional[StrictBool] = Field(None, alias="allow-destroy-plan")
     assessments_enabled: Optional[StrictBool] = Field(None, alias="assessments-enabled")
@@ -36,8 +38,6 @@ class WorkspaceAttributes(BaseModel):
     execution_mode: Optional[StrictStr] = Field(None, alias="execution-mode")
     agent_pool_id: Optional[StrictStr] = Field(None, alias="agent-pool-id")
     setting_overwrites: Optional[Dict[str, bool]] = Field(None, alias="setting-overwrites")
-
-    model_config = ConfigDict(populate_by_name=True)
 
 
 class TagBindingAttributes(BaseModel):
