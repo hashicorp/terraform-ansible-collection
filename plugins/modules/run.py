@@ -604,22 +604,27 @@ def check_mode(func):
     def wrapper(*args, **kwargs):
         # Check if check_mode is enabled
         check_mode_enabled = kwargs.get("check_mode", False)
+        if not check_mode_enabled:
+            return func(*args, **kwargs)
+
         default_return = {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
-        if check_mode_enabled:
-            if func.__name__.endswith("_present"):
-                return default_return
-            else:
-                # For states applied, discarded, and canceled, check if run exists first
-                run_id = kwargs.get("run_id")
-                if run_id:
-                    client = args[0]
-                    run = get_run(client, run_id)
-                    if isinstance(run, tuple):
-                        return {"failed": True, "msg": run[1]}
-                    elif run:
-                        return {"changed": True, "msg": f"Run {run_id} found, check mode is enabled, no changes will be made"}
-                return default_return
-        return func(*args, **kwargs)
+
+        # Handle present state functions directly
+        if func.__name__.endswith("_present"):
+            return default_return
+
+        # For other states, check if run exists first
+        run_id = kwargs.get("run_id")
+        if not run_id:
+            return default_return
+
+        client = args[0]
+        run = get_run(client, run_id)
+        if isinstance(run, tuple):
+            return {"failed": True, "msg": run[1]}
+        if run:
+            return {"changed": True, "msg": f"Run {run_id} found, check mode is enabled, no changes will be made"}
+        return default_return
 
     return wrapper
 
