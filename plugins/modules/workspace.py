@@ -118,8 +118,8 @@ options:
       - This specifies the execution mode for the workspace.
       - This inherits the default project mode by default.
       - The I(agent_pool_id) must be provided when the I(execution_mode) is `agent`
-      - When set to I(agent) and the I(execution_mode) inherited from the project default mode is not I(agent),
-        then I(Setting_overwrites) parameter must be provided with this.
+      - When the I(execution_mode) inherited from the project default mode needs to be overridden,
+        then I(setting_overwrites) parameter must be provided with this.
     choices: ["remote", "local", "agent"]
     type: str
   agent_pool_id:
@@ -134,8 +134,7 @@ options:
   setting_overwrites:
     description:
       - This paramter helps in overwriting default inherited values.
-      - When the I(execution-mode) needs to be set to I(agent), this parameter needs to be specified if the I(execution_mode)
-        inherited from project default mode is I(remote) or I(local).
+      - When the inherited I(execution-mode) needs to be overridden, this parameter needs to be specified.
     type: dict
     suboptions:
       execution_mode:
