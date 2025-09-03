@@ -33,11 +33,22 @@ from plugins.module_utils.exceptions import (
 )
 
 
-class TestTerraformModuleUtil:
-    """Test cases for AnsibleTerraformModule class."""
+class TestAnsibleTerraformModule:
+    """Test suite for the AnsibleTerraformModule class initialization and configuration.
+
+    Tests the core functionality of the AnsibleTerraformModule wrapper class,
+    including authentication parameter injection, argument specification merging,
+    and module initialization behaviors.
+    """
 
     def test_terraform_module_init_adds_auth_argspec(self):
-        """Test that AnsibleTerraformModule adds authentication parameters to argspec."""
+        """Test that AnsibleTerraformModule correctly injects authentication parameters.
+
+        Verifies that when creating an AnsibleTerraformModule instance, the module
+        automatically adds Terraform-specific authentication parameters (tf_token,
+        tf_hostname, etc.) to the provided argument specification while preserving
+        any existing parameters.
+        """
         argument_spec = dict(
             test_param=dict(type="str"),
         )
@@ -61,25 +72,44 @@ class TestTerraformModuleUtil:
             assert "tf_max_retries" in called_argspec
             assert "tf_timeout" in called_argspec
 
-    def test_terraform_module_auth_argspec_structure(self):
-        """Test the structure of AUTH_ARGSPEC."""
+    @pytest.mark.parametrize(
+        "param_name,expected_properties",
+        [
+            ("tf_token", {"required": False, "has_fallback": True}),
+            ("tf_hostname", {"required": False, "default": "https://app.terraform.io", "has_fallback": True}),
+            ("tf_validate_certs", {"type": "bool", "default": True, "has_fallback": True}),
+        ],
+    )
+    def test_auth_argspec_structure(self, param_name, expected_properties):
+        """Test the structure and properties of authentication argument specifications.
+
+        This parameterized test validates that each authentication parameter in
+        AUTH_ARGSPEC has the correct type, default values, fallback configurations,
+        and required status as expected by the Ansible module framework.
+
+        Args:
+            param_name: Name of the authentication parameter to test
+            expected_properties: Dictionary of expected properties for the parameter
+        """
         auth_spec = AnsibleTerraformModule.AUTH_ARGSPEC
 
-        assert "tf_token" in auth_spec
-        assert auth_spec["tf_token"]["required"] is False
-        assert "fallback" in auth_spec["tf_token"]
-        assert "tf_hostname" in auth_spec
-        assert auth_spec["tf_hostname"]["required"] is False
-        assert auth_spec["tf_hostname"]["default"] == "https://app.terraform.io"
-        assert "fallback" in auth_spec["tf_hostname"]
-        assert "tf_validate_certs" in auth_spec
-        assert auth_spec["tf_validate_certs"]["type"] == "bool"
-        assert auth_spec["tf_validate_certs"]["default"] is True
-        assert "fallback" in auth_spec["tf_validate_certs"]
+        assert param_name in auth_spec
+        param_spec = auth_spec[param_name]
+
+        for prop, expected_value in expected_properties.items():
+            if prop == "has_fallback":
+                assert "fallback" in param_spec
+            else:
+                assert param_spec[prop] == expected_value
 
 
 class TestClientMixin:
-    """Test cases for ClientMixin class."""
+    """Test suite for the ClientMixin base class functionality.
+
+    Tests the core HTTP client functionality provided by ClientMixin, including
+    request/response handling, JSON serialization/deserialization, response
+    sanitization, and the make_request decorator functionality.
+    """
 
     class MockClient(ClientMixin):
         """Mock client class for testing ClientMixin."""
@@ -90,101 +120,118 @@ class TestClientMixin:
             self.session.headers = {"Content-Type": "application/vnd.api+json"}
             self.timeout = 10
 
-    def test_sanitize_response_dict_with_included_keys(self):
-        """Test sanitizing dict response with keys to include."""
+    @pytest.mark.parametrize(
+        "response_data,keys_to_include,expected_result,description",
+        [
+            (
+                {
+                    "id": "123",
+                    "name": "test",
+                    "secret": "hidden",
+                    "nested": {"id": "456", "data": "value"},
+                },
+                ["id", "name", "data"],
+                {
+                    "id": "123",
+                    "name": "test",
+                    "nested": {"id": "456", "data": "value"},
+                },
+                "dict response with nested data",
+            ),
+            (
+                [
+                    {"id": "1", "name": "test1", "secret": "hidden1"},
+                    {"id": "2", "name": "test2", "secret": "hidden2"},
+                ],
+                ["id", "name"],
+                [
+                    {"id": "1", "name": "test1"},
+                    {"id": "2", "name": "test2"},
+                ],
+                "list response",
+            ),
+            (
+                {"secret": "hidden"},
+                ["id", "name"],
+                None,
+                "empty result when no matching keys",
+            ),
+        ],
+    )
+    def test_sanitize_response_scenarios(self, response_data, keys_to_include, expected_result, description):
+        """Test response sanitization with various data structures and key filters.
+
+        This parameterized test validates that the sanitize_response method correctly
+        filters response data to include only specified keys, handles both dictionary
+        and list responses, and properly manages nested data structures while
+        excluding sensitive or unwanted information.
+
+        Args:
+            response_data: Input response data to be sanitized
+            keys_to_include: List of keys to retain in the sanitized response
+            expected_result: Expected output after sanitization
+            description: Test case description for clarity
+        """
         mixin = ClientMixin()
-        response = {
-            "id": "123",
-            "name": "test",
-            "secret": "hidden",
-            "nested": {"id": "456", "data": "value"},
-        }
-        keys_to_include = ["id", "name", "data"]
 
-        result = mixin.sanitize_response(response, keys_to_include)
+        result = mixin.sanitize_response(response_data, keys_to_include)
 
-        assert result["id"] == "123"
-        assert result["name"] == "test"
-        assert "secret" not in result
-        assert result["nested"]["id"] == "456"
-        assert result["nested"]["data"] == "value"
+        if expected_result is None:
+            assert result is None
+        elif isinstance(expected_result, list):
+            assert len(result) == len(expected_result)
+            for i, item in enumerate(expected_result):
+                for key, value in item.items():
+                    assert result[i][key] == value
+                # Verify excluded keys are not present
+                assert "secret" not in result[i]
+        else:
+            for key, value in expected_result.items():
+                if isinstance(value, dict):
+                    for nested_key, nested_value in value.items():
+                        assert result[key][nested_key] == nested_value
+                else:
+                    assert result[key] == value
+            # Verify excluded keys are not present
+            assert "secret" not in result
 
-    def test_sanitize_response_list(self):
-        """Test sanitizing list response."""
+    @pytest.mark.parametrize(
+        "input_data,expected_result,should_raise,description",
+        [
+            ({"key": "value", "number": 42}, '{"key": "value", "number": 42}', False, "valid dict to JSON"),
+            ({"key": set([1, 2, 3])}, None, True, "invalid data with set"),
+        ],
+    )
+    def test_dict_to_json_scenarios(self, input_data, expected_result, should_raise, description):
+        """Test dict_to_json with various scenarios."""
         mixin = ClientMixin()
-        response = [
-            {"id": "1", "name": "test1", "secret": "hidden1"},
-            {"id": "2", "name": "test2", "secret": "hidden2"},
-        ]
-        keys_to_include = ["id", "name"]
 
-        result = mixin.sanitize_response(response, keys_to_include)
+        if should_raise:
+            with pytest.raises(ValueError, match="Failed to convert data to JSON"):
+                mixin.dict_to_json(input_data)
+        else:
+            result = mixin.dict_to_json(input_data)
+            assert result == expected_result
 
-        assert len(result) == 2
-        assert result[0]["id"] == "1"
-        assert result[0]["name"] == "test1"
-        assert "secret" not in result[0]
-
-    def test_sanitize_response_empty_result(self):
-        """Test sanitizing response that results in empty data."""
+    @pytest.mark.parametrize(
+        "input_data,expected_result,should_raise,description",
+        [
+            ('{"key": "value", "number": 42}', {"key": "value", "number": 42}, False, "valid JSON string"),
+            (b'{"key": "value", "number": 42}', {"key": "value", "number": 42}, False, "valid JSON bytes"),
+            ('{"key": "value"', None, True, "invalid JSON string"),
+            (b'{"key": "value"', None, True, "invalid JSON bytes"),
+        ],
+    )
+    def test_json_to_dict_scenarios(self, input_data, expected_result, should_raise, description):
+        """Test json_to_dict with various scenarios."""
         mixin = ClientMixin()
-        response = {"secret": "hidden"}
-        keys_to_include = ["id", "name"]
 
-        result = mixin.sanitize_response(response, keys_to_include)
-
-        assert result is None
-
-    def test_dict_to_json_valid_data(self):
-        """Test converting dict to JSON string."""
-        mixin = ClientMixin()
-        data = {"key": "value", "number": 42}
-
-        result = mixin.dict_to_json(data)
-
-        assert result == '{"key": "value", "number": 42}'
-
-    def test_dict_to_json_invalid_data(self):
-        """Test converting invalid data to JSON raises Exception."""
-        mixin = ClientMixin()
-        data = {"key": set([1, 2, 3])}
-
-        with pytest.raises(ValueError, match="Failed to convert data to JSON"):
-            mixin.dict_to_json(data)
-
-    def test_json_to_dict_valid_json(self):
-        """Test converting JSON string to dict."""
-        mixin = ClientMixin()
-        json_str = '{"key": "value", "number": 42}'
-
-        result = mixin.json_to_dict(json_str)
-
-        assert result == {"key": "value", "number": 42}
-
-    def test_json_to_dict_valid_json_bytes(self):
-        """Test converting JSON bytes to dict (simulating HTTP response)."""
-        mixin = ClientMixin()
-        json_bytes = b'{"key": "value", "number": 42}'
-
-        result = mixin.json_to_dict(json_bytes)
-
-        assert result == {"key": "value", "number": 42}
-
-    def test_json_to_dict_invalid_json(self):
-        """Test converting invalid JSON raises Exception."""
-        mixin = ClientMixin()
-        json_str = '{"key": "value"'  # Missing closing brace
-
-        with pytest.raises(ValueError, match="Failed to decode JSON string"):
-            mixin.json_to_dict(json_str)
-
-    def test_json_to_dict_invalid_json_bytes(self):
-        """Test converting invalid JSON bytes raises Exception."""
-        mixin = ClientMixin()
-        json_bytes = b'{"key": "value"'  # Missing closing brace
-
-        with pytest.raises(ValueError, match="Failed to decode JSON string"):
-            mixin.json_to_dict(json_bytes)
+        if should_raise:
+            with pytest.raises(ValueError, match="Failed to decode JSON string"):
+                mixin.json_to_dict(input_data)
+        else:
+            result = mixin.json_to_dict(input_data)
+            assert result == expected_result
 
     def test_make_request_decorator_get(self):
         """Test make_request decorator with GET method."""
@@ -325,59 +372,49 @@ class TestClientMixin:
 
 
 class TestTerraformClient:
-    """Test cases for TerraformClient class."""
+    """Test suite for the TerraformClient class.
 
+    Tests the Terraform API client implementation, including initialization
+    with various hostname formats, authentication header setup, SSL validation
+    configuration, and error handling for missing credentials.
+    """
+
+    @pytest.mark.parametrize(
+        "hostname,validate_certs,expected_hostname,expected_base_url,description",
+        [
+            ("app.terraform.io", True, "app.terraform.io", "https://app.terraform.io/api/v2", "default hostname"),
+            ("custom.terraform.io", True, "custom.terraform.io", "https://custom.terraform.io/api/v2", "custom hostname"),
+            ("http://custom.terraform.io", False, "http://custom.terraform.io", "http://custom.terraform.io/api/v2", "HTTP URL"),
+            ("https://custom.terraform.io", True, "https://custom.terraform.io", "https://custom.terraform.io/api/v2", "HTTPS URL"),
+        ],
+    )
     @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_with_token(self, mock_session):
-        """Test TerraformClient initialization with token."""
+    def test_terraform_client_initialization_scenarios(self, mock_session, hostname, validate_certs, expected_hostname, expected_base_url, description):
+        """Test TerraformClient initialization with various hostname and URL configurations.
+
+        This parameterized test validates that the TerraformClient correctly handles
+        different hostname formats (bare hostnames, HTTP/HTTPS URLs) and properly
+        constructs the base API URL while respecting SSL validation settings.
+
+        Args:
+            mock_session: Mocked requests session
+            hostname: Input hostname or URL for the client
+            validate_certs: SSL certificate validation setting
+            expected_hostname: Expected parsed hostname value
+            expected_base_url: Expected constructed base API URL
+            description: Test case description for clarity
+        """
         mock_session_instance = Mock()
         mock_session_instance.headers = Mock()
         mock_session.return_value = mock_session_instance
 
-        client = TerraformClient(tf_token="test-token", tf_hostname="app.terraform.io", tf_validate_certs=True)
+        client = TerraformClient(tf_token="test-token", tf_hostname=hostname, tf_validate_certs=validate_certs)
 
-        assert client.hostname == "app.terraform.io"
+        assert client.hostname == expected_hostname
+        assert client.base_url == expected_base_url
         assert client._token == "test-token"
-        assert client.verify is True
+        assert client.verify == validate_certs
         assert client.session == mock_session_instance
-
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_custom_hostname(self, mock_session):
-        """Test TerraformClient initialization with custom hostname."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
-
-        client = TerraformClient(tf_token="test-token", tf_hostname="custom.terraform.io", tf_validate_certs=True)
-
-        assert client.hostname == "custom.terraform.io"
-        assert client.base_url == "https://custom.terraform.io/api/v2"
-
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_with_http_url(self, mock_session):
-        """Test TerraformClient initialization with HTTP URL."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
-
-        client = TerraformClient(
-            tf_token="test-token",
-            tf_hostname="http://custom.terraform.io",
-            tf_validate_certs=False,  # Allow HTTP when SSL validation is disabled
-        )
-
-        assert client.base_url == "http://custom.terraform.io/api/v2"
-
-    @patch("plugins.module_utils.common.requests.Session")
-    def test_terraform_client_init_with_https_url(self, mock_session):
-        """Test TerraformClient initialization with HTTPS URL."""
-        mock_session_instance = Mock()
-        mock_session_instance.headers = Mock()
-        mock_session.return_value = mock_session_instance
-
-        client = TerraformClient(tf_token="test-token", tf_hostname="https://custom.terraform.io", tf_validate_certs=True)
-
-        assert client.base_url == "https://custom.terraform.io/api/v2"
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_headers_default(self, mock_session):
@@ -430,15 +467,17 @@ class TestTerraformClient:
         # Should only call headers.update once with custom headers, not add default auth
         mock_session_instance.headers.update.assert_called_once_with(custom_headers)
 
-    def test_terraform_client_init_no_token_raises_error(self):
-        """Test TerraformClient initialization without token raises error."""
-        with pytest.raises(TerraformTokenNotFoundError):
-            TerraformClient(tf_hostname="app.terraform.io", tf_validate_certs=True)
-
-    def test_terraform_client_init_no_hostname_raises_error(self):
-        """Test TerraformClient initialization without hostname raises error."""
-        with pytest.raises(TerraformHostnameNotFoundError):
-            TerraformClient(tf_token="test-token", tf_hostname="", tf_validate_certs=True)
+    @pytest.mark.parametrize(
+        "token,hostname,expected_exception,description",
+        [
+            (None, "app.terraform.io", TerraformTokenNotFoundError, "missing token"),
+            ("test-token", "", TerraformHostnameNotFoundError, "empty hostname"),
+        ],
+    )
+    def test_terraform_client_initialization_errors(self, token, hostname, expected_exception, description):
+        """Test TerraformClient initialization error scenarios."""
+        with pytest.raises(expected_exception):
+            TerraformClient(tf_token=token, tf_hostname=hostname, tf_validate_certs=True)
 
     @patch("plugins.module_utils.common.requests.Session")
     def test_terraform_client_init_http_with_ssl_validation_allowed(self, mock_session):
@@ -1134,51 +1173,26 @@ class TestCommonUtils:
         assert isinstance(result, dict)
         assert "test_package" not in result
 
+    @pytest.mark.parametrize(
+        "available_versions,package_name,minimum_version,expected_result,description",
+        [
+            ({"test_package": "1.0.0"}, "test_package", None, True, "dependency exists, no minimum"),
+            ({}, "nonexistent_package", None, False, "dependency not found"),
+            ({"test_package": "2.0.0"}, "test_package", "1.5.0", True, "version meets minimum"),
+            ({"test_package": "1.0.0"}, "test_package", "2.0.0", False, "version below minimum"),
+            ({"test_package": "1.5.0"}, "test_package", "1.5.0", True, "version equals minimum"),
+            ({"test_package": "1.10.0"}, "test_package", "1.9.0", True, "loose version comparison"),
+        ],
+    )
     @patch("plugins.module_utils.common.gather_versions")
-    def test_has_at_least_dependency_exists_no_minimum(self, mock_gather):
-        """Test has_at_least when dependency exists and no minimum version required."""
-        mock_gather.return_value = {"test_package": "1.0.0"}
+    def test_has_at_least_scenarios(self, mock_gather, available_versions, package_name, minimum_version, expected_result, description):
+        """Test has_at_least with various scenarios."""
+        mock_gather.return_value = available_versions
 
-        result = has_at_least("test_package")
+        result = has_at_least(package_name, minimum_version)
 
-        assert result is True
-        mock_gather.assert_called_once_with(["test_package"])
-
-    @patch("plugins.module_utils.common.gather_versions")
-    def test_has_at_least_dependency_not_found(self, mock_gather):
-        """Test has_at_least when dependency is not found."""
-        mock_gather.return_value = {}
-
-        result = has_at_least("nonexistent_package")
-
-        assert result is False
-
-    @patch("plugins.module_utils.common.gather_versions")
-    def test_has_at_least_version_meets_minimum(self, mock_gather):
-        """Test has_at_least when current version meets minimum requirement."""
-        mock_gather.return_value = {"test_package": "2.0.0"}
-
-        result = has_at_least("test_package", "1.5.0")
-
-        assert result is True
-
-    @patch("plugins.module_utils.common.gather_versions")
-    def test_has_at_least_version_below_minimum(self, mock_gather):
-        """Test has_at_least when current version is below minimum requirement."""
-        mock_gather.return_value = {"test_package": "1.0.0"}
-
-        result = has_at_least("test_package", "2.0.0")
-
-        assert result is False
-
-    @patch("plugins.module_utils.common.gather_versions")
-    def test_has_at_least_version_equals_minimum(self, mock_gather):
-        """Test has_at_least when current version equals minimum requirement."""
-        mock_gather.return_value = {"test_package": "1.5.0"}
-
-        result = has_at_least("test_package", "1.5.0")
-
-        assert result is True
+        assert result == expected_result
+        mock_gather.assert_called_once_with([package_name])
 
     @patch("plugins.module_utils.common.gather_versions")
     def test_has_at_least_exception_handling(self, mock_gather):
@@ -1291,7 +1305,7 @@ class TestCommonUtils:
         assert result is True
 
 
-class TestAnsibleTerraformModule:
+class TestAnsibleTerraformModuleMethods:
     """Test cases for AnsibleTerraformModule methods and functionality."""
 
     @patch("ansible.module_utils.basic.AnsibleModule.__init__")
