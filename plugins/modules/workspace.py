@@ -141,12 +141,10 @@ options:
         description:
           - Defines if the project I(execution_mode) is inherited.
         type: bool
-        default: false
       agent_pool:
         description:
           - Defines if the project I(agent_pool) is inherited.
         type: bool
-        default: false
   lock_reason:
     description:
       - The reason for locking the workspace.
@@ -1541,10 +1539,11 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
 
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
-
+    # preserve the overwrites key to avoid it from moving to a default value
+    preserve_keys = {"setting_overwrites"}
     # If there are differences to be updated
     for key in list(workspace_params.keys()):
-        if key not in updates_response:
+        if key not in updates_response and key not in preserve_keys:
             workspace_params.pop(key)
 
     # create the model and use the payload for the update request of workspace
