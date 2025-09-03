@@ -598,9 +598,10 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, poll
     run = None
     while True:
         run = get_run(client, run_id)
-        if isinstance(run, tuple):
-            return "failure", {"error": run[1]}
-        state = run.get("data").get("attributes").get("status")
+        # Check for empty dict (404 case) or missing data
+        if not run or not run.get("data"):
+            return "failure", {"error": f"Run {run_id} not found"}
+        state = run.get("data").get("attributes", {}).get("status")
         if run and RunStates.is_success_state(state):
             return "success", run
         elif run and RunStates.is_failure_state(state):
@@ -685,9 +686,9 @@ def idempotency_check(func):
         run_id = kwargs.get("run_id")
         if run_id:
             run = get_run(args[0], run_id)
-            if isinstance(run, tuple):
-                return {"failed": True, "msg": run[1]}
-            elif run.get("data").get("attributes").get("status") == func.__name__.split("_")[1]:
+            if not run or not run.get("data"):
+                return {"failed": True, "msg": f"Run {run_id} not found"}
+            elif run.get("data").get("attributes", {}).get("status") == func.__name__.split("_")[1]:
                 return {"changed": False, "run": run.get("data")}
         return func(*args, **kwargs)
 
