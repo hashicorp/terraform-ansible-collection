@@ -1539,9 +1539,12 @@ def workspace_update(client_terraform: Any, params: Dict[str, Any], check_mode: 
 
     project_id = workspace_params.pop("project_id", None)
     tag_bindings = workspace_params.pop("tag_bindings", None)
+    # Since these keys are coupled, they need to be preserved to avoid running into scenarios where absence/removal (during diff)
+    # of either of the attributes causes a mismatch
+    preserve_keys = {"setting_overwrites", "execution_mode"}
     # If there are differences to be updated
     for key in list(workspace_params.keys()):
-        if key not in updates_response:
+        if key not in updates_response and key not in preserve_keys:
             workspace_params.pop(key)
 
     # create the model and use the payload for the update request of workspace
