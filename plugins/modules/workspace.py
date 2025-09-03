@@ -787,7 +787,7 @@ EXAMPLES = r"""
 #     }
 # }
 
-#If the workspace is updated with the same data again the results would look like:
+# If the workspace is updated with the same data again the results would look like:
 # "result_update": {
 #         "changed": false,
 #         "failed": false,
