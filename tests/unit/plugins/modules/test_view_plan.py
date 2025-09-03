@@ -20,6 +20,26 @@ from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import (
 )
 
 
+class EnhancedDummyModule:
+    """Enhanced mock Ansible module for detailed test inspection and control."""
+
+    def __init__(self, params=None):
+        self.params = params or {}
+        self.failed = False
+        self.exit_args = None
+        self.fail_args = None
+        self.check_mode = False
+
+    def fail_json(self, **kwargs):
+        self.failed = True
+        self.fail_args = kwargs
+        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
+
+    def exit_json(self, **kwargs):
+        self.exit_args = kwargs
+        raise SystemExit(kwargs)
+
+
 class TestViewPlanModule:
     """Unit tests for view_plan module main function."""
 
@@ -110,19 +130,16 @@ class TestViewPlanModule:
         expected_changed,
     ):
         """Test main function with various success scenarios."""
-        mock_module = Mock()
-        mock_module.params = params
+        mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
 
         mock_get_metadata.return_value = metadata_response
         mock_get_json.return_value = json_response
 
-        mock_module.exit_json.side_effect = SystemExit({"changed": True})
-
         with pytest.raises(SystemExit):
             main()
 
-        call_args = mock_module.exit_json.call_args[1]
+        call_args = mock_module.exit_args
         assert set(call_args.keys()) == expected_keys
 
         if expected_changed is not None:
@@ -131,7 +148,7 @@ class TestViewPlanModule:
         if "msg" in expected_keys:
             assert call_args["msg"] == "No changes. Your infrastructure matches the configuration."
 
-        mock_module.fail_json.assert_not_called()
+        assert not mock_module.failed
 
     @pytest.mark.parametrize(
         "plan_id,run_id,use_plan_id,expected_msg",
@@ -163,19 +180,18 @@ class TestViewPlanModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        mock_module = Mock()
-        mock_module.params = params
+        mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
-        mock_module.fail_json.side_effect = SystemExit({"failed": True})
 
         mock_get_metadata.return_value = {}
         mock_get_json.return_value = {}
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(AssertionError) as exc_info:
             main()
 
-        mock_module.fail_json.assert_called_once_with(msg=expected_msg)
-        mock_module.exit_json.assert_not_called()
+        assert expected_msg in str(exc_info.value)
+        assert mock_module.failed
+        assert mock_module.fail_args["msg"] == expected_msg
 
         identifier = plan_id if use_plan_id else run_id
         mock_get_metadata.assert_called_once_with(ANY, identifier, use_plan_id)
@@ -186,16 +202,17 @@ class TestViewPlanModule:
         """Test main function exception handling."""
         params = {"plan_id": "plan-exception123", "run_id": None, "tf_token": "test-token"}
 
-        mock_module = Mock()
-        mock_module.params = params
+        mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
 
         mock_client_class.side_effect = Exception("Connection failed")
 
-        main()
+        with pytest.raises(AssertionError) as exc_info:
+            main()
 
-        mock_module.fail_json.assert_called_once_with(msg="Connection failed")
-        mock_module.exit_json.assert_not_called()
+        assert "Connection failed" in str(exc_info.value)
+        assert mock_module.failed
+        assert mock_module.fail_args["msg"] == "Connection failed"
 
     @pytest.mark.parametrize(
         "scenario,json_data,expected_diff_count",
@@ -328,8 +345,7 @@ class TestViewPlanModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        mock_module = Mock()
-        mock_module.params = params
+        mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
 
         metadata_response = {"data": {"id": f"plan-{scenario}123", "attributes": {"status": "finished"}}}
@@ -337,12 +353,11 @@ class TestViewPlanModule:
 
         mock_get_metadata.return_value = metadata_response
         mock_get_json.return_value = json_output_response
-        mock_module.exit_json.side_effect = SystemExit({"changed": True})
 
         with pytest.raises(SystemExit):
             main()
 
-        call_args = mock_module.exit_json.call_args[1]
+        call_args = mock_module.exit_args
 
         if expected_diff_count > 0:
             assert call_args["changed"] is True
@@ -351,19 +366,20 @@ class TestViewPlanModule:
             assert "msg" in call_args
             assert call_args["msg"] == "No changes. Your infrastructure matches the configuration."
 
-        mock_module.fail_json.assert_not_called()
+        assert not mock_module.failed
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_module_argument_spec(self, mock_module_class):
         """Test that the module has correct argument specification."""
-        mock_module = Mock()
-        mock_module.params = {
-            "plan_id": "plan-test123",
-            "run_id": None,
-            "output_format": "diff",
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
-        }
+        mock_module = EnhancedDummyModule(
+            {
+                "plan_id": "plan-test123",
+                "run_id": None,
+                "output_format": "diff",
+                "tf_token": "test-token",
+                "tf_hostname": "app.terraform.io",
+            },
+        )
         mock_module_class.return_value = mock_module
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient"), patch(
@@ -372,7 +388,6 @@ class TestViewPlanModule:
 
             mock_get_metadata.return_value = {"data": {"attributes": {"status": "finished"}}}
             mock_get_json.return_value = {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}}
-            mock_module.exit_json.side_effect = SystemExit({"changed": False})
 
             with pytest.raises(SystemExit):
                 main()
