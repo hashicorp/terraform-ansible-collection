@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
 
 
