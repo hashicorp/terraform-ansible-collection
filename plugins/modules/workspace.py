@@ -164,6 +164,148 @@ options:
 """
 
 EXAMPLES = r"""
+- name: Create a new workspace with minimal data
+  hashicorp.terraform.workspace:
+    workspace: <your-workspace-name>
+    organization: <your-organization>
+    state: present
+
+# Task output:
+# ------------
+#  "result_create": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": false,
+#             "auto-apply": false,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": null,
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:41:20.065Z",
+#             "description": null,
+#             "environment": "default",
+#             "execution-mode": "remote",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": true,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:41:20.065Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": false,
+#                 "execution-mode": false
+#             },
+#             "source": "tfe-api",
+#             "source-name": null,
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T04:41:20.065Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id created successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": null
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+# }
+
 - name: Create a new workspace
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
@@ -180,10 +322,155 @@ EXAMPLES = r"""
     auto_destroy_at: "2025-08-10T15:00:00Z"
     state: present
 
+# Task output:
+# ------------
+# "result_create": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": false,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": "2025-08-10T15:00:00.000Z",
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is a dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "remote",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T04:45:34.533Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id created successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": null
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+# }
+
 - name: Update an existing workspace
   hashicorp.terraform.workspace:
-    workspace: <your-workspace-name>
-    organization: <your-organization>
+    workspace_id: <your-workspace-id>
     description: This is an updated dev workspace.
     project_id: <your-new-project-id>
     tag_bindings:
@@ -193,6 +480,152 @@ EXAMPLES = r"""
     auto_apply: true
     assessments_enabled: true
     state: present
+
+# Task output:
+# ------------
+# "result_update": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": true,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is an updated dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "remote",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T04:50:09.208Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id updated successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": null
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+# }
 
 - name: Update workspace execution mode to 'agent' by overwriting inherited execution mode from project
   hashicorp.terraform.workspace:
@@ -205,11 +638,175 @@ EXAMPLES = r"""
       agent_pool: true
     state: present
 
+# Task output:
+# ------------
+# "result_update": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": true,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is an updated dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "agent",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T04:53:12.902Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id updated successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": {
+#                     "id": "apool-id",
+#                     "type": "agent-pools"
+#                 }
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+# }
+
+#If the workspace is updated with the same data again the results would look like:
+# "result_update": {
+#         "changed": false,
+#         "failed": false,
+#         "msg": "No changes were encountered between the existing state and proposed changes via the update operation."
+#     }
+
 - name: Safe delete a workspace
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
     organization: <your-organization>
     state: absent
+
+# Task output:
+# ------------
+# "result_delete": {
+#         "changed": true,
+#         "failed": false,
+#         "msg": "The workspace ws-id safe-deleted successfully."
+#     }
 
 - name: Force delete a workspace
   hashicorp.terraform.workspace:
@@ -217,22 +814,484 @@ EXAMPLES = r"""
     force: true
     state: absent
 
+# Task output:
+# ------------
+# "result_delete": {
+#         "changed": true,
+#         "failed": false,
+#         "msg": "Workspace ws-id force-deleted successfully."
+#     }
+
 - name: Lock a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
     lock_reason: "your specific reason"
     state: locked
 
+# Task output:
+# ------------
+# "result_lock": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": true,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is an updated dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "agent",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": true,
+#             "locked-reason": "this is my reason",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T04:59:39.739Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id locked successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": {
+#                     "id": "apool-id",
+#                     "type": "agent-pools"
+#                 }
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "locked-by": {
+#                 "data": {
+#                     "id": "user-id",
+#                     "type": "users"
+#                 },
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+
 - name: Unlock a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
     state: unlocked
+
+# Task output:
+# ------------
+# "result_unlock": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": true,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is an updated dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "agent",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T05:01:35.165Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id unlocked successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": {
+#                     "id": "apool-id",
+#                     "type": "agent-pools"
+#                 }
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
+# }
 
 - name: Force unlock a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
     force: true
     state: unlocked
+
+# Task output:
+# ------------
+# "result_unlock": {
+#         "attributes": {
+#             "actions": {
+#                 "is-destroyable": true
+#             },
+#             "allow-destroy-plan": true,
+#             "apply-duration-average": null,
+#             "assessments-enabled": true,
+#             "auto-apply": true,
+#             "auto-apply-run-trigger": false,
+#             "auto-destroy-activity-duration": "14d",
+#             "auto-destroy-at": null,
+#             "auto-destroy-status": null,
+#             "created-at": "2025-09-03T04:45:34.533Z",
+#             "description": "This is an updated dev workspace.",
+#             "environment": "default",
+#             "execution-mode": "agent",
+#             "file-triggers-enabled": true,
+#             "global-remote-state": false,
+#             "inherits-project-auto-destroy": false,
+#             "last-assessment-result-at": null,
+#             "latest-change-at": "2025-09-03T04:45:34.533Z",
+#             "locked": false,
+#             "locked-reason": "",
+#             "name": "workspace-now",
+#             "operations": true,
+#             "permissions": {
+#                 "can-create-state-versions": true,
+#                 "can-destroy": true,
+#                 "can-force-delete": false,
+#                 "can-force-unlock": true,
+#                 "can-lock": true,
+#                 "can-manage-assessments": true,
+#                 "can-manage-ephemeral-workspaces": true,
+#                 "can-manage-run-tasks": true,
+#                 "can-manage-tags": true,
+#                 "can-queue-apply": true,
+#                 "can-queue-destroy": true,
+#                 "can-queue-run": true,
+#                 "can-read-assessment-results": true,
+#                 "can-read-change-requests": true,
+#                 "can-read-run": true,
+#                 "can-read-settings": true,
+#                 "can-read-state-outputs": true,
+#                 "can-read-state-versions": true,
+#                 "can-read-variable": true,
+#                 "can-unlock": true,
+#                 "can-update": true,
+#                 "can-update-change-requests": true,
+#                 "can-update-variable": true
+#             },
+#             "plan-duration-average": null,
+#             "policy-check-failures": null,
+#             "queue-all-runs": false,
+#             "resource-count": 0,
+#             "run-failures": null,
+#             "setting-overwrites": {
+#                 "agent-pool": true,
+#                 "execution-mode": true
+#             },
+#             "source": "tfe-api",
+#             "source-name": "xyz",
+#             "source-url": null,
+#             "speculative-enabled": true,
+#             "structured-run-output-enabled": true,
+#             "tag-names": [],
+#             "terraform-version": "1.13.1",
+#             "trigger-patterns": [],
+#             "trigger-prefixes": [],
+#             "unarchived-workspace-change-requests-count": 0,
+#             "updated-at": "2025-09-03T05:03:39.704Z",
+#             "vcs-repo": null,
+#             "vcs-repo-identifier": null,
+#             "working-directory": null,
+#             "workspace-kpis-runs-count": null
+#         },
+#         "changed": true,
+#         "failed": false,
+#         "id": "ws-id",
+#         "links": {
+#             "self": "api-link",
+#             "self-html": "api-link"
+#         },
+#         "msg": "Workspace ws-id unlocked successfully.",
+#         "relationships": {
+#             "agent-pool": {
+#                 "data": {
+#                     "id": "apool-id",
+#                     "type": "agent-pools"
+#                 }
+#             },
+#             "current-assessment-result": {
+#                 "data": null
+#             },
+#             "current-configuration-version": {
+#                 "data": null
+#             },
+#             "current-run": {
+#                 "data": null
+#             },
+#             "current-state-version": {
+#                 "data": null
+#             },
+#             "effective-tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "latest-run": {
+#                 "data": null
+#             },
+#             "organization": {
+#                 "data": {
+#                     "id": "Ansible-BU-TFC",
+#                     "type": "organizations"
+#                 }
+#             },
+#             "outputs": {
+#                 "data": []
+#             },
+#             "project": {
+#                 "data": {
+#                     "id": "prj-id",
+#                     "type": "projects"
+#                 }
+#             },
+#             "readme": {
+#                 "data": null
+#             },
+#             "remote-state-consumers": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "tag-bindings": {
+#                 "links": {
+#                     "related": "api-link"
+#                 }
+#             },
+#             "vars": {
+#                 "data": []
+#             }
+#         },
+#         "type": "workspaces"
+#     }
 """
 
 RETURN = r"""
