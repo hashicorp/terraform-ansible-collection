@@ -46,7 +46,6 @@ class TestViewPlanModule:
     @pytest.mark.parametrize(
         "params,metadata_response,json_response,expected_keys,expected_changed",
         [
-            # Test with plan_id in diff format with changes
             (
                 {
                     "plan_id": "plan-123abc456def789",
@@ -83,7 +82,6 @@ class TestViewPlanModule:
                 {"changed", "diff"},
                 True,
             ),
-            # Test with run_id in json format
             (
                 {
                     "plan_id": None,
@@ -97,7 +95,6 @@ class TestViewPlanModule:
                 {"metadata", "json_output"},
                 None,
             ),
-            # Test with no changes in diff format
             (
                 {
                     "plan_id": "plan-nochanges123",
@@ -217,7 +214,6 @@ class TestViewPlanModule:
     @pytest.mark.parametrize(
         "scenario,json_data,expected_diff_count",
         [
-            # Complex scenario with changes and drift
             (
                 "changes_and_drift",
                 {
@@ -257,7 +253,6 @@ class TestViewPlanModule:
                 },
                 3,
             ),
-            # Sensitive values scenario
             (
                 "sensitive_values",
                 {
@@ -278,7 +273,6 @@ class TestViewPlanModule:
                 },
                 1,
             ),
-            # Replacement actions scenario
             (
                 "replacement_actions",
                 {
@@ -299,7 +293,6 @@ class TestViewPlanModule:
                 },
                 1,
             ),
-            # No-op actions scenario
             (
                 "noop_actions",
                 {
@@ -413,13 +406,11 @@ class TestHelperFunctions:
     @pytest.mark.parametrize(
         "data,sensitive_flags,expected",
         [
-            # Dictionary masking
             (
                 {"username": "john", "password": "secret123", "config": {"api_key": "key123"}},
                 {"password": True, "config": {"api_key": True}},
                 {"username": "john", "password": SENSITIVE_MASK, "config": {"api_key": SENSITIVE_MASK}},
             ),
-            # Nested dictionary masking
             (
                 {
                     "database": {"password": "secret", "host": "localhost"},
@@ -433,7 +424,6 @@ class TestHelperFunctions:
                     "tags": {"Environment": "prod"},
                 },
             ),
-            # List and mixed types
             (
                 {
                     "string_val": "test",
@@ -508,31 +498,26 @@ class TestHelperFunctions:
     @pytest.mark.parametrize(
         "change,expected_before,expected_after",
         [
-            # Non-sensitive values
             (
                 {"before": "old", "after": "new", "before_sensitive": False, "after_sensitive": False},
                 "old",
                 "new",
             ),
-            # Both sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": True, "after_sensitive": True},
                 "<sensitive> changed from",
                 "<sensitive> changed to",
             ),
-            # Only before sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": True, "after_sensitive": False},
                 "<sensitive> changed from",
                 "new",
             ),
-            # Only after sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": False, "after_sensitive": True},
                 "old",
                 "<sensitive> changed to",
             ),
-            # Missing values
             (
                 {"before": None, "after": "new", "before_sensitive": False, "after_sensitive": False},
                 None,
@@ -565,7 +550,6 @@ class TestHelperFunctions:
         assert result[0].resource_changes is not None
         assert result[0].has_drift is False
 
-        # Test drift only
         resource_changes = []
         resource_drift = [
             {
@@ -578,7 +562,6 @@ class TestHelperFunctions:
         assert len(result) == 1
         assert result[0].has_drift is True
 
-        # Test both changes and drift
         resource_changes = [
             {
                 "address": "aws_instance.both",
@@ -641,7 +624,6 @@ class TestHelperFunctions:
         diffs = _get_diff_sequences(json_output_data)
         assert len(diffs) >= 2
 
-        # Verify diff structure
         for diff in diffs:
             assert "before" in diff or "after" in diff
             if "after_header" in diff:
@@ -667,12 +649,10 @@ class TestHelperFunctions:
             after_raw,
         )
 
-        # Check that changed sensitive values show indicators
         assert result_before["password"] == "<sensitive> changed from"
         assert result_after["password"] == "<sensitive> changed to"
         assert result_before["config"]["api_key"] == "<sensitive> changed from"
         assert result_after["config"]["api_key"] == "<sensitive> changed to"
-        # Non-sensitive unchanged values remain the same
         assert result_before["username"] == "admin"
         assert result_after["username"] == "admin"
 
@@ -760,7 +740,6 @@ class TestEdgeCases:
         diffs = _process_output_changes(output_changes)
         assert len(diffs) == 2
 
-        # Verify sensitive value handling
         sensitive_diff = next(d for d in diffs if "db_password" in str(d))
         assert "db_password" in sensitive_diff["after"]
 

@@ -7,7 +7,7 @@
 DOCUMENTATION = r"""
 module: view_plan
 version_added: "1.0.0"
-short_description: View Terraform Cloud/Enterprise plan information in different formats
+short_description: View Terraform Cloud/Enterprise plan information
 author: "Tanwi Geetika (@tgeetika)"
 description:
   - View information about a Terraform execution plan from HashiCorp Terraform Cloud or Terraform Enterprise.
