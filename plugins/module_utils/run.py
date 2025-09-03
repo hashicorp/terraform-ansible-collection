@@ -80,6 +80,43 @@ def get_run(client, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, st
         TerraformError: If the response does not return a 200 status code.
     """
     response = client.get(f"/runs/{run_id}")
+    if response.get("status") == 200:
+        return response.get("data")
+    elif response.get("status") == 404:
+        return {}
+    else:
+        raise TerraformError(to_text(response))
+
+
+def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
+    """
+    Get the events for a run.
+    Args:
+        run_id: The ID of the run to get the events for.
+    Returns:
+        The events for the run.
+    Raises:
+        TerraformError: If the events for the run does not return a 200
+            status code.
+    """
+    response = client.get(f"/runs/{run_id}/run-events")
     if response.get("status") != 200:
-        raise TerraformError(str(response))
+        raise TerraformError(to_text(response))
+    return response.get("data")
+
+
+def task_stages(client, run_id: str) -> Optional[dict[str, Any]]:
+    """
+    Get the tasks for a run.
+    Args:
+        run_id: The ID of the run to get the tasks for.
+    Returns:
+        The tasks for the run.
+    Raises:
+        TerraformError: If the tasks for the run does not return a 200
+            status code.
+    """
+    response = client.get(f"/runs/{run_id}/task-stages")
+    if response.get("status") != 200:
+        raise TerraformError(to_text(response))
     return response.get("data")
