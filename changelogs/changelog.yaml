@@ -1,0 +1,17 @@
+ancestor: null
+releases:
+  1.0.0:
+    changes:
+      minor_changes:
+        - Adds a new module hashicorp.terraform.configuration_version for configuration-version
+          management on TFE/C.
+      release_summary: This marks the first release of the hashicorp.terraform collection.
+    fragments:
+      - client.yaml
+      - module_addition.yml
+      - release_100.yml
+    modules:
+      - description: Manage configuration versions in Terraform Enterprise/Cloud.
+        name: configuration_version
+        namespace: ""
+    release_date: "2025-09-03"

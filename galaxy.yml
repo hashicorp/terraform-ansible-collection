@@ -13,7 +13,6 @@ authors:
 description: An Ansible Collection for managing Terraform Cloud/Enterprise.
 license_file: LICENSE
 
-# TO-DO: update the tags based on your content type
 tags: ["hashicorp", "terraform", "infrastructure", "cloud"]
 
 repository: https://github.com/ansible
