@@ -22,8 +22,9 @@ class TestGetRun:
         response = {"status": 404}
         mock_tf_client.get.return_value = response
 
-        with pytest.raises(TerraformError):
-            get_run(mock_tf_client, run_id=run_id)
+        run_resp = get_run(mock_tf_client, run_id=run_id)
+
+        assert run_resp == {}
 
     @pytest.mark.parametrize(
         "response_data,expected_result",
