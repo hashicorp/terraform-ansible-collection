@@ -1464,7 +1464,7 @@ def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace_id']} would be created with the given options. Skipped creation due to check mode.",
+                "msg": f"The workspace {params['workspace']} would be created with the given options. Skipped creation due to check mode.",
                 **workspace_payload["data"],
             },
         )
