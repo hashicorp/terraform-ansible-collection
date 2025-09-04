@@ -53,7 +53,7 @@
         state: present
       register: result_update
 
-    - name: Assert create was successful
+    - name: Assert update was idempotent
       ansible.builtin.assert:
         that:
           - not result_update.changed
