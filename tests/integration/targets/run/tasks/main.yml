@@ -9,7 +9,7 @@
       ansible.builtin.set_fact:
         unique_id: "{{ lookup('pipe', 'uuidgen') }}"
         poll_interval: 10
-        poll_timeout: 300
+        poll_timeout: 600
 
     - name: Generate unique workspace name
       ansible.builtin.set_fact:
