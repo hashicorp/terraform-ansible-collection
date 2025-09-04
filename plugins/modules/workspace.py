@@ -1797,6 +1797,8 @@ def main():
             # get the workspace response
             if not params.get("workspace_id"):
                 workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
+                if not workspace_response:
+                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 params["workspace_id"] = workspace_response.get("data")["id"]
             workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
 
