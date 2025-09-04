@@ -1800,7 +1800,8 @@ def main():
                 if not workspace_response:
                     raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 params["workspace_id"] = workspace_response.get("data")["id"]
-            workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
+            else:
+                workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
 
             if params["state"] == "absent":
                 action_result = state_absent(client_terraform, params, workspace_response, params["check_mode"])
