@@ -810,7 +810,7 @@ EXAMPLES = r"""
 # "result_delete": {
 #         "changed": true,
 #         "failed": false,
-#         "msg": "Workspace ws-id was force-deleted successfully."
+#         "msg": "The workspace ws-id was force-deleted successfully."
 #     }
 
 - name: Lock a workspace
@@ -1622,11 +1622,11 @@ def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_respon
     if not check_mode:
         if params["force"]:
             force_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"Workspace {params['workspace_id']} was force-deleted successfully."
+            msg = f"The workspace {params['workspace_id']} was force-deleted successfully."
             action_result["changed"] = True
         else:
             safe_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"The workspace{params['workspace_id']} was safe-deleted successfully."
+            msg = f"The workspace {params['workspace_id']} was safe-deleted successfully."
             action_result["changed"] = True
     else:
         msg = f"The workspace {params['workspace_id']} was found. Skipped delete due to check mode."

@@ -248,7 +248,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} was force-deleted successfully."
+        expected_result: "The workspace {{ workspace_id }} was force-deleted successfully."
 
     - name: Assert workspace was deleted
       ansible.builtin.assert:
