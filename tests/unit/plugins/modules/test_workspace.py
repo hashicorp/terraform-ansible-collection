@@ -13,8 +13,8 @@ from ansible_collections.hashicorp.terraform.plugins.modules.workspace import (
     get_workspace_id,
     main,
     normalize_workspace_response,
-    state_create,
     state_absent,
+    state_create,
     state_locked,
     state_unlocked,
     state_update,
@@ -80,7 +80,7 @@ class TestWorkspaceLockAndUnlock:
     def test_workspace_lock_check_mode(self, params, mock_workspace_response_unlocked):
         result = state_locked(Mock(), params, mock_workspace_response_unlocked, check_mode=True)
         assert result["changed"] is True
-        assert "Skipped locking due to check-mode" in result["msg"]
+        assert "Skipped locking due to check mode" in result["msg"]
 
     def test_workspace_already_unlocked(self, params, mock_workspace_response_unlocked):
         result = state_unlocked(Mock(), params, mock_workspace_response_unlocked, check_mode=False)
@@ -114,7 +114,7 @@ class TestWorkspaceLockAndUnlock:
     def test_workspace_unlock_check_mode(self, params, mock_workspace_response_locked):
         result = state_unlocked(Mock(), params, mock_workspace_response_locked, check_mode=True)
         assert result["changed"] is True
-        assert "Skipped unlock due to check-mode" in result["msg"]
+        assert "Skipped unlock due to check mode" in result["msg"]
 
 
 class TestWorkspaceDelete:
@@ -163,7 +163,7 @@ class TestWorkspaceDelete:
         mock_client = Mock()
         result = state_absent(mock_client, params, mock_workspace_response, check_mode=True)
         assert result["changed"] is True
-        assert "Skipped delete due to check-mode" in result["msg"]
+        assert "Skipped delete due to check mode" in result["msg"]
 
     def test_delete_workspace_not_found(self, params, mock_empty_workspace_response):
         mock_client = Mock()
@@ -231,7 +231,6 @@ class TestWorkspaceUpdate:
         ):
             result = state_update(mock_client, params, check_mode=False)
             assert result["changed"] is True
-            assert params["workspace_id"] in result["msg"]
             assert result["id"] == params["workspace_id"]
             assert result["attributes"]["description"] == params["description"]
             assert result["attributes"]["auto_destroy_at"] == params["auto_destroy_at"]
@@ -271,7 +270,6 @@ class TestWorkspaceUpdate:
 
             result = state_update(mock_client, params, check_mode=False)
             assert result["changed"] is False
-            assert "No changes" in result["msg"]
 
     def test_workspace_update_workspace_not_found(self, params):
         mock_client = Mock()
@@ -349,7 +347,6 @@ class TestWorkspaceCreate:
             result = state_create(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == "Workspace ws-123 created successfully."
             assert result["id"] == "ws-123"
             assert result["attributes"]["description"] == "Test workspace"
 

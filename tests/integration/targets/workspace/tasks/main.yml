@@ -32,15 +32,10 @@
       ansible.builtin.set_fact:
         workspace_id: "{{ result_create.id }}"
 
-    - name: Set a fact for expected result
-      ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} created successfully."
-
     - name: Assert create was successful
       ansible.builtin.assert:
         that:
           - result_create.changed
-          - result_create.msg == expected_result
           - result_create.attributes["execution-mode"] == "remote"
           - result_create.attributes["auto-apply"] == true
           - result_create.attributes["auto-apply-run-trigger"] == true
@@ -62,7 +57,6 @@
       ansible.builtin.assert:
         that:
           - not result_update.changed
-          - result_update.msg == "No changes were encountered between the existing state and proposed changes via the update operation."
 
     - name: Generate unique project name
       ansible.builtin.set_fact:
@@ -133,7 +127,6 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} updated successfully."
         agent_pool_id: "{{ agent_pool_id }}"
 
     - name: Assert update was successful
@@ -146,7 +139,6 @@
           - result_update.attributes["auto-apply-run-trigger"] == false
           - result_update.attributes["allow-destroy-plan"] == true
           - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
-          - result_update.msg == expected_result
 
     - name: Update a Terraform workspace with minimal data
       hashicorp.terraform.workspace:
@@ -157,7 +149,6 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} updated successfully."
         agent_pool_id: "{{ agent_pool_id }}"
         project_id: "{{ project_id }}"
 
@@ -173,7 +164,6 @@
           - result_update.attributes["auto-apply-run-trigger"] == false
           - result_update.attributes["allow-destroy-plan"] == true
           - result_update.attributes["description"] == "integration test workspace updated"
-          - result_update.msg == expected_result
 
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
@@ -186,7 +176,6 @@
       ansible.builtin.assert:
         that:
           - not result_update.changed
-          - result_update.msg == "No changes were encountered between the existing state and proposed changes via the update operation."
 
     - name: Lock workspace
       hashicorp.terraform.workspace:
