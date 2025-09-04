@@ -369,7 +369,6 @@ class TestWorkspaceCreate:
             "organization": "my-org",
             "description": "Test workspace",
             "auto_apply": True,
-            "force": True,
             "project_id": "proj-123",
             "tag_bindings": {"env": "dev"},
         }
@@ -383,7 +382,14 @@ class TestWorkspaceCreate:
                     "description": "Test workspace",
                     "auto_apply": True,
                 },
-                "relationships": {"project": {"data": {"id": "proj-123", "type": "projects"}}, "tags": {"data": [{"key": "env", "value": "dev"}]}},
+                "relationships": {
+                    "project": {"data": {"id": "proj-123", "type": "projects"}},
+                    "tag-bindings": {
+                        "data": [
+                            {"type": "tag-bindings", "attributes": {"key": "env", "value": "dev"}},
+                        ]
+                    },
+                },
             }
         }
 
@@ -419,7 +425,14 @@ class TestWorkspaceCreate:
                     "description": "Test workspace",
                     "auto_apply": True,
                 },
-                "relationships": {"project": {"data": {"id": "proj-123", "type": "projects"}}, "tags": {"data": [{"key": "env", "value": "dev"}]}},
+                "relationships": {
+                    "project": {"data": {"id": "proj-123", "type": "projects"}},
+                    "tag-bindings": {
+                        "data": [
+                            {"type": "tag-bindings", "attributes": {"key": "env", "value": "dev"}},
+                        ]
+                    },
+                },
             }
         }
 
