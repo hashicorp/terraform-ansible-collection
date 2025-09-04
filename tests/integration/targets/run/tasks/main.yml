@@ -65,6 +65,63 @@
           - result.changed
           - result.attributes.status == "uploaded"
 
+    - name: Create a new run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan a vpc creation"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        configuration_version: "{{ result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: result_run
+
+    - name: Assert run was created
+      ansible.builtin.assert:
+        that:
+          - result_run.changed
+          - result_run.attributes.status != "errored"
+
+    - name: Check mode for applying an existing run
+      hashicorp.terraform.run:
+        run_id: "{{ result_run.id }}"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+        poll: false
+      check_mode: true
+      register: check_mode_applied_result
+
+    - name: Assert run was created
+      ansible.builtin.assert:
+        that:
+          - check_mode_applied_result.changed
+          - check_mode_applied_result.msg == ("Run " + result_run.id + " found, check mode is enabled, no changes will be made")
+
+    - name: Apply the run
+      hashicorp.terraform.run: &apply_run
+        run_id: "{{ result_run.id }}"
+        state: "applied"
+        tf_token: "{{ tfc_token }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: result_apply
+
+    - name: Assert run was applied
+      ansible.builtin.assert:
+        that:
+          - result_apply.changed
+
+    - name: Idempotent check for apply
+      hashicorp.terraform.run: *apply_run
+      register: result_apply_idempotent
+
+    - name: Assert idempotence
+      ansible.builtin.assert:
+        that:
+          - not result_apply_idempotent.changed
+
     - name: Create a plan only run with variables
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"
@@ -192,6 +249,59 @@
       ansible.builtin.assert:
         that:
           - not result_cancel_auto_apply_idempotent.changed
+
+    # - name: Create a is_destroy save plan run
+    #   hashicorp.terraform.run: &is_destroy_save_plan
+    #     workspace_id: "{{ workspace_id }}"
+    #     run_message: "destroy vpc"
+    #     state: "present"
+    #     tf_token: "{{ tfc_token }}"
+    #     is_destroy: true
+    #     save_plan: true
+    #     poll: true
+    #     poll_interval: "{{ poll_interval }}"
+    #     poll_timeout: "{{ poll_timeout }}"
+    #   register: result_is_destroy
+
+    # - name: Assert is_destroy run is result.changed
+    #   ansible.builtin.assert:
+    #     that:
+    #       - result_is_destroy.changed
+
+    # - name: Discard the is_destroy save plan run in check mode
+    #   hashicorp.terraform.run:
+    #     run_id: "{{ result_is_destroy.id }}"
+    #     state: "discarded"
+    #     tf_token: "{{ tfc_token }}"
+    #   check_mode: true
+    #   register: check_mode_discard_is_destroy_result
+
+    # - name: Assert is_destroy save plan run was discarded in check mode
+    #   ansible.builtin.assert:
+    #     that:
+    #       - check_mode_discard_is_destroy_result.changed
+    #       - check_mode_discard_is_destroy_result.msg == ("Run " + result_is_destroy.id + " found, check mode is enabled, no changes will be made")
+
+    # - name: Discard the is_destroy save plan run
+    #   hashicorp.terraform.run: &discard_is_destroy
+    #     run_id: "{{ result_is_destroy.id }}"
+    #     state: "discarded"
+    #     tf_token: "{{ tfc_token }}"
+    #   register: result_discard_is_destroy
+
+    # - name: Assert discard is_destroy save plan run is result.changed
+    #   ansible.builtin.assert:
+    #     that:
+    #       - result_discard_is_destroy.changed
+
+    # - name: Idempotent check for discard is_destroy save plan
+    #   hashicorp.terraform.run: *discard_is_destroy
+    #   register: result_discard_is_destroy_idempotent
+
+    # - name: Assert idempotence for discard is_destroy save plan
+    #   ansible.builtin.assert:
+    #     that:
+    #       - not result_discard_is_destroy_idempotent.changed
 
     - name: Create a is_destroy and auto_apply run
       hashicorp.terraform.run:
