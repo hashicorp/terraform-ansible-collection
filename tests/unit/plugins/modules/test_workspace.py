@@ -13,11 +13,11 @@ from ansible_collections.hashicorp.terraform.plugins.modules.workspace import (
     get_workspace_id,
     main,
     normalize_workspace_response,
-    workspace_create,
-    workspace_delete,
-    workspace_lock,
-    workspace_unlock,
-    workspace_update,
+    state_create,
+    state_absent,
+    state_locked,
+    state_unlocked,
+    state_update,
 )
 
 
@@ -59,7 +59,7 @@ class TestWorkspaceLockAndUnlock:
         return {"data": {"attributes": {"locked": False}}}
 
     def test_workspace_already_locked(self, params, mock_workspace_response_locked):
-        result = workspace_lock(Mock(), params, mock_workspace_response_locked, check_mode=False)
+        result = state_locked(Mock(), params, mock_workspace_response_locked, check_mode=False)
         assert result["changed"] is False
         assert "already locked" in result["msg"]
 
@@ -70,7 +70,7 @@ class TestWorkspaceLockAndUnlock:
             return_value={"data": {"id": params["workspace_id"], "attributes": {"locked": True}}},
         ):
 
-            result = workspace_lock(mock_client, params, mock_workspace_response_unlocked, check_mode=False)
+            result = state_locked(mock_client, params, mock_workspace_response_unlocked, check_mode=False)
 
             assert result["changed"] is True
             assert result["msg"] == f"Workspace {params['workspace_id']} locked successfully."
@@ -78,12 +78,12 @@ class TestWorkspaceLockAndUnlock:
             assert result["attributes"]["locked"] is True
 
     def test_workspace_lock_check_mode(self, params, mock_workspace_response_unlocked):
-        result = workspace_lock(Mock(), params, mock_workspace_response_unlocked, check_mode=True)
+        result = state_locked(Mock(), params, mock_workspace_response_unlocked, check_mode=True)
         assert result["changed"] is True
         assert "Skipped locking due to check-mode" in result["msg"]
 
     def test_workspace_already_unlocked(self, params, mock_workspace_response_unlocked):
-        result = workspace_unlock(Mock(), params, mock_workspace_response_unlocked, check_mode=False)
+        result = state_unlocked(Mock(), params, mock_workspace_response_unlocked, check_mode=False)
         assert result["changed"] is False
         assert "already unlocked" in result["msg"]
 
@@ -93,7 +93,7 @@ class TestWorkspaceLockAndUnlock:
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.unlock_workspace",
             return_value={"data": {"id": params["workspace_id"], "attributes": {"locked": False}}},
         ):
-            result = workspace_unlock(mock_client, params, mock_workspace_response_locked, check_mode=False)
+            result = state_unlocked(mock_client, params, mock_workspace_response_locked, check_mode=False)
 
             assert result["changed"] is True
             assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
@@ -106,13 +106,13 @@ class TestWorkspaceLockAndUnlock:
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.force_unlock_workspace",
             return_value={"data": {"id": params["workspace_id"], "attributes": {"locked": False}}},
         ):
-            result = workspace_unlock(mock_client, params, mock_workspace_response_locked, check_mode=False)
+            result = state_unlocked(mock_client, params, mock_workspace_response_locked, check_mode=False)
             assert result["changed"] is True
             assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
             assert result["id"] == params["workspace_id"]
 
     def test_workspace_unlock_check_mode(self, params, mock_workspace_response_locked):
-        result = workspace_unlock(Mock(), params, mock_workspace_response_locked, check_mode=True)
+        result = state_unlocked(Mock(), params, mock_workspace_response_locked, check_mode=True)
         assert result["changed"] is True
         assert "Skipped unlock due to check-mode" in result["msg"]
 
@@ -144,7 +144,7 @@ class TestWorkspaceDelete:
         mock_client = Mock()
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.safe_delete_workspace") as mock_safe_delete:
             mock_safe_delete.return_value = None
-            result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
+            result = state_absent(mock_client, params, mock_workspace_response, check_mode=False)
             mock_safe_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
             assert "safe-deleted successfully" in result["msg"]
@@ -154,20 +154,20 @@ class TestWorkspaceDelete:
         mock_client = Mock()
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.force_delete_workspace") as mock_force_delete:
             mock_force_delete.return_value = None
-            result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=False)
+            result = state_absent(mock_client, params, mock_workspace_response, check_mode=False)
             mock_force_delete.assert_called_once_with(mock_client, params["workspace_id"])
             assert result["changed"] is True
             assert "force-deleted successfully" in result["msg"]
 
     def test_delete_check_mode(self, params, mock_workspace_response):
         mock_client = Mock()
-        result = workspace_delete(mock_client, params, mock_workspace_response, check_mode=True)
+        result = state_absent(mock_client, params, mock_workspace_response, check_mode=True)
         assert result["changed"] is True
         assert "Skipped delete due to check-mode" in result["msg"]
 
     def test_delete_workspace_not_found(self, params, mock_empty_workspace_response):
         mock_client = Mock()
-        result = workspace_delete(mock_client, params, mock_empty_workspace_response, check_mode=False)
+        result = state_absent(mock_client, params, mock_empty_workspace_response, check_mode=False)
         assert result["changed"] is False
         assert "was not found" in result["msg"]
 
@@ -199,7 +199,7 @@ class TestWorkspaceUpdate:
     def test_workspace_update_success(self, params, existing_workspace_response):
         mock_client = Mock()
 
-        # Patch the internal calls inside workspace_update
+        # Patch the internal calls inside state_update
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=existing_workspace_response), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.normalize_workspace_response",
             return_value={
@@ -229,7 +229,7 @@ class TestWorkspaceUpdate:
                 }
             },
         ):
-            result = workspace_update(mock_client, params, check_mode=False)
+            result = state_update(mock_client, params, check_mode=False)
             assert result["changed"] is True
             assert params["workspace_id"] in result["msg"]
             assert result["id"] == params["workspace_id"]
@@ -253,7 +253,7 @@ class TestWorkspaceUpdate:
             },
         ):
 
-            result = workspace_update(mock_client, params, check_mode=True)
+            result = state_update(mock_client, params, check_mode=True)
             assert "attributes" in result
             assert "description" in result["attributes"]
 
@@ -269,7 +269,7 @@ class TestWorkspaceUpdate:
             },
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff", return_value={}):
 
-            result = workspace_update(mock_client, params, check_mode=False)
+            result = state_update(mock_client, params, check_mode=False)
             assert result["changed"] is False
             assert "No changes" in result["msg"]
 
@@ -278,7 +278,7 @@ class TestWorkspaceUpdate:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=None):
             with pytest.raises(ValueError) as excinfo:
-                workspace_update(mock_client, params, check_mode=False)
+                state_update(mock_client, params, check_mode=False)
             assert f"The workspace {params['workspace_id']} was not found." in str(excinfo.value)
 
     def test_workspace_update_raises_on_update_failure(self, params, existing_workspace_response):
@@ -299,7 +299,7 @@ class TestWorkspaceUpdate:
         ):
 
             with pytest.raises(Exception) as excinfo:
-                workspace_update(mock_client, params, check_mode=False)
+                state_update(mock_client, params, check_mode=False)
             assert "Update failed" in str(excinfo.value)
 
 
@@ -346,7 +346,7 @@ class TestWorkspaceCreate:
             mock_api_call.return_value = mock_response
 
             mock_client = Mock()
-            result = workspace_create(mock_client, params, check_mode=False)
+            result = state_create(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
             assert result["msg"] == "Workspace ws-123 created successfully."
@@ -372,7 +372,7 @@ class TestWorkspaceCreate:
             mock_create.return_value.model_dump.return_value = workspace_payload
 
             mock_client = Mock()
-            result = workspace_create(mock_client, params, check_mode=True)
+            result = state_create(mock_client, params, check_mode=True)
 
             assert result["changed"] is True
             assert "would be created with the given payload" in result["msg"]
@@ -392,7 +392,7 @@ class TestWorkspaceCreate:
             mock_client = Mock()
 
             with pytest.raises(Exception) as excinfo:
-                workspace_create(mock_client, params, check_mode=False)
+                state_create(mock_client, params, check_mode=False)
             assert "API error" in str(excinfo.value)
 
 
@@ -559,7 +559,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=None), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_create", return_value={"changed": True, "msg": "created"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_create", return_value={"changed": True, "msg": "created"}
         ):
 
             with pytest.raises(SystemExit):
@@ -573,7 +573,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value={"data": {"id": "ws-123"}}), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_update", return_value={"changed": False, "msg": "no changes"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_update", return_value={"changed": False, "msg": "no changes"}
         ):
 
             with pytest.raises(SystemExit):
@@ -587,7 +587,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {}}), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_delete", return_value={"changed": True, "msg": "deleted"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_absent", return_value={"changed": True, "msg": "deleted"}
         ):
 
             with pytest.raises(SystemExit):
@@ -603,7 +603,7 @@ class TestMainFunctionBehavior:
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": False}}}
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_lock", return_value={"changed": True, "msg": "locked"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_locked", return_value={"changed": True, "msg": "locked"}
         ):
 
             with pytest.raises(SystemExit):
@@ -619,7 +619,7 @@ class TestMainFunctionBehavior:
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": True}}}
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_unlock", return_value={"changed": True, "msg": "unlocked"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_unlocked", return_value={"changed": True, "msg": "unlocked"}
         ):
 
             with pytest.raises(SystemExit):
@@ -633,7 +633,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=None), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.workspace_create", return_value={"changed": True, "msg": "would be created"}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_create", return_value={"changed": True, "msg": "would be created"}
         ):
 
             with pytest.raises(SystemExit):
