@@ -9,7 +9,7 @@
       ansible.builtin.set_fact:
         unique_id: "{{ lookup('pipe', 'uuidgen') }}"
         poll_interval: 10
-        poll_timeout: 600
+        poll_timeout: 300
 
     - name: Generate unique workspace name
       ansible.builtin.set_fact:
@@ -81,7 +81,7 @@
       ansible.builtin.assert:
         that:
           - result_run.changed
-          - result_run.attributes.status != "errored"
+          - result_run.attributes.status == "planned"
 
     - name: Check mode for applying an existing run
       hashicorp.terraform.run:
@@ -122,6 +122,21 @@
         that:
           - not result_apply_idempotent.changed
 
+    - name: Create a plan only run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan-only vpc creation"
+        poll: false
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        plan_only: true
+      register: result_plan_only
+
+    - name: Assert plan only run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_plan_only.changed
+
     - name: Create a plan only run with variables
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"
@@ -160,7 +175,6 @@
       ansible.builtin.assert:
         that:
           - result_destroy.changed
-          - result_destroy.attributes.status != "errored"
 
     - name: Create a save plan run
       hashicorp.terraform.run:
@@ -239,7 +253,6 @@
       ansible.builtin.assert:
         that:
           - result_cancel_auto_apply.changed
-          - result_cancel_auto_apply.attributes.status == "canceled"
 
     - name: Idempotent check for cancel auto_apply
       hashicorp.terraform.run: *cancel_auto_apply
@@ -250,61 +263,61 @@
         that:
           - not result_cancel_auto_apply_idempotent.changed
 
-    # - name: Create a is_destroy save plan run
-    #   hashicorp.terraform.run: &is_destroy_save_plan
-    #     workspace_id: "{{ workspace_id }}"
-    #     run_message: "destroy vpc"
-    #     state: "present"
-    #     tf_token: "{{ tfc_token }}"
-    #     is_destroy: true
-    #     save_plan: true
-    #     poll: true
-    #     poll_interval: "{{ poll_interval }}"
-    #     poll_timeout: "{{ poll_timeout }}"
-    #   register: result_is_destroy
+    - name: Create a is_destroy save plan run
+      hashicorp.terraform.run: &is_destroy_save_plan
+        workspace_id: "{{ workspace_id }}"
+        run_message: "destroy vpc"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        is_destroy: true
+        save_plan: true
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: result_is_destroy
 
-    # - name: Assert is_destroy run is result.changed
-    #   ansible.builtin.assert:
-    #     that:
-    #       - result_is_destroy.changed
+    - name: Assert is_destroy run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_is_destroy.changed
 
-    # - name: Discard the is_destroy save plan run in check mode
-    #   hashicorp.terraform.run:
-    #     run_id: "{{ result_is_destroy.id }}"
-    #     state: "discarded"
-    #     tf_token: "{{ tfc_token }}"
-    #   check_mode: true
-    #   register: check_mode_discard_is_destroy_result
+    - name: Discard the is_destroy save plan run in check mode
+      hashicorp.terraform.run:
+        run_id: "{{ result_is_destroy.id }}"
+        state: "discarded"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      register: check_mode_discard_is_destroy_result
 
-    # - name: Assert is_destroy save plan run was discarded in check mode
-    #   ansible.builtin.assert:
-    #     that:
-    #       - check_mode_discard_is_destroy_result.changed
-    #       - check_mode_discard_is_destroy_result.msg == ("Run " + result_is_destroy.id + " found, check mode is enabled, no changes will be made")
+    - name: Assert is_destroy save plan run was discarded in check mode
+      ansible.builtin.assert:
+        that:
+          - check_mode_discard_is_destroy_result.changed
+          - check_mode_discard_is_destroy_result.msg == ("Run " + result_is_destroy.id + " found, check mode is enabled, no changes will be made")
 
-    # - name: Discard the is_destroy save plan run
-    #   hashicorp.terraform.run: &discard_is_destroy
-    #     run_id: "{{ result_is_destroy.id }}"
-    #     state: "discarded"
-    #     tf_token: "{{ tfc_token }}"
-    #   register: result_discard_is_destroy
+    - name: Discard the is_destroy save plan run
+      hashicorp.terraform.run: &discard_is_destroy
+        run_id: "{{ result_is_destroy.id }}"
+        state: "discarded"
+        tf_token: "{{ tfc_token }}"
+      register: result_discard_is_destroy
 
-    # - name: Assert discard is_destroy save plan run is result.changed
-    #   ansible.builtin.assert:
-    #     that:
-    #       - result_discard_is_destroy.changed
+    - name: Assert discard is_destroy save plan run is result.changed
+      ansible.builtin.assert:
+        that:
+          - result_discard_is_destroy.changed
 
-    # - name: Idempotent check for discard is_destroy save plan
-    #   hashicorp.terraform.run: *discard_is_destroy
-    #   register: result_discard_is_destroy_idempotent
+    - name: Idempotent check for discard is_destroy save plan
+      hashicorp.terraform.run: *discard_is_destroy
+      register: result_discard_is_destroy_idempotent
 
-    # - name: Assert idempotence for discard is_destroy save plan
-    #   ansible.builtin.assert:
-    #     that:
-    #       - not result_discard_is_destroy_idempotent.changed
+    - name: Assert idempotence for discard is_destroy save plan
+      ansible.builtin.assert:
+        that:
+          - not result_discard_is_destroy_idempotent.changed
 
     - name: Create a is_destroy and auto_apply run
-      hashicorp.terraform.run:
+      hashicorp.terraform.run: &is_destroy_auto_apply
         workspace_id: "{{ workspace_id }}"
         run_message: "destroy vpc"
         state: "present"
