@@ -1534,7 +1534,7 @@ def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     tag_bindings = workspace_params.pop("tag_bindings", None)
     # Since these keys are coupled, they need to be preserved to avoid running into scenarios where absence/removal (during diff)
     # of either of the attributes causes a mismatch
-    preserve_keys = {"setting_overwrites", "execution_mode"}
+    preserve_keys = {"setting_overwrites", "execution_mode", "agent_pool_id"}
     # If there are differences to be updated
     for key in list(workspace_params.keys()):
         if key not in updates_response and key not in preserve_keys:
