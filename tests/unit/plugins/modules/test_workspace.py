@@ -73,7 +73,6 @@ class TestWorkspaceLockAndUnlock:
             result = state_locked(mock_client, params, mock_workspace_response_unlocked, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == f"Workspace {params['workspace_id']} locked successfully."
             assert result["id"] == params["workspace_id"]
             assert result["attributes"]["locked"] is True
 
@@ -96,7 +95,7 @@ class TestWorkspaceLockAndUnlock:
             result = state_unlocked(mock_client, params, mock_workspace_response_locked, check_mode=False)
 
             assert result["changed"] is True
-            assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
+            assert result["attributes"]["locked"] is False
             assert result["id"] == params["workspace_id"]
 
     def test_workspace_force_unlock_success(self, params, mock_workspace_response_locked):
@@ -108,13 +107,13 @@ class TestWorkspaceLockAndUnlock:
         ):
             result = state_unlocked(mock_client, params, mock_workspace_response_locked, check_mode=False)
             assert result["changed"] is True
-            assert result["msg"] == f"Workspace {params['workspace_id']} unlocked successfully."
+            assert result["attributes"]["locked"] is False
             assert result["id"] == params["workspace_id"]
 
     def test_workspace_unlock_check_mode(self, params, mock_workspace_response_locked):
         result = state_unlocked(Mock(), params, mock_workspace_response_locked, check_mode=True)
         assert result["changed"] is True
-        assert "Skipped unlock due to check mode" in result["msg"]
+        assert "Skipped unlocking due to check mode" in result["msg"]
 
 
 class TestWorkspaceDelete:
@@ -372,7 +371,6 @@ class TestWorkspaceCreate:
             result = state_create(mock_client, params, check_mode=True)
 
             assert result["changed"] is True
-            assert "would be created with the given payload" in result["msg"]
             assert result["type"] == "workspaces"
             assert result["attributes"]["auto_apply"] is True
 

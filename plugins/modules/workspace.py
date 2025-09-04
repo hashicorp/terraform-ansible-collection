@@ -796,7 +796,7 @@ EXAMPLES = r"""
 # "result_delete": {
 #         "changed": true,
 #         "failed": false,
-#         "msg": "The workspace ws-id safe-deleted successfully."
+#         "msg": "The workspace ws-id was safe-deleted successfully."
 #     }
 
 - name: Force delete a workspace
@@ -810,7 +810,7 @@ EXAMPLES = r"""
 # "result_delete": {
 #         "changed": true,
 #         "failed": false,
-#         "msg": "Workspace ws-id force-deleted successfully."
+#         "msg": "Workspace ws-id was force-deleted successfully."
 #     }
 
 - name: Lock a workspace
@@ -904,7 +904,6 @@ EXAMPLES = r"""
 #             "self": "api-link",
 #             "self-html": "api-link"
 #         },
-#         "msg": "Workspace ws-id locked successfully.",
 #         "relationships": {
 #             "agent-pool": {
 #                 "data": {
@@ -1066,7 +1065,6 @@ EXAMPLES = r"""
 #             "self": "api-link",
 #             "self-html": "api-link"
 #         },
-#         "msg": "Workspace ws-id unlocked successfully.",
 #         "relationships": {
 #             "agent-pool": {
 #                 "data": {
@@ -1221,7 +1219,6 @@ EXAMPLES = r"""
 #             "self": "api-link",
 #             "self-html": "api-link"
 #         },
-#         "msg": "Workspace ws-id unlocked successfully.",
 #         "relationships": {
 #             "agent-pool": {
 #                 "data": {
@@ -1467,7 +1464,7 @@ def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace_id']} would be created with the given payload. Skipped creation due to check mode.",
+                "msg": f"The workspace {params['workspace_id']} would be created with the given options. Skipped creation due to check mode.",
                 **workspace_payload["data"],
             },
         )
@@ -1556,7 +1553,7 @@ def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The workspace {params['workspace_id']} would be updated with the given payload. Skipped update due to check mode.",
+                "msg": f"The workspace {params['workspace_id']} would be updated with the given options. Skipped update due to check mode.",
                 **workspace_payload["data"],
             },
         )
@@ -1625,11 +1622,11 @@ def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_respon
     if not check_mode:
         if params["force"]:
             force_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"Workspace {params['workspace_id']} force-deleted successfully."
+            msg = f"Workspace {params['workspace_id']} was force-deleted successfully."
             action_result["changed"] = True
         else:
             safe_delete_workspace(client_terraform, params["workspace_id"])
-            msg = f"The workspace{params['workspace_id']} safe-deleted successfully."
+            msg = f"The workspace{params['workspace_id']} was safe-deleted successfully."
             action_result["changed"] = True
     else:
         msg = f"The workspace {params['workspace_id']} was found. Skipped delete due to check mode."
@@ -1663,7 +1660,7 @@ def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_resp
     """
     action_result = {}
     if not workspace_response:
-        raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with locking.")
+        raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with unlocking.")
     locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
     if not locked_status:
         action_result.update(
@@ -1676,11 +1673,11 @@ def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_resp
         else:
             response = unlock_workspace(client_terraform, params["workspace_id"])
         action_result.update(
-            {"changed": True, "msg": f"Workspace {params['workspace_id']} unlocked successfully.", **response["data"]},
+            {"changed": True, **response["data"]},
         )
     else:
         action_result.update(
-            {"changed": True, "msg": f"The workspace {params['workspace_id']} was found. Skipped unlock due to check mode."},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} was found. Skipped unlocking due to check mode."},
         )
     return action_result
 
@@ -1722,7 +1719,7 @@ def state_locked(client_terraform: Any, params: Dict[str, Any], workspace_respon
     if not check_mode:
         response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
         action_result.update(
-            {"changed": True, "msg": f"Workspace {params['workspace_id']} locked successfully.", **response["data"]},
+            {"changed": True, **response["data"]},
         )
     else:
         action_result.update(
@@ -1799,8 +1796,8 @@ def main():
         elif params["state"] in ("absent", "locked", "unlocked"):
             # get the workspace response
             if not params.get("workspace_id"):
-                workspace_id = get_workspace_id(client_terraform, params)
-                params["workspace_id"] = workspace_id
+                workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
+                params["workspace_id"] = workspace_response.get("data")["id"]
             workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
 
             if params["state"] == "absent":

@@ -185,15 +185,11 @@
         state: locked
       register: result_lock
 
-    - name: Set a fact for expected result
-      ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} locked successfully."
-
     - name: Assert workspace was locked
       ansible.builtin.assert:
         that:
           - result_lock.changed
-          - result_lock.msg == expected_result
+          - result_lock.attributes["locked"] == true
 
     - name: Lock workspace to check idempotency
       hashicorp.terraform.workspace:
@@ -219,15 +215,11 @@
         state: unlocked
       register: result_unlock
 
-    - name: Set a fact for expected result
-      ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} unlocked successfully."
-
     - name: Assert workspace was unlocked
       ansible.builtin.assert:
         that:
           - result_unlock.changed
-          - result_unlock.msg == expected_result
+          - result_unlock.attributes["locked"] == false
 
     - name: Unlock workspace to check idempotency
       hashicorp.terraform.workspace:
@@ -256,7 +248,7 @@
 
     - name: Set a fact for expected result
       ansible.builtin.set_fact:
-        expected_result: "Workspace {{ workspace_id }} force-deleted successfully."
+        expected_result: "Workspace {{ workspace_id }} was force-deleted successfully."
 
     - name: Assert workspace was deleted
       ansible.builtin.assert:
