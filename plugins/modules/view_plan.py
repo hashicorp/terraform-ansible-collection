@@ -5,6 +5,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION = r"""
+---
 module: view_plan
 version_added: "1.0.0"
 short_description: View Terraform Cloud/Enterprise plan information
@@ -18,6 +19,7 @@ description:
   - Optionally return json plan information including metadata and JSON output.
   - Automatically masks sensitive values in diff output with descriptive messages.
   - Provides resource context at before_header and after_header in the output for better understanding of changes.
+extends_documentation_fragment: hashicorp.terraform.common
 options:
   plan_id:
     description:
@@ -41,8 +43,6 @@ options:
     type: str
     choices: ['diff', 'json']
     default: 'diff'
-extends_documentation_fragment:
-  - hashicorp.terraform.common
 """
 
 EXAMPLES = r"""
