@@ -12,37 +12,63 @@ short_description: View Terraform Cloud/Enterprise plan information
 author: "Tanwi Geetika (@tgeetika)"
 description:
   - View information about a Terraform execution plan from HashiCorp Terraform Cloud or Terraform Enterprise.
-  - Can return plan information in json format or as a diff-formatted output (default).
+  - Can return plan information in JSON format or as a diff-formatted output (default).
   - Supports both Terraform Cloud and Terraform Enterprise deployments.
   - Plan information can be retrieved using either a plan ID or a run ID.
-  - By default, returns diff-formatted output similar to 'terraform plan' CLI command.
-  - Optionally return json plan information including metadata and JSON output.
+  - By default, returns diff-formatted output similar to the C(terraform plan) CLI command.
+  - Optionally return JSON plan information including metadata and JSON output.
   - Automatically masks sensitive values in diff output with descriptive messages.
   - Provides resource context at before_header and after_header in the output for better understanding of changes.
-extends_documentation_fragment: hashicorp.terraform.common
 options:
   plan_id:
     description:
       - The ID of the plan to retrieve information for.
-      - Plan IDs can be found in the relationships.plan property of a run object.
-      - When provided, the module will use the /plans/:id endpoint.
+      - Plan IDs can be found in the C(relationships.plan) property of a run object.
+      - When provided, the module will use the C(/plans/:id) endpoint.
       - Mutually exclusive with run_id.
     type: str
     aliases: ['id']
   run_id:
     description:
       - The ID of the run whose plan information should be retrieved.
-      - When provided, the module will use the /runs/:id/plan endpoint.
+      - When provided, the module will use the C(/runs/:id/plan) endpoint.
       - Mutually exclusive with plan_id.
     type: str
   output_format:
     description:
       - Format for the module output.
-      - 'diff' (default) returns a diff-formatted output similar to terraform plan CLI.
-      - 'json' returns the json plan information including metadata and JSON output.
+      - C(diff) (default) returns a diff-formatted output similar to C(terraform plan).
+      - C(json) returns the JSON plan information including metadata and JSON output.
     type: str
     choices: ['diff', 'json']
-    default: 'diff'
+    default: diff
+  tf_hostname:
+    description:
+      - The Terraform Cloud or Enterprise hostname.
+      - Defaults to C(https://app.terraform.io).
+    type: str
+    default: https://app.terraform.io
+  tf_token:
+    description:
+      - The API token to authenticate with Terraform Cloud/Enterprise.
+    type: str
+  tf_max_retries:
+    description:
+      - Maximum number of retries for API requests.
+    type: int
+    default: 3
+  tf_timeout:
+    description:
+      - Timeout (in seconds) for API requests.
+    type: int
+    default: 10
+  tf_validate_certs:
+    description:
+      - Whether to validate TLS certificates.
+    type: bool
+    default: true
+extends_documentation_fragment:
+  - hashicorp.terraform.common
 """
 
 EXAMPLES = r"""
