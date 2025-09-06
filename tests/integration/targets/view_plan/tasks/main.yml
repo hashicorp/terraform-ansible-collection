@@ -314,7 +314,7 @@
         poll_timeout: "{{ poll_timeout }}"
       no_log: true
       when: destroy_run_result.id is defined
-      ignore_errors: true
+      failed_when: false
 
     - name: Cancel any active runs
       ansible.builtin.uri:
@@ -331,7 +331,7 @@
         - "{{ run_with_vars_result.id | default('') }}"
         - "{{ destroy_run_result.id | default('') }}"
       when: item != ""
-      ignore_errors: true
+      failed_when: false
 
     - name: Force unlock workspace
       ansible.builtin.uri:
@@ -342,7 +342,7 @@
           Content-Type: "application/vnd.api+json"
         status_code: [200, 409]
       no_log: true
-      ignore_errors: true
+      failed_when: false
 
     - name: Delete workspace
       ansible.builtin.uri:
@@ -354,7 +354,7 @@
         status_code: [204, 404, 403]
         return_content: true
       no_log: true
-      ignore_errors: true
+      failed_when: false
 
     - name: Clean up config directory
       ansible.builtin.file:
