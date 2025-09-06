@@ -28,7 +28,7 @@ provider "aws" {
 # VPC 1
 resource "aws_vpc" "vpc1-{{ unique_id }}" {
   cidr_block = "10.0.0.0/16"
-  
+
   tags = {
     Name = "{{ unique_id }}-vpc1"
     env  = "dev"
@@ -38,7 +38,7 @@ resource "aws_vpc" "vpc1-{{ unique_id }}" {
 # VPC 2
 resource "aws_vpc" "vpc2-{{ unique_id }}" {
   cidr_block = "10.1.0.0/16"
-  
+
   tags = {
     Name = "{{ unique_id }}-vpc2"
     env  = "dev"
