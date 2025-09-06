@@ -150,7 +150,7 @@ class SensitiveValueData:
 
 
 @dataclass
-class ResourceData:
+class ViewPlanResourceData:
     """Unified resource data structure."""
 
     address: str
@@ -417,7 +417,7 @@ def _convert_actions_to_readable_string(actions: List[str]) -> str:
 def _create_unified_resources(
     resource_changes: List[Dict],
     resource_drift: List[Dict],
-) -> List[ResourceData]:
+) -> List[ViewPlanResourceData]:
     """Process and unify resource changes with drift data.
 
     Args:
@@ -436,7 +436,7 @@ def _create_unified_resources(
     for address, changes_item in changes_by_address.items():
         drift_item = drift_by_address.pop(address, None)
         unified_resources.append(
-            ResourceData(
+            ViewPlanResourceData(
                 address=address,
                 resource_changes=changes_item,
                 resource_drift=drift_item,
@@ -447,7 +447,7 @@ def _create_unified_resources(
     # Process remaining drift-only resources
     for address, drift_item in drift_by_address.items():
         unified_resources.append(
-            ResourceData(
+            ViewPlanResourceData(
                 address=address,
                 resource_changes=None,
                 resource_drift=drift_item,
@@ -458,7 +458,7 @@ def _create_unified_resources(
     return unified_resources
 
 
-def _determine_primary_item_and_scenario(resource_data: ResourceData) -> tuple[Optional[Dict], Optional[str]]:
+def _determine_primary_item_and_scenario(resource_data: ViewPlanResourceData) -> tuple[Optional[Dict], Optional[str]]:
     """Determine the primary item and scenario type for diff processing."""
     changes_item = resource_data.resource_changes
     drift_item = resource_data.resource_drift
@@ -507,11 +507,11 @@ def _has_meaningful_changes(masked_before: Dict, masked_after: Dict) -> bool:
     return masked_before != masked_after
 
 
-def _create_diff_entry(resource_data: ResourceData) -> Optional[Dict]:
+def _create_diff_entry(resource_data: ViewPlanResourceData) -> Optional[Dict]:
     """Create a diff entry for a resource.
 
     Args:
-        resource_data: ResourceData object containing unified resource change and drift information
+        resource_data: ViewPlanResourceData object containing unified resource change and drift information
 
     Returns:
         dict or None: Diff entry with before/after states and headers, or None if no changes

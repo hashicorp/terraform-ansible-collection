@@ -675,11 +675,11 @@ class TestEdgeCases:
 
     def test_malformed_change_data(self):
         """Test handling of malformed change data."""
-        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import ResourceData, _create_diff_entry
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import ViewPlanResourceData, _create_diff_entry
 
         malformed_item = {"address": "aws_instance.bad"}
 
-        resource_data = ResourceData(
+        resource_data = ViewPlanResourceData(
             address="aws_instance.bad",
             resource_changes=malformed_item,
             resource_drift=None,

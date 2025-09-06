@@ -1,0 +1,362 @@
+---
+  - name: Set module defaults
+    module_defaults:
+      group/hashicorp.terraform.terraform:
+        tf_token: "{{ tfc_token }}"
+  
+    block:
+      - name: Generate a unique ID
+        ansible.builtin.set_fact:
+          unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+          poll_interval: 10
+          poll_timeout: 300
+  
+      - name: Generate unique workspace name
+        ansible.builtin.set_fact:
+          workspace_name: "{{ unique_id }}-view-plan-workspace"
+  
+      - name: Create a Terraform workspace with unique name
+        ansible.builtin.uri:
+          url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+          method: POST
+          headers:
+            Authorization: "Bearer {{ tfc_token }}"
+            Content-Type: "application/vnd.api+json"
+          body_format: json
+          body:
+            data:
+              attributes:
+                name: "{{ workspace_name }}"
+              type: "workspaces"
+          return_content: true
+          status_code: 201
+        no_log: true
+        register: workspace_create_response
+  
+      - name: Set a fact for 'workspace_id'
+        ansible.builtin.set_fact:
+          workspace_id: "{{ workspace_create_response.json.data.id }}"
+  
+      - name: Create temporary directory to store main.tf configuration
+        ansible.builtin.tempfile:
+          state: directory
+        register: temp_dir
+  
+      - name: Generate Terraform configuration
+        ansible.builtin.template:
+          src: "main.tf.j2"
+          dest: "{{ temp_dir.path }}/main.tf"
+          mode: "0644"
+  
+      - name: Create configuration version with auto_queue_runs to false
+        hashicorp.terraform.configuration_version:
+          workspace_id: "{{ workspace_id }}"
+          configuration_files_path: "{{ temp_dir.path }}"
+          auto_queue_runs: false
+          tf_validate_certs: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+          state: present
+        register: config_version_result
+  
+      - name: Assert create and upload success
+        ansible.builtin.assert:
+          that:
+            - config_version_result.changed
+            - config_version_result.attributes.status == "uploaded"
+  
+      - name: Create a new run for plan viewing
+        hashicorp.terraform.run:
+          workspace_id: "{{ workspace_id }}"
+          run_message: "plan for view_plan testing"
+          state: "present"
+          tf_token: "{{ tfc_token }}"
+          configuration_version: "{{ config_version_result.id }}"
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        register: run_result
+  
+      - name: Assert run was created and planned
+        ansible.builtin.assert:
+          that:
+            - run_result.changed
+            - run_result.attributes.status == "planned"
+  
+      - name: View plan by run_id in diff format (default)
+        hashicorp.terraform.view_plan:
+          run_id: "{{ run_result.id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_diff_by_run
+  
+      - name: Assert view_plan diff by run_id results
+        ansible.builtin.assert:
+          that:
+            - view_plan_diff_by_run is defined
+            - view_plan_diff_by_run.changed == true
+            - view_plan_diff_by_run.diff is defined
+            - view_plan_diff_by_run.diff | length > 0
+            - '"vpc1-" + unique_id in view_plan_diff_by_run.diff | string'
+            - '"vpc2-" + unique_id in view_plan_diff_by_run.diff | string'
+  
+      - name: Get plan_id from run relationships
+        ansible.builtin.set_fact:
+          plan_id: "{{ run_result.relationships.plan.data.id }}"
+  
+      - name: View plan by plan_id in diff format
+        hashicorp.terraform.view_plan:
+          plan_id: "{{ plan_id }}"
+          output_format: "diff"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_diff_by_plan
+  
+      - name: Assert view_plan diff by plan_id results
+        ansible.builtin.assert:
+          that:
+            - view_plan_diff_by_plan is defined
+            - view_plan_diff_by_plan.changed == true
+            - view_plan_diff_by_plan.diff is defined
+            - view_plan_diff_by_plan.diff | length > 0
+  
+      - name: View plan by plan_id in json format
+        hashicorp.terraform.view_plan:
+          plan_id: "{{ plan_id }}"
+          output_format: "json"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_json
+  
+      - name: Assert view_plan json format results
+        ansible.builtin.assert:
+          that:
+            - view_plan_json is defined
+            - view_plan_json.metadata is defined
+            - view_plan_json.json_output is defined
+            - view_plan_json.json_output.resource_changes is defined
+            - view_plan_json.json_output.resource_changes | length > 0
+  
+      - name: View plan by run_id in json format
+        hashicorp.terraform.view_plan:
+          run_id: "{{ run_result.id }}"
+          output_format: "json"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_json_by_run
+  
+      - name: Assert view_plan json by run_id results
+        ansible.builtin.assert:
+          that:
+            - view_plan_json_by_run is defined
+            - view_plan_json_by_run.metadata is defined
+            - view_plan_json_by_run.json_output is defined
+  
+      - name: Test view_plan in check mode
+        hashicorp.terraform.view_plan:
+          plan_id: "{{ plan_id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        check_mode: true
+        register: view_plan_check_mode
+  
+      - name: Assert check mode works
+        ansible.builtin.assert:
+          that:
+            - view_plan_check_mode is defined
+            - view_plan_check_mode.changed == true
+  
+      - name: Apply the run
+        hashicorp.terraform.run:
+          run_id: "{{ run_result.id }}"
+          state: "applied"
+          tf_token: "{{ tfc_token }}"
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        register: run_apply_result
+  
+      - name: Assert run was applied
+        ansible.builtin.assert:
+          that:
+            - run_apply_result.changed
+  
+      - name: Create another run with no changes
+        hashicorp.terraform.run:
+          workspace_id: "{{ workspace_id }}"
+          run_message: "no changes run for view_plan testing"
+          state: "present"
+          tf_token: "{{ tfc_token }}"
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        register: no_changes_run_result
+  
+      - name: View plan with no changes
+        hashicorp.terraform.view_plan:
+          run_id: "{{ no_changes_run_result.id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_no_changes
+  
+      - name: Assert no changes message
+        ansible.builtin.assert:
+          that:
+            - view_plan_no_changes is defined
+            - view_plan_no_changes.changed == false or view_plan_no_changes.msg is defined
+  
+      - name: Create a run with variables
+        hashicorp.terraform.run:
+          workspace_id: "{{ workspace_id }}"
+          run_message: "plan with variables for view_plan testing"
+          state: "present"
+          tf_token: "{{ tfc_token }}"
+          variables:
+            - key: "env"
+              value: "production"
+            - key: "db_name"
+              value: "terraform_test"
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        register: run_with_vars_result
+  
+      - name: View plan for run with variables
+        hashicorp.terraform.view_plan:
+          run_id: "{{ run_with_vars_result.id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_with_vars
+  
+      - name: Assert view_plan with variables works
+        ansible.builtin.assert:
+          that:
+            - view_plan_with_vars is defined
+            - view_plan_with_vars.changed == true or view_plan_with_vars.msg is defined
+  
+      - name: Test view_plan with invalid plan_id
+        hashicorp.terraform.view_plan:
+          plan_id: "plan-invalid123"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        ignore_errors: true
+        register: view_plan_invalid_plan
+  
+      - name: Assert error handling for invalid plan_id
+        ansible.builtin.assert:
+          that:
+            - view_plan_invalid_plan is failed
+            - '"not found" in view_plan_invalid_plan.msg'
+  
+      - name: Test view_plan with invalid run_id
+        hashicorp.terraform.view_plan:
+          run_id: "run-invalid123"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        ignore_errors: true
+        register: view_plan_invalid_run
+  
+      - name: Assert error handling for invalid run_id
+        ansible.builtin.assert:
+          that:
+            - view_plan_invalid_run is failed
+            - '"not found" in view_plan_invalid_run.msg'
+  
+      - name: View plan using 'id' alias
+        hashicorp.terraform.view_plan:
+          id: "{{ plan_id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_plan_with_alias
+  
+      - name: Assert alias functionality works
+        ansible.builtin.assert:
+          that:
+            - view_plan_with_alias is defined
+            - view_plan_with_alias.changed == true
+            - view_plan_with_alias.diff is defined
+  
+      - name: Create a destroy run
+        hashicorp.terraform.run:
+          workspace_id: "{{ workspace_id }}"
+          run_message: "destroy run for view_plan testing"
+          state: "present"
+          tf_token: "{{ tfc_token }}"
+          is_destroy: true
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        register: destroy_run_result
+  
+      - name: View destroy plan
+        hashicorp.terraform.view_plan:
+          run_id: "{{ destroy_run_result.id }}"
+          tf_token: "{{ tfc_token }}"
+          tf_hostname: "app.terraform.io"
+        register: view_destroy_plan
+  
+      - name: Assert destroy plan view works
+        ansible.builtin.assert:
+          that:
+            - view_destroy_plan is defined
+            - view_destroy_plan.changed == true
+            - view_destroy_plan.diff is defined
+            - '"destroyed" in view_destroy_plan.diff | string or "delete" in view_destroy_plan.diff | string'
+  
+    always:
+      - name: Apply destroy run to clean up resources
+        hashicorp.terraform.run:
+          run_id: "{{ destroy_run_result.id }}"
+          state: "applied"
+          tf_token: "{{ tfc_token }}"
+          poll: true
+          poll_interval: "{{ poll_interval }}"
+          poll_timeout: "{{ poll_timeout }}"
+        no_log: true
+        when: destroy_run_result.id is defined
+        ignore_errors: true
+  
+      - name: Cancel any active runs
+        ansible.builtin.uri:
+          url: "https://app.terraform.io/api/v2/runs/{{ item }}/actions/cancel"
+          method: POST
+          headers:
+            Authorization: "Bearer {{ tfc_token }}"
+            Content-Type: "application/vnd.api+json"
+          status_code: [200, 409]
+        no_log: true
+        loop:
+          - "{{ run_result.id | default('') }}"
+          - "{{ no_changes_run_result.id | default('') }}"
+          - "{{ run_with_vars_result.id | default('') }}"
+          - "{{ destroy_run_result.id | default('') }}"
+        when: item != ""
+        ignore_errors: true
+  
+      - name: Force unlock workspace
+        ansible.builtin.uri:
+          url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}/actions/force-unlock"
+          method: POST
+          headers:
+            Authorization: "Bearer {{ tfc_token }}"
+            Content-Type: "application/vnd.api+json"
+          status_code: [200, 409]
+        no_log: true
+        ignore_errors: true
+  
+      - name: Delete workspace
+        ansible.builtin.uri:
+          url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ tfc_token }}"
+            Content-Type: "application/vnd.api+json"
+          status_code: [204, 404, 403]
+          return_content: true
+        no_log: true
+        ignore_errors: true
+  
+      - name: Clean up config directory
+        ansible.builtin.file:
+          path: "{{ temp_dir.path }}"
+          state: absent

@@ -1,0 +1,46 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+  required_version = ">= 1.2.0"
+  cloud {
+    organization = "{{ organization }}"
+    token = "{{ tfc_token }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name    = "{{ workspace_name }}"
+    }
+  }
+}
+
+provider "aws" {
+  access_key = "{{ aws_access_key }}"
+  secret_key = "{{ aws_secret_key }}"
+  region = "{{ aws_region }}"
+{% if aws_session_token | default(false) %}
+  token = "{{ aws_session_token }}"
+{% endif %}
+}
+
+# VPC 1
+resource "aws_vpc" "vpc1-{{ unique_id }}" {
+  cidr_block = "10.0.0.0/16"
+  
+  tags = {
+    Name = "{{ unique_id }}-vpc1"
+    env  = "dev"
+  }
+}
+
+# VPC 2
+resource "aws_vpc" "vpc2-{{ unique_id }}" {
+  cidr_block = "10.1.0.0/16"
+  
+  tags = {
+    Name = "{{ unique_id }}-vpc2"
+    env  = "dev"
+  }
+}
