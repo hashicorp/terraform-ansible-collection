@@ -4,13 +4,20 @@ This repository contains the `hashicorp.terraform` Ansible Collection.
 
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ansible-automation-platform_hashicorp.terraform&token=6483d30018f490cb8c7f200e90a638def89afd2e)](https://sonarcloud.io/summary/new_code?id=ansible-automation-platform_hashicorp.terraform)
 
+# Description
+
+The primary purpose of this collection is to provide seamless integration between Ansible Automation Platform and Terraform Cloud/Enterprise. It contains modules and plugins that support creating runs, uploading new configuration versions, viewing plans, retrieving information about workspaces, projects, etc.
+
+Being Red Hat Ansible Certified Content, this collection is eligible for support through the [Ansible Automation Platform](https://www.redhat.com/en/technologies/management/ansible).
+
 ## Requirements
 
-Some modules and plugins require external libraries. Please check the
+This collection requires `requests` and `pydantic>=2.0.0` libraries to be installed.
+
+Some modules and plugins may require other external libraries. Please check the
 requirements for each plugin or module you use in the documentation to find out
 which requirements are needed.
 
-<!--start requires_ansible-->
 ## Ansible version compatibility
 
 This collection has been tested against the following Ansible versions: **>=2.16.0**.
@@ -18,7 +25,6 @@ This collection has been tested against the following Ansible versions: **>=2.16
 Plugins and modules within a collection may be tested with only specific Ansible versions.
 A collection may contain metadata that identifies these versions.
 PEP440 is the schema used to describe the versions of Ansible.
-<!--end requires_ansible-->
 
 ## Installation
 

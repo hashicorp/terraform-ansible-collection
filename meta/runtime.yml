@@ -4,3 +4,4 @@ action_groups:
   terraform:
     - configuration_version
     - workspace_info
+    - run
