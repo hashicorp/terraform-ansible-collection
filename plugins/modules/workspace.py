@@ -25,7 +25,7 @@ description:
   - If a I(workspace_id) is specified, the I(state) is C(absent), this module will safe delete the
     workspace, if it exists. This would only delete the workspace if it is not managing any resources.
   - If a I(workspace_id) is specified, the I(state) is C(locked) and I(lock_reason) is set, this module will lock the workspace, if it exists.
-  - If a I(workspace_id) is specified, the I(state) is C(unlocked) and I(force) is set C(true), this module will unlock the workspace,
+  - If a I(workspace_id) is specified, the I(state) is C(unlocked), this module will unlock the workspace,
     if it exists.
   - If a I(workspace_id) is specified, the I(state) is C(unlocked) and I(force) is set C(true), this module will force unlock the workspace,
     if it exists.
@@ -133,7 +133,7 @@ options:
     type: dict
   setting_overwrites:
     description:
-      - This paramter helps in overwriting default inherited values.
+      - This parameter helps in overwriting default inherited values.
       - When the inherited I(execution-mode) needs to be overridden, this parameter needs to be specified.
     type: dict
     suboptions:
