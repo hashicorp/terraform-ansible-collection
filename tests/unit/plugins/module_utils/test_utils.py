@@ -43,7 +43,7 @@ class TestUtils:
                 {"key1": {"subkey1": "subvalue1", "subkey2": "DIFFERENT"}, "key2": "value3"},
                 {"key1": {"subkey2": "DIFFERENT"}},
             ),
-            ({"key1": ["value1", "value2", "value3"]}, {"key1": ["value3", "value2", "value1"]}, {}),  # list sorted equal, no diff
+            ({"key1": ["value1", "value2", "value3"]}, {"key1": ["value3", "value2", "value1"]}, {}),  # lists sorted equal, no diff
             ({"key1": ["value1", "value2", "value3"]}, {"key1": ["new1", "new2", "new3"]}, {"key1": ["new1", "new2", "new3"]}),
             ({}, {"newkey": "newvalue"}, {"newkey": "newvalue"}),
         ],
