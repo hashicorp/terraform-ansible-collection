@@ -131,6 +131,75 @@
           - result_invalid_org.failed
           - '"not found" in result_invalid_org.msg'
 
+    # Test case 3: Workspace ID, name and org name are given - should fail
+    - name: Test workspace ID with name and organization (invalid combination)
+      hashicorp.terraform.workspace_info:
+        workspace_id: "{{ workspace_id }}"
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+      register: result_id_name_org
+      ignore_errors: true
+
+    - name: Assert workspace ID with name and organization fails
+      ansible.builtin.assert:
+        that:
+          - result_id_name_org.failed
+          - '"mutually exclusive" in result_id_name_org.msg or "invalid combination" in result_id_name_org.msg'
+
+    # Test case 4: Workspace ID and org name are given - should fail
+    - name: Test workspace ID with organization (invalid combination)
+      hashicorp.terraform.workspace_info:
+        workspace_id: "{{ workspace_id }}"
+        organization: "{{ organization }}"
+      register: result_id_org
+      ignore_errors: true
+
+    - name: Assert workspace ID with organization fails
+      ansible.builtin.assert:
+        that:
+          - result_id_org.failed
+          - '"mutually exclusive" in result_id_org.msg or "invalid combination" in result_id_org.msg'
+
+    # Test case 5: Workspace ID and name are given - should fail
+    - name: Test workspace ID with name (invalid combination)
+      hashicorp.terraform.workspace_info:
+        workspace_id: "{{ workspace_id }}"
+        workspace: "{{ workspace_name }}"
+      register: result_id_name
+      ignore_errors: true
+
+    - name: Assert workspace ID with name fails
+      ansible.builtin.assert:
+        that:
+          - result_id_name.failed
+          - '"mutually exclusive" in result_id_name.msg or "invalid combination" in result_id_name.msg'
+
+    # Test case 6: Only workspace name is given - should fail
+    - name: Test only workspace name (missing organization)
+      hashicorp.terraform.workspace_info:
+        workspace: "{{ workspace_name }}"
+      register: result_name_only
+      ignore_errors: true
+
+    - name: Assert only workspace name fails
+      ansible.builtin.assert:
+        that:
+          - result_name_only.failed
+          - '"organization is required" in result_name_only.msg or "missing required" in result_name_only.msg'
+
+    # Test case 7: Only org name is given - should fail
+    - name: Test only organization (missing workspace)
+      hashicorp.terraform.workspace_info:
+        organization: "{{ organization }}"
+      register: result_org_only
+      ignore_errors: true
+
+    - name: Assert only organization fails
+      ansible.builtin.assert:
+        that:
+          - result_org_only.failed
+          - '"workspace is required" in result_org_only.msg or "missing required" in result_org_only.msg'
+
     # Test check mode with workspace ID
     - name: Test check mode with workspace ID
       hashicorp.terraform.workspace_info:
