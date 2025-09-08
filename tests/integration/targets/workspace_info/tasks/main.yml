@@ -185,7 +185,7 @@
       ansible.builtin.assert:
         that:
           - result_name_only.failed
-          - '"organization is required" in result_name_only.msg or "missing required" in result_name_only.msg'
+          - '"parameters are required together" in result_name_only.msg or "organization is required" in result_name_only.msg or "missing required" in result_name_only.msg'
 
     # Test case 7: Only org name is given - should fail
     - name: Test only organization (missing workspace)
@@ -198,7 +198,7 @@
       ansible.builtin.assert:
         that:
           - result_org_only.failed
-          - '"workspace is required" in result_org_only.msg or "missing required" in result_org_only.msg'
+          - '"parameters are required together" in result_org_only.msg or "workspace is required" in result_org_only.msg or "missing required" in result_org_only.msg'
 
     # Test check mode with workspace ID
     - name: Test check mode with workspace ID
