@@ -42,31 +42,6 @@ options:
     type: str
     choices: ['diff', 'json']
     default: diff
-  tf_hostname:
-    description:
-      - The Terraform Cloud or Enterprise hostname.
-      - Defaults to C(https://app.terraform.io).
-    type: str
-    default: https://app.terraform.io
-  tf_token:
-    description:
-      - The API token to authenticate with Terraform Cloud/Enterprise.
-    type: str
-  tf_max_retries:
-    description:
-      - Maximum number of retries for API requests.
-    type: int
-    default: 3
-  tf_timeout:
-    description:
-      - Timeout (in seconds) for API requests.
-    type: int
-    default: 10
-  tf_validate_certs:
-    description:
-      - Whether to validate TLS certificates.
-    type: bool
-    default: true
 extends_documentation_fragment:
   - hashicorp.terraform.common
 """
