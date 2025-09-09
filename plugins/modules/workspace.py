@@ -1285,21 +1285,21 @@ EXAMPLES = r"""
 RETURN = r"""
 id:
   description: The unique identifier of the workspace.
-  returned: when state is 'present'/'locked'/'unlocked'
+  returned: when state is 'present' or 'locked' or 'unlocked'
   type: str
   sample: "ws-ybMGvqhs6MWLa5S2"
 type:
     description: The resource type, always 'workspaces'.
-    returned: when state is 'present'/'locked'/'unlocked'
+    returned: when state is 'present' or 'locked' or 'unlocked'
     type: str
     sample: "workspaces"
 attributes:
   type: dict
-  returned: when state is 'present'/'locked'/'unlocked'
+  returned: when state is 'present' or 'locked' or 'unlocked'
   description: The attributes of the workspace created/updated/locked/unlocked.
 relationships:
   description: Related resources linked to the run.
-  returned: when state is 'present'/'locked'/'unlocked'
+  returned: when state is 'present' or 'locked' or 'unlocked'
   type: dict
   sample: {
         "agent-pool": {
