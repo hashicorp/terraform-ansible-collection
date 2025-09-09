@@ -30,7 +30,7 @@ options:
       - Setting `state=present` creates a new configuration-version and upload to it.
       - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the I(configuration_version_id) field to be set.
     type: str
-    choices: ["present", "absent", "archived"]
+    choices: ["present", "archived"]
     default: present
   organization:
     description:
@@ -629,7 +629,7 @@ def main():
             workspace_id=dict(type="str"),
             workspace=dict(type="str"),
             organization=dict(type="str"),
-            state=dict(type="str", default="present", choices=["present", "absent", "archived"]),
+            state=dict(type="str", default="present", choices=["present", "archived"]),
             configuration_version_id=dict(type="str"),
             auto_queue_runs=dict(type="bool", default=True),
             speculative=dict(type="bool", default=False),
