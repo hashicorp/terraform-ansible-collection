@@ -36,6 +36,7 @@
       ansible.builtin.assert:
         that:
           - result_create.changed
+          - result_create.id == workspace_id
           - result_create.attributes["execution-mode"] == "remote"
           - result_create.attributes["auto-apply"] == true
           - result_create.attributes["auto-apply-run-trigger"] == true
