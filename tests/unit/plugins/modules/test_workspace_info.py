@@ -155,7 +155,7 @@ class TestWorkspaceInfoModule:
         # Verify exit_json was called with correct result
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == {"data": expected_result}
+        assert call_args["workspace"] == expected_result
         assert call_args["changed"] is False
 
     @pytest.mark.parametrize(
@@ -199,7 +199,7 @@ class TestWorkspaceInfoModule:
         # Verify exit_json was called with correct result
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == {"data": expected_result}
+        assert call_args["workspace"] == expected_result
         assert call_args["changed"] is False
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
@@ -308,5 +308,5 @@ class TestWorkspaceInfoModule:
         mock_module.exit_json.assert_called_once()
 
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == {"data": expected_result}
+        assert call_args["workspace"] == expected_result
         assert call_args["changed"] is False

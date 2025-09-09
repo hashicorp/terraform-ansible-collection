@@ -46,11 +46,91 @@ EXAMPLES = r"""
     workspace_id: "ws-sample1234567890"
   register: workspace_info
 
+# Task output:
+# ------------
+# "workspace_info": {
+#     "changed": false,
+#     "failed": false,
+#     "workspace": {
+#         "id": "ws-sample1234567890",
+#         "type": "workspaces",
+#         "attributes": {
+#             "name": "sample_workspace",
+#             "terraform-version": "1.10.5",
+#             "execution-mode": "remote",
+#             "allow-destroy-plan": true,
+#             "auto-apply": false,
+#             "locked": false,
+#             "resource-count": 0,
+#             "created-at": "2025-06-09T09:09:19.872Z",
+#             "updated-at": "2025-07-30T11:15:20.689Z",
+#             "permissions": {
+#                 "can-update": true,
+#                 "can-destroy": true,
+#                 "can-queue-run": true
+#             }
+#         },
+#         "relationships": {
+#             "organization": {
+#                 "data": {
+#                     "id": "sample_organization",
+#                     "type": "organizations"
+#                 }
+#             }
+#         },
+#         "links": {
+#             "self": "/api/v2/workspaces/ws-sample1234567890",
+#             "self-html": "/app/sample_organization/workspaces/sample_workspace"
+#         }
+#         }
+#     }
+# }
+
 - name: Gather information about a workspace by name and organization
   hashicorp.terraform.workspace_info:
     workspace: "sample_workspace"
     organization: "sample_organization"
   register: workspace_info
+
+# Task output:
+# ------------
+# "workspace_info": {
+#     "changed": false,
+#     "failed": false,
+#     "workspace": {
+#         "id": "ws-sample1234567890",
+#         "type": "workspaces",
+#         "attributes": {
+#             "name": "sample_workspace",
+#             "terraform-version": "1.10.5",
+#             "execution-mode": "remote",
+#             "allow-destroy-plan": true,
+#             "auto-apply": false,
+#             "locked": false,
+#             "resource-count": 0,
+#             "created-at": "2025-06-09T09:09:19.872Z",
+#             "updated-at": "2025-07-30T11:15:20.689Z",
+#             "permissions": {
+#                 "can-update": true,
+#                 "can-destroy": true,
+#                 "can-queue-run": true
+#             }
+#         },
+#         "relationships": {
+#             "organization": {
+#                 "data": {
+#                     "id": "sample_organization",
+#                     "type": "organizations"
+#                 }
+#             }
+#         },
+#         "links": {
+#             "self": "/api/v2/workspaces/ws-sample1234567890",
+#             "self-html": "/app/sample_organization/workspaces/sample_workspace"
+#         }
+#         }
+#     }
+# }
 
 - name: Handle case when workspace does not exist by ID
   hashicorp.terraform.workspace_info:
@@ -58,11 +138,13 @@ EXAMPLES = r"""
   register: workspace_info
   ignore_errors: true
 
-- name: Check if workspace lookup by ID failed
-  ansible.builtin.debug:
-    msg: "Workspace not found: {{ workspace_info.msg }}"
-  when: workspace_info.failed
-  # Example output: "Workspace 'ws-invalid-workspace-id' was not found."
+# Task output:
+# ------------
+# FAILED! => {
+#     "changed": false,
+#     "failed": true,
+#     "msg": "Workspace 'ws-invalid-workspace-id' was not found."
+# }
 
 - name: Handle case when workspace does not exist by name
   hashicorp.terraform.workspace_info:
@@ -71,44 +153,88 @@ EXAMPLES = r"""
   register: workspace_info
   ignore_errors: true
 
-- name: Check if workspace lookup by name failed
-  ansible.builtin.debug:
-    msg: "Workspace not found: {{ workspace_info.msg }}"
-  when: workspace_info.failed
-  # Example output: "The workspace nonexistent-workspace-name in my-organization organization was not found."
+# Task output:
+# ------------
+# FAILED! => {
+#     "changed": false,
+#     "failed": true,
+#     "msg": "The workspace nonexistent-workspace-name in my-organization organization was not found."
+# }
 
-# Example output from workspace_info task:
-# {
-#   "workspace": {
-#     "data": {
-#       "id": "ws-sample1234567890",
-#       "type": "workspaces",
-#       "attributes": {
-#         "name": "sample_workspace",
-#         "terraform-version": "1.10.5",
-#         "execution-mode": "remote",
-#         "allow-destroy-plan": true,
-#         "auto-apply": false,
-#         "locked": false,
-#         "resource-count": 0,
-#         "created-at": "2025-06-09T09:09:19.872Z",
-#         "updated-at": "2025-07-30T11:15:20.689Z",
-#         "permissions": {
-#           "can-update": true,
-#           "can-destroy": true,
-#           "can-queue-run": true
-#         }
-#       },
-#       "relationships": {
-#         "organization": {
-#           "data": {
-#             "id": "sample_organization",
-#             "type": "organizations"
-#           }
-#         }
-#       }
-#     }
-#   }
+- name: Conditional workspace operations based on existence
+  block:
+    - name: Try to get workspace info
+      hashicorp.terraform.workspace_info:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+      register: workspace_info
+
+    - name: Workspace exists - proceed with operations
+      ansible.builtin.debug:
+        msg: "Workspace {{ workspace_info.workspace.attributes.name }} exists with ID {{ workspace_info.workspace.id }}"
+
+  rescue:
+    - name: Workspace doesn't exist - handle appropriately
+      ansible.builtin.debug:
+        msg: "Workspace {{ workspace_name }} does not exist in {{ organization }}, proceeding with alternative logic"
+
+- name: Use workspace information in subsequent tasks
+  hashicorp.terraform.workspace_info:
+    workspace_id: "ws-sample1234567890"
+  register: workspace_info
+
+- name: Display workspace details
+  ansible.builtin.debug:
+    msg: |
+      Workspace Details:
+      - Name: {{ workspace_info.workspace.attributes.name }}
+      - ID: {{ workspace_info.workspace.id }}
+      - Terraform Version: {{ workspace_info.workspace.attributes['terraform-version'] }}
+      - Execution Mode: {{ workspace_info.workspace.attributes['execution-mode'] }}
+      - Auto Apply: {{ workspace_info.workspace.attributes['auto-apply'] }}
+      - Locked: {{ workspace_info.workspace.attributes.locked }}
+      - Resource Count: {{ workspace_info.workspace.attributes['resource-count'] }}
+
+- name: Check workspace permissions before performing operations
+  hashicorp.terraform.workspace_info:
+    workspace: "production-workspace"
+    organization: "my-company"
+  register: workspace_info
+
+- name: Proceed only if user can update workspace
+  ansible.builtin.debug:
+    msg: "User has update permissions for workspace"
+  when: workspace_info.workspace.attributes.permissions['can-update']
+
+- name: Example with parameter validation errors
+  block:
+    - name: Invalid combination - workspace_id with workspace name (will fail)
+      hashicorp.terraform.workspace_info:
+        workspace_id: "ws-sample1234567890"
+        workspace: "sample_workspace"
+      register: result
+      ignore_errors: true
+
+# Task output:
+# ------------
+# FAILED! => {
+#     "changed": false,
+#     "failed": true,
+#     "msg": "Parameters workspace_id and workspace are mutually exclusive"
+# }
+
+    - name: Missing organization parameter (will fail)
+      hashicorp.terraform.workspace_info:
+        workspace: "sample_workspace"
+      register: result
+      ignore_errors: true
+
+# Task output:
+# ------------
+# FAILED! => {
+#     "changed": false,
+#     "failed": true,
+#     "msg": "parameters are required together: workspace, organization"
 # }
 """
 
@@ -118,42 +244,37 @@ workspace:
   description: A dictionary containing the workspace information.
   returned: on success
   contains:
-    data:
+    id:
+      type: str
+      returned: always
+      description: The unique identifier of the workspace.
+      sample: "ws-sample1234567890"
+    type:
+      type: str
+      returned: always
+      description: The type of the resource (always "workspaces").
+      sample: "workspaces"
+    attributes:
       type: dict
       returned: always
-      description: The workspace data object.
+      description: The attributes of the workspace.
+    relationships:
+      type: dict
+      returned: always
+      description: Relationships to other resources.
+    links:
+      type: dict
+      returned: always
+      description: Links related to the workspace.
       contains:
-        id:
+        self:
           type: str
           returned: always
-          description: The unique identifier of the workspace.
-          sample: "ws-sample1234567890"
-        type:
+          description: API endpoint for this workspace.
+        self-html:
           type: str
           returned: always
-          description: The type of the resource (always "workspaces").
-          sample: "workspaces"
-        attributes:
-          type: dict
-          returned: always
-          description: The attributes of the workspace.
-        relationships:
-          type: dict
-          returned: always
-          description: Relationships to other resources.
-        links:
-          type: dict
-          returned: always
-          description: Links related to the workspace.
-          contains:
-            self:
-              type: str
-              returned: always
-              description: API endpoint for this workspace.
-            self-html:
-              type: str
-              returned: always
-              description: Web UI URL for this workspace.
+          description: Web UI URL for this workspace.
 """
 
 
@@ -218,8 +339,8 @@ def main() -> None:
         workspace_data.pop("status", None)
 
         # Update result with workspace information
-        # Wrap the workspace data in the expected structure to match integration tests
-        result["workspace"] = {"data": workspace_data}
+        # The workspace_data already contains the proper structure from the API
+        result["workspace"] = workspace_data
 
         module.exit_json(**result)
 
