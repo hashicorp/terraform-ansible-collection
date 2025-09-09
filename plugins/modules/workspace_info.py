@@ -339,8 +339,8 @@ def main() -> None:
         workspace_data.pop("status", None)
 
         # Update result with workspace information
-        # The workspace_data already contains the proper structure from the API
-        result["workspace"] = workspace_data
+        # Extract the data field to flatten the structure as requested by @NilashishC
+        result["workspace"] = workspace_data.get("data", workspace_data)
 
         module.exit_json(**result)
 
