@@ -1283,10 +1283,91 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
+id:
+  description: The unique identifier of the workspace.
+  returned: when state is 'present'/'locked'/'unlocked'
+  type: str
+  sample: "ws-ybMGvqhs6MWLa5S2"
+type:
+    description: The resource type, always 'workspaces'.
+    returned: when state is 'present'/'locked'/'unlocked'
+    type: str
+    sample: "workspaces"
 attributes:
   type: dict
   returned: when state is 'present'/'locked'/'unlocked'
   description: The attributes of the workspace created/updated/locked/unlocked.
+relationships:
+  description: Related resources linked to the run.
+  returned: when state is 'present'/'locked'/'unlocked'
+  type: dict
+  sample: {
+        "agent-pool": {
+            "data": {
+                "id": "apool-id",
+                "type": "agent-pools"
+            }
+        },
+        "current-assessment-result": {
+            "data": null
+        },
+        "current-configuration-version": {
+            "data": null
+        },
+        "current-run": {
+            "data": null
+        },
+        "current-state-version": {
+            "data": null
+        },
+        "effective-tag-bindings": {
+            "links": {
+                "related": "/api/v2/workspaces/ws-id/effective-tag-bindings"
+            }
+        },
+        "latest-run": {
+            "data": null
+        },
+        "organization": {
+            "data": {
+                "id": "org",
+                "type": "organizations"
+            }
+        },
+        "outputs": {
+            "data": []
+        },
+        "project": {
+            "data": {
+                "id": "prj-id",
+                "type": "projects"
+            }
+        },
+        "readme": {
+            "data": null
+        },
+        "remote-state-consumers": {
+            "links": {
+                "related": "/api/v2/workspaces/ws-id/relationships/remote-state-consumers"
+            }
+        },
+        "tag-bindings": {
+            "links": {
+                "related": "/api/v2/workspaces/ws-id/tag-bindings"
+            }
+        },
+        "vars": {
+            "data": []
+        }
+    }
+links:
+  description: API links for the run.
+  returned: when state is 'present'/'locked'/'unlocked'
+  type: dict
+  sample: {
+        "self": "/api/v2/organizations/org/workspaces/workspace",
+        "self-html": "/app/org/workspaces/workspace"
+    }
 msg:
   type: str
   returned: when state is 'absent'.
