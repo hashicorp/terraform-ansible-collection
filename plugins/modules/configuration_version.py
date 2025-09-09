@@ -314,23 +314,18 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-outputs:
-  type: dict
-  description: A dictionary of the configuration version details.
-  returned: on success
-  contains:
-    attributes:
-        type: dict
-        returned: always
-        description: The attributes of the configuration version created.
-    configuration_version_id:
-      type: str
-      returned: always
-      description: ID of the configuration version created/archived.
-    msg:
-      type: str
-      returned: when state is 'archived'
-      description: The successfull completion of archive.
+attributes:
+    type: dict
+    returned: always
+    description: The attributes of the configuration version created.
+configuration_version_id:
+    type: str
+    returned: always
+    description: ID of the configuration version created/archived.
+msg:
+    type: str
+    returned: when state is 'archived'
+    description: The successfull completion of archive.
 """
 
 import gzip
