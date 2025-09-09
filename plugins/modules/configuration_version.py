@@ -328,7 +328,7 @@ attributes:
     type: dict
     returned: when state is 'present'
     description: The attributes of the configuration version created.
-relationships: 
+relationships:
     description: Related resources linked to the run.
     returned: when state is 'present'
     type: dict
