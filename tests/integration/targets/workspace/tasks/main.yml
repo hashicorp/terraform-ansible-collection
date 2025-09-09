@@ -36,7 +36,6 @@
       ansible.builtin.assert:
         that:
           - result_create.changed
-          - result_create.id == workspace_id
           - result_create.attributes["execution-mode"] == "remote"
           - result_create.attributes["auto-apply"] == true
           - result_create.attributes["auto-apply-run-trigger"] == true
@@ -134,6 +133,7 @@
       ansible.builtin.assert:
         that:
           - result_update.changed
+          - result_update.id == workspace_id
           - result_update.attributes["execution-mode"] == "agent"
           - result_update.attributes["terraform-version"] == "1.12.2"
           - result_update.attributes["auto-apply"] == true
