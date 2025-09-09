@@ -155,7 +155,7 @@ class TestWorkspaceInfoModule:
         # Verify exit_json was called with correct result
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
+        assert call_args["workspace"] == {"data": expected_result}
         assert call_args["changed"] is False
 
     @pytest.mark.parametrize(
@@ -199,7 +199,7 @@ class TestWorkspaceInfoModule:
         # Verify exit_json was called with correct result
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
+        assert call_args["workspace"] == {"data": expected_result}
         assert call_args["changed"] is False
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
@@ -225,7 +225,7 @@ class TestWorkspaceInfoModule:
         mock_get_workspace_by_id.assert_called_once_with(mock_client, workspace_id)
 
         # Verify fail_json was called with correct error message
-        mock_module.fail_json.assert_called_once_with(msg=f"Workspace with ID '{workspace_id}' not found")
+        mock_module.fail_json.assert_called_once_with(msg=f"Workspace '{workspace_id}' was not found.")
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
@@ -251,7 +251,7 @@ class TestWorkspaceInfoModule:
         mock_get_workspace.assert_called_once_with(mock_client, organization, workspace_name)
 
         # Verify fail_json was called with correct error message
-        mock_module.fail_json.assert_called_once_with(msg=f"Workspace '{workspace_name}' not found in organization '{organization}'")
+        mock_module.fail_json.assert_called_once_with(msg=f"The workspace {workspace_name} in {organization} organization was not found.")
 
     @pytest.mark.parametrize(
         "exception,expected_message",
@@ -308,5 +308,5 @@ class TestWorkspaceInfoModule:
         mock_module.exit_json.assert_called_once()
 
         call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
+        assert call_args["workspace"] == {"data": expected_result}
         assert call_args["changed"] is False

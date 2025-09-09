@@ -52,32 +52,59 @@ EXAMPLES = r"""
     organization: "sample_organization"
   register: workspace_info
 
+- name: Handle case when workspace does not exist by ID
+  hashicorp.terraform.workspace_info:
+    workspace_id: "ws-invalid-workspace-id"
+  register: workspace_info
+  ignore_errors: true
+
+- name: Check if workspace lookup by ID failed
+  ansible.builtin.debug:
+    msg: "Workspace not found: {{ workspace_info.msg }}"
+  when: workspace_info.failed
+  # Example output: "Workspace 'ws-invalid-workspace-id' was not found."
+
+- name: Handle case when workspace does not exist by name
+  hashicorp.terraform.workspace_info:
+    workspace: "nonexistent-workspace-name"
+    organization: "my-organization"
+  register: workspace_info
+  ignore_errors: true
+
+- name: Check if workspace lookup by name failed
+  ansible.builtin.debug:
+    msg: "Workspace not found: {{ workspace_info.msg }}"
+  when: workspace_info.failed
+  # Example output: "The workspace nonexistent-workspace-name in my-organization organization was not found."
+
 # Example output from workspace_info task:
 # {
 #   "workspace": {
-#     "id": "ws-sample1234567890",
-#     "type": "workspaces",
-#     "attributes": {
-#       "name": "sample_workspace",
-#       "terraform-version": "1.10.5",
-#       "execution-mode": "remote",
-#       "allow-destroy-plan": true,
-#       "auto-apply": false,
-#       "locked": false,
-#       "resource-count": 0,
-#       "created-at": "2025-06-09T09:09:19.872Z",
-#       "updated-at": "2025-07-30T11:15:20.689Z",
-#       "permissions": {
-#         "can-update": true,
-#         "can-destroy": true,
-#         "can-queue-run": true
-#       }
-#     },
-#     "relationships": {
-#       "organization": {
-#         "data": {
-#           "id": "sample_organization",
-#           "type": "organizations"
+#     "data": {
+#       "id": "ws-sample1234567890",
+#       "type": "workspaces",
+#       "attributes": {
+#         "name": "sample_workspace",
+#         "terraform-version": "1.10.5",
+#         "execution-mode": "remote",
+#         "allow-destroy-plan": true,
+#         "auto-apply": false,
+#         "locked": false,
+#         "resource-count": 0,
+#         "created-at": "2025-06-09T09:09:19.872Z",
+#         "updated-at": "2025-07-30T11:15:20.689Z",
+#         "permissions": {
+#           "can-update": true,
+#           "can-destroy": true,
+#           "can-queue-run": true
+#         }
+#       },
+#       "relationships": {
+#         "organization": {
+#           "data": {
+#             "id": "sample_organization",
+#             "type": "organizations"
+#           }
 #         }
 #       }
 #     }
@@ -91,37 +118,42 @@ workspace:
   description: A dictionary containing the workspace information.
   returned: on success
   contains:
-    id:
-      type: str
-      returned: always
-      description: The unique identifier of the workspace.
-      sample: "ws-sample1234567890"
-    type:
-      type: str
-      returned: always
-      description: The type of the resource (always "workspaces").
-      sample: "workspaces"
-    attributes:
+    data:
       type: dict
       returned: always
-      description: The attributes of the workspace.
-    relationships:
-      type: dict
-      returned: always
-      description: Relationships to other resources.
-    links:
-      type: dict
-      returned: always
-      description: Links related to the workspace.
+      description: The workspace data object.
       contains:
-        self:
+        id:
           type: str
           returned: always
-          description: API endpoint for this workspace.
-        self-html:
+          description: The unique identifier of the workspace.
+          sample: "ws-sample1234567890"
+        type:
           type: str
           returned: always
-          description: Web UI URL for this workspace.
+          description: The type of the resource (always "workspaces").
+          sample: "workspaces"
+        attributes:
+          type: dict
+          returned: always
+          description: The attributes of the workspace.
+        relationships:
+          type: dict
+          returned: always
+          description: Relationships to other resources.
+        links:
+          type: dict
+          returned: always
+          description: Links related to the workspace.
+          contains:
+            self:
+              type: str
+              returned: always
+              description: API endpoint for this workspace.
+            self-html:
+              type: str
+              returned: always
+              description: Web UI URL for this workspace.
 """
 
 
@@ -175,18 +207,19 @@ def main() -> None:
             # Retrieve workspace by ID
             workspace_data = get_workspace_by_id(client, params["workspace_id"])
             if not workspace_data:
-                module.fail_json(msg=f"Workspace with ID '{params['workspace_id']}' not found")
+                raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
         else:
             # Retrieve workspace by name and organization
             workspace_data = get_workspace(client, params["organization"], params["workspace"])
             if not workspace_data:
-                module.fail_json(msg=f"Workspace '{params['workspace']}' not found in organization '{params['organization']}'")
+                raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
 
         # Remove the status field from the response as it's internal
         workspace_data.pop("status", None)
 
         # Update result with workspace information
-        result["workspace"] = workspace_data
+        # Wrap the workspace data in the expected structure to match integration tests
+        result["workspace"] = {"data": workspace_data}
 
         module.exit_json(**result)
 
