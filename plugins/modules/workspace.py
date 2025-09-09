@@ -1283,23 +1283,14 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-outputs:
+attributes:
   type: dict
-  description: A dictionary of the workspace details.
-  returned: on success
-  contains:
-    attributes:
-        type: dict
-        returned: when state is 'present'
-        description: The attributes of the workspace created/updated.
-    workspace_id:
-      type: str
-      returned: always
-      description: ID of the workspace created/updated/deleted.
-    msg:
-      type: str
-      returned: when state is 'absent'/'locked'/'unlocked'.
-      description: The status of the operation.
+  returned: when state is 'present'/'locked'/'unlocked'
+  description: The attributes of the workspace created/updated/locked/unlocked.
+msg:
+  type: str
+  returned: when state is 'absent'.
+  description: The status of the operation.
 """
 
 
