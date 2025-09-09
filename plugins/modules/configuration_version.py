@@ -314,10 +314,40 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
+id:
+    description: The unique identifier of the configuration-version.
+    returned: when state is 'present'
+    type: str
+    sample: "cv-iNWfGWrsMBZK3AZ4"
+type:
+    description: The resource type, always 'configuration-versions'.
+    returned: when state is 'present'
+    type: str
+    sample: "configuration-versions"
 attributes:
     type: dict
-    returned: always
+    returned: when state is 'present'
     description: The attributes of the configuration version created.
+relationships: 
+    description: Related resources linked to the run.
+    returned: when state is 'present'
+    type: dict
+    sample: {
+        "ingress-attributes": {
+            "data": null,
+            "links": {
+                "related": "/api/v2/configuration-versions/cv-id4/ingress-attributes"
+            }
+        }
+    }
+links:
+    description: API links for the run.
+    returned: when state is 'present'
+    type: dict
+    sample: {
+        "download": "/api/v2/configuration-versions/cv-id/download",
+        "self": "/api/v2/configuration-versions/cv-id"
+    }
 msg:
     type: str
     returned: when state is 'archived'
