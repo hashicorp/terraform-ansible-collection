@@ -1362,7 +1362,7 @@ relationships:
     }
 links:
   description: API links for the run.
-  returned: when state is 'present'/'locked'/'unlocked'
+  returned: when state is 'present' or 'locked' or 'unlocked'
   type: dict
   sample: {
         "self": "/api/v2/organizations/org/workspaces/workspace",
