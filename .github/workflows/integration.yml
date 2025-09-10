@@ -52,6 +52,7 @@ jobs:
 
       - name: Generate integration_config.yml
         run: >-
+          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && 
           ansible-playbook tools/ci/playbooks/render_integration_config.yml
         env:
           ANSIBLE_CORE_CI_KEY: "${{ secrets.ANSIBLE_CORE_CI_KEY }}"
