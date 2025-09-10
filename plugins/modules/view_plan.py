@@ -51,15 +51,11 @@ EXAMPLES = r"""
 - name: View plan diff by plan ID
   hashicorp.terraform.view_plan:
     plan_id: <your-plan-id>
-    tf_token: "{{ tf_token }}"
-    tf_hostname: "{{ tf_hostname }}"
   register: plan_result
 
 - name: View plan diff by run ID
   hashicorp.terraform.view_plan:
     run_id: <your-run-id>
-    tf_token: "{{ tf_token }}"
-    tf_hostname: "{{ tf_hostname }}"
     output_format: diff
   register: plan_result
 
@@ -67,8 +63,6 @@ EXAMPLES = r"""
 - name: Get json plan information by plan ID
   hashicorp.terraform.view_plan:
     plan_id: <your-plan-id>
-    tf_token: "{{ tf_token }}"
-    tf_hostname: "{{ tf_hostname }}"
     output_format: json
   register: plan_result
 
@@ -667,8 +661,7 @@ def main() -> None:
         },
         mutually_exclusive=[["plan_id", "run_id"]],
         required_one_of=[["plan_id", "run_id"]],
-        supports_check_mode=True,
-    )
+        )
 
     params = module.params
     plan_id = params.get("plan_id")
@@ -691,8 +684,8 @@ def main() -> None:
         # Check if plan was found
         if not metadata_response:
             id_type = "Plan" if use_plan_id else "Plan for run"
-            module.fail_json(msg=f"{id_type} with ID '{identifier}' was not found.")
-
+            raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
+        
         if output_format == "json":
             # Return json format
             result.update(
