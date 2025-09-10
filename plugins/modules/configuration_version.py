@@ -30,7 +30,7 @@ options:
       - Setting `state=present` creates a new configuration-version and upload to it.
       - Setting `state=archived` archives an existing configuration-version, if it exists. Requires the I(configuration_version_id) field to be set.
     type: str
-    choices: ["present", "absent", "archived"]
+    choices: ["present", "archived"]
     default: present
   organization:
     description:
@@ -314,23 +314,44 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-outputs:
-  type: dict
-  description: A dictionary of the configuration version details.
-  returned: on success
-  contains:
-    attributes:
-        type: dict
-        returned: always
-        description: The attributes of the configuration version created.
-    configuration_version_id:
-      type: str
-      returned: always
-      description: ID of the configuration version created/archived.
-    msg:
-      type: str
-      returned: when state is 'archived'
-      description: The successfull completion of archive.
+id:
+    description: The unique identifier of the configuration-version.
+    returned: when state is 'present'
+    type: str
+    sample: "cv-iNWfGWrsMBZK3AZ4"
+type:
+    description: The resource type, always 'configuration-versions'.
+    returned: when state is 'present'
+    type: str
+    sample: "configuration-versions"
+attributes:
+    type: dict
+    returned: when state is 'present'
+    description: The attributes of the configuration version created.
+relationships:
+    description: Related resources linked to the run.
+    returned: when state is 'present'
+    type: dict
+    sample: {
+        "ingress-attributes": {
+            "data": null,
+            "links": {
+                "related": "/api/v2/configuration-versions/cv-id4/ingress-attributes"
+            }
+        }
+    }
+links:
+    description: API links for the run.
+    returned: when state is 'present'
+    type: dict
+    sample: {
+        "download": "/api/v2/configuration-versions/cv-id/download",
+        "self": "/api/v2/configuration-versions/cv-id"
+    }
+msg:
+    type: str
+    returned: when state is 'archived'
+    description: The successfull completion of archive with the configuration version ID.
 """
 
 import gzip
@@ -634,19 +655,19 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
 
 def main():
     module = AnsibleTerraformModule(
-        argument_spec=dict(
-            workspace_id=dict(type="str"),
-            workspace=dict(type="str"),
-            organization=dict(type="str"),
-            state=dict(type="str", default="present", choices=["present", "absent", "archived"]),
-            configuration_version_id=dict(type="str"),
-            auto_queue_runs=dict(type="bool", default=True),
-            speculative=dict(type="bool", default=False),
-            provisional=dict(type="bool", default=False),
-            configuration_files_path=dict(aliases=["project_path"], type="path"),
-            poll_interval=dict(type="int", default=2),
-            poll_timeout=dict(type="int", default=10),
-        ),
+        argument_spec={
+            "workspace_id": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
+            "state": {"type": "str", "default": "present", "choices": ["present", "archived"]},
+            "configuration_version_id": {"type": "str"},
+            "auto_queue_runs": {"type": "bool", "default": True},
+            "speculative": {"type": "bool", "default": False},
+            "provisional": {"type": "bool", "default": False},
+            "configuration_files_path": {"aliases": ["project_path"], "type": "path"},
+            "poll_interval": {"type": "int", "default": 2},
+            "poll_timeout": {"type": "int", "default": 10},
+        },
         supports_check_mode=True,
         required_together=[["workspace", "organization"]],
         required_if=[
