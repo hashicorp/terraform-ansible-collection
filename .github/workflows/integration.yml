@@ -44,15 +44,12 @@ jobs:
         run: >-
           ansible-galaxy collection install . --force
 
-      # - name: Build and install collection
-      #   id: install-collection
-      #   uses: ansible-network/github_actions/.github/actions/build_install_collection@main
-      #   with:
-      #     install_python_dependencies: true
+      - name: Install collection dependencies
+        run: >-
+          ansible-galaxy collection install --pre -r tests/integration/requirements.yml && python3 -m pip install botocore>=1.34.0 boto3>=1.34.0
 
       - name: Generate integration_config.yml
         run: >-
-          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform && 
           ansible-playbook tools/ci/playbooks/render_integration_config.yml
         env:
           ANSIBLE_CORE_CI_KEY: "${{ secrets.ANSIBLE_CORE_CI_KEY }}"
