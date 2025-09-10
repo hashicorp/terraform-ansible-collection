@@ -655,19 +655,19 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
 
 def main():
     module = AnsibleTerraformModule(
-        argument_spec=dict(
-            workspace_id=dict(type="str"),
-            workspace=dict(type="str"),
-            organization=dict(type="str"),
-            state=dict(type="str", default="present", choices=["present", "archived"]),
-            configuration_version_id=dict(type="str"),
-            auto_queue_runs=dict(type="bool", default=True),
-            speculative=dict(type="bool", default=False),
-            provisional=dict(type="bool", default=False),
-            configuration_files_path=dict(aliases=["project_path"], type="path"),
-            poll_interval=dict(type="int", default=2),
-            poll_timeout=dict(type="int", default=10),
-        ),
+        argument_spec={
+            "workspace_id": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
+            "state": {"type": "str", "default": "present", "choices": ["present", "archived"]},
+            "configuration_version_id": {"type": "str"},
+            "auto_queue_runs": {"type":"bool", "default": True},
+            "speculative": {"type": "bool", "default": False},
+            "provisional": {"type":"bool", "default": False},
+            "configuration_files_path": {"aliases": ["project_path"], "type": "path"},
+            "poll_interval": {"type": "int", "default": 2},
+            "poll_timeout": {"type": "int", "default": 10},
+        },
         supports_check_mode=True,
         required_together=[["workspace", "organization"]],
         required_if=[
