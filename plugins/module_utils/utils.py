@@ -9,6 +9,8 @@ from .exceptions import (
 
 def sort_list(val):
     if isinstance(val, list):
+        if not val:
+            return val
         if isinstance(val[0], dict):
             sorted_keys = [tuple(sorted(dict_.keys())) for dict_ in val]
             # All keys should be identical
