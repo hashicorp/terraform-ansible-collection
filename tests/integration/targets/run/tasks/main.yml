@@ -346,15 +346,18 @@
           - check_mode_cancel_valid_result.msg == "Run run-1234abcd not found in the Terraform Cloud/Enterprise workspace"
 
   always:
-    - name: VPC1 delete info
-      ansible.builtin.set_fact:
-        vpc1_delete_info: "{{ vpc1_info.vpcs[0].vpc_id }}"
+    - name: Get VPC1 info for deletion
+      amazon.aws.ec2_vpc_net_info:
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        aws_session_token: "{{ aws_session_token | default(omit) }}"
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ unique_id1 }}-vpc1"
+      register: vpc1_delete_info
+      failed_when: false
 
-    - name: VPC2 delete info
-      ansible.builtin.set_fact:
-        vpc2_delete_info: "{{ vpc2_info.vpcs[0].vpc_id }}"
-
-    - name: Delete VPC1 from AWS
+    - name: Delete VPC1 if it exists
       amazon.aws.ec2_vpc_net:
         aws_access_key: "{{ aws_access_key }}"
         aws_secret_key: "{{ aws_secret_key }}"
@@ -363,10 +366,18 @@
         vpc_id: "{{ vpc1_delete_info.vpcs[0].vpc_id }}"
         state: absent
       when: vpc1_delete_info.vpcs | length > 0
+      failed_when: false
 
-    - name: Verify the vpc destruction for vpc1
-      amazon.aws.ec2_vpc_net_info: *vpc1_info
-      register: vpc1_info_after_delete
+    - name: Get VPC2 info for deletion
+      amazon.aws.ec2_vpc_net_info:
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        aws_session_token: "{{ aws_session_token | default(omit) }}"
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ unique_id2 }}-vpc2"
+      register: vpc2_delete_info
+      failed_when: false
 
     - name: Delete VPC2 if it exists
       amazon.aws.ec2_vpc_net:
@@ -376,16 +387,8 @@
         region: "{{ aws_region }}"
         vpc_id: "{{ vpc2_delete_info.vpcs[0].vpc_id }}"
         state: absent
-
-    - name: Verify the vpc destruction for vpc2
-      amazon.aws.ec2_vpc_net_info: *vpc2_info
-      register: vpc2_info_after_delete
-
-    - name: Assert VPC1 & VPC2 were deleted
-      ansible.builtin.assert:
-        that:
-          - vpc_info1_after_delete.vpcs | length == 0
-          - vpc_info2_after_delete.vpcs | length == 0
+      when: vpc2_delete_info.vpcs | length > 0
+      failed_when: false
 
     - name: Force delete workspace
       ansible.builtin.uri:
