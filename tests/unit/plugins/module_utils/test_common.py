@@ -27,10 +27,7 @@ from plugins.module_utils.common import (
     has_at_least,
     requires,
 )
-from plugins.module_utils.exceptions import (
-    TerraformHostnameNotFoundError,
-    TerraformTokenNotFoundError,
-)
+from plugins.module_utils.exceptions import TerraformHostnameNotFoundError, TerraformTokenNotFoundError
 
 
 class TestAnsibleTerraformModule:
