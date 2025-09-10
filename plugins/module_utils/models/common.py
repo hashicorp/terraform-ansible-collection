@@ -108,6 +108,10 @@ def create_run_reference(run_id: str) -> ResourceData:
     return ResourceData(type="runs", id=run_id)
 
 
+def create_project_reference(project_id: str) -> ResourceData:
+    return ResourceData(type="projects", id=project_id)
+
+
 # Explicitly declare exports to avoid pylint unused-import warnings
 __all__ = [
     # Pydantic re-exports (used by other model files)

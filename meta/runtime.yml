@@ -5,3 +5,4 @@ action_groups:
     - configuration_version
     - workspace_info
     - run
+    - workspace
