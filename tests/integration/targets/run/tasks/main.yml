@@ -178,6 +178,9 @@
         tf_token: "{{ tfc_token }}"
         is_destroy: true
         auto_apply: true
+        target_addrs:
+          - "aws_vpc.vpc1-{{ unique_id1 }}"
+          - "aws_vpc.vpc2-{{ unique_id2 }}"
         poll: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
