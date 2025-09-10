@@ -1,0 +1,298 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        tag_bindings:
+          env: dev
+          owner: integration
+        execution_mode: remote
+        auto_apply: true
+        auto_apply_run_trigger: true
+        description: integration test workspace
+        terraform_version: 1.12.2
+        state: present
+      register: result_create
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ result_create.id }}"
+
+    - name: Assert create was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.attributes["execution-mode"] == "remote"
+          - result_create.attributes["auto-apply"] == true
+          - result_create.attributes["auto-apply-run-trigger"] == true
+
+    - name: Update a Terraform workspace with same data to ensure idempotency
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        tag_bindings:
+          env: dev
+          owner: integration
+        execution_mode: remote
+        description: integration test workspace
+        terraform_version: 1.12.2
+        state: present
+      register: result_update
+
+    - name: Assert update was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update.changed
+
+    - name: Generate unique project name
+      ansible.builtin.set_fact:
+        project_name: "{{ unique_id[:30] }}-project"
+
+    - name: Create a Terraform project with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/projects"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ project_name }}"
+            type: "projects"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: project_create_response
+
+    - name: Set a fact for 'project_id'
+      ansible.builtin.set_fact:
+        project_id: "{{ project_create_response.json.data.id }}"
+
+    - name: Generate unique agent pool name
+      ansible.builtin.set_fact:
+        agent_pool_name: "{{ unique_id[:30] }}-agent-pool"
+
+    - name: Create a Terraform agent pool with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/agent-pools"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ agent_pool_name }}"
+            type: "agent-pools"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: agent_pool_create_response
+
+    - name: Set a fact for 'agent_pool_id'
+      ansible.builtin.set_fact:
+        agent_pool_id: "{{ agent_pool_create_response.json.data.id }}"
+
+    - name: Update a Terraform workspace with different data
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        execution_mode: agent
+        agent_pool_id: "{{ agent_pool_id }}"
+        setting_overwrites:
+          execution_mode: true
+          agent_pool: true
+        allow_destroy_plan: true
+        project_id: "{{ project_id }}"
+        auto_apply_run_trigger: false
+        description: integration test workspace
+        state: present
+      register: result_update
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        agent_pool_id: "{{ agent_pool_id }}"
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.id == workspace_id
+          - result_update.attributes["execution-mode"] == "agent"
+          - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.attributes["auto-apply"] == true
+          - result_update.attributes["auto-apply-run-trigger"] == false
+          - result_update.attributes["allow-destroy-plan"] == true
+          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
+
+    - name: Update a Terraform workspace with minimal data
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        description: integration test workspace updated
+        state: present
+      register: result_update
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        agent_pool_id: "{{ agent_pool_id }}"
+        project_id: "{{ project_id }}"
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.attributes["execution-mode"] == "agent"
+          - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
+          - result_update.relationships["project"]["data"]["id"] == project_id
+          - result_update.attributes["auto-apply"] == true
+          - result_update.attributes["auto-apply-run-trigger"] == false
+          - result_update.attributes["allow-destroy-plan"] == true
+          - result_update.attributes["description"] == "integration test workspace updated"
+
+    - name: Update a Terraform workspace with same data to ensure idempotency
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: result_update
+
+    - name: Assert update was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update.changed
+
+    - name: Lock workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        lock_reason: this is my reason
+        state: locked
+      register: result_lock
+
+    - name: Assert workspace was locked
+      ansible.builtin.assert:
+        that:
+          - result_lock.changed
+          - result_lock.attributes["locked"] == true
+
+    - name: Lock workspace to check idempotency
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: locked
+      register: result_lock
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        expected_result: "The workspace {{ workspace_id }} is already locked."
+
+    - name: Assert lock is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_lock.changed
+          - result_lock.msg == expected_result
+
+    - name: Unlock workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: unlocked
+      register: result_unlock
+
+    - name: Assert workspace was unlocked
+      ansible.builtin.assert:
+        that:
+          - result_unlock.changed
+          - result_unlock.attributes["locked"] == false
+
+    - name: Unlock workspace to check idempotency
+      hashicorp.terraform.workspace:
+        workspace_id: '{{ workspace_id }}'
+        state: unlocked
+      register: result_unlock
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        expected_result: "The workspace {{ workspace_id }} is already unlocked."
+
+    - name: Assert unlock was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_unlock.changed
+          - result_unlock.msg == expected_result
+
+  always:
+    - name: Force delete workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        force: true
+        state: absent
+      register: result_delete
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        expected_result: "The workspace {{ workspace_id }} was force-deleted successfully."
+
+    - name: Assert workspace was deleted
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - result_delete.msg == expected_result
+
+    - name: Delete workspace to check idempotency
+      hashicorp.terraform.workspace:
+        workspace_id: '{{ workspace_id }}'
+        state: absent
+      register: result_delete
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        expected_result: "The workspace {{ workspace_id }} was not found."
+
+    - name: Assert delete was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_delete.changed
+          - result_delete.msg == expected_result
+
+    - name: Force delete project
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: project_delete_response
+
+    - name: Force delete agent pool
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: agent_pool_delete_response
