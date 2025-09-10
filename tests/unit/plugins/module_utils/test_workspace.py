@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
@@ -25,6 +26,8 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     unlock_workspace,
     update_workspace,
 )
+
+
 class TestGetWorkspace:
     """Test cases for get_workspace function."""
 
