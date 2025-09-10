@@ -9,7 +9,7 @@ from .exceptions import (
 
 def sort_list(val):
     if isinstance(val, list):
-        if not val:
+        if len(val) == 0:
             return val
         if isinstance(val[0], dict):
             sorted_keys = [tuple(sorted(dict_.keys())) for dict_ in val]
