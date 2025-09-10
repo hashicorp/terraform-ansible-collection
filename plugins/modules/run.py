@@ -628,7 +628,7 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
             poll_data = poll_response.get("data") or {}
             action_result.update({"changed": True, **poll_data})
         else:
-            action_result.update({"failed": True, "msg": f"Run reached status '{status}' instead of expected success state"})
+            action_result.update({"failed": True, "msg": f"Run reached status '{status}' instead of expected success state", **(poll_response or {})})
     else:
         data = response.get("data") or {}
         action_result.update({"changed": True, **data})
