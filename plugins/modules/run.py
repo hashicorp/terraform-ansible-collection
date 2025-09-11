@@ -479,95 +479,90 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-data:
-    description: The main data object containing run information.
+id:
+    description: The unique identifier of the run.
     returned: always
-    type: complex
-    contains:
-        id:
-            description: The unique identifier of the run.
-            returned: always
-            type: str
-            sample: "run-7TwrwCoRQ3FXbFtP"
-        type:
-            description: The resource type, always 'runs'.
-            returned: always
-            type: str
-            sample: "runs"
-        attributes:
-            description: The run's attributes and configuration.
-            returned: always
-            type: dict
-            sample: {
-                "actions": {
-                    "is-cancelable": true,
-                    "is-confirmable": false,
-                    "is-discardable": false,
-                    "is-force-cancelable": false
-                },
-                "allow-config-generation": false,
-                "allow-empty-apply": false,
-                "auto-apply": false,
-                "canceled-at": null,
-                "created-at": "2025-07-03T08:10:20.479Z",
-                "has-changes": false,
-                "is-destroy": false,
-                "message": "Custom message2",
-                "plan-only": true,
-                "status": "pending",
-                "terraform-version": "1.10.5",
-                "updated-at": "2025-07-03T08:10:20.651Z",
-                "permissions": {
-                    "can-apply": true,
-                    "can-cancel": true,
-                    "can-discard": true,
-                    "can-force-cancel": true
-                },
-                "variables": []
+    type: str
+    sample: "run-7TwrwCoRQ3FXbFtP"
+type:
+    description: The resource type, always 'runs'.
+    returned: always
+    type: str
+    sample: "runs"
+attributes:
+    description: The run's attributes and configuration.
+    returned: always
+    type: dict
+    sample: {
+        "actions": {
+            "is-cancelable": true,
+            "is-confirmable": false,
+            "is-discardable": false,
+            "is-force-cancelable": false
+        },
+        "allow-config-generation": false,
+        "allow-empty-apply": false,
+        "auto-apply": false,
+        "canceled-at": null,
+        "created-at": "2025-07-03T08:10:20.479Z",
+        "has-changes": false,
+        "is-destroy": false,
+        "message": "Custom message2",
+        "plan-only": true,
+        "status": "pending",
+        "terraform-version": "1.10.5",
+        "updated-at": "2025-07-03T08:10:20.651Z",
+        "permissions": {
+            "can-apply": true,
+            "can-cancel": true,
+            "can-discard": true,
+            "can-force-cancel": true
+        },
+        "variables": []
+    }
+relationships:
+    description: Related resources linked to the run.
+    returned: always
+    type: dict
+    sample: {
+        "workspace": {
+            "data": {
+                "id": "ws-82Qk88p7boaHK2BT",
+                "type": "workspaces"
             }
-        relationships:
-            description: Related resources linked to the run.
-            returned: always
-            type: dict
-            sample: {
-                "workspace": {
-                    "data": {
-                        "id": "ws-82Qk88p7boaHK2BT",
-                        "type": "workspaces"
-                    }
-                },
-                "apply": {
-                    "data": {
-                        "id": "apply-qki4X5daDtNzNjpw",
-                        "type": "applies"
-                    }
-                },
-                "configuration-version": {
-                    "data": {
-                        "id": "cv-h2u3XnkPasTHbgyv",
-                        "type": "configuration-versions"
-                    }
-                },
-                "plan": {
-                    "data": {
-                        "id": "plan-YDyzmtnwadKwjVSn",
-                        "type": "plans"
-                    }
-                },
-                "created-by": {
-                    "data": {
-                        "id": "user-YYhuc7w4AJxv5RVp",
-                        "type": "users"
-                    }
-                }
+        },
+        "apply": {
+            "data": {
+                "id": "apply-qki4X5daDtNzNjpw",
+                "type": "applies"
             }
-        links:
-            description: API links for the run.
-            returned: always
-            type: dict
-            sample: {
-                "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
+        },
+        "configuration-version": {
+            "data": {
+                "id": "cv-h2u3XnkPasTHbgyv",
+                "type": "configuration-versions"
             }
+        },
+        "plan": {
+            "data": {
+                "id": "plan-YDyzmtnwadKwjVSn",
+                "type": "plans"
+            }
+        },
+        "created-by": {
+            "data": {
+                "id": "user-YYhuc7w4AJxv5RVp",
+                "type": "users"
+            }
+        }
+    }
+links:
+    description: API links for the run.
+    returned: always
+    type: dict
+    sample: {
+        "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
+    }
 """
 
 import time
@@ -598,9 +593,10 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, poll
     run = None
     while True:
         run = get_run(client, run_id)
-        if isinstance(run, tuple):
-            return "failure", {"error": run[1]}
-        state = run.get("data").get("attributes").get("status")
+        # Check for empty dict (404 case) or missing data
+        if not run or not run.get("data"):
+            return "failure", {"error": f"Run {run_id} not found"}
+        state = run.get("data").get("attributes", {}).get("status")
         if run and RunStates.is_success_state(state):
             return "success", run
         elif run and RunStates.is_failure_state(state):
@@ -685,9 +681,9 @@ def idempotency_check(func):
         run_id = kwargs.get("run_id")
         if run_id:
             run = get_run(args[0], run_id)
-            if isinstance(run, tuple):
-                return {"failed": True, "msg": run[1]}
-            elif run.get("data").get("attributes").get("status") == func.__name__.split("_")[1]:
+            if not run or not run.get("data"):
+                return {"failed": True, "msg": f"Run {run_id} not found"}
+            elif run.get("data").get("attributes", {}).get("status") == func.__name__.split("_")[1]:
                 return {"changed": False, "run": run.get("data")}
         return func(*args, **kwargs)
 
