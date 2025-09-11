@@ -3,6 +3,7 @@ requires_ansible: ">=2.16.0"
 action_groups:
   terraform:
     - configuration_version
+    - workspace_info
     - run
     - workspace
     - view_plan

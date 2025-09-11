@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new module hashicorp.terraform.workspace_info to fetch information about a workspace in TFE/C.

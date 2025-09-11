@@ -27,21 +27,21 @@ provider "aws" {
 }
 
 # VPC 1
-resource "aws_vpc" "vpc1-{{ unique_id }}" {
+resource "aws_vpc" "vpc1-{{ unique_id1 }}" {
   cidr_block = "10.0.0.0/16"
 
   tags = {
-    Name = "{{ unique_id }}-vpc1"
+    Name = "{{ unique_id1 }}-vpc1"
     env  = "dev"
   }
 }
 
 # VPC 2
-resource "aws_vpc" "vpc2-{{ unique_id }}" {
+resource "aws_vpc" "vpc2-{{ unique_id2 }}" {
   cidr_block = "10.1.0.0/16"
 
   tags = {
-    Name = "{{ unique_id }}-vpc2"
+    Name = "{{ unique_id2 }}-vpc2"
     env  = "dev"
   }
 }
