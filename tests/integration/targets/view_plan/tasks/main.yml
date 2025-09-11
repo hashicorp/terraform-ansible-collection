@@ -133,7 +133,10 @@
             normalized_diff_plan: >-
               {{ view_plan_diff_by_plan.diff
                 | to_nice_json
-                | regex_replace('[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}', '<UUID>')
+                | regex_replace(
+                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                    '<UUID>'
+                  )
                 | from_json }}
 
         - name: Assert diff from plan_id matches expected
@@ -157,7 +160,10 @@
             normalized_json_plan: >-
               {{ view_plan_json_by_plan.json_output.resource_changes
                 | to_nice_json
-                | regex_replace('[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}', '<UUID>')
+                | regex_replace(
+                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                    '<UUID>'
+                  )
                 | from_json }}
 
         - name: Assert JSON from plan_id matches expected structure
@@ -182,7 +188,10 @@
             normalized_json_run: >-
               {{ view_plan_json_by_run.json_output.resource_changes
                 | to_nice_json
-                | regex_replace('[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}', '<UUID>')
+                | regex_replace(
+                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                    '<UUID>'
+                  )
                 | from_json }}
 
         - name: Assert JSON from run_id matches expected structure
