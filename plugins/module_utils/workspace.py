@@ -126,6 +126,7 @@ def get_tag_bindings(client: TerraformClient, workspace_id: str) -> Dict[str, An
         return response_data
     else:
         # A failure status code was received when attempting to fetch the specified configuration version
+
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
 
