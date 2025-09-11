@@ -89,8 +89,10 @@
 
     - name: Load expected diff and json structures
       ansible.builtin.set_fact:
-        expected_diff: "{{ lookup('file', 'expected_results/expected_diff.json') | from_json }}"
-        expected_json: "{{ lookup('file', 'expected_results/expected_json_structure.json') | from_json }}"
+        expected_diff: >-
+          {{ lookup('file', 'expected_results/expected_diff.json') | from_json }}
+        expected_json: >-
+          {{ lookup('file', 'expected_results/expected_json_structure.json') | from_json }}
 
     - name: View plan by run_id in diff format (default)
       hashicorp.terraform.view_plan:
@@ -105,12 +107,12 @@
           ansible.builtin.set_fact:
             normalized_diff_run: >-
               {{ view_plan_diff_by_run.diff
-                | to_nice_json
-                | regex_replace(
-                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                    '<UUID>'
-                  )
-                | from_json }}
+                 | to_nice_json
+                 | regex_replace(
+                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                     '<UUID>'
+                   )
+                 | from_json }}
 
         - name: Assert diff from run_id matches expected
           ansible.builtin.assert:
@@ -132,12 +134,12 @@
           ansible.builtin.set_fact:
             normalized_diff_plan: >-
               {{ view_plan_diff_by_plan.diff
-                | to_nice_json
-                | regex_replace(
-                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                    '<UUID>'
-                  )
-                | from_json }}
+                 | to_nice_json
+                 | regex_replace(
+                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                     '<UUID>'
+                   )
+                 | from_json }}
 
         - name: Assert diff from plan_id matches expected
           ansible.builtin.assert:
@@ -159,17 +161,26 @@
           ansible.builtin.set_fact:
             normalized_json_plan: >-
               {{ view_plan_json_by_plan.json_output.resource_changes
-                | to_nice_json
-                | regex_replace(
-                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                    '<UUID>'
-                  )
-                | from_json }}
+                 | to_nice_json
+                 | regex_replace(
+                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                     '<UUID>'
+                   )
+                 | from_json }}
 
         - name: Assert JSON from plan_id matches expected structure
           ansible.builtin.assert:
             that:
-              - normalized_json_plan | map(attribute='change') | map(attribute='actions') | list == expected_json | map(attribute='change') | map(attribute='actions') | list
+              - >
+                {{ normalized_json_plan
+                   | map(attribute='change')
+                   | map(attribute='actions')
+                   | list
+                   ==
+                   expected_json
+                   | map(attribute='change')
+                   | map(attribute='actions')
+                   | list }}
               - normalized_json_plan == expected_json
             fail_msg: "JSON from plan_id does not match expected structure"
 
@@ -187,12 +198,12 @@
           ansible.builtin.set_fact:
             normalized_json_run: >-
               {{ view_plan_json_by_run.json_output.resource_changes
-                | to_nice_json
-                | regex_replace(
-                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                    '<UUID>'
-                  )
-                | from_json }}
+                 | to_nice_json
+                 | regex_replace(
+                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                     '<UUID>'
+                   )
+                 | from_json }}
 
         - name: Assert JSON from run_id matches expected structure
           ansible.builtin.assert:
