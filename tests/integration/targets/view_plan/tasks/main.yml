@@ -101,24 +101,22 @@
         tf_hostname: "app.terraform.io"
       register: view_plan_diff_by_run
 
-    - name: Normalize and assert diff from run_id
-      block:
-        - name: Normalize actual diff from run_id (replace UUIDs with <UUID>)
-          ansible.builtin.set_fact:
-            normalized_diff_run: >-
-              {{ view_plan_diff_by_run.diff
-                 | to_nice_json
-                 | regex_replace(
-                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                     '<UUID>'
-                   )
-                 | from_json }}
+    - name: Normalize diff from run_id
+      ansible.builtin.template:
+        src: "normalize.json.j2"
+        dest: "{{ temp_dir.path }}/normalized_diff_run.json"
+      vars:
+        content: "{{ view_plan_diff_by_run.diff }}"
 
-        - name: Assert diff from run_id matches expected
-          ansible.builtin.assert:
-            that:
-              - normalized_diff_run == expected_diff
-            fail_msg: "Diff from run_id does not match expected structure"
+    - name: Load normalized diff from run_id
+      ansible.builtin.set_fact:
+        normalized_diff_run: "{{ lookup('file', temp_dir.path ~ '/normalized_diff_run.json') | from_json }}"
+
+    - name: Assert diff from run_id matches expected
+      ansible.builtin.assert:
+        that:
+          - normalized_diff_run == expected_diff
+        fail_msg: "Diff from run_id does not match expected structure"
 
     - name: View plan by plan_id in diff format
       hashicorp.terraform.view_plan:
@@ -128,24 +126,22 @@
         tf_hostname: "app.terraform.io"
       register: view_plan_diff_by_plan
 
-    - name: Normalize and assert diff from plan_id
-      block:
-        - name: Normalize actual diff from plan_id (replace UUIDs with <UUID>)
-          ansible.builtin.set_fact:
-            normalized_diff_plan: >-
-              {{ view_plan_diff_by_plan.diff
-                 | to_nice_json
-                 | regex_replace(
-                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                     '<UUID>'
-                   )
-                 | from_json }}
+    - name: Normalize diff from plan_id
+      ansible.builtin.template:
+        src: "normalize.json.j2"
+        dest: "{{ temp_dir.path }}/normalized_diff_plan.json"
+      vars:
+        content: "{{ view_plan_diff_by_plan.diff }}"
 
-        - name: Assert diff from plan_id matches expected
-          ansible.builtin.assert:
-            that:
-              - normalized_diff_plan == expected_diff
-            fail_msg: "Diff from plan_id does not match expected structure"
+    - name: Load normalized diff from plan_id
+      ansible.builtin.set_fact:
+        normalized_diff_plan: "{{ lookup('file', temp_dir.path ~ '/normalized_diff_plan.json') | from_json }}"
+
+    - name: Assert diff from plan_id matches expected
+      ansible.builtin.assert:
+        that:
+          - normalized_diff_plan == expected_diff
+        fail_msg: "Diff from plan_id does not match expected structure"
 
     - name: View plan by plan_id in json format
       hashicorp.terraform.view_plan:
@@ -155,34 +151,32 @@
         tf_hostname: "app.terraform.io"
       register: view_plan_json_by_plan
 
-    - name: Normalize and assert json from plan_id
-      block:
-        - name: Normalize actual json output from plan_id (replace UUIDs)
-          ansible.builtin.set_fact:
-            normalized_json_plan: >-
-              {{ view_plan_json_by_plan.json_output.resource_changes
-                 | to_nice_json
-                 | regex_replace(
-                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                     '<UUID>'
-                   )
-                 | from_json }}
+    - name: Normalize json from plan_id
+      ansible.builtin.template:
+        src: "normalize.json.j2"
+        dest: "{{ temp_dir.path }}/normalized_json_plan.json"
+      vars:
+        content: "{{ view_plan_json_by_plan.json_output.resource_changes }}"
 
-        - name: Assert JSON from plan_id matches expected structure
-          ansible.builtin.assert:
-            that:
-              - >
-                {{ normalized_json_plan
-                   | map(attribute='change')
-                   | map(attribute='actions')
-                   | list
-                   ==
-                   expected_json
-                   | map(attribute='change')
-                   | map(attribute='actions')
-                   | list }}
-              - normalized_json_plan == expected_json
-            fail_msg: "JSON from plan_id does not match expected structure"
+    - name: Load normalized json from plan_id
+      ansible.builtin.set_fact:
+        normalized_json_plan: "{{ lookup('file', temp_dir.path ~ '/normalized_json_plan.json') | from_json }}"
+
+    - name: Assert JSON from plan_id matches expected structure
+      ansible.builtin.assert:
+        that:
+          - >
+            {{ normalized_json_plan
+               | map(attribute='change')
+               | map(attribute='actions')
+               | list
+               ==
+               expected_json
+               | map(attribute='change')
+               | map(attribute='actions')
+               | list }}
+          - normalized_json_plan == expected_json
+        fail_msg: "JSON from plan_id does not match expected structure"
 
     - name: View plan by run_id in json format
       hashicorp.terraform.view_plan:
@@ -192,24 +186,22 @@
         tf_hostname: "app.terraform.io"
       register: view_plan_json_by_run
 
-    - name: Normalize and assert json from run_id
-      block:
-        - name: Normalize actual json output from run_id (replace UUIDs)
-          ansible.builtin.set_fact:
-            normalized_json_run: >-
-              {{ view_plan_json_by_run.json_output.resource_changes
-                 | to_nice_json
-                 | regex_replace(
-                     '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
-                     '<UUID>'
-                   )
-                 | from_json }}
+    - name: Normalize json from run_id
+      ansible.builtin.template:
+        src: "normalize.json.j2"
+        dest: "{{ temp_dir.path }}/normalized_json_run.json"
+      vars:
+        content: "{{ view_plan_json_by_run.json_output.resource_changes }}"
 
-        - name: Assert JSON from run_id matches expected structure
-          ansible.builtin.assert:
-            that:
-              - normalized_json_run == expected_json
-            fail_msg: "JSON from run_id does not match expected structure"
+    - name: Load normalized json from run_id
+      ansible.builtin.set_fact:
+        normalized_json_run: "{{ lookup('file', temp_dir.path ~ '/normalized_json_run.json') | from_json }}"
+
+    - name: Assert JSON from run_id matches expected structure
+      ansible.builtin.assert:
+        that:
+          - normalized_json_run == expected_json
+        fail_msg: "JSON from run_id does not match expected structure"
 
     - name: Apply the run
       hashicorp.terraform.run:
