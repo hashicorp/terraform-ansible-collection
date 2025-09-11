@@ -105,6 +105,7 @@
       ansible.builtin.template:
         src: "normalize.json.j2"
         dest: "{{ temp_dir.path }}/normalized_diff_run.json"
+        mode: "0600"
       vars:
         content: "{{ view_plan_diff_by_run.diff }}"
 
@@ -130,6 +131,7 @@
       ansible.builtin.template:
         src: "normalize.json.j2"
         dest: "{{ temp_dir.path }}/normalized_diff_plan.json"
+        mode: "0600"
       vars:
         content: "{{ view_plan_diff_by_plan.diff }}"
 
@@ -155,6 +157,7 @@
       ansible.builtin.template:
         src: "normalize.json.j2"
         dest: "{{ temp_dir.path }}/normalized_json_plan.json"
+        mode: "0600"
       vars:
         content: "{{ view_plan_json_by_plan.json_output.resource_changes }}"
 
@@ -190,6 +193,7 @@
       ansible.builtin.template:
         src: "normalize.json.j2"
         dest: "{{ temp_dir.path }}/normalized_json_run.json"
+        mode: "0600"
       vars:
         content: "{{ view_plan_json_by_run.json_output.resource_changes }}"
 
