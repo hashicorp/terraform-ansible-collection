@@ -661,7 +661,7 @@ def main() -> None:
         },
         mutually_exclusive=[["plan_id", "run_id"]],
         required_one_of=[["plan_id", "run_id"]],
-        )
+    )
 
     params = module.params
     plan_id = params.get("plan_id")
@@ -685,7 +685,7 @@ def main() -> None:
         if not metadata_response:
             id_type = "Plan" if use_plan_id else "Plan for run"
             raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
-        
+
         if output_format == "json":
             # Return json format
             result.update(

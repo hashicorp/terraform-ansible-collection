@@ -1,0 +1,46 @@
+[
+  {
+    "after": {
+      "assign_generated_ipv6_cidr_block": null,
+      "cidr_block": "10.0.0.0/16",
+      "enable_dns_support": true,
+      "instance_tenancy": "default",
+      "ipv4_ipam_pool_id": null,
+      "ipv4_netmask_length": null,
+      "ipv6_ipam_pool_id": null,
+      "ipv6_netmask_length": null,
+      "tags": {
+        "Name": "<UUID>-vpc1",
+        "env": "dev"
+      },
+      "tags_all": {
+        "Name": "<UUID>-vpc1",
+        "env": "dev"
+      }
+    },
+    "after_header": "aws_vpc.vpc1-<UUID> will be created\n Changes to apply.",
+    "before": null
+  },
+  {
+    "after": {
+      "assign_generated_ipv6_cidr_block": null,
+      "cidr_block": "10.1.0.0/16",
+      "enable_dns_support": true,
+      "instance_tenancy": "default",
+      "ipv4_ipam_pool_id": null,
+      "ipv4_netmask_length": null,
+      "ipv6_ipam_pool_id": null,
+      "ipv6_netmask_length": null,
+      "tags": {
+        "Name": "<UUID>-vpc2",
+        "env": "dev"
+      },
+      "tags_all": {
+        "Name": "<UUID>-vpc2",
+        "env": "dev"
+      }
+    },
+    "after_header": "aws_vpc.vpc2-<UUID> will be created\n Changes to apply.",
+    "before": null
+  }
+]
