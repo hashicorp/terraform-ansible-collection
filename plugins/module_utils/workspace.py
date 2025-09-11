@@ -3,13 +3,17 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformError,
 )
 
 
-def get_workspace(client: TerraformClient, organization: str, workspace_name: str):
+def get_workspace(client: TerraformClient, organization: str, workspace: str) -> Dict[str, Any]:
     """
     Retrieves a specified workspace from Terraform Cloud.
 
@@ -22,7 +26,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         client (TerraformClient): An authenticated client used to interact with
             the Terraform Cloud API.
         organization (str): The name of the Terraform Cloud organization.
-        workspace_name (str): The name of the workspace to retrieve.
+        workspace (str): The name of the workspace to retrieve.
 
     Returns:
         dict: A dictionary containing the workspace data (with an added "status" field)
@@ -31,7 +35,7 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
     Raises:
         TerraformError: If the request fails with a non-404 status code.
     """
-    response = client.get(f"/organizations/{organization}/workspaces/{workspace_name}")
+    response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
     response_data = response.get("data", {})
     response_status = response["status"]
 
@@ -44,6 +48,345 @@ def get_workspace(client: TerraformClient, organization: str, workspace_name: st
         response_data.update({"status": response_status})
         return response_data
     else:
+        # A failure status code was received when attempting to fetch the specified workspace
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def get_workspace_by_id(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Retrieves a specified workspace from Terraform Cloud by its ID.
+
+    Sends a GET request to fetch details of a workspace identified by its unique ID.
+    If the workspace is not found, returns an empty dictionary. If successful,
+    returns the workspace data with an added "status" field. For any other error
+    status, raises a TerraformError.
+
+    Args:
+        client (TerraformClient): An authenticated client used to interact with
+            the Terraform Cloud API.
+        workspace_id (str): The unique ID of the workspace to retrieve.
+
+    Returns:
+        dict: A dictionary containing the workspace data (with an added "status" field)
+        if found, or an empty dictionary if the workspace is not found (status 404).
+
+    Raises:
+        TerraformError: If the request fails with a non-404 status code.
+    """
+    response = client.get(f"/workspaces/{workspace_id}")
+    response_data = response.get("data", {})
+    response_status = response["status"]
+
+    if response_status == 404:
+        # workspace was not found
+        # This should not raise an exception
+        return {}
+    elif response_status == 200:
+        # workspace was fetched successfully
+        response_data.update({"status": response_status})
+        return response_data
+    else:
+        # A failure status code was received when attempting to fetch the specified workspace
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def get_tag_bindings(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Fetch tag bindings for a given Terraform workspace.
+
+    This function calls the Terraform API to retrieve tag bindings associated
+    with the specified workspace. It gracefully handles a 404 status (workspace not found),
+    returns the response with status on success (200), and raises a TerraformError for
+    all other response codes.
+
+    Args:
+        client (TerraformClient): The Terraform API client instance.
+        workspace_id (str): The ID of the workspace for which to fetch tag bindings.
+
+    Returns:
+        Dict[str, Any]: The tag bindings data, including the response status.
+                        Returns an empty dict if the workspace is not found (404).
+
+    Raises:
+        TerraformError: If the response status code is anything other than 200 or 404.
+    """
+
+    response = client.get(f"/workspaces/{workspace_id}/tag-bindings")
+    response_data = response.get("data", {})
+    response_status = response["status"]
+    if response_status == 404:
+        # workspace was not found
+        # This should not raise an exception
+        return {}
+    elif response_status == 200:
+        # workspace was fetched successfully
+        response_data.update({"status": response_status})
+        return response_data
+    else:
         # A failure status code was received when attempting to fetch the specified configuration version
+
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def create_workspace(client: TerraformClient, organization: str, data: dict) -> Dict[str, Any]:
+    """
+    Creates a new workspace for a specified Terraform Cloud workspace.
+
+    Sends a POST request to the Terraform Cloud API to create a workspace
+    associated with the given organization. If the operation is successful, returns the
+    workspace data with the response status code included.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        organization (str): The name of the organization
+        attributes (dict): A dictionary of attributes to include in the workspace payload.
+
+    Returns:
+        dict: The response data from Terraform Cloud, including the created
+        workspace details.
+
+    Raises:
+        TerraformError: If the request fails (i.e., non-201 status code is returned).
+    """
+    response = client.post(f"/organizations/{organization}/workspaces", data=data)
+    response_data = response.get("data", {})
+    response_status = response["status"]
+    if response_status == 201:
+        # workspace was created successfully
+        response_data.update({"status": response_status})
+        return response_data
+    else:
+        # A non-201 status code was received when attempting to create specified workspace
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def update_workspace(client: TerraformClient, workspace_id: str, data: dict) -> Dict[str, Any]:
+    """
+    Updates an existing workspace for a specified Terraform Cloud workspace.
+
+    Sends a POST request to the Terraform Cloud API to update a workspace
+    associated with the given organization. If the operation is successful, returns the
+    workspace data with the response status code included.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        organization (str): The name of the organization
+        workspace_id (Str): The ID of the workspace to update.
+        attributes (dict): A dictionary of attributes to include in the workspace payload.
+
+    Returns:
+        dict: The response data from Terraform Cloud, including the created
+        workspace details.
+
+    Raises:
+        TerraformError: If the request fails (i.e., non-200 status code is returned).
+    """
+    response = client.patch(f"/workspaces/{workspace_id}", data=data)
+    response_data = response.get("data", {})
+    response_status = response["status"]
+    if response_status == 200:
+        # workspace was created successfully
+        response_data.update({"status": response_status})
+        return response_data
+    else:
+        # A non-201 status code was received when attempting to update specified workspace
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def safe_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Safe deletes a specified workspace in Terraform Cloud.
+
+    Sends a POST request to initiate the safe delete action for a given workspace.
+    If the workspace does not exist or the user lacks
+    authorization, returns an empty dictionary. If the delete action is
+    successfully initiated, returns the response data. Raises an HTTPError if the
+    request fails for any reason other than a 404 Not Found.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        workspace_id (str): The ID of the workspace to safe delete.
+
+    Returns:
+        dict: Response data if the delete request is successfully initiated,
+        or an empty dictionary if the workspace is not found.
+
+    Raises:
+        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+    """
+    response = client.post(f"/workspaces/{workspace_id}/actions/safe-delete")
+    response_status = response["status"]
+
+    if response["status"] == 404:
+        # Workspace was not found
+        # This should not raise an exception
+        return {}
+    elif response["status"] == 204:
+        # Delete process initiated successfully
+        # returns the response payload
+        return {"status": response_status}
+    else:
+        # Delete process was not initiated successfully
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def force_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Force deletes a specified workspace in Terraform Cloud.
+
+    Sends a POST request to initiate the delete action for a given workspace.
+    If the workspace does not exist or the user lacks
+    authorization, returns an empty dictionary. If the delete action is
+    successfully initiated, returns the response data. Raises an HTTPError if the
+    request fails for any reason other than a 404 Not Found.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        workspace_id (str): The ID of the workspace to delete.
+
+    Returns:
+        dict: Response data if the delete request is successfully initiated,
+        or an empty dictionary if the workspace is not found.
+
+    Raises:
+        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+    """
+    response = client.delete(f"/workspaces/{workspace_id}")
+    response_status = response["status"]
+
+    if response["status"] == 404:
+        # Workspace was not found
+        # This should not raise an exception
+        return {}
+    elif response["status"] == 204:
+        # Delete process initiated successfully
+        # returns the response payload
+        return {"status": response_status}
+    else:
+        # Delete process was not initiated successfully
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str) -> Dict[str, Any]:
+    """
+    Lock a specified workspace in Terraform Cloud.
+
+    Sends a POST request to initiate the lock action for a given workspace.
+    If the workspace does not exist or the user lacks
+    authorization, returns an empty dictionary. If the lock action is
+    successfully initiated, returns the response data. Raises an HTTPError if the
+    request fails for any reason other than a 404 Not Found.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        workspace_id (str): The ID of the workspace to safe delete.
+
+    Returns:
+        dict: Response data if the delete request is successfully initiated,
+        or an empty dictionary if the workspace is not found.
+
+    Raises:
+        TerraformError: If the archive request fails with a non-404 or non-200 status code.
+    """
+    payload = {
+        "reason": lock_reason,
+    }
+    response = client.post(f"/workspaces/{workspace_id}/actions/lock", data=payload)
+    response_data = response.get("data", {})
+    response_status = response["status"]
+
+    if response_status == 200:
+        # workspace was locked successfully
+        response_data.update({"status": response_status})
+        return response_data
+
+    else:
+        # Lock process was not initiated successfully
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Unlock a specified workspace in Terraform Cloud.
+
+    Sends a POST request to initiate the unlock action for a given workspace.
+    If the workspace does not exist or the user lacks
+    authorization, returns an empty dictionary. If the unlock action is
+    successfully initiated, returns the response data. Raises an HTTPError if the
+    request fails for any reason other than a 404 Not Found.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        workspace_id (str): The ID of the workspace to safe delete.
+
+    Returns:
+        dict: Response data if the unlock request is successfully initiated,
+        or an empty dictionary if the workspace is not found.
+
+    Raises:
+        TerraformError: If the unlock request fails with a non-404 or non-200 status code.
+    """
+    response = client.post(f"/workspaces/{workspace_id}/actions/unlock")
+    response_data = response.get("data", {})
+    response_status = response["status"]
+
+    if response_status == 200:
+        # workspace was unlocked successfully
+        response_data.update({"status": response_status})
+        return response_data
+
+    else:
+        # Lock process was not initiated successfully
+        # there can be several reasons for this so we raise an exception with the response
+        raise TerraformError(response)
+
+
+def force_unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Force unlock a specified workspace in Terraform Cloud.
+
+    Sends a POST request to initiate the force unlock action for a given workspace.
+    If the workspace does not exist or the user lacks
+    authorization, returns an empty dictionary. If the force unlock action is
+    successfully initiated, returns the response data. Raises an HTTPError if the
+    request fails for any reason other than a 404 Not Found.
+
+    Args:
+        client (TerraformClient): An authenticated client instance used to interact
+            with the Terraform Cloud API.
+        workspace_id (str): The ID of the workspace to safe delete.
+
+    Returns:
+        dict: Response data if the force unlock request is successfully initiated,
+        or an empty dictionary if the workspace is not found.
+
+    Raises:
+        TerraformError: If the force unlock request fails with a non-404 or non-200 status code.
+    """
+    response = client.post(f"/workspaces/{workspace_id}/actions/force-unlock")
+    response_data = response.get("data", {})
+    response_status = response["status"]
+
+    if response_status == 200:
+        # workspace was force unlocked successfully
+        response_data.update({"status": response_status})
+        return response_data
+
+    else:
+        # Force unlock process was not initiated successfully
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
