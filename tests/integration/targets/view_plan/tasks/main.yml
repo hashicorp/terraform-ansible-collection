@@ -37,7 +37,7 @@
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.json.data.id }}"
 
-    - name: Create temporary directory to store main.tf configuration
+    - name: Create temporary directory to store main.tf configuration and expected JSON
       ansible.builtin.tempfile:
         state: directory
       register: temp_dir
@@ -47,6 +47,29 @@
         src: "main.tf.j2"
         dest: "{{ temp_dir.path }}/main.tf"
         mode: "0644"
+
+    - name: Generate expected diff JSON from template
+      ansible.builtin.template:
+        src: "expected_diff.json.j2"
+        dest: "{{ temp_dir.path }}/expected_diff.json"
+        mode: "0644"
+      vars:
+        unique_id: "{{ unique_id }}"
+      register: expected_diff_file
+
+    - name: Generate expected JSON structure from template
+      ansible.builtin.template:
+        src: "expected_json_structure.json.j2"
+        dest: "{{ temp_dir.path }}/expected_json_structure.json"
+        mode: "0644"
+      vars:
+        unique_id: "{{ unique_id }}"
+      register: expected_json_file
+
+    - name: Load expected diff and JSON structure
+      ansible.builtin.set_fact:
+        expected_diff: "{{ lookup('file', temp_dir.path + '/expected_diff.json') | from_json }}"
+        expected_json: "{{ lookup('file', temp_dir.path + '/expected_json_structure.json') | from_json }}"
 
     - name: Create configuration version with auto_queue_runs to false
       hashicorp.terraform.configuration_version:
@@ -70,7 +93,6 @@
         workspace_id: "{{ workspace_id }}"
         run_message: "plan for view_plan testing"
         state: "present"
-        tf_token: "{{ tfc_token }}"
         configuration_version: "{{ config_version_result.id }}"
         poll: true
         poll_interval: "{{ poll_interval }}"
@@ -87,131 +109,57 @@
       ansible.builtin.set_fact:
         plan_id: "{{ run_result.relationships.plan.data.id }}"
 
-    - name: Load expected diff and json structures
-      ansible.builtin.set_fact:
-        expected_diff: >-
-          {{ lookup('file', 'expected_results/expected_diff.json') | from_json }}
-        expected_json: >-
-          {{ lookup('file', 'expected_results/expected_json_structure.json') | from_json }}
-
-    - name: View plan by run_id in diff format (default)
+    - name: View plan by run_id in diff format
       hashicorp.terraform.view_plan:
         run_id: "{{ run_result.id }}"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_diff_by_run
-
-    - name: Normalize diff from run_id
-      ansible.builtin.template:
-        src: "normalize.json.j2"
-        dest: "{{ temp_dir.path }}/normalized_diff_run.json"
-        mode: "0600"
-      vars:
-        content: "{{ view_plan_diff_by_run.diff }}"
-
-    - name: Load normalized diff from run_id
-      ansible.builtin.set_fact:
-        normalized_diff_run: "{{ lookup('file', temp_dir.path ~ '/normalized_diff_run.json') | from_json }}"
 
     - name: Assert diff from run_id matches expected
       ansible.builtin.assert:
         that:
-          - normalized_diff_run == expected_diff
+          - view_plan_diff_by_run.diff == expected_diff
         fail_msg: "Diff from run_id does not match expected structure"
 
     - name: View plan by plan_id in diff format
       hashicorp.terraform.view_plan:
         plan_id: "{{ plan_id }}"
         output_format: "diff"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_diff_by_plan
-
-    - name: Normalize diff from plan_id
-      ansible.builtin.template:
-        src: "normalize.json.j2"
-        dest: "{{ temp_dir.path }}/normalized_diff_plan.json"
-        mode: "0600"
-      vars:
-        content: "{{ view_plan_diff_by_plan.diff }}"
-
-    - name: Load normalized diff from plan_id
-      ansible.builtin.set_fact:
-        normalized_diff_plan: "{{ lookup('file', temp_dir.path ~ '/normalized_diff_plan.json') | from_json }}"
 
     - name: Assert diff from plan_id matches expected
       ansible.builtin.assert:
         that:
-          - normalized_diff_plan == expected_diff
+          - view_plan_diff_by_plan.diff == expected_diff
         fail_msg: "Diff from plan_id does not match expected structure"
 
-    - name: View plan by plan_id in json format
+    - name: View plan by plan_id in JSON format
       hashicorp.terraform.view_plan:
         plan_id: "{{ plan_id }}"
         output_format: "json"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_json_by_plan
-
-    - name: Normalize json from plan_id
-      ansible.builtin.template:
-        src: "normalize.json.j2"
-        dest: "{{ temp_dir.path }}/normalized_json_plan.json"
-        mode: "0600"
-      vars:
-        content: "{{ view_plan_json_by_plan.json_output.resource_changes }}"
-
-    - name: Load normalized json from plan_id
-      ansible.builtin.set_fact:
-        normalized_json_plan: "{{ lookup('file', temp_dir.path ~ '/normalized_json_plan.json') | from_json }}"
 
     - name: Assert JSON from plan_id matches expected structure
       ansible.builtin.assert:
         that:
-          - >
-            {{ normalized_json_plan
-               | map(attribute='change')
-               | map(attribute='actions')
-               | list
-               ==
-               expected_json
-               | map(attribute='change')
-               | map(attribute='actions')
-               | list }}
-          - normalized_json_plan == expected_json
+          - view_plan_json_by_plan.json_output.resource_changes == expected_json
         fail_msg: "JSON from plan_id does not match expected structure"
 
-    - name: View plan by run_id in json format
+    - name: View plan by run_id in JSON format
       hashicorp.terraform.view_plan:
         run_id: "{{ run_result.id }}"
         output_format: "json"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_json_by_run
-
-    - name: Normalize json from run_id
-      ansible.builtin.template:
-        src: "normalize.json.j2"
-        dest: "{{ temp_dir.path }}/normalized_json_run.json"
-        mode: "0600"
-      vars:
-        content: "{{ view_plan_json_by_run.json_output.resource_changes }}"
-
-    - name: Load normalized json from run_id
-      ansible.builtin.set_fact:
-        normalized_json_run: "{{ lookup('file', temp_dir.path ~ '/normalized_json_run.json') | from_json }}"
 
     - name: Assert JSON from run_id matches expected structure
       ansible.builtin.assert:
         that:
-          - normalized_json_run == expected_json
+          - view_plan_json_by_run.json_output.resource_changes == expected_json
         fail_msg: "JSON from run_id does not match expected structure"
 
     - name: Apply the run
       hashicorp.terraform.run:
         run_id: "{{ run_result.id }}"
         state: "applied"
-        tf_token: "{{ tfc_token }}"
         poll: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
@@ -228,7 +176,6 @@
         workspace_id: "{{ workspace_id }}"
         run_message: "no changes run for view_plan testing"
         state: "present"
-        tf_token: "{{ tfc_token }}"
         poll: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
@@ -237,8 +184,6 @@
     - name: View plan with no changes
       hashicorp.terraform.view_plan:
         run_id: "{{ no_changes_run_result.id }}"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_no_changes
 
     - name: Assert no changes message
@@ -251,7 +196,6 @@
         workspace_id: "{{ workspace_id }}"
         run_message: "plan with variables for view_plan testing"
         state: "present"
-        tf_token: "{{ tfc_token }}"
         variables:
           - key: "env"
             value: "production"
@@ -265,8 +209,6 @@
     - name: View plan for run with variables
       hashicorp.terraform.view_plan:
         run_id: "{{ run_with_vars_result.id }}"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_with_vars
 
     - name: Assert view_plan with variables works
@@ -278,8 +220,6 @@
     - name: Test view_plan with invalid plan_id
       hashicorp.terraform.view_plan:
         plan_id: "plan-invalid123"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       ignore_errors: true
       register: view_plan_invalid_plan
 
@@ -292,8 +232,6 @@
     - name: Test view_plan with invalid run_id
       hashicorp.terraform.view_plan:
         run_id: "run-invalid123"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       ignore_errors: true
       register: view_plan_invalid_run
 
@@ -306,8 +244,6 @@
     - name: View plan using 'id' alias
       hashicorp.terraform.view_plan:
         id: "{{ plan_id }}"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_plan_with_alias
 
     - name: Assert alias functionality works
@@ -321,7 +257,6 @@
         workspace_id: "{{ workspace_id }}"
         run_message: "destroy run for view_plan testing"
         state: "present"
-        tf_token: "{{ tfc_token }}"
         is_destroy: true
         poll: true
         poll_interval: "{{ poll_interval }}"
@@ -331,8 +266,6 @@
     - name: View destroy plan
       hashicorp.terraform.view_plan:
         run_id: "{{ destroy_run_result.id }}"
-        tf_token: "{{ tfc_token }}"
-        tf_hostname: "app.terraform.io"
       register: view_destroy_plan
 
     - name: Assert destroy plan view works
@@ -347,7 +280,6 @@
       hashicorp.terraform.run:
         run_id: "{{ destroy_run_result.id }}"
         state: "applied"
-        tf_token: "{{ tfc_token }}"
         poll: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"

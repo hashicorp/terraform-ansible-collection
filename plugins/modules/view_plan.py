@@ -50,19 +50,19 @@ EXAMPLES = r"""
 # Get plan information in diff format (default)
 - name: View plan diff by plan ID
   hashicorp.terraform.view_plan:
-    plan_id: <your-plan-id>
+    plan_id: plan-ZRJZNANFgoYhx3Ch
   register: plan_result
 
 - name: View plan diff by run ID
   hashicorp.terraform.view_plan:
-    run_id: <your-run-id>
+    run_id: run-FDuANSTFnnDowa3C
     output_format: diff
   register: plan_result
 
 # Get json plan information
 - name: Get json plan information by plan ID
   hashicorp.terraform.view_plan:
-    plan_id: <your-plan-id>
+    plan_id: plan-ZYSSTANWIoYhx3Ch
     output_format: json
   register: plan_result
 
