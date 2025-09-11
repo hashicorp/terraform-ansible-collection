@@ -221,6 +221,52 @@ class TestIdempotencyCheck:
                 else:
                     mock_get_run.assert_not_called()
 
+    def test_idempotency_check_with_empty_dict_404(self):
+        """Test idempotency check when get_run returns empty dict (404)."""
+        mock_client = Mock()
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
+            mock_get_run.return_value = {}
+
+            @idempotency_check
+            def state_applied(client, **kwargs):
+                return {"changed": True, "applied": True}
+
+            # When get_run returns empty dict, idempotency check should return failure
+            result = state_applied(mock_client, run_id="run-404")
+
+            assert result["failed"] is True
+            assert result["msg"] == "Run run-404 not found"
+            mock_get_run.assert_called_once_with(mock_client, "run-404")
+
+    def test_idempotency_check_empty_dict_all_states(self):
+        """Test idempotency check with empty dict for all state functions."""
+        mock_client = Mock()
+
+        state_functions = [
+            ("state_applied", "run-404-apply"),
+            ("state_discarded", "run-404-discard"),
+            ("state_canceled", "run-404-cancel"),
+        ]
+
+        for func_name, run_id in state_functions:
+            with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
+                mock_get_run.return_value = {}
+
+                @idempotency_check
+                def test_state_func(client, **kwargs):
+                    return {"changed": True, "action": "test"}
+
+                # Set the function name for the decorator logic
+                test_state_func.__name__ = func_name
+
+                result = test_state_func(mock_client, run_id=run_id)
+
+                # Empty dict means run not found, so idempotency check should return failure
+                assert result["failed"] is True, f"Expected failure for {func_name} with empty dict"
+                assert result["msg"] == f"Run {run_id} not found", f"Wrong message for {func_name}"
+                mock_get_run.assert_called_once_with(mock_client, run_id)
+
 
 class TestCheckMode:
     """Test cases for check_mode decorator."""
@@ -353,6 +399,33 @@ class TestCheckMode:
             assert result["failed"] is True
             assert result["msg"] == "Run run-404 not found in the Terraform Cloud/Enterprise workspace"
             mock_get_run.assert_called_once_with(mock_client, "run-404")
+
+    def test_check_mode_empty_dict_for_all_states(self):
+        """Test check_mode decorator handles empty dict for all state functions."""
+        mock_client = Mock()
+
+        state_functions = [
+            ("state_applied", "applied"),
+            ("state_discarded", "discarded"),
+            ("state_canceled", "canceled"),
+        ]
+
+        for func_name, action in state_functions:
+            with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
+                mock_get_run.return_value = {}
+
+                @check_mode
+                def test_state_func(client, **kwargs):
+                    return {"changed": True, action: True}
+
+                # Set the function name for the decorator logic
+                test_state_func.__name__ = func_name
+
+                result = test_state_func(mock_client, check_mode=True, run_id="run-404")
+
+                assert result["failed"] is True, f"Expected failure for {func_name}"
+                assert result["msg"] == "Run run-404 not found in the Terraform Cloud/Enterprise workspace", f"Wrong message for {func_name}"
+                mock_get_run.assert_called_once_with(mock_client, "run-404")
 
 
 class TestStatePresent:
