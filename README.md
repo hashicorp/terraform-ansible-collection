@@ -2,8 +2,6 @@
 
 This repository contains the `hashicorp.terraform` Ansible Collection.
 
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ansible_hashicorp.terraform&metric=coverage&token=a9a61b290efd5fc9e2dc7623da5f1de9f722d951)](https://sonarcloud.io/summary/new_code?id=ansible_hashicorp.terraform)
-
 # Description
 
 The primary purpose of this collection is to provide seamless integration between Ansible Automation Platform and Terraform Cloud/Enterprise. It contains modules and plugins that support creating runs, uploading new configuration versions, viewing plans, retrieving information about workspaces, projects, etc.
