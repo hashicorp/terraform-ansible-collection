@@ -5,7 +5,7 @@
 
 import unittest
 
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, patch
 
 import pytest
 

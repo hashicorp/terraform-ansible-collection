@@ -106,7 +106,10 @@
             normalized_diff_run: >-
               {{ view_plan_diff_by_run.diff
                 | to_nice_json
-                | regex_replace('[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}', '<UUID>')
+                | regex_replace(
+                    '[0-9A-Fa-f-]{8}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{4}-[0-9A-Fa-f-]{12}',
+                    '<UUID>'
+                  )
                 | from_json }}
 
         - name: Assert diff from run_id matches expected
