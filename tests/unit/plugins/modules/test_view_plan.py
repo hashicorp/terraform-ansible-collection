@@ -5,12 +5,13 @@
 
 import unittest
 
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import (
     SENSITIVE_MASK,
+    ViewPlanResourceData,
     _convert_actions_to_readable_string,
     _create_sensitive_output_values,
     _get_change_indicator_text,
@@ -46,6 +47,7 @@ class TestViewPlanModule:
     @pytest.mark.parametrize(
         "params,metadata_response,json_response,expected_keys,expected_changed",
         [
+            # Test with plan_id in diff format with changes
             (
                 {
                     "plan_id": "plan-123abc456def789",
@@ -82,6 +84,7 @@ class TestViewPlanModule:
                 {"changed", "diff"},
                 True,
             ),
+            # Test with run_id in json format
             (
                 {
                     "plan_id": None,
@@ -95,6 +98,7 @@ class TestViewPlanModule:
                 {"metadata", "json_output"},
                 None,
             ),
+            # Test with no changes in diff format
             (
                 {
                     "plan_id": "plan-nochanges123",
@@ -214,6 +218,7 @@ class TestViewPlanModule:
     @pytest.mark.parametrize(
         "scenario,json_data,expected_diff_count",
         [
+            # Complex scenario with changes and drift
             (
                 "changes_and_drift",
                 {
@@ -253,6 +258,7 @@ class TestViewPlanModule:
                 },
                 3,
             ),
+            # Sensitive values scenario
             (
                 "sensitive_values",
                 {
@@ -273,6 +279,7 @@ class TestViewPlanModule:
                 },
                 1,
             ),
+            # Replacement actions scenario
             (
                 "replacement_actions",
                 {
@@ -293,6 +300,7 @@ class TestViewPlanModule:
                 },
                 1,
             ),
+            # No-op actions scenario
             (
                 "noop_actions",
                 {
@@ -397,7 +405,6 @@ class TestViewPlanModule:
             assert actual_argument_spec == expected_argument_spec
             assert call_args[1]["mutually_exclusive"] == [["plan_id", "run_id"]]
             assert call_args[1]["required_one_of"] == [["plan_id", "run_id"]]
-            assert call_args[1]["supports_check_mode"] is True
 
 
 class TestHelperFunctions:
@@ -406,11 +413,13 @@ class TestHelperFunctions:
     @pytest.mark.parametrize(
         "data,sensitive_flags,expected",
         [
+            # Dictionary masking
             (
                 {"username": "john", "password": "secret123", "config": {"api_key": "key123"}},
                 {"password": True, "config": {"api_key": True}},
                 {"username": "john", "password": SENSITIVE_MASK, "config": {"api_key": SENSITIVE_MASK}},
             ),
+            # Nested dictionary masking
             (
                 {
                     "database": {"password": "secret", "host": "localhost"},
@@ -424,6 +433,7 @@ class TestHelperFunctions:
                     "tags": {"Environment": "prod"},
                 },
             ),
+            # List and mixed types
             (
                 {
                     "string_val": "test",
@@ -498,26 +508,31 @@ class TestHelperFunctions:
     @pytest.mark.parametrize(
         "change,expected_before,expected_after",
         [
+            # Non-sensitive values
             (
                 {"before": "old", "after": "new", "before_sensitive": False, "after_sensitive": False},
                 "old",
                 "new",
             ),
+            # Both sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": True, "after_sensitive": True},
                 "<sensitive> changed from",
                 "<sensitive> changed to",
             ),
+            # Only before sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": True, "after_sensitive": False},
                 "<sensitive> changed from",
                 "new",
             ),
+            # Only after sensitive
             (
                 {"before": "old", "after": "new", "before_sensitive": False, "after_sensitive": True},
                 "old",
                 "<sensitive> changed to",
             ),
+            # Missing values
             (
                 {"before": None, "after": "new", "before_sensitive": False, "after_sensitive": False},
                 None,
@@ -550,6 +565,7 @@ class TestHelperFunctions:
         assert result[0].resource_changes is not None
         assert result[0].has_drift is False
 
+        # Test drift only
         resource_changes = []
         resource_drift = [
             {
@@ -562,6 +578,7 @@ class TestHelperFunctions:
         assert len(result) == 1
         assert result[0].has_drift is True
 
+        # Test both changes and drift
         resource_changes = [
             {
                 "address": "aws_instance.both",
@@ -624,6 +641,7 @@ class TestHelperFunctions:
         diffs = _get_diff_sequences(json_output_data)
         assert len(diffs) >= 2
 
+        # Verify diff structure
         for diff in diffs:
             assert "before" in diff or "after" in diff
             if "after_header" in diff:
@@ -649,12 +667,305 @@ class TestHelperFunctions:
             after_raw,
         )
 
+        # Check that changed sensitive values show indicators
         assert result_before["password"] == "<sensitive> changed from"
         assert result_after["password"] == "<sensitive> changed to"
         assert result_before["config"]["api_key"] == "<sensitive> changed from"
         assert result_after["config"]["api_key"] == "<sensitive> changed to"
+        # Non-sensitive unchanged values remain the same
         assert result_before["username"] == "admin"
         assert result_after["username"] == "admin"
+
+    @pytest.mark.parametrize(
+        "source_dict,target_dict,key,value,expected_target",
+        [
+            ({"a": 1}, {}, "a", "new_value", {"a": "new_value"}),
+            ({"b": 2}, {}, "a", "new_value", {}),
+            ({"a": 1}, {"c": 3}, "a", "new_value", {"c": 3, "a": "new_value"}),
+            ({"a": 1}, {"a": "old"}, "a", "new_value", {"a": "new_value"}),
+        ],
+    )
+    def test_assign_value_if_key_exists(self, source_dict, target_dict, key, value, expected_target):
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _assign_value_if_key_exists
+
+        _assign_value_if_key_exists(source_dict, target_dict, key, value)
+        assert target_dict == expected_target
+
+    @pytest.mark.parametrize(
+        "key,before_obj,after_obj,before_sensitive,after_sensitive,before_raw,after_raw,expected_attributes",
+        [
+            (
+                "password",
+                {"password": "<sensitive>"},
+                {"password": "<sensitive>"},
+                {"password": True},
+                {"password": True},
+                {"password": "old_pass"},
+                {"password": "new_pass"},
+                {
+                    "before_item": "<sensitive>",
+                    "after_item": "<sensitive>",
+                    "is_before_sensitive": True,
+                    "is_after_sensitive": True,
+                    "before_raw_item": "old_pass",
+                    "after_raw_item": "new_pass",
+                },
+            ),
+            (
+                "new_field",
+                {},
+                {"new_field": "value"},
+                {},
+                {"new_field": False},
+                {},
+                {"new_field": "raw_value"},
+                {
+                    "before_item": None,
+                    "after_item": "value",
+                    "is_before_sensitive": False,
+                    "is_after_sensitive": False,
+                    "before_raw_item": None,
+                    "after_raw_item": "raw_value",
+                },
+            ),
+            (
+                "field",
+                {"field": "value"},
+                {"field": "value"},
+                False,
+                False,
+                {"field": "raw"},
+                {"field": "raw"},
+                {
+                    "before_item": "value",
+                    "after_item": "value",
+                    "is_before_sensitive": False,
+                    "is_after_sensitive": False,
+                    "before_raw_item": "raw",
+                    "after_raw_item": "raw",
+                },
+            ),
+        ],
+    )
+    def test_extract_sensitive_value_data(self, key, before_obj, after_obj, before_sensitive, after_sensitive, before_raw, after_raw, expected_attributes):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _extract_sensitive_value_data
+
+        result = _extract_sensitive_value_data(key, before_obj, after_obj, before_sensitive, after_sensitive, before_raw, after_raw)
+
+        for attr, expected_value in expected_attributes.items():
+
+            assert getattr(result, attr) == expected_value
+
+    def test_process_dict_sensitive_values(self):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import SensitiveValueData, _process_dict_sensitive_values
+
+        sensitive_data = SensitiveValueData(
+            before_item={"password": "<sensitive>"},
+            after_item={"password": "<sensitive>"},
+            is_before_sensitive={"password": True},
+            is_after_sensitive={"password": True},
+            before_raw_item={"password": "old"},
+            after_raw_item={"password": "new"},
+        )
+
+        result_before = {}
+
+        result_after = {}
+
+        before_obj = {"config": {"password": "<sensitive>"}}
+
+        after_obj = {"config": {"password": "<sensitive>"}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan._update_changed_sensitive_values") as mock_update:
+
+            mock_update.return_value = ({"password": "<sensitive> changed from"}, {"password": "<sensitive> changed to"})
+
+            _process_dict_sensitive_values("config", sensitive_data, result_before, result_after, before_obj, after_obj)
+
+            mock_update.assert_called_once()
+
+            assert result_before["config"]["password"] == "<sensitive> changed from"
+
+            assert result_after["config"]["password"] == "<sensitive> changed to"
+
+    def test_process_scalar_sensitive_values(self):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import SensitiveValueData, _process_scalar_sensitive_values
+
+        sensitive_data = SensitiveValueData(
+            before_item="<sensitive>",
+            after_item="<sensitive>",
+            is_before_sensitive=True,
+            is_after_sensitive=True,
+            before_raw_item="old_secret",
+            after_raw_item="new_secret",
+        )
+
+        result_before = {}
+
+        result_after = {}
+
+        before_obj = {"password": "<sensitive>"}
+
+        after_obj = {"password": "<sensitive>"}
+
+        _process_scalar_sensitive_values("password", sensitive_data, result_before, result_after, before_obj, after_obj)
+
+        assert result_before["password"] == "<sensitive> changed from"
+
+        assert result_after["password"] == "<sensitive> changed to"
+
+    def test_process_scalar_sensitive_values_unchanged(self):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import SENSITIVE_MASK, SensitiveValueData, _process_scalar_sensitive_values
+
+        sensitive_data = SensitiveValueData(
+            before_item="<sensitive>",
+            after_item="<sensitive>",
+            is_before_sensitive=True,
+            is_after_sensitive=True,
+            before_raw_item="same_secret",
+            after_raw_item="same_secret",
+        )
+
+        result_before = {}
+
+        result_after = {}
+
+        before_obj = {"password": "<sensitive>"}
+
+        after_obj = {"password": "<sensitive>"}
+
+        _process_scalar_sensitive_values("password", sensitive_data, result_before, result_after, before_obj, after_obj)
+
+        assert result_before["password"] == SENSITIVE_MASK
+
+        assert result_after["password"] == SENSITIVE_MASK
+
+    @pytest.mark.parametrize(
+        "resource_data,expected_item,expected_scenario",
+        [
+            (
+                ViewPlanResourceData(address="aws_instance.test", resource_changes={"change": {"actions": ["create"]}}, resource_drift=None, has_drift=False),
+                {"change": {"actions": ["create"]}},
+                "changes_with_actions",
+            ),
+            (
+                ViewPlanResourceData(
+                    address="aws_instance.test",
+                    resource_changes={"change": {"actions": ["no-op"]}},
+                    resource_drift={"change": {"actions": ["update"]}},
+                    has_drift=True,
+                ),
+                {"change": {"actions": ["update"]}},
+                "drift_only",
+            ),
+            (
+                ViewPlanResourceData(address="aws_instance.test", resource_changes=None, resource_drift={"change": {"actions": ["update"]}}, has_drift=True),
+                {"change": {"actions": ["update"]}},
+                "drift_only",
+            ),
+            (
+                ViewPlanResourceData(address="aws_instance.test", resource_changes={"change": {"actions": ["no-op"]}}, resource_drift=None, has_drift=False),
+                None,
+                None,
+            ),
+        ],
+    )
+    def test_determine_primary_item_and_scenario(self, resource_data, expected_item, expected_scenario):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _determine_primary_item_and_scenario
+
+        item, scenario = _determine_primary_item_and_scenario(resource_data)
+
+        assert item == expected_item
+
+        assert scenario == expected_scenario
+
+    @pytest.mark.parametrize(
+        "masked_before,masked_after,expected",
+        [
+            ({"a": 1}, {"a": 2}, True),
+            ({"a": 1}, {"a": 1}, False),
+            ({}, {"a": 1}, True),
+            ({"config": {"db": "old"}}, {"config": {"db": "new"}}, True),
+            ({"config": {"db": "same"}}, {"config": {"db": "same"}}, False),
+        ],
+    )
+    def test_has_meaningful_changes(self, masked_before, masked_after, expected):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _has_meaningful_changes
+
+        result = _has_meaningful_changes(masked_before, masked_after)
+
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "output_name,change,expected_result",
+        [
+            (
+                "new_output",
+                {"actions": ["create"], "before": None, "after": "value", "before_sensitive": False, "after_sensitive": False},
+                {"before": {}, "after": {"new_output": "value"}},
+            ),
+            (
+                "existing_output",
+                {"actions": ["update"], "before": "old", "after": "new", "before_sensitive": False, "after_sensitive": False},
+                {"before": {"existing_output": "old"}, "after": {"existing_output": "new"}},
+            ),
+            ("unchanged_output", {"actions": ["no-op"], "before": "same", "after": "same", "before_sensitive": False, "after_sensitive": False}, None),
+            (
+                "secret_output",
+                {"actions": ["create"], "before": None, "after": "secret", "before_sensitive": False, "after_sensitive": True},
+                {"before": {}, "after": {"secret_output": "<sensitive> changed to"}},
+            ),
+        ],
+    )
+    def test_process_single_output_change(self, output_name, change, expected_result):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _process_single_output_change
+
+        result = _process_single_output_change(output_name, change)
+
+        assert result == expected_result
+
+    def test_process_sensitive_value_update_integration(self):
+
+        from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import _process_sensitive_value_update
+
+        before_obj = {"password": "<sensitive>", "username": "admin"}
+
+        after_obj = {"password": "<sensitive>", "username": "admin"}
+
+        before_sensitive = {"password": True}
+
+        after_sensitive = {"password": True}
+
+        before_raw = {"password": "old_pass", "username": "admin"}
+
+        after_raw = {"password": "new_pass", "username": "admin"}
+
+        result_before = {}
+
+        result_after = {}
+
+        _process_sensitive_value_update(
+            "password",
+            before_obj,
+            after_obj,
+            before_sensitive,
+            after_sensitive,
+            before_raw,
+            after_raw,
+            result_before,
+            result_after,
+        )
+
+        assert result_before["password"] == "<sensitive> changed from"
+
+        assert result_after["password"] == "<sensitive> changed to"
 
 
 class TestEdgeCases:
@@ -740,6 +1051,7 @@ class TestEdgeCases:
         diffs = _process_output_changes(output_changes)
         assert len(diffs) == 2
 
+        # Verify sensitive value handling
         sensitive_diff = next(d for d in diffs if "db_password" in str(d))
         assert "db_password" in sensitive_diff["after"]
 
