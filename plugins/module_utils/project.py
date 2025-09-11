@@ -1,8 +1,9 @@
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from ansible.module_utils.common.text.converters import to_text
 
 from .exceptions import TerraformError
+
 
 def create_project(client, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
@@ -55,6 +56,7 @@ def update_project(client, project_id: str, data: dict[str, Any]) -> Optional[di
         raise TerraformError(to_text(response))
     return response.get("data")
 
+
 def delete_project(client, project_id: str) -> Optional[dict[str, Any]]:
     """
     Delete a project with the given project_id.
@@ -69,6 +71,7 @@ def delete_project(client, project_id: str) -> Optional[dict[str, Any]]:
     if response.get("status") != 200:
         raise TerraformError(to_text(response))
     return response.get("data")
+
 
 def get_project_tag_bindings(client, project_id: str) -> Optional[dict[str, Any]]:
     """
@@ -85,6 +88,7 @@ def get_project_tag_bindings(client, project_id: str) -> Optional[dict[str, Any]
         return {}
     else:
         raise TerraformError(to_text(response))
+
 
 def update_project_tag_bindings(client, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """

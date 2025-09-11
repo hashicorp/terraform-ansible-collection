@@ -4,7 +4,7 @@ Pydantic models for Terraform Cloud/Enterprise Project resources.
 This module contains models specifically for project-related API operations.
 """
 
-from typing import List, Literal, Optional, Dict
+from typing import Dict, List, Literal, Optional
 
 from .common import (
     BaseModel,
@@ -12,10 +12,9 @@ from .common import (
     BaseTerraformResource,
     ConfigDict,
     Field,
-    Relationship,
-    StrictBool,
     StrictStr,
 )
+
 
 class ProjectAttributes(BaseModel):
     """Attributes for project resources."""
@@ -29,6 +28,7 @@ class ProjectAttributes(BaseModel):
     default_agent_pool_id: Optional[StrictStr] = Field(None, alias="default-agent-pool-id")
     setting_overwrites: Optional[Dict[str, bool]] = Field(None, alias="setting-overwrites")
 
+
 class TagBindingAttributes(BaseModel):
     """Attributes for tag bindings resources."""
 
@@ -37,6 +37,7 @@ class TagBindingAttributes(BaseModel):
     key: StrictStr
     value: StrictStr
 
+
 class TagBindingsRelationship(BaseModel):
     """Relationships for tag bindings resources."""
 
@@ -44,11 +45,13 @@ class TagBindingsRelationship(BaseModel):
 
     data: Optional[List[TagBindingAttributes]] = None
 
+
 class ProjectRelationships(BaseModel):
     """Relationships for project resources."""
 
     model_config = ConfigDict(populate_by_name=True)
     tag_bindings: Optional[TagBindingsRelationship] = Field(default=None, alias="tag-bindings")
+
 
 class ProjectData(BaseTerraformResource[ProjectAttributes, ProjectRelationships]):
     """Model for project data in API requests."""
