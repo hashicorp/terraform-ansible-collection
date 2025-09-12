@@ -106,9 +106,9 @@
       ansible.builtin.assert:
         that:
           - not run_response.changed
-          - run_response.run.data.type == "runs"
-          - run_response.run.data.attributes.status == "planned_and_finished"
-          - run_response.run.data.attributes.variables == []
+          - run_response.run.type == "runs"
+          - run_response.run.attributes.status == "planned_and_finished"
+          - run_response.run.attributes.variables == []
 
   always:
     - name: Force delete workspace
