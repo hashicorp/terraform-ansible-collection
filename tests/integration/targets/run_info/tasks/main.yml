@@ -16,26 +16,15 @@
         workspace_name: "{{ unique_id }}-workspace"
 
     - name: Create a Terraform workspace with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ workspace_name }}"
-            type: "workspaces"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
       register: workspace_create_response
 
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
-        workspace_id: "{{ workspace_create_response.json.data.id }}"
+        workspace_id: "{{ workspace_create_response.id }}"
 
     - name: Create temporary directory to store main.tf configuration
       ansible.builtin.tempfile:
@@ -112,15 +101,11 @@
 
   always:
     - name: Force delete workspace
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        force: true
+        state: absent
       register: workspace_delete_response
 
     - name: Clean up rendered config directory

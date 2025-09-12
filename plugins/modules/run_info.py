@@ -31,6 +31,158 @@ EXAMPLES = r"""
   hashicorp.terraform.run_info:
     run_id: "run-sample-12345"
   register: run_info
+
+# Task output:
+# ------------
+# "run_result": {
+#     "changed": false,
+#     "failed": false,
+#     "run": {
+#         "attributes": {
+#             "actions": {
+#                 "is-cancelable": false,
+#                 "is-confirmable": false,
+#                 "is-discardable": false,
+#                 "is-force-cancelable": false
+#             },
+#             "allow-config-generation": true,
+#             "allow-empty-apply": false,
+#             "auto-apply": false,
+#             "canceled-at": null,
+#             "created-at": "2025-07-30T11:35:47.183Z",
+#             "has-changes": true,
+#             "is-destroy": false,
+#             "message": "test",
+#             "permissions": {
+#                 "can-apply": true,
+#                 "can-cancel": true,
+#                 "can-comment": true,
+#                 "can-discard": true,
+#                 "can-force-cancel": true,
+#                 "can-force-execute": true,
+#                 "can-override-policy-check": true
+#             },
+#             "plan-only": false,
+#             "refresh": true,
+#             "refresh-only": false,
+#             "replace-addrs": [],
+#             "save-plan": false,
+#             "source": "tfe-ui",
+#             "status": "discarded",
+#             "status-timestamps": {
+#                 "discarded-at": "2025-07-30T11:39:34+00:00",
+#                 "plan-queueable-at": "2025-07-30T11:35:47+00:00",
+#                 "plan-queued-at": "2025-07-30T11:35:47+00:00",
+#                 "planned-at": "2025-07-30T11:36:08+00:00",
+#                 "planning-at": "2025-07-30T11:35:49+00:00",
+#                 "post-plan-running-at": "2025-07-30T11:36:08+00:00",
+#                 "queuing-at": "2025-07-30T11:35:47+00:00"
+#             },
+#             "target-addrs": null,
+#             "terraform-version": "1.10.5",
+#             "trigger-reason": "manual",
+#             "updated-at": "2025-07-30T11:39:34.091Z",
+#             "variables": []
+#         },
+#         "id": "run-sample1234567890",
+#         "links": {
+#             "self": "/api/v2/runs/run-sample1234567890"
+#         },
+#         "relationships": {
+#             "apply": {
+#                 "data": {
+#                     "id": "apply-XJ1s5VQrgZRNSHsn",
+#                     "type": "applies"
+#                 },
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/apply"
+#                 }
+#             },
+#             "comments": {
+#                 "data": [],
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/comments"
+#                 }
+#             },
+#             "configuration-version": {
+#                 "data": {
+#                     "id": "cv-h2u3XnkPasTHbgyv",
+#                     "type": "configuration-versions"
+#                 },
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/configuration-version"
+#                 }
+#             },
+#             "created-by": {
+#                 "data": {
+#                     "id": "user-YYhuc7w4AJxv5RVp",
+#                     "type": "users"
+#                 },
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/created-by"
+#                 }
+#             },
+#             "plan": {
+#                 "data": {
+#                     "id": "plan-2hQe8iJVqBDAg9zA",
+#                     "type": "plans"
+#                 },
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/plan"
+#                 }
+#             },
+#             "policy-checks": {
+#                 "data": [],
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/policy-checks"
+#                 }
+#             },
+#             "run-events": {
+#                 "data": [
+#                     {
+#                         "id": "re-a6cNzRDD4THQK5xF",
+#                         "type": "run-events"
+#                     }
+#                 ],
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/run-events"
+#                 }
+#             },
+#             "task-stages": {
+#                 "data": [
+#                     {
+#                         "id": "ts-24rWmqCXzYtyNv6C",
+#                         "type": "task-stages"
+#                     }
+#                 ],
+#                 "links": {
+#                     "related": "/api/v2/runs/run-sample1234567890/task-stages"
+#                 }
+#             },
+#             "workspace": {
+#                 "data": {
+#                     "id": "ws-82Qk88p7boaHK2BT",
+#                     "type": "workspaces"
+#                 }
+#             }
+#         },
+#         "type": "runs"
+#     }
+# }
+
+- name: Handle case when run does not exist by ID
+  hashicorp.terraform.run_info:
+    run_id: "run-invalid-id"
+  register: run_info
+  ignore_errors: true
+
+# Task output:
+# ------------
+# FAILED! => {
+#     "changed": false,
+#     "failed": true,
+#     "msg": ""run 'run-4NCzHa529xTf' was not found.""
+# }
 """
 
 RETURN = r"""
@@ -102,7 +254,7 @@ def main() -> None:
 
         run_info_data = get_run(client=client, run_id=params["run_id"])
         if not run_info_data:
-            module.fail_json(msg=f"The run with ID {params['run_id']} was not found.")
+            raise ValueError(f"run '{params['run_id']}' was not found.")
 
         result["run"] = run_info_data.get("data", run_info_data)
 
