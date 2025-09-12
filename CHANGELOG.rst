@@ -16,8 +16,10 @@ Minor Changes
 -------------
 
 - Adds a new module hashicorp.terraform.configuration_version for configuration-version management on TFE/C.
+- Adds a new module hashicorp.terraform.run for run management on TFE/C.
 
 New Modules
 -----------
 
 - configuration_version - Manage configuration versions in Terraform Enterprise/Cloud.
+- run - Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
