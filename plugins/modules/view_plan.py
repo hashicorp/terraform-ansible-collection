@@ -4,10 +4,13 @@
 # Copyright: (c) 2025, Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import annotations
+
+
 DOCUMENTATION = r"""
 ---
 module: view_plan
-version_added: "1.0.0"
+version_added: "1.1.0"
 short_description: View Terraform Cloud/Enterprise plan information
 author: "Tanwi Geetika (@tgeetika)"
 description:
@@ -105,14 +108,21 @@ msg:
   type: str
 """
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
     TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan import (
+    SensitiveValueData,
+    ViewPlanResourceData,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_json_output,
@@ -132,33 +142,11 @@ REPLACEMENT_ACTIONS = [["delete", "create"], ["create", "delete"]]
 SENSITIVE_MASK = "<sensitive>"
 
 
-@dataclass
-class SensitiveValueData:
-    """Data structure for handling sensitive value processing."""
-
-    before_item: Any
-    after_item: Any
-    is_before_sensitive: bool
-    is_after_sensitive: bool
-    before_raw_item: Any
-    after_raw_item: Any
-
-
-@dataclass
-class ViewPlanResourceData:
-    """Unified resource data structure."""
-
-    address: str
-    resource_changes: Optional[Dict]
-    resource_drift: Optional[Dict]
-    has_drift: bool
-
-
 def _mask_sensitive_object(
-    data: Union[Dict, List, Any],
-    sensitive_flags: Union[Dict, bool],
+    data: Union[Dict[str, Any], List[Any]],
+    sensitive_flags: Union[Dict[str, Any], bool],
     replacement_text: str = SENSITIVE_MASK,
-) -> Union[Dict, List, str]:
+) -> Union[Dict[str, Any], List[Any]]:
     """Apply masking to sensitive values in an object based on sensitivity flags.
 
     Args:
@@ -188,7 +176,7 @@ def _get_change_indicator_text(
     after_raw_item: Any,
     is_sensitive_before: bool,
     is_sensitive_after: bool,
-) -> tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str]]:
     """Get appropriate text for sensitive value changes."""
     if not (is_sensitive_before or is_sensitive_after):
         return None, None
@@ -314,7 +302,7 @@ def _update_changed_sensitive_values(
     after_sensitive: Union[Dict, bool],
     before_raw: Dict,
     after_raw: Dict,
-) -> tuple[Dict, Dict]:
+) -> Tuple[Dict, Dict]:
     """Update masked values to show change indicators for sensitive values that actually changed.
 
     Args:
@@ -326,7 +314,7 @@ def _update_changed_sensitive_values(
         after_raw: Original unmasked after object
 
     Returns:
-        tuple: (updated_before_obj, updated_after_obj) with change indicators
+        Tuple: (updated_before_obj, updated_after_obj) with change indicators
     """
     if not isinstance(before_obj, dict) or not isinstance(after_obj, dict):
         return before_obj, after_obj
@@ -355,7 +343,7 @@ def _mask_sensitive_values_in_objects(
     after_obj: Dict,
     before_sensitive: Union[Dict, bool],
     after_sensitive: Union[Dict, bool],
-) -> tuple[Dict, Dict]:
+) -> Tuple[Dict, Dict]:
     """Apply sensitivity masking to both before and after objects, preserving unchanged sensitive values.
 
     Args:
@@ -365,7 +353,7 @@ def _mask_sensitive_values_in_objects(
         after_sensitive: Sensitivity flags for after object
 
     Returns:
-        tuple: (masked_before, masked_after) with sensitive values appropriately masked
+        Tuple: (masked_before, masked_after) with sensitive values appropriately masked
     """
     masked_before = _mask_sensitive_object(before_obj, before_sensitive)
     masked_after = _mask_sensitive_object(after_obj, after_sensitive)
@@ -427,33 +415,20 @@ def _create_unified_resources(
 
     unified_resources = []
 
-    # Process resources with changes
-    for address, changes_item in changes_by_address.items():
-        drift_item = drift_by_address.pop(address, None)
+    for address in set(changes_by_address) | set(drift_by_address):
         unified_resources.append(
             ViewPlanResourceData(
                 address=address,
-                resource_changes=changes_item,
-                resource_drift=drift_item,
-                has_drift=drift_item is not None,
-            ),
-        )
-
-    # Process remaining drift-only resources
-    for address, drift_item in drift_by_address.items():
-        unified_resources.append(
-            ViewPlanResourceData(
-                address=address,
-                resource_changes=None,
-                resource_drift=drift_item,
-                has_drift=True,
+                resource_changes=changes_by_address.get(address),
+                resource_drift=drift_by_address.get(address),
+                has_drift=address in drift_by_address,
             ),
         )
 
     return unified_resources
 
 
-def _determine_primary_item_and_scenario(resource_data: ViewPlanResourceData) -> tuple[Optional[Dict], Optional[str]]:
+def _determine_primary_item_and_scenario(resource_data: ViewPlanResourceData) -> Tuple[Optional[Dict], Optional[str]]:
     """Determine the primary item and scenario type for diff processing."""
     changes_item = resource_data.resource_changes
     drift_item = resource_data.resource_drift
@@ -570,7 +545,7 @@ def _has_output_changes(change: Dict) -> bool:
     return before != after
 
 
-def _create_sensitive_output_values(change: Dict) -> tuple[Any, Any]:
+def _create_sensitive_output_values(change: Dict) -> Tuple[Any, Any]:
     """Create appropriate values for sensitive outputs."""
     before = change.get("before", None)
     after = change.get("after", None)
