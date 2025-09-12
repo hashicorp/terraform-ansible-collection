@@ -87,7 +87,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "run_id": {"type":"str", "required":"True"},
+            "run_id": {"type": "str", "required": "True"},
         },
         supports_check_mode=True,
     )
@@ -104,7 +104,7 @@ def main() -> None:
         if not run_info_data:
             module.fail_json(msg=f"run with ID {params['run_id']} not found")
 
-        result["run"] = run_info_data.get("data",run_info_data)
+        result["run"] = run_info_data.get("data", run_info_data)
 
         module.exit_json(**result)
 
