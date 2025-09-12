@@ -77,7 +77,12 @@ for more details.
 
 ## Use Cases
 
-Modules in the collection can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
+Modules in this collection can be used for various operations on Terraform Cloud/Enterprise. Currently the collection supports:
+
+- Creating, uploading and archiving configuration versions
+- Creating, applying, and discarding new runs
+
+These modules can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
 For examples on how to use modules included in this collection, please refer to their documentation.
 
 ```yaml
@@ -93,6 +98,24 @@ For examples on how to use modules included in this collection, please refer to 
         configuration_files_path: "{{ configuration_files }}"
         poll_interval: 3
         poll_timeout: 15
+        tf_token: "{{ terraform_cloud_token }}"
+```
+
+```yaml
+---
+- name: Playbook using hashicorp.terraform collection
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hashicorp.terraform
+  tasks:
+    - name: Create a plan-only run for review (with polling)
+      hashicorp.terraform.run:
+        workspace_id: "ws-abc123def456"
+        run_message: "Review infrastructure changes"
+        plan_only: true
+        poll: true
+        state: "present"
         tf_token: "{{ terraform_cloud_token }}"
 ```
 
@@ -118,9 +141,16 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ## Release Notes and Roadmap
 
-See the
-[changelog](https://github.com/ansible-collections/hashicorp.terraform/tree/main/CHANGELOG.rst).
+### Latest Release: 1.0.0
 
+#### Release Summary
+
+This marks the first release of the `hashicorp.terraform` collection.
+
+#### New Modules
+
+- `configuration_version` — Manage configuration versions in Terraform Enterprise/Cloud.
+- `run` — Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
 
 ## Related Information
 
