@@ -11,7 +11,7 @@ __metaclass__ = type
 DOCUMENTATION = r"""
 ---
 module: run_info
-version_added: 1.0.0
+version_added: 1.1.0
 short_description: Retrieve information about a run in Terraform Enterprise/Cloud.
 author: "Abhishek Chaudhary (@abchaudh)"
 description:
