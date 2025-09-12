@@ -101,24 +101,6 @@ For examples on how to use modules included in this collection, please refer to 
         tf_token: "{{ terraform_cloud_token }}"
 ```
 
-```yaml
----
-- name: Playbook using hashicorp.terraform collection
-  hosts: localhost
-  gather_facts: false
-  collections:
-    - hashicorp.terraform
-  tasks:
-    - name: Create a plan-only run for review (with polling)
-      hashicorp.terraform.run:
-        workspace_id: "ws-abc123def456"
-        run_message: "Review infrastructure changes"
-        plan_only: true
-        poll: true
-        state: "present"
-        tf_token: "{{ terraform_cloud_token }}"
-```
-
 ## Testing
 
 GitHub Actions workflows are used to run tests for the `hashicorp.terraform` collection. These workflows include jobs to run the unit tests, integration tests, sanity tests, linters, changelog check and doc related checks. The following table lists the python and ansible versions against which these jobs are run.
