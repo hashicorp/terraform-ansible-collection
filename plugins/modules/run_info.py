@@ -87,7 +87,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "run_id": {"type": "str", "required": "True"},
+            "run_id": {"type": "str", "required": True},
         },
         supports_check_mode=True,
     )
