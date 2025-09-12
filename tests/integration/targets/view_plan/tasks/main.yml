@@ -114,10 +114,15 @@
         run_id: "{{ run_result.id }}"
       register: view_plan_diff_by_run
 
+    - name: Sort diffs for run_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after.cidr_block') }}"
+        sorted_expected_diff: "{{ expected_diff | sort(attribute='after.cidr_block') }}"
+
     - name: Assert diff from run_id matches expected
       ansible.builtin.assert:
         that:
-          - view_plan_diff_by_run.diff == expected_diff
+          - sorted_actual_diff == sorted_expected_diff
         fail_msg: "Diff from run_id does not match expected structure"
 
     - name: View plan by plan_id in diff format
@@ -126,10 +131,14 @@
         output_format: "diff"
       register: view_plan_diff_by_plan
 
-    - name: Assert diff from plan_id matches expected
+    - name: Sort diffs for plan_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after.cidr_block') }}"
+
+    - name: Assert diff from plan_id matches expected (order-independent)
       ansible.builtin.assert:
         that:
-          - view_plan_diff_by_plan.diff == expected_diff
+          - sorted_actual_diff_plan == sorted_expected_diff
         fail_msg: "Diff from plan_id does not match expected structure"
 
     - name: View plan by plan_id in JSON format
@@ -138,10 +147,15 @@
         output_format: "json"
       register: view_plan_json_by_plan
 
-    - name: Assert JSON from plan_id matches expected structure
+    - name: Sort JSON resource_changes for plan_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+        sorted_expected_json: "{{ expected_json | sort(attribute='change.after.cidr_block') }}"
+
+    - name: Assert JSON from plan_id matches expected structure (order-independent)
       ansible.builtin.assert:
         that:
-          - view_plan_json_by_plan.json_output.resource_changes == expected_json
+          - sorted_actual_json_plan == sorted_expected_json
         fail_msg: "JSON from plan_id does not match expected structure"
 
     - name: View plan by run_id in JSON format
@@ -150,10 +164,14 @@
         output_format: "json"
       register: view_plan_json_by_run
 
-    - name: Assert JSON from run_id matches expected structure
+    - name: Sort JSON resource_changes for run_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+
+    - name: Assert JSON from run_id matches expected structure (order-independent)
       ansible.builtin.assert:
         that:
-          - view_plan_json_by_run.json_output.resource_changes == expected_json
+          - sorted_actual_json_run == sorted_expected_json
         fail_msg: "JSON from run_id does not match expected structure"
 
     - name: Apply the run
