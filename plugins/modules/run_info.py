@@ -102,7 +102,7 @@ def main() -> None:
 
         run_info_data = get_run(client=client, run_id=params["run_id"])
         if not run_info_data:
-            module.fail_json(msg=f"run with ID {params['run_id']} not found")
+            module.fail_json(msg=f"The run with ID {params['run_id']} was not found.")
 
         result["run"] = run_info_data.get("data", run_info_data)
 
