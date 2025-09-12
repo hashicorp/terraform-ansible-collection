@@ -55,31 +55,21 @@
           - result.attributes.status == "uploaded"
 
     - name: Trigger plan_only run
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/runs"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            type: "runs"
-            attributes:
-              message: "run triggered"
-              plan-only: true
-            relationships:
-              workspace:
-                data:
-                  type: "workspaces"
-                  id: "{{ workspace_id }}"
-        return_content: true
-        status_code: 201
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan-only vpc creation"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        plan_only: true
       register: run_apply
 
-    - name: Wait till run completion
-      ansible.builtin.pause:
-        minutes: 1
+    - name: Assert plan-only run was created and changed
+      ansible.builtin.assert:
+        that:
+          - run_apply.changed
 
     - name: Debug Output of a run
       ansible.builtin.debug:
@@ -87,7 +77,7 @@
 
     - name: Get the run
       hashicorp.terraform.run_info:
-        run_id: "{{ run_apply.json.data.id }}"
+        run_id: "{{ run_apply.id }}"
         tf_token: "{{ tfc_token }}"
       register: run_response
 
