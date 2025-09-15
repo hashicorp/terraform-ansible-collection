@@ -60,7 +60,7 @@ EXAMPLES = r"""
     run_id: run-FDuANSTFnnDowa3C
     output_format: diff
   register: plan_result
-  
+
 # Task output:
 # ------------
 # --- before
@@ -88,7 +88,7 @@ EXAMPLES = r"""
     plan_id: plan-ZYSSTANWIoYhx3Ch
     output_format: json
   register: plan_result
-  
+
 # Task output:
 # ------------
 # {
@@ -131,7 +131,7 @@ EXAMPLES = r"""
     msg: |
       Plan has changes: {{ plan_result.changed }}
   when: plan_result.output_format == 'diff'
-  
+
 # Task output:
 # ------------
 # {
@@ -144,7 +144,7 @@ EXAMPLES = r"""
     plan_id: plan-NonExistentPlan123
   register: plan_result
   failed_when: false
-  
+
 # Task output:
 # ------------
 # {
