@@ -114,16 +114,14 @@ class TestViewPlanModule:
             ),
         ],
     )
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_json_output")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_metadata")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_success_scenarios(
         self,
         mock_module_class,
         mock_client,
-        mock_get_metadata,
-        mock_get_json,
+        mock_get_data,
         params,
         metadata_response,
         json_response,
@@ -134,8 +132,13 @@ class TestViewPlanModule:
         mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
 
-        mock_get_metadata.return_value = metadata_response
-        mock_get_json.return_value = json_response
+        def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
+            if include_json_output:
+                return json_response
+            else:
+                return metadata_response
+
+        mock_get_data.side_effect = mock_get_plan_data
 
         with pytest.raises(SystemExit):
             main()
@@ -158,16 +161,14 @@ class TestViewPlanModule:
             (None, "run-nonexistent456", False, "Plan for run with ID 'run-nonexistent456' was not found."),
         ],
     )
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_json_output")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_metadata")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_plan_not_found(
         self,
         mock_module_class,
         mock_client,
-        mock_get_metadata,
-        mock_get_json,
+        mock_get_data,
         plan_id,
         run_id,
         use_plan_id,
@@ -184,8 +185,7 @@ class TestViewPlanModule:
         mock_module = EnhancedDummyModule(params)
         mock_module_class.return_value = mock_module
 
-        mock_get_metadata.return_value = {}
-        mock_get_json.return_value = {}
+        mock_get_data.return_value = {}
 
         with pytest.raises(AssertionError) as exc_info:
             main()
@@ -195,7 +195,7 @@ class TestViewPlanModule:
         assert mock_module.fail_args["msg"] == expected_msg
 
         identifier = plan_id if use_plan_id else run_id
-        mock_get_metadata.assert_called_once_with(ANY, identifier, use_plan_id)
+        mock_get_data.assert_any_call(ANY, identifier, use_plan_id, include_json_output=False)
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
@@ -323,16 +323,14 @@ class TestViewPlanModule:
             ),
         ],
     )
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_json_output")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_metadata")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_complex_scenarios(
         self,
         mock_module_class,
         mock_client,
-        mock_get_metadata,
-        mock_get_json,
+        mock_get_data,
         scenario,
         json_data,
         expected_diff_count,
@@ -352,8 +350,13 @@ class TestViewPlanModule:
         metadata_response = {"data": {"id": f"plan-{scenario}123", "attributes": {"status": "finished"}}}
         json_output_response = {"data": json_data}
 
-        mock_get_metadata.return_value = metadata_response
-        mock_get_json.return_value = json_output_response
+        def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
+            if include_json_output:
+                return json_output_response
+            else:
+                return metadata_response
+
+        mock_get_data.side_effect = mock_get_plan_data
 
         with pytest.raises(SystemExit):
             main()
@@ -384,11 +387,16 @@ class TestViewPlanModule:
         mock_module_class.return_value = mock_module
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient"), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_metadata",
-        ) as mock_get_metadata, patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_json_output") as mock_get_json:
+            "ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data",
+        ) as mock_get_data:
 
-            mock_get_metadata.return_value = {"data": {"attributes": {"status": "finished"}}}
-            mock_get_json.return_value = {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}}
+            def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
+                if include_json_output:
+                    return {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}}
+                else:
+                    return {"data": {"attributes": {"status": "finished"}}}
+
+            mock_get_data.side_effect = mock_get_plan_data
 
             with pytest.raises(SystemExit):
                 main()
