@@ -595,7 +595,7 @@ def _process_output_changes(output_changes: Dict) -> List[Dict]:
     return diffs
 
 
-def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
+def _get_diff_sequences(json_output_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Extract diff sequences from plan data using unified resource processing.
 
     Args:
