@@ -43,17 +43,17 @@ options:
 
 EXAMPLES = r"""
 - name: Show the configuration using ID
-    hashicorp.terraform.terraform_configuration_info:
-      configuration_id: cv-UYwHEakurukz85nW
+  hashicorp.terraform.terraform_configuration_info:
+    configuration_id: cv-UYwHEakurukz85nW
 
 - name: Show the current configuration using workspace ID
-    hashicorp.terraform.terraform_configuration_info:
-      workspace_id: ws-6jrRyVDv1J8zQMB5
+  hashicorp.terraform.terraform_configuration_info:
+    workspace_id: ws-6jrRyVDv1J8zQMB5
 
 - name: Show the current configuration using workspace and organization name
-    hashicorp.terraform.terraform_configuration_info:
-      workspace: workspace-name
-      organization: org-name
+  hashicorp.terraform.terraform_configuration_info:
+    workspace: workspace-name
+    organization: org-name
 """
 
 RETURN = r"""
