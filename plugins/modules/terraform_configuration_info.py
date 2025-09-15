@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import, annotations, division, print_function
 
+
 DOCUMENTATION = r"""
 ---
 module: terraform_configuration_info
