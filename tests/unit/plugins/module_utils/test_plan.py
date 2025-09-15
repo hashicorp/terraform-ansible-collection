@@ -11,8 +11,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
     TerraformError,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
-    get_plan_json_output,
-    get_plan_metadata,
+    get_plan_data,
 )
 
 
@@ -35,16 +34,16 @@ class TestPlanFunctions:
         return "run-456def789abc123"
 
     @pytest.mark.parametrize(
-        "function_name,use_plan_id,resource_id,expected_endpoint_suffix",
+        "include_json_output,use_plan_id,resource_id,expected_endpoint_suffix",
         [
-            ("get_plan_metadata", True, "plan-123", ""),
-            ("get_plan_metadata", False, "run-456", "/plan"),
-            ("get_plan_json_output", True, "plan-123", "/json-output"),
-            ("get_plan_json_output", False, "run-456", "/plan/json-output"),
+            (False, True, "plan-123", ""),
+            (False, False, "run-456", "/plan"),
+            (True, True, "plan-123", "/json-output"),
+            (True, False, "run-456", "/plan/json-output"),
         ],
     )
-    def test_plan_functions_success(self, mock_tf_client, function_name, use_plan_id, resource_id, expected_endpoint_suffix):
-        """Test successful retrieval for both metadata and JSON output functions."""
+    def test_get_plan_data_success(self, mock_tf_client, include_json_output, use_plan_id, resource_id, expected_endpoint_suffix):
+        """Test successful retrieval for both metadata and JSON output using get_plan_data."""
         expected_response = {
             "data": (
                 {
@@ -52,7 +51,7 @@ class TestPlanFunctions:
                     "type": "plans",
                     "attributes": {"status": "finished", "has_changes": True},
                 }
-                if function_name == "get_plan_metadata"
+                if not include_json_output
                 else {
                     "format_version": "1.2",
                     "terraform_version": "1.5.0",
@@ -66,9 +65,8 @@ class TestPlanFunctions:
         }
 
         mock_tf_client.get.return_value = expected_response
-        func = globals()[function_name]
 
-        result = func(mock_tf_client, resource_id, use_plan_id=use_plan_id)
+        result = get_plan_data(mock_tf_client, resource_id, use_plan_id=use_plan_id, include_json_output=include_json_output)
 
         assert result == expected_response
         if use_plan_id:
@@ -78,45 +76,43 @@ class TestPlanFunctions:
         mock_tf_client.get.assert_called_once_with(expected_endpoint)
 
     @pytest.mark.parametrize(
-        "function_name,use_plan_id",
+        "use_plan_id,include_json_output",
         [
-            ("get_plan_metadata", True),
-            ("get_plan_metadata", False),
-            ("get_plan_json_output", True),
-            ("get_plan_json_output", False),
+            (True, False),
+            (False, False),
+            (True, True),
+            (False, True),
         ],
     )
-    def test_plan_functions_not_found_404(self, mock_tf_client, function_name, use_plan_id):
-        """Test both functions return empty dict on 404."""
+    def test_get_plan_data_not_found_404(self, mock_tf_client, use_plan_id, include_json_output):
+        """Test get_plan_data returns empty dict on 404."""
         mock_tf_client.get.return_value = {"status": 404}
-        func = globals()[function_name]
 
-        result = func(mock_tf_client, "resource-123", use_plan_id=use_plan_id)
+        result = get_plan_data(mock_tf_client, "resource-123", use_plan_id=use_plan_id, include_json_output=include_json_output)
 
         assert result == {}
 
     @pytest.mark.parametrize(
-        "function_name,status_code",
+        "status_code,include_json_output",
         [
-            ("get_plan_metadata", 400),
-            ("get_plan_metadata", 500),
-            ("get_plan_json_output", 401),
-            ("get_plan_json_output", 503),
+            (400, False),
+            (500, True),
+            (401, False),
+            (503, True),
         ],
     )
-    def test_plan_functions_failure_statuses(self, mock_tf_client, plan_id, function_name, status_code):
-        """Test both functions raise TerraformError on non-success status codes."""
+    def test_get_plan_data_failure_statuses(self, mock_tf_client, plan_id, status_code, include_json_output):
+        """Test get_plan_data raises TerraformError on non-success status codes."""
         response = {"status": status_code}
         mock_tf_client.get.return_value = response
-        func = globals()[function_name]
 
         with pytest.raises(TerraformError) as exc_info:
-            func(mock_tf_client, plan_id, use_plan_id=True)
+            get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=include_json_output)
 
         assert exc_info.value.args[0] == response
 
-    def test_get_plan_metadata_complex_structure(self, mock_tf_client, plan_id, run_id):
-        """Test get_plan_metadata with complex nested data structure."""
+    def test_get_plan_data_metadata_complex_structure(self, mock_tf_client, plan_id, run_id):
+        """Test get_plan_data for metadata with complex nested data structure."""
         expected_response = {
             "data": {
                 "id": plan_id,
@@ -142,15 +138,15 @@ class TestPlanFunctions:
         }
         mock_tf_client.get.return_value = expected_response
 
-        result = get_plan_metadata(mock_tf_client, plan_id, use_plan_id=True)
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
 
         assert result == expected_response
         assert "status_timestamps" in result["data"]["attributes"]
         assert "permissions" in result["data"]["attributes"]
         assert "relationships" in result["data"]
 
-    def test_get_plan_json_output_complex_changes(self, mock_tf_client, plan_id):
-        """Test get_plan_json_output with complex resource changes."""
+    def test_get_plan_data_json_output_complex_changes(self, mock_tf_client, plan_id):
+        """Test get_plan_data for JSON output with complex resource changes."""
         expected_response = {
             "data": {
                 "format_version": "1.2",
@@ -189,7 +185,7 @@ class TestPlanFunctions:
         }
         mock_tf_client.get.return_value = expected_response
 
-        result = get_plan_json_output(mock_tf_client, plan_id, use_plan_id=True)
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
 
         assert result == expected_response
         assert len(result["data"]["resource_changes"]) > 1
@@ -204,8 +200,8 @@ class TestPlanFunctions:
             ("errored", False, False, True),
         ],
     )
-    def test_get_plan_json_output_various_states(self, mock_tf_client, plan_id, plan_status, applyable, complete, errored):
-        """Test get_plan_json_output with various plan states."""
+    def test_get_plan_data_json_output_various_states(self, mock_tf_client, plan_id, plan_status, applyable, complete, errored):
+        """Test get_plan_data JSON output with various plan states."""
         expected_response = {
             "data": {
                 "format_version": "1.2",
@@ -219,28 +215,29 @@ class TestPlanFunctions:
         }
         mock_tf_client.get.return_value = expected_response
 
-        result = get_plan_json_output(mock_tf_client, plan_id, use_plan_id=True)
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
 
         assert result["data"]["applyable"] == applyable
         assert result["data"]["complete"] == complete
         assert result["data"]["errored"] == errored
 
     @pytest.mark.parametrize(
-        "function_name,exception_type",
+        "exception_type,include_json_output",
         [
-            ("get_plan_metadata", Exception),
-            ("get_plan_json_output", Exception),
+            (Exception, False),
+            (Exception, True),
+            (ConnectionError, False),
+            (TimeoutError, True),
         ],
     )
-    def test_plan_functions_client_exceptions(self, mock_tf_client, function_name, exception_type):
-        """Test both functions handle client exceptions."""
+    def test_get_plan_data_client_exceptions(self, mock_tf_client, exception_type, include_json_output):
+        """Test get_plan_data handles client exceptions."""
         mock_tf_client.get.side_effect = exception_type("Network error")
-        func = globals()[function_name]
 
         with pytest.raises(exception_type, match="Network error"):
-            func(mock_tf_client, "plan-123", use_plan_id=True)
+            get_plan_data(mock_tf_client, "plan-123", use_plan_id=True, include_json_output=include_json_output)
 
-    def test_plan_functions_consistency(self, mock_tf_client):
+    def test_get_plan_data_consistency(self, mock_tf_client):
         """Test that metadata and JSON output are consistent for the same plan."""
         plan_id = "plan-consistent123"
 
@@ -270,14 +267,72 @@ class TestPlanFunctions:
 
         mock_tf_client.get.side_effect = mock_get_response
 
-        metadata = get_plan_metadata(mock_tf_client, plan_id, use_plan_id=True)
-        json_output = get_plan_json_output(mock_tf_client, plan_id, use_plan_id=True)
+        metadata = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
+        json_output = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
 
         assert metadata["data"]["attributes"]["has_changes"] == json_output["data"]["applyable"]
         creates = len([rc for rc in json_output["data"]["resource_changes"] if rc["change"]["actions"] == ["create"]])
         updates = len([rc for rc in json_output["data"]["resource_changes"] if rc["change"]["actions"] == ["update"]])
         assert metadata["data"]["attributes"]["resource_additions"] == creates
         assert metadata["data"]["attributes"]["resource_changes"] == updates
+
+    def test_get_plan_data_default_parameter(self, mock_tf_client):
+        """Test that get_plan_data defaults to metadata when include_json_output is not specified."""
+        plan_id = "plan-default-test"
+        metadata_response = {
+            "data": {"id": plan_id, "attributes": {"status": "finished"}},
+            "status": 200,
+        }
+        mock_tf_client.get.return_value = metadata_response
+
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
+        assert result == metadata_response
+        mock_tf_client.get.assert_called_with(f"/plans/{plan_id}")
+
+        mock_tf_client.reset_mock()
+        mock_tf_client.get.return_value = metadata_response
+
+        result_explicit = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
+        assert result_explicit == metadata_response
+        mock_tf_client.get.assert_called_with(f"/plans/{plan_id}")
+
+    def test_get_plan_data_endpoint_construction(self, mock_tf_client):
+        """Test that get_plan_data constructs correct endpoints for all scenarios."""
+        plan_id = "plan-endpoint-test"
+        run_id = "run-endpoint-test"
+
+        test_cases = [
+            (True, False, plan_id, f"/plans/{plan_id}"),
+            (True, True, plan_id, f"/plans/{plan_id}/json-output"),
+            (False, False, run_id, f"/runs/{run_id}/plan"),
+            (False, True, run_id, f"/runs/{run_id}/plan/json-output"),
+        ]
+
+        mock_tf_client.get.return_value = {"status": 200, "data": {}}
+
+        for use_plan_id, include_json_output, identifier, expected_endpoint in test_cases:
+            mock_tf_client.reset_mock()
+            get_plan_data(mock_tf_client, identifier, use_plan_id, include_json_output)
+            mock_tf_client.get.assert_called_once_with(expected_endpoint)
+
+    def test_get_plan_data_response_handling(self, mock_tf_client):
+        """Test that get_plan_data properly handles different response scenarios."""
+        plan_id = "plan-response-test"
+
+        success_response = {"status": 200, "data": {"id": plan_id}}
+        mock_tf_client.get.return_value = success_response
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
+        assert result == success_response
+
+        mock_tf_client.get.return_value = {"status": 404}
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
+        assert result == {}
+
+        error_response = {"status": 500, "error": "Internal server error"}
+        mock_tf_client.get.return_value = error_response
+        with pytest.raises(TerraformError) as exc_info:
+            get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
+        assert exc_info.value.args[0] == error_response
 
 
 if __name__ == "__main__":

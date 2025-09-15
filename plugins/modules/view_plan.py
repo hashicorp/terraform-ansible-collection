@@ -60,6 +60,26 @@ EXAMPLES = r"""
     run_id: run-FDuANSTFnnDowa3C
     output_format: diff
   register: plan_result
+# Task output:
+# ------------
+# --- before
+# +++ after: aws_instance.new_server will be created
+#  Changes to apply.
+# @@ -0,0 +1,14 @@
+# +{
+# +    "ami": "ami-07b0c09aab6e66ee9",
+# +    "credit_specification": [],
+# +    "get_password_data": false,
+# +    "hibernation": null,
+# +    "instance_type": "t2.micro",
+# +    "launch_template": [],
+# +    "source_dest_check": true,
+# +    "tags": null,
+# +    "timeouts": null,
+# +    "user_data": "<sensitive>",
+# +    "user_data_replace_on_change": false,
+# +    "volume_tags": null
+# +}
 
 # Get json plan information
 - name: Get json plan information by plan ID
@@ -67,6 +87,41 @@ EXAMPLES = r"""
     plan_id: plan-ZYSSTANWIoYhx3Ch
     output_format: json
   register: plan_result
+# Task output:
+# ------------
+# {
+#     "changed": false,
+#     "failed": false,
+#     "json_output": {
+#         "format_version": "1.1",
+#         "terraform_version": "1.5.0",
+#         "resource_changes": [
+#             {
+#                 "address": "aws_instance.example",
+#                 "mode": "managed",
+#                 "type": "aws_instance",
+#                 "name": "example",
+#                 "change": {
+#                     "actions": ["create"],
+#                     "before": null,
+#                     "after": {
+#                         "ami": "ami-0c02fb55956c7d316",
+#                         "instance_type": "t2.micro"
+#                     }
+#                 }
+#             }
+#         ]
+#     },
+#     "metadata": {
+#         "id": "plan-ZYSSTANWIoYhx3Ch",
+#         "type": "plans",
+#         "attributes": {
+#             "has-changes": true,
+#             "status": "finished",
+#             "log-read-url": "https://app.terraform.io/api/v2/plans/.../logs"
+#         }
+#     },
+# }
 
 # Display diff results
 - name: Display plan changes summary
@@ -74,6 +129,24 @@ EXAMPLES = r"""
     msg: |
       Plan has changes: {{ plan_result.changed }}
   when: plan_result.output_format == 'diff'
+# Task output:
+# ------------
+# {
+#     "msg": "Plan has changes"
+# }
+
+# Handle case where plan doesn't exist
+- name: Try to view non-existent plan
+  hashicorp.terraform.view_plan:
+    plan_id: plan-NonExistentPlan123
+  register: plan_result
+  failed_when: false
+# Task output:
+# ------------
+# {
+#     "changed": false,
+#     "msg": "Plan with ID 'plan-NonExistentPlan123' was not found.",
+# }
 """
 
 RETURN = r"""
@@ -124,8 +197,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan im
     ViewPlanResourceData,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
-    get_plan_json_output,
-    get_plan_metadata,
+    get_plan_data,
 )
 
 
@@ -595,7 +667,7 @@ def _process_output_changes(output_changes: Dict) -> List[Dict]:
     return diffs
 
 
-def _get_diff_sequences(json_output_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _get_diff_sequences(json_output_data: Dict) -> List[Dict]:
     """Extract diff sequences from plan data using unified resource processing.
 
     Args:
@@ -652,8 +724,8 @@ def main() -> None:
         use_plan_id = plan_id is not None
 
         # Get plan information
-        metadata_response = get_plan_metadata(client, identifier, use_plan_id)
-        json_output_response = get_plan_json_output(client, identifier, use_plan_id)
+        metadata_response = get_plan_data(client, identifier, use_plan_id, include_json_output=False)
+        json_output_response = get_plan_data(client, identifier, use_plan_id, include_json_output=True)
 
         # Check if plan was found
         if not metadata_response:
