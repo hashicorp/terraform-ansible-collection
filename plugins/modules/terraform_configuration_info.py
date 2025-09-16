@@ -10,7 +10,7 @@ DOCUMENTATION = r"""
 ---
 module: terraform_configuration_info
 version_added: 1.1.0
-short_description: Manage workspaces in Terraform Enterprise/Cloud.
+short_description: Retrieve information about configuration versions in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
   - This module retrieves information about a given configuration version in Terraform Enterprise/Cloud.
