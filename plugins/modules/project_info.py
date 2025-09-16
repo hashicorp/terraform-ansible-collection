@@ -22,6 +22,7 @@ options:
     description:
       - The unique identifier of the project to retrieve information about.
     type: str
+    required: true
 """
 EXAMPLES = r"""
 - name: Gather information about a project by ID
