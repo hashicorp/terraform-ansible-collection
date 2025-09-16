@@ -34,7 +34,7 @@ options:
   workspace_id:
     description:
       - ID of the workspace.
-      - Either I(workspace) (and I(organization)) or I(workspace_id) must be specified when updating a `workspace`.
+      - Either I(workspace) (and I(organization)) or I(workspace_id) must be specified.
     type: str
   configuration_version_id:
     description:
