@@ -38,7 +38,7 @@ options:
   configuration_version_id:
     description:
       - The ID of the configuration version.
-      - Either a combination of I(workspace) (and I(organization)), or one of I(workspace_id) or I(configuration_version_id) 
+      - Either a combination of I(workspace) (and I(organization)), or one of I(workspace_id) or I(configuration_version_id)
         must be specified.
     type: str
 """
