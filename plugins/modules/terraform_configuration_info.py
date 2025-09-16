@@ -34,11 +34,11 @@ options:
   workspace_id:
     description:
       - ID of the workspace.
-      - Either I(workspace) (and I(organization)) or I(workspace_id) must be specified.
     type: str
   configuration_version_id:
     description:
       - The id of the configuration version.
+      - Either I(workspace) (and I(organization)) or I(workspace_id) or I(configuration_version_id) must be specified.
     type: str
 """
 
