@@ -1,6 +1,25 @@
-This should be updated by antsibull-changelog. Do not edit this manually!
+============================================
+Hashicorp Terraform Collection Release Notes
+============================================
 
-See https://github.com/ansible-community/antsibull-changelog/blob/main/docs/changelogs.rst for
-information on how to use antsibull-changelog.
+.. contents:: Topics
 
-Check out ``changelogs/config.yaml`` for its configuration. You need to change at least the ``title`` field in there.
+v1.0.0
+======
+
+Release Summary
+---------------
+
+This marks the first release of the hashicorp.terraform collection.
+
+Minor Changes
+-------------
+
+- Adds a new module hashicorp.terraform.configuration_version for configuration-version management on TFE/C.
+- Adds a new module hashicorp.terraform.run for run management on TFE/C.
+
+New Modules
+-----------
+
+- configuration_version - Manage configuration versions in Terraform Enterprise/Cloud.
+- run - Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).

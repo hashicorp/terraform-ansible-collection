@@ -1,0 +1,24 @@
+ancestor: null
+releases:
+  1.0.0:
+    changes:
+      minor_changes:
+        - Adds a new module hashicorp.terraform.configuration_version for configuration-version
+          management on TFE/C.
+        - Adds a new module hashicorp.terraform.run for run management on TFE/C.
+      release_summary: This marks the first release of the hashicorp.terraform collection.
+    fragments:
+      - client.yaml
+      - module_addition.yml
+      - release_100.yml
+      - run_module_addition.yml
+    modules:
+      - description: Manage configuration versions in Terraform Enterprise/Cloud.
+        name: configuration_version
+        namespace: ""
+      - description:
+          Manage Terraform Cloud/Enterprise runs (create, apply, cancel,
+          discard).
+        name: run
+        namespace: ""
+    release_date: "2025-09-03"
