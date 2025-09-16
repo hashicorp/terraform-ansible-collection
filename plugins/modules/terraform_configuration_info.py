@@ -14,9 +14,9 @@ short_description: Retrieve information about configuration versions in Terrafor
 author: "Kaushiki Singh (@kausingh)"
 description:
   - This module retrieves information about a given configuration version in Terraform Enterprise/Cloud.
-  - If I(configuration_version_id) is specified, this module will retrieve and render information about it.
+  - If I(configuration_version_id) is specified, this module will retrieve and return information about it.
   - If either I(workspace) (and I(organization)) or I(workspace_id) is specified, this module will retrieve the current
-    configuration version of the workspace and render information about it.
+    configuration version of the workspace and return information about it.
   - If the workspace does not exist, the module will fail with an error message.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
@@ -37,15 +37,16 @@ options:
     type: str
   configuration_version_id:
     description:
-      - The id of the configuration version.
-      - Either I(workspace) (and I(organization)) or I(workspace_id) or I(configuration_version_id) must be specified.
+      - The ID of the configuration version.
+      - Either a combination of I(workspace) (and I(organization)), or one of I(workspace_id) or I(configuration_version_id) 
+        must be specified.
     type: str
 """
 
 EXAMPLES = r"""
 - name: Show the configuration using ID
   hashicorp.terraform.terraform_configuration_info:
-    configuration_id: cv-UYwHEakurukz85nW
+    configuration_version_id: cv-UYwHEakurukz85nW
 
 - name: Show the current configuration using workspace ID
   hashicorp.terraform.terraform_configuration_info:
