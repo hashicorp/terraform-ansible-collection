@@ -29,6 +29,7 @@ EXAMPLES = r"""
   hashicorp.terraform.project_info:
     project_id: "prj-sample1234567890"
   register: project_info
+
 # Task output:
 # ------------
 # "project_info": {
@@ -90,6 +91,7 @@ EXAMPLES = r"""
     project_id: "prj-invalid-project-id"
   register: project_info
   ignore_errors: true
+
 # Task output:
 # ------------
 # FAILED! => {
