@@ -38,7 +38,7 @@ options:
     type: str
   configuration_version_id:
     description:
-      - The id of the configuration version that needs to be archived.
+      - The id of the configuration version.
     type: str
 """
 
