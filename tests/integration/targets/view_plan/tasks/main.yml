@@ -1,0 +1,351 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-view-plan-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ workspace_name }}"
+            type: "workspaces"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.json.data.id }}"
+
+    - name: Create temporary directory to store main.tf configuration and expected JSON
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Generate expected diff JSON from template
+      ansible.builtin.template:
+        src: "expected_diff.json.j2"
+        dest: "{{ temp_dir.path }}/expected_diff.json"
+        mode: "0644"
+      vars:
+        unique_id: "{{ unique_id }}"
+      register: expected_diff_file
+
+    - name: Generate expected JSON structure from template
+      ansible.builtin.template:
+        src: "expected_json_structure.json.j2"
+        dest: "{{ temp_dir.path }}/expected_json_structure.json"
+        mode: "0644"
+      vars:
+        unique_id: "{{ unique_id }}"
+      register: expected_json_file
+
+    - name: Load expected diff and JSON structure
+      ansible.builtin.set_fact:
+        expected_diff: "{{ lookup('file', temp_dir.path + '/expected_diff.json') | from_json }}"
+        expected_json: "{{ lookup('file', temp_dir.path + '/expected_json_structure.json') | from_json }}"
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        tf_validate_certs: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: config_version_result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - config_version_result.changed
+          - config_version_result.attributes.status == "uploaded"
+
+    - name: Create a new run for plan viewing
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan for view_plan testing"
+        state: "present"
+        configuration_version: "{{ config_version_result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_result
+
+    - name: Assert run was created and planned
+      ansible.builtin.assert:
+        that:
+          - run_result.changed
+          - run_result.attributes.status == "planned"
+
+    - name: Get plan_id from run relationships
+      ansible.builtin.set_fact:
+        plan_id: "{{ run_result.relationships.plan.data.id }}"
+
+    - name: View plan by run_id in diff format
+      hashicorp.terraform.view_plan:
+        run_id: "{{ run_result.id }}"
+      register: view_plan_diff_by_run
+
+    - name: Sort diffs for run_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after.cidr_block') }}"
+        sorted_expected_diff: "{{ expected_diff | sort(attribute='after.cidr_block') }}"
+
+    - name: Assert diff from run_id matches expected
+      ansible.builtin.assert:
+        that:
+          - sorted_actual_diff == sorted_expected_diff
+        fail_msg: "Diff from run_id does not match expected structure"
+
+    - name: View plan by plan_id in diff format
+      hashicorp.terraform.view_plan:
+        plan_id: "{{ plan_id }}"
+        output_format: "diff"
+      register: view_plan_diff_by_plan
+
+    - name: Sort diffs for plan_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after.cidr_block') }}"
+
+    - name: Assert diff from plan_id matches expected (order-independent)
+      ansible.builtin.assert:
+        that:
+          - sorted_actual_diff_plan == sorted_expected_diff
+        fail_msg: "Diff from plan_id does not match expected structure"
+
+    - name: View plan by plan_id in JSON format
+      hashicorp.terraform.view_plan:
+        plan_id: "{{ plan_id }}"
+        output_format: "json"
+      register: view_plan_json_by_plan
+
+    - name: Sort JSON resource_changes for plan_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+        sorted_expected_json: "{{ expected_json | sort(attribute='change.after.cidr_block') }}"
+
+    - name: Assert JSON from plan_id matches expected structure (order-independent)
+      ansible.builtin.assert:
+        that:
+          - sorted_actual_json_plan == sorted_expected_json
+        fail_msg: "JSON from plan_id does not match expected structure"
+
+    - name: View plan by run_id in JSON format
+      hashicorp.terraform.view_plan:
+        run_id: "{{ run_result.id }}"
+        output_format: "json"
+      register: view_plan_json_by_run
+
+    - name: Sort JSON resource_changes for run_id comparison
+      ansible.builtin.set_fact:
+        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+
+    - name: Assert JSON from run_id matches expected structure (order-independent)
+      ansible.builtin.assert:
+        that:
+          - sorted_actual_json_run == sorted_expected_json
+        fail_msg: "JSON from run_id does not match expected structure"
+
+    - name: Apply the run
+      hashicorp.terraform.run:
+        run_id: "{{ run_result.id }}"
+        state: "applied"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_apply_result
+
+    - name: Assert run was applied
+      ansible.builtin.assert:
+        that:
+          - run_apply_result.changed
+
+    # Test plan with no changes
+    - name: Create another run with no changes
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "no changes run for view_plan testing"
+        state: "present"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: no_changes_run_result
+
+    - name: View plan with no changes
+      hashicorp.terraform.view_plan:
+        run_id: "{{ no_changes_run_result.id }}"
+      register: view_plan_no_changes
+
+    - name: Assert no changes message
+      ansible.builtin.assert:
+        that:
+          - view_plan_no_changes.changed == false or view_plan_no_changes.msg is defined
+
+    - name: Create a run with variables
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan with variables for view_plan testing"
+        state: "present"
+        variables:
+          - key: "env"
+            value: "production"
+          - key: "db_name"
+            value: "terraform_test"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_with_vars_result
+
+    - name: View plan for run with variables
+      hashicorp.terraform.view_plan:
+        run_id: "{{ run_with_vars_result.id }}"
+      register: view_plan_with_vars
+
+    - name: Assert view_plan with variables works
+      ansible.builtin.assert:
+        that:
+          - view_plan_with_vars.changed == true or view_plan_with_vars.msg is defined
+
+    # Error handling tests
+    - name: Test view_plan with invalid plan_id
+      hashicorp.terraform.view_plan:
+        plan_id: "plan-invalid123"
+      ignore_errors: true
+      register: view_plan_invalid_plan
+
+    - name: Assert error handling for invalid plan_id
+      ansible.builtin.assert:
+        that:
+          - view_plan_invalid_plan is failed
+          - '"not found" in view_plan_invalid_plan.msg'
+
+    - name: Test view_plan with invalid run_id
+      hashicorp.terraform.view_plan:
+        run_id: "run-invalid123"
+      ignore_errors: true
+      register: view_plan_invalid_run
+
+    - name: Assert error handling for invalid run_id
+      ansible.builtin.assert:
+        that:
+          - view_plan_invalid_run is failed
+          - '"not found" in view_plan_invalid_run.msg'
+
+    - name: View plan using 'id' alias
+      hashicorp.terraform.view_plan:
+        id: "{{ plan_id }}"
+      register: view_plan_with_alias
+
+    - name: Assert alias functionality works
+      ansible.builtin.assert:
+        that:
+          - view_plan_with_alias.changed == true
+          - view_plan_with_alias.diff is defined
+
+    - name: Create a destroy run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "destroy run for view_plan testing"
+        state: "present"
+        is_destroy: true
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: destroy_run_result
+
+    - name: View destroy plan
+      hashicorp.terraform.view_plan:
+        run_id: "{{ destroy_run_result.id }}"
+      register: view_destroy_plan
+
+    - name: Assert destroy plan view works
+      ansible.builtin.assert:
+        that:
+          - view_destroy_plan.changed == true
+          - view_destroy_plan.diff is defined
+          - '"destroyed" in view_destroy_plan.diff | string or "delete" in view_destroy_plan.diff | string'
+
+  always:
+    - name: Apply destroy run to clean up resources
+      hashicorp.terraform.run:
+        run_id: "{{ destroy_run_result.id }}"
+        state: "applied"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      no_log: true
+      when: destroy_run_result.id is defined
+      failed_when: false
+
+    - name: Cancel any active runs
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/runs/{{ item }}/actions/cancel"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: [200, 409]
+      no_log: true
+      loop:
+        - "{{ run_result.id | default('') }}"
+        - "{{ no_changes_run_result.id | default('') }}"
+        - "{{ run_with_vars_result.id | default('') }}"
+        - "{{ destroy_run_result.id | default('') }}"
+      when: item != ""
+      failed_when: false
+
+    - name: Force unlock workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}/actions/force-unlock"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: [200, 409]
+      no_log: true
+      failed_when: false
+
+    - name: Delete workspace
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: [204, 404, 403]
+        return_content: true
+      no_log: true
+      failed_when: false
+
+    - name: Clean up config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent

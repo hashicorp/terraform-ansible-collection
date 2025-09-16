@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new module hashicorp.terraform.view_plan for retrieving plan information from TFE/C.

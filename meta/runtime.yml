@@ -6,3 +6,4 @@ action_groups:
     - workspace_info
     - run
     - workspace
+    - view_plan
