@@ -24,52 +24,44 @@ options:
     project_id:
         description: The unique identifier of the project to manage.
         type: str
-        required: false
-    name:
+    project:
         description: The name of the project.
         type: str
-        required: false
+        aliases: ["name"]
     organization:
         description: The name of the organization that will own the project.
         type: str
-        required: false
     description:
         description: An optional description for the project.
         type: str
-        required: false
     auto_destroy_activity_duration:
         description:
           - The duration after which inactive workspaces in this project will be automatically destroyed.
           - Format should be a duration string like "14d" for 14 days or "720h" for 720 hours.
           - If not specified, workspaces will not be automatically destroyed.
         type: str
-        required: false
     execution_mode:
         description:
           - The execution mode for workspaces in this project.
           - Controls where Terraform operations are executed.
         type: str
         choices: ['remote', 'local']
-        required: false
     default_agent_pool_id:
         description:
           - The ID of the default agent pool for workspaces in this project.
           - Only applicable when execution_mode is set to 'agent'.
         type: str
-        required: false
     setting_overwrites:
         description:
           - A dictionary of setting overwrites for the project.
           - These settings will override workspace-level settings.
         type: dict
-        required: false
     tag_bindings:
         description:
           - A list of tag bindings to associate with the project.
           - Each tag binding should contain 'key' and 'value' fields.
         type: list
         elements: dict
-        required: false
         suboptions:
             key:
                 description: The tag key.
@@ -87,7 +79,6 @@ options:
         type: str
         choices: ['present', 'absent']
         default: 'present'
-        required: false
 """
 
 EXAMPLES = r"""
