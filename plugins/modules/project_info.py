@@ -205,10 +205,10 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     TerraformClient,
 )
-
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
 )
+
 
 def main() -> None:
     module = AnsibleTerraformModule(
@@ -239,6 +239,7 @@ def main() -> None:
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
 
 if __name__ == "__main__":
     main()
