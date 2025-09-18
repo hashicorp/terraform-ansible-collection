@@ -56,6 +56,9 @@
         execution_mode: remote
         description: integration test workspace
         terraform_version: 1.12.2
+        assessments_enabled: true
+        auto_destroy_activity_duration: 12d
+        auto_destroy_at: "2027-08-10T15:00:00Z"
         state: present
       register: result_update
 
