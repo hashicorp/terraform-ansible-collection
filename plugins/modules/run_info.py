@@ -181,7 +181,7 @@ EXAMPLES = r"""
 # FAILED! => {
 #     "changed": false,
 #     "failed": true,
-#     "msg": "run 'run-4NCzHa529xTf' was not found."
+#     "msg": "The run with ID 'run-invalid-id' was not found."
 # }
 """
 
