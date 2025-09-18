@@ -193,3 +193,52 @@ project:
           description: API endpoint for this project.
           sample: "/api/v2/projects/prj-sample1234567890"
 """
+from typing import TYPE_CHECKING
+
+from ansible.module_utils._text import to_text
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Optional
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
+    get_project_by_id,
+)
+
+def main() -> None:
+    module = AnsibleTerraformModule(
+        argument_spec={
+            "project_id": {"type": "str", "required": True},
+        },
+        supports_check_mode=True,
+    )
+
+    warnings: list[str] = []
+    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+    params: Dict[str, Any] = module.params
+    params["check_mode"] = module.check_mode
+    try:
+        client = TerraformClient(**params)
+
+        project_data: Optional[Dict[str, Any]] = None
+        if params["project_id"]:
+            project_data = get_project_by_id(client, params["project_id"])
+            if not project_data:
+                raise ValueError(f"Project '{params['project_id']}' was not found.")
+
+        project_data.pop("status", None)
+
+        result["project"] = project_data.get("data", project_data)
+
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=to_text(e))
+
+if __name__ == "__main__":
+    main()
