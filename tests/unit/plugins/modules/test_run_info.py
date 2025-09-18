@@ -9,7 +9,7 @@ class TestRunInfo:
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.get_run")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
     def test_run_not_found(self, mock_get_run, mock_ansible_module, mock_terraform_client):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
@@ -33,7 +33,7 @@ class TestRunInfo:
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.get_run")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
     def test_run_not_found_by_id(self, mock_get_run, mock_ansible_module, mock_terraform_client):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
