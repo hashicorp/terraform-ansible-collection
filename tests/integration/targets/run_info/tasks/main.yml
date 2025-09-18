@@ -89,6 +89,18 @@
           - run_response.run.attributes.status == "planned_and_finished"
           - run_response.run.attributes.variables == []
 
+    - name: Test invalid run ID
+      hashicorp.terraform.run_info:
+        run_id: "invalid-run-id"
+      register: result_invalid_id
+      ignore_errors: true
+
+    - name: Assert invalid run ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_id.failed
+          - '"not found" in result_invalid_id.msg'
+
   always:
     - name: Force delete workspace
       hashicorp.terraform.workspace:
