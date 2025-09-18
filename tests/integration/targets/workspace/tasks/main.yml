@@ -119,6 +119,9 @@
           execution_mode: true
           agent_pool: true
         allow_destroy_plan: true
+        assessments_enabled: true
+        auto_destroy_activity_duration: 14d
+        auto_destroy_at: "2028-08-10T15:00:00Z"
         project_id: "{{ project_id }}"
         auto_apply_run_trigger: false
         description: integration test workspace
@@ -135,6 +138,9 @@
           - result_update.changed
           - result_update.id == workspace_id
           - result_update.attributes["execution-mode"] == "agent"
+          - result_update.attributes["assessments-enabled"] == true
+          - result_update.attributes["auto-destroy-activity-duration"] == "14d"
+          - result_update.attributes["auto-destroy-at"] == "2028-08-10T15:00:00.000Z"
           - result_update.attributes["terraform-version"] == "1.12.2"
           - result_update.attributes["auto-apply"] == true
           - result_update.attributes["auto-apply-run-trigger"] == false
@@ -159,6 +165,9 @@
           - result_update.changed
           - result_update.attributes["execution-mode"] == "agent"
           - result_update.attributes["terraform-version"] == "1.12.2"
+          - result_update.attributes["assessments-enabled"] == true
+          - result_update.attributes["auto-destroy-activity-duration"] == "14d"
+          - result_update.attributes["auto-destroy-at"] == "2028-08-10T15:00:00.000Z"
           - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
           - result_update.relationships["project"]["data"]["id"] == project_id
           - result_update.attributes["auto-apply"] == true
