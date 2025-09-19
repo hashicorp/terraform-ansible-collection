@@ -146,6 +146,7 @@ class TestGetWorkspaceById:
     @pytest.mark.parametrize(
         "response_data,expected_result",
         [
+            # Successful response with full data
             (
                 {
                     "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
