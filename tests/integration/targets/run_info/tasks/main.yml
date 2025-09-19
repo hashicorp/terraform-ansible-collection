@@ -1,0 +1,116 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        tf_validate_certs: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result.changed
+          - result.attributes.status == "uploaded"
+
+    - name: Trigger plan_only run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan-only vpc creation"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        plan_only: true
+      register: run_apply
+
+    - name: Assert plan-only run was created and changed
+      ansible.builtin.assert:
+        that:
+          - run_apply.changed
+
+    - name: Debug Output of a run
+      ansible.builtin.debug:
+        var: run_apply
+
+    - name: Get the run
+      hashicorp.terraform.run_info:
+        run_id: "{{ run_apply.id }}"
+        tf_token: "{{ tfc_token }}"
+      register: run_response
+
+    - name: Assert run got response
+      ansible.builtin.assert:
+        that:
+          - not run_response.changed
+          - run_response.run.type == "runs"
+          - run_response.run.attributes.status == "planned_and_finished"
+          - run_response.run.attributes.variables == []
+
+    - name: Test invalid run ID
+      hashicorp.terraform.run_info:
+        run_id: "invalid-run-id"
+      register: result_invalid_id
+      ignore_errors: true
+
+    - name: Assert invalid run ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_id.failed
+          - '"not found" in result_invalid_id.msg'
+
+  always:
+    - name: Force delete workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        force: true
+        state: absent
+      register: workspace_delete_response
+
+    - name: Clean up rendered config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
