@@ -96,3 +96,86 @@ configuration:
           returned: always
           description: Download link for this configuration version.
 """
+
+from typing import TYPE_CHECKING
+
+from ansible.module_utils._text import to_text
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Optional
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
+    get_config,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+    get_workspace,
+    get_workspace_by_id,
+)
+
+
+def fetch_current_config(workspace_response, params):
+    current_config_version = workspace_response.get("data", {}).get("relationships", {}).get("current-configuration-version", {}).get("data", {})
+    if current_config_version:
+        config_id = current_config_version.get("id")
+        return config_id
+    else:
+        raise ValueError(f"Current configuration version for '{params['workspace_id']}' was found.")
+
+
+def main() -> None:
+    module = AnsibleTerraformModule(
+        argument_spec={
+            "configuration_version_id": {"type": "str"},
+            "workspace_id": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
+        },
+        supports_check_mode=True,
+        required_together=[["workspace", "organization"]],
+        mutually_exclusive=[
+            ("workspace", "workspace_id", "configuration_version_id"),
+        ],
+    )
+
+    warnings: list[str] = []
+    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+    params: Dict[str, Any] = module.params
+    params["check_mode"] = module.check_mode
+    try:
+        client = TerraformClient(**module.params)
+
+        configuration_data: Optional[Dict[str, Any]] = None
+        workspace_data: Optional[Dict[str, Any]] = None
+        if params.get("workspace_id"):
+            # Retrieve workspace by ID
+            workspace_data = get_workspace_by_id(client, params["workspace_id"])
+            if not workspace_data:
+                raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
+            params["configuration_version_id"] = fetch_current_config(workspace_data, params)
+        elif params.get("workspace") and params.get("organization"):
+            # Retrieve workspace by name and organization
+            workspace_data = get_workspace(client, params["organization"], params["workspace"])
+            if not workspace_data:
+                raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+            params["configuration_version_id"] = fetch_current_config(workspace_data, params)
+        if params.get("configuration_version_id"):
+            configuration_data = get_config(client, params["configuration_version_id"])
+            if not configuration_data:
+                raise ValueError(f"Configuration version '{params['configuration_version_id']}' was not found.")
+
+        # Extract the data field to flatten the structure
+        result["configuration"] = configuration_data.get("data", workspace_data)
+
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=to_text(e))
+
+
+if __name__ == "__main__":
+    main()
