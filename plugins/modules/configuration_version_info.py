@@ -8,7 +8,7 @@ from __future__ import absolute_import, annotations, division, print_function
 
 DOCUMENTATION = r"""
 ---
-module: terraform_configuration_info
+module: configuration_version_info
 version_added: 1.1.0
 short_description: Retrieve information about configuration versions in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
@@ -45,7 +45,7 @@ options:
 
 EXAMPLES = r"""
 - name: Show the configuration using ID
-  hashicorp.terraform.terraform_configuration_info:
+  hashicorp.terraform.configuration_version_info:
     configuration_version_id: cv-UYwHEakurukz85nW
 
 # Task output:
@@ -85,7 +85,7 @@ EXAMPLES = r"""
 #     }
 
 - name: Show the current configuration using workspace ID
-  hashicorp.terraform.terraform_configuration_info:
+  hashicorp.terraform.configuration_version_info:
     workspace_id: ws-6jrRyVDv1J8zQMB5
 
 # Task output:
@@ -125,7 +125,7 @@ EXAMPLES = r"""
 #     }
 
 - name: Show the current configuration using workspace and organization name
-  hashicorp.terraform.terraform_configuration_info:
+  hashicorp.terraform.configuration_version_info:
     workspace: workspace-name
     organization: org-name
 
