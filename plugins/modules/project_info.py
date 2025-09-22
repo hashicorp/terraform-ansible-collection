@@ -86,6 +86,7 @@ EXAMPLES = r"""
 #         }
 #     }
 # }
+
 - name: Handle case when project does not exist by ID
   hashicorp.terraform.project_info:
     project_id: "prj-invalid-project-id"
@@ -100,6 +101,7 @@ EXAMPLES = r"""
 #     "msg": "Project 'prj-invalid-project-id' was not found."
 # }
 """
+
 RETURN = r"""
 project:
   type: dict
