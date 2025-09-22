@@ -48,14 +48,122 @@ EXAMPLES = r"""
   hashicorp.terraform.terraform_configuration_info:
     configuration_version_id: cv-UYwHEakurukz85nW
 
+# Task output:
+# ------------
+# "result_get": {
+#     "changed": false,
+#     "configuration": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-09-19T05:05:04+00:00"
+#             }
+#         },
+#         "id": "cv-id",
+#         "links": {
+#             "download": "/api/v2/configuration-versions/cv-id/download",
+#             "self": "/api/v2/configuration-versions/cv-id"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     },
+#     "failed": false
+#     }
+
 - name: Show the current configuration using workspace ID
   hashicorp.terraform.terraform_configuration_info:
     workspace_id: ws-6jrRyVDv1J8zQMB5
+
+# Task output:
+# ------------
+# "result_get": {
+#     "changed": false,
+#     "configuration": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-09-21T13:57:51+00:00"
+#             }
+#         },
+#         "id": "cv-id",
+#         "links": {
+#             "download": "/api/v2/configuration-versions/cv-id/download",
+#             "self": "/api/v2/configuration-versions/cv-id"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     },
+#     "failed": false
+#     }
 
 - name: Show the current configuration using workspace and organization name
   hashicorp.terraform.terraform_configuration_info:
     workspace: workspace-name
     organization: org-name
+
+# Task output:
+# ------------
+# "result_get": {
+#     "changed": false,
+#     "configuration": {
+#         "attributes": {
+#             "auto-queue-runs": true,
+#             "changed-files": [],
+#             "error": null,
+#             "error-message": null,
+#             "provisional": false,
+#             "source": "tfe-api",
+#             "speculative": false,
+#             "status": "uploaded",
+#             "status-timestamps": {
+#                 "uploaded-at": "2025-09-21T13:57:51+00:00"
+#             }
+#         },
+#         "id": "cv-7ecoepBLNBJSohax",
+#         "links": {
+#             "download": "/api/v2/configuration-versions/cv-id/download",
+#             "self": "/api/v2/configuration-versions/cv-id"
+#         },
+#         "relationships": {
+#             "ingress-attributes": {
+#                 "data": null,
+#                 "links": {
+#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
+#                 }
+#             }
+#         },
+#         "type": "configuration-versions"
+#     },
+#     "failed": false
+# }
 """
 
 RETURN = r"""
