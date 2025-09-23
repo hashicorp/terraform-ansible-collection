@@ -226,12 +226,14 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 
 
 def fetch_current_config(workspace_response: Dict[str, Any], params: Dict[str, Any]) -> str:
-    current_config_version = workspace_response.get("data", {}).get("relationships", {}).get("current-configuration-version", {}).get("data", {})
-    if current_config_version:
-        config_id = current_config_version.get("id")
-        return config_id
-    else:
-        raise ValueError(f"Current configuration version for '{params['workspace_id']}' was found.")
+    workspace_id = workspace_response.get("data", {}).get("id", {})
+    relationships = workspace_response.get("data", {}).get("relationships", {})
+    if relationships:
+        current_config = relationships.get("current-configuration-version", {}).get("data", {})
+        if current_config:
+            return current_config.get("id")
+
+    raise ValueError(f"Current configuration version for workspace '{workspace_id}' was not found.")
 
 
 def main() -> None:
