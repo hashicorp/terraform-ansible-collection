@@ -24,7 +24,6 @@ options:
       - The ID of a specific state version output to retrieve.
       - When provided, only this specific output will be retrieved.
       - Mutually exclusive with workspace identification parameters.
-      - Example: wsout-J2zM24JPFbfc7bE5
     type: str
     aliases: ['output_id']
   workspace_id:
@@ -241,7 +240,6 @@ EXAMPLES = r"""
 #     "failed": true,
 #     "msg": "Workspace with ID 'ws-INVALID456' was not found."
 # }
-
 """
 
 RETURN = r"""
