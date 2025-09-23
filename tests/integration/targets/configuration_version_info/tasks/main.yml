@@ -1,0 +1,112 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        tf_validate_certs: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: result_cv
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - result_cv.changed
+          - result_cv.attributes.status == "uploaded"
+
+    - name: Set a fact for expected result
+      ansible.builtin.set_fact:
+        cv_id: "{{ result_cv.id }}"
+
+    - name: Get the configuration version
+      hashicorp.terraform.configuration_version_info:
+        configuration_version_id: "{{ cv_id }}"
+      register: configuration_response
+
+    - name: Assert configuration version got response
+      ansible.builtin.assert:
+        that:
+          - not configuration_response.changed
+          - configuration_response.configuration.type == "configuration-versions"
+          - configuration_response.configuration.attributes.status == "uploaded"
+          - configuration_response.configuration.id == cv_id
+
+    - name: Get the configuration version
+      hashicorp.terraform.configuration_version_info:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+      register: configuration_response_workspace
+
+    - name: Assert configuration version got response
+      ansible.builtin.assert:
+        that:
+          - not configuration_response_workspace.changed
+          - configuration_response_workspace.configuration.type == "configuration-versions"
+          - configuration_response_workspace.configuration.attributes.status == "uploaded"
+          - configuration_response_workspace.configuration.id == cv_id
+
+    - name: Get the configuration version
+      hashicorp.terraform.configuration_version_info:
+        workspace_id: "{{ workspace_id }}"
+      register: configuration_response_id
+
+    - name: Assert configuration version got response
+      ansible.builtin.assert:
+        that:
+          - not configuration_response_id.changed
+          - configuration_response_id.configuration.type == "configuration-versions"
+          - configuration_response_id.configuration.attributes.status == "uploaded"
+          - configuration_response_id.configuration.id == cv_id
+
+  always:
+    - name: Force delete workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        force: true
+        state: absent
+      register: workspace_delete_response
+
+    - name: Clean up rendered config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent

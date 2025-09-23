@@ -28,8 +28,7 @@ options:
   workspace:
     description:
       - Name of the workspace.
-      - When this key is set, I(organization) must be specified so that the ID of the workspace can be retrieved.
-      - Workspace names can only include letters, numbers, -, and _.
+      - When this key is set, I(organization) must be specified.
     type: str
   workspace_id:
     description:
