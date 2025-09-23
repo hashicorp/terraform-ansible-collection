@@ -246,6 +246,9 @@ def main() -> None:
         },
         supports_check_mode=True,
         required_together=[["workspace", "organization"]],
+        required_one_of=[
+            ["workspace_id", "workspace", "configuration_version_id"],
+        ],
         mutually_exclusive=[
             ("workspace", "workspace_id", "configuration_version_id"),
         ],
