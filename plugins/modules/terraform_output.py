@@ -8,7 +8,7 @@ from __future__ import annotations
 
 DOCUMENTATION = r"""
 ---
-module: output
+module: terraform_output
 version_added: "1.1.0"
 short_description: Retrieve Terraform Cloud/Enterprise state version outputs
 author: "Tanwi Geetika (@tgeetika)"
@@ -62,7 +62,7 @@ extends_documentation_fragment:
 EXAMPLES = r"""
 # Get a specific output by ID
 - name: Retrieve specific state version output
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     state_version_output_id: wsout-J2zM24JRHbfabcd5
   register: result
 
@@ -91,7 +91,7 @@ EXAMPLES = r"""
 
 # Get a specific output by name with workspace_id
 - name: Get API token output by name
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     workspace_id: ws-G4zMABcdeffc10E5
     output_name: api_token
   register: api_token
@@ -114,7 +114,7 @@ EXAMPLES = r"""
 
 # Get a specific output by name with workspace name and organization
 - name: Get web server ID by name using workspace name
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     workspace: my-workspace
     organization: my-org
     output_name: web_server_id
@@ -138,7 +138,7 @@ EXAMPLES = r"""
 
 # Get all outputs for a workspace using workspace ID
 - name: Get workspace outputs by workspace ID
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     workspace_id: ws-G4zMABcdefGc10E5
   register: results
 
@@ -146,7 +146,6 @@ EXAMPLES = r"""
 # ------------
 # "results": {
 #         "changed": false,
-#         "count": 6,
 #         "failed": false,
 #         "outputs": [
 #             {
@@ -230,7 +229,7 @@ EXAMPLES = r"""
 
 # Get all outputs for a workspace using workspace and organization name
 - name: Get workspace outputs by workspace and organization name
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     workspace: plan_info_module
     organization: Ansible-BU-TFC
   register: results
@@ -271,7 +270,7 @@ EXAMPLES = r"""
 
 # Invalid state_version_output_id
 - name: Retrieve output with invalid state_version_output_id
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     state_version_output_id: wsout-INVALID1234
   register: result
 
@@ -285,7 +284,7 @@ EXAMPLES = r"""
 
 # Invalid workspace_id
 - name: Get workspace outputs with invalid workspace_id
-  hashicorp.terraform.output:
+  hashicorp.terraform.terraform_output:
     workspace_id: ws-INVALID4567
   register: results
 
