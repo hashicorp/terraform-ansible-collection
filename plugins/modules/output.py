@@ -23,6 +23,7 @@ options:
     description:
       - The ID of a specific state version output to retrieve.
       - When provided, only this specific output will be retrieved.
+      - Mutually exclusive with output_name parameter.
       - Mutually exclusive with workspace identification parameters.
     type: str
     aliases: ['output_id']
@@ -30,6 +31,7 @@ options:
     description:
       - ID of the workspace to retrieve current state version outputs from.
       - When provided, all outputs for the workspace's current state version are retrieved.
+      - Required when using output_name parameter.
       - Mutually exclusive with state_version_output_id.
       - Either workspace_id or both workspace and organization must be specified.
     type: str
@@ -39,6 +41,13 @@ options:
       - Must be used together with organization parameter.
       - Mutually exclusive with state_version_output_id.
       - Either both workspace and organization or workspace_id must be specified.
+    type: str
+  output_name:
+    description:
+      - Name of a specific output to retrieve from the workspace.
+      - Must be used with workspace identification (workspace_id or workspace/organization).
+      - Mutually exclusive with state_version_output_id parameter.
+      - Returns single output in same format as state_version_output_id.
     type: str
   organization:
     description:
@@ -80,10 +89,57 @@ EXAMPLES = r"""
 #         }
 # }
 
+# Get a specific output by name with workspace_id
+- name: Get API token output by name
+  hashicorp.terraform.output:
+    workspace_id: ws-G4zMABcdeffc10E5
+    output_name: api_token
+  register: api_token
+
+# Task output:
+# ------------
+# "api_token": {
+#         "changed": false,
+#         "failed": false,
+#         "output": {
+#             "detailed_type": "string",
+#             "id": "wsout-rEuZoKuZKwfD4tLn",
+#             "name": "api_token",
+#             "sensitive": true,
+#             "type": "string",
+#             "value": "<sensitive>"
+#     }
+
+# }
+
+# Get a specific output by name with workspace name and organization
+- name: Get web server ID by name using workspace name
+  hashicorp.terraform.output:
+    workspace: my-workspace
+    organization: my-org
+    output_name: web_server_id
+  register: server_id
+
+# Task output:
+# ------------
+# "server_id": {
+#         "changed": false,
+#         "failed": false,
+#         "output": {
+#             "detailed_type": "string",
+#             "id": "wsout-Z36hVVywsh6zVFfN",
+#             "name": "web_server_id",
+#             "sensitive": false,
+#             "type": "string",
+#             "value": "i-01fdf53b9d57b5c4f"
+#         }
+#     }
+# }
+
 # Get all outputs for a workspace using workspace ID
 - name: Get workspace outputs by workspace ID
   hashicorp.terraform.output:
-    workspace_id: ws-G4zM21234TGc10E5
+    workspace_id: ws-G4zMABcdefGc10E5
   register: results
 
 # Task output:
@@ -244,8 +300,8 @@ EXAMPLES = r"""
 
 RETURN = r"""
 output:
-  description: Single state version output information (when state_version_output_id is provided).
-  returned: when state_version_output_id is specified
+  description: Single state version output information (when state_version_output_id or output_name is provided).
+  returned: when state_version_output_id or output_name is specified and found
   type: dict
   contains: &output_fields
     id:
