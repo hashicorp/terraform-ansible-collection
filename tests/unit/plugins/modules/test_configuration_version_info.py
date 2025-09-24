@@ -110,21 +110,18 @@ class TestConfigurationVersionInfo:
     ):
         from ansible_collections.hashicorp.terraform.plugins.modules.configuration_version_info import main
 
-        # Mock setup
         mock_module = Mock()
         mock_module.check_mode = False
         mock_module.params = {"workspace": workspace, "organization": organization}
         mock_ansible_module.return_value = mock_module
         mock_terraform_client.return_value = Mock()
         mock_get_workspace.return_value = {"data": {"relationships": {"current-configuration-version": {"data": {"id": expected_config_id}}}}}
-        mock_get_config.return_value = config_data  # Simulate the return of configuration data
+        mock_get_config.return_value = config_data
 
-        # Call the main function of the module
         main()
 
-        # Assert that exit_json is called with the expected configuration data
         mock_module.exit_json.assert_called_once()
         args = mock_module.exit_json.call_args[1]
         assert args["configuration"] == config_data["data"]
-        assert args["changed"] is False  # Assuming there is no change
+        assert args["changed"] is False
         mock_module.fail_json.assert_not_called()
