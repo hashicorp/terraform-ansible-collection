@@ -2,8 +2,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-
 
 class TestConfigurationVersionInfo:
 
