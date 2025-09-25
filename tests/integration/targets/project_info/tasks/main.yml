@@ -73,6 +73,7 @@
     - name: Test invalid project ID
       hashicorp.terraform.project_info:
         project_id: "prj-invalid-project-id"
+        tf_token: "{{ tfc_token }}"
       register: result_invalid_id
       ignore_errors: true
 
@@ -86,6 +87,7 @@
     - name: Test malformed project ID
       hashicorp.terraform.project_info:
         project_id: "invalid-format"
+        tf_token: "{{ tfc_token }}"
       register: result_malformed_id
       ignore_errors: true
 
@@ -99,6 +101,7 @@
     - name: Test empty project ID
       hashicorp.terraform.project_info:
         project_id: ""
+        tf_token: "{{ tfc_token }}"
       register: result_empty_id
       ignore_errors: true
 
@@ -112,6 +115,7 @@
     - name: Test check mode with project ID
       hashicorp.terraform.project_info:
         project_id: "{{ project_id }}"
+        tf_token: "{{ tfc_token }}"
       check_mode: true
       register: result_check_mode_id
 
@@ -127,6 +131,7 @@
     - name: Get project info by ID again
       hashicorp.terraform.project_info:
         project_id: "{{ project_id }}"
+        tf_token: "{{ tfc_token }}"
       register: result_by_id_again
 
     - name: Assert both calls return identical project data
@@ -145,6 +150,7 @@
     # Test error handling - missing project_id parameter
     - name: Test missing project_id parameter
       hashicorp.terraform.project_info:
+        tf_token: "{{ tfc_token }}"
       register: result_missing_param
       ignore_errors: true
 
@@ -161,6 +167,7 @@
     - name: Test null project_id
       hashicorp.terraform.project_info:
         project_id: null
+        tf_token: "{{ tfc_token }}"
       register: result_null_id
       ignore_errors: true
 
