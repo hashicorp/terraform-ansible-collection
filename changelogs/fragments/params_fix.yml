@@ -1,0 +1,3 @@
+---
+trivial:
+  - Fix copy logic of module params in a dictionary.
