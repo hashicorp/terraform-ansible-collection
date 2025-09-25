@@ -221,6 +221,7 @@ run:
 """
 
 
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
@@ -246,7 +247,7 @@ def main() -> None:
 
     warnings: list[str] = []
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
-    params: Dict[str, Any] = module.params
+    params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
     try:

@@ -1374,7 +1374,7 @@ msg:
   description: The status of the operation.
 """
 
-
+from copy import deepcopy
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -1839,7 +1839,7 @@ def main():
     warnings = []
     result = {"changed": False, "warnings": warnings}
     action_result = {}
-    params = module.params
+    params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
     try:
