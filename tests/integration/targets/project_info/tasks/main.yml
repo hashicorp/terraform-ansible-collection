@@ -109,7 +109,7 @@
       ansible.builtin.assert:
         that:
           - result_empty_id.failed
-          - '"not found" in result_empty_id.msg or "required" in result_empty_id.msg'
+          - '"required" in result_empty_id.msg'
 
     # Test check mode with project ID
     - name: Test check mode with project ID
@@ -175,10 +175,7 @@
       ansible.builtin.assert:
         that:
           - result_null_id.failed
-          - >-
-            "required" in result_null_id.msg or
-            "not found" in result_null_id.msg or
-            "invalid" in result_null_id.msg
+          - '"required" in result_null_id.msg'
 
   always:
     - name: Force delete project

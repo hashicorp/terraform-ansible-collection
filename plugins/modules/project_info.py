@@ -232,6 +232,8 @@ def main() -> None:
             project_data = get_project_by_id(client, params["project_id"])
             if not project_data:
                 raise ValueError(f"Project '{params['project_id']}' was not found.")
+        else:
+            raise ValueError("Project ID is required.")
 
         project_data.pop("status", None)
 
