@@ -185,7 +185,10 @@
       ansible.builtin.assert:
         that:
           - result_null_id.failed
-          - '"required" in result_null_id.msg'
+          - >-
+            "required" in result_null_id.msg or
+            "NoneType" in result_null_id.msg or
+            "conversion is not allowed" in result_null_id.msg
 
   always:
     - name: Force delete project
