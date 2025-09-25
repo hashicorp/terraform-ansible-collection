@@ -212,4 +212,3 @@
       no_log: true
       register: project_delete_response
       when: project_id is defined
-
