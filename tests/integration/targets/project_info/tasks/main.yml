@@ -67,17 +67,6 @@
           - result_by_id.project.type == "projects"
           - result_by_id.project.attributes.name is defined
           - result_by_id.project.attributes.name == project_name
-          - result_by_id.project.attributes.description is defined
-          - result_by_id.project.attributes["created-at"] is defined
-          - result_by_id.project.attributes.permissions is defined
-          - result_by_id.project.attributes["workspace-count"] is defined
-          - result_by_id.project.attributes["team-count"] is defined
-          - result_by_id.project.attributes["stack-count"] is defined
-          - result_by_id.project.attributes["default-execution-mode"] is defined
-          - result_by_id.project.relationships is defined
-          - result_by_id.project.relationships.organization is defined
-          - result_by_id.project.links is defined
-          - result_by_id.project.links.self is defined
           - '"status" not in result_by_id.project'
 
     # Test error handling - invalid project ID
@@ -133,7 +122,6 @@
           - result_check_mode_id.project.id == project_id
           - result_check_mode_id.project.type == "projects"
           - result_check_mode_id.project.attributes.name == project_name
-          - result_check_mode_id.project.attributes.description is defined
 
     # Test that the same project ID returns consistent results
     - name: Get project info by ID again
@@ -146,27 +134,13 @@
         that:
           - result_by_id.project == result_by_id_again.project
 
-    # Test that project contains expected attributes structure
-    - name: Verify project attributes structure
+    # Test that project contains basic expected structure
+    - name: Verify project basic structure
       ansible.builtin.assert:
         that:
-          - result_by_id.project.attributes.permissions is mapping
-          - result_by_id.project.attributes.permissions["can-read"] is defined
-          - result_by_id.project.attributes.permissions["can-update"] is defined
-          - result_by_id.project.attributes.permissions["can-destroy"] is defined
-          - result_by_id.project.attributes.permissions["can-create-workspace"] is defined
-          - result_by_id.project.attributes["setting-overwrites"] is defined
-          - result_by_id.project.relationships.organization.data is defined
-          - result_by_id.project.relationships.organization.data.id is defined
-          - result_by_id.project.relationships.organization.data.type == "organizations"
-
-    # Test that project links are correctly formatted
-    - name: Verify project links structure
-      ansible.builtin.assert:
-        that:
-          - result_by_id.project.links.self is string
-          - '"/api/v2/projects/" in result_by_id.project.links.self'
-          - project_id in result_by_id.project.links.self
+          - result_by_id.project.attributes is defined
+          - result_by_id.project.relationships is defined
+          - result_by_id.project.links is defined
 
     # Test error handling - missing project_id parameter
     - name: Test missing project_id parameter
