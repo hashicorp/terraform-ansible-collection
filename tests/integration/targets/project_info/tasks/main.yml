@@ -1,0 +1,215 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique project name
+      ansible.builtin.set_fact:
+        project_name: "{{ unique_id[:30] }}-project"
+
+    - name: Create a Terraform project with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/projects"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ project_name }}"
+              description: "Integration test project for project_info module"
+            type: "projects"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: project_create_response
+
+    - name: Debug project creation response
+      ansible.builtin.debug:
+        var: project_create_response.json
+
+    - name: Set a fact for 'project_id'
+      ansible.builtin.set_fact:
+        project_id: "{{ project_create_response.json.data.id }}"
+
+    - name: Wait a moment for project to be fully created
+      ansible.builtin.pause:
+        seconds: 2
+
+    # Test retrieving project info by ID using existing project
+    - name: Get project info by ID
+      hashicorp.terraform.project_info:
+        project_id: "{{ project_id }}"
+        tf_token: "{{ tfc_token }}"
+      register: result_by_id
+
+    - name: Debug - Show what was actually returned
+      ansible.builtin.debug:
+        var: result_by_id
+
+    - name: Debug - Show project_id value
+      ansible.builtin.debug:
+        var: project_id
+
+    - name: Assert project info retrieval by ID success
+      ansible.builtin.assert:
+        that:
+          - not result_by_id.changed
+          - result_by_id.project.id == project_id
+          - result_by_id.project.type == "projects"
+          - result_by_id.project.attributes.name is defined
+          - result_by_id.project.attributes.name == project_name
+          - result_by_id.project.attributes.description is defined
+          - result_by_id.project.attributes["created-at"] is defined
+          - result_by_id.project.attributes.permissions is defined
+          - result_by_id.project.attributes["workspace-count"] is defined
+          - result_by_id.project.attributes["team-count"] is defined
+          - result_by_id.project.attributes["stack-count"] is defined
+          - result_by_id.project.attributes["default-execution-mode"] is defined
+          - result_by_id.project.relationships is defined
+          - result_by_id.project.relationships.organization is defined
+          - result_by_id.project.links is defined
+          - result_by_id.project.links.self is defined
+          - '"status" not in result_by_id.project'
+
+    # Test error handling - invalid project ID
+    - name: Test invalid project ID
+      hashicorp.terraform.project_info:
+        project_id: "prj-invalid-project-id"
+      register: result_invalid_id
+      ignore_errors: true
+
+    - name: Assert invalid project ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_id.failed
+          - '"not found" in result_invalid_id.msg'
+
+    # Test error handling - malformed project ID
+    - name: Test malformed project ID
+      hashicorp.terraform.project_info:
+        project_id: "invalid-format"
+      register: result_malformed_id
+      ignore_errors: true
+
+    - name: Assert malformed project ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_malformed_id.failed
+          - '"not found" in result_malformed_id.msg'
+
+    # Test error handling - empty project ID
+    - name: Test empty project ID
+      hashicorp.terraform.project_info:
+        project_id: ""
+      register: result_empty_id
+      ignore_errors: true
+
+    - name: Assert empty project ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_empty_id.failed
+          - '"not found" in result_empty_id.msg or "required" in result_empty_id.msg'
+
+    # Test check mode with project ID
+    - name: Test check mode with project ID
+      hashicorp.terraform.project_info:
+        project_id: "{{ project_id }}"
+      check_mode: true
+      register: result_check_mode_id
+
+    - name: Assert check mode works correctly with project ID
+      ansible.builtin.assert:
+        that:
+          - not result_check_mode_id.changed
+          - result_check_mode_id.project.id == project_id
+          - result_check_mode_id.project.type == "projects"
+          - result_check_mode_id.project.attributes.name == project_name
+          - result_check_mode_id.project.attributes.description is defined
+
+    # Test that the same project ID returns consistent results
+    - name: Get project info by ID again
+      hashicorp.terraform.project_info:
+        project_id: "{{ project_id }}"
+      register: result_by_id_again
+
+    - name: Assert both calls return identical project data
+      ansible.builtin.assert:
+        that:
+          - result_by_id.project == result_by_id_again.project
+
+    # Test that project contains expected attributes structure
+    - name: Verify project attributes structure
+      ansible.builtin.assert:
+        that:
+          - result_by_id.project.attributes.permissions is mapping
+          - result_by_id.project.attributes.permissions["can-read"] is defined
+          - result_by_id.project.attributes.permissions["can-update"] is defined
+          - result_by_id.project.attributes.permissions["can-destroy"] is defined
+          - result_by_id.project.attributes.permissions["can-create-workspace"] is defined
+          - result_by_id.project.attributes["setting-overwrites"] is defined
+          - result_by_id.project.relationships.organization.data is defined
+          - result_by_id.project.relationships.organization.data.id is defined
+          - result_by_id.project.relationships.organization.data.type == "organizations"
+
+    # Test that project links are correctly formatted
+    - name: Verify project links structure
+      ansible.builtin.assert:
+        that:
+          - result_by_id.project.links.self is string
+          - '"/api/v2/projects/" in result_by_id.project.links.self'
+          - project_id in result_by_id.project.links.self
+
+    # Test error handling - missing project_id parameter
+    - name: Test missing project_id parameter
+      hashicorp.terraform.project_info:
+      register: result_missing_param
+      ignore_errors: true
+
+    - name: Assert missing project_id parameter fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_missing_param.failed
+          - >-
+            "required" in result_missing_param.msg or
+            "missing" in result_missing_param.msg or
+            "project_id" in result_missing_param.msg
+
+    # Test error handling - null project_id
+    - name: Test null project_id
+      hashicorp.terraform.project_info:
+        project_id: null
+      register: result_null_id
+      ignore_errors: true
+
+    - name: Assert null project_id fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_null_id.failed
+          - >-
+            "required" in result_null_id.msg or
+            "not found" in result_null_id.msg or
+            "invalid" in result_null_id.msg
+
+  always:
+    - name: Force delete project
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: project_delete_response
+      when: project_id is defined
+
