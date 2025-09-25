@@ -34,11 +34,21 @@
 
     - name: Debug project creation response
       ansible.builtin.debug:
-        var: project_create_response.json
+        var: project_create_response
 
-    - name: Set a fact for 'project_id'
+    - name: Set a fact for 'project_id' (from json attribute)
       ansible.builtin.set_fact:
         project_id: "{{ project_create_response.json.data.id }}"
+      when: project_create_response.json is defined
+
+    - name: Set a fact for 'project_id' (from content)
+      ansible.builtin.set_fact:
+        project_id: "{{ (project_create_response.content | from_json).data.id }}"
+      when: project_create_response.json is not defined and project_create_response.content is defined
+
+    - name: Debug project_id value
+      ansible.builtin.debug:
+        var: project_id
 
     - name: Wait a moment for project to be fully created
       ansible.builtin.pause:
