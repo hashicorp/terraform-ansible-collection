@@ -228,7 +228,7 @@ from ansible.module_utils._text import to_text
 
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List
+    from typing import Any, Dict
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
@@ -245,7 +245,7 @@ def main() -> None:
         supports_check_mode=True,
     )
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
