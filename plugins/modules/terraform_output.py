@@ -23,17 +23,16 @@ options:
     description:
       - The ID of a specific state version output to retrieve.
       - When provided, only this specific output will be retrieved.
-      - Mutually exclusive with output_name parameter.
-      - Mutually exclusive with workspace identification parameters.
+      - Mutually exclusive with I(workspace_id), I(workspace), I(organization), and I(output_name).
     type: str
     aliases: ['output_id']
   workspace_id:
     description:
       - ID of the workspace to retrieve current state version outputs from.
-      - When provided, all outputs for the workspace's current state version are retrieved.
-      - Required when using output_name parameter.
-      - Mutually exclusive with state_version_output_id.
-      - Either workspace_id or both workspace and organization must be specified.
+      - When provided without I(output_name), all outputs for the workspace's current state version are retrieved.
+      - Required when using I(output_name).
+      - Mutually exclusive with I(state_version_output_id).
+      - Either I(workspace_id) or both I(workspace) and I(organization) must be specified.
     type: str
   workspace:
     description:
@@ -45,9 +44,9 @@ options:
   output_name:
     description:
       - Name of a specific output to retrieve from the workspace.
-      - Must be used with workspace identification (workspace_id or workspace/organization).
-      - Mutually exclusive with state_version_output_id parameter.
-      - Returns single output in same format as state_version_output_id.
+      - Must be used with workspace identification (I(workspace_id) or I(workspace)/I(organization)).
+      - Mutually exclusive with I(state_version_output_id).
+      - Returns a single output in the same format as when using I(state_version_output_id).
     type: str
   organization:
     description:
@@ -279,7 +278,7 @@ EXAMPLES = r"""
 # FAILED! => {
 #     "changed": false,
 #     "failed": true,
-#     "msg": "State version output with ID 'wsout-fPuxABcdrEidj' was not found."
+#     "msg": "State version output with ID 'wsout-INVALID1234' was not found."
 # }
 
 # Invalid workspace_id
@@ -329,8 +328,12 @@ output:
       sample: true
 outputs:
   description: List of workspace state version outputs (when workspace parameters are provided).
-  returned: when workspace_id or workspace+organization is specified
+  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(output_name) is not.
   type: list
   elements: dict
   contains: *output_fields
+count:
+  description: Number of outputs returned when retrieving workspace outputs.
+  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(output_name) is not.
+  type: int
 """
