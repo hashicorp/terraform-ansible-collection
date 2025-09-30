@@ -26,6 +26,22 @@
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.id }}"
 
+    - name: Get the configuration version to cause failure
+      hashicorp.terraform.configuration_version_info:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+      register: configuration_failure
+      ignore_errors: true
+
+    - name: Set expected error message
+      ansible.builtin.set_fact:
+        expected_error: "Current configuration version for workspace '{{ workspace_name }}' was not found."
+
+    - name: Assert failure
+      ansible.builtin.assert:
+        that:
+          - configuration_failure.msg == expected_error
+
     - name: Create temporary directory to store main.tf configuration
       ansible.builtin.tempfile:
         state: directory

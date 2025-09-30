@@ -226,13 +226,12 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 )
 
 
-def fetch_current_config_version_id(workspace_response: Dict[str, Any]) -> str:
-    workspace_id = workspace_response.get("data", {}).get("id", {})
+def fetch_current_config_version_id(workspace_response: Dict[str, Any], workspace_identifier) -> str:
     relationships = workspace_response.get("data", {}).get("relationships", {})
-    if relationships and (config_id := relationships.get("current-configuration-version", {}).get("data", {}).get("id")):
-        return config_id
-
-    raise ValueError(f"Current configuration version for workspace '{workspace_id}' was not found.")
+    if relationships and (current_config := relationships.get("current-configuration-version", {}).get("data", {})):
+        if current_config:
+            return current_config.get("id")
+    raise ValueError(f"Current configuration version for workspace '{workspace_identifier}' was not found.")
 
 
 def main() -> None:
@@ -267,13 +266,13 @@ def main() -> None:
             workspace_data = get_workspace_by_id(client, params["workspace_id"])
             if not workspace_data:
                 raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
-            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data)
+            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data, params.get("workspace_id"))
         elif params.get("workspace") and params.get("organization"):
             # Retrieve workspace by name and organization
             workspace_data = get_workspace(client, params["organization"], params["workspace"])
             if not workspace_data:
                 raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data)
+            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data, params.get("workspace"))
         if params.get("configuration_version_id"):
             configuration_data = get_config(client, params["configuration_version_id"])
             if not configuration_data:
