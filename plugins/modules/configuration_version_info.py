@@ -226,7 +226,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 )
 
 
-def fetch_current_config_version_id(workspace_response: Dict[str, Any], workspace_identifier) -> str:
+def fetch_current_config_version_id(workspace_response: Dict[str, Any], workspace_identifier: str) -> str:
     relationships = workspace_response.get("data", {}).get("relationships", {})
     if relationships and (current_config := relationships.get("current-configuration-version", {}).get("data", {})):
         if current_config:
