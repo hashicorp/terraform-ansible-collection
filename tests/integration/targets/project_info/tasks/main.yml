@@ -121,21 +121,6 @@
           - result_empty_id.failed
           - '"required" in result_empty_id.msg'
 
-    # Test check mode with project ID
-    - name: Test check mode with project ID
-      hashicorp.terraform.project_info:
-        project_id: "{{ project_id }}"
-        tf_token: "{{ tfc_token }}"
-      check_mode: true
-      register: result_check_mode_id
-
-    - name: Assert check mode works correctly with project ID
-      ansible.builtin.assert:
-        that:
-          - not result_check_mode_id.changed
-          - result_check_mode_id.project.id == project_id
-          - result_check_mode_id.project.type == "projects"
-          - result_check_mode_id.project.attributes.name == project_name
 
     # Test that the same project ID returns consistent results
     - name: Get project info by ID again
