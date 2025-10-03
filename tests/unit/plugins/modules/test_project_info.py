@@ -45,46 +45,6 @@ class TestProjectInfoModule:
         # Verify other module parameters
         assert call_args["supports_check_mode"] is True
 
-    def test_status_field_removal_logic(self):
-        """Test that status field removal logic works correctly."""
-        # Test the simple logic of removing status field from project data
-        project_data = {
-            "id": "prj-123abc456def789",
-            "type": "projects",
-            "attributes": {"name": "test-project"},
-            "status": 200,  # This should be removed
-            "other_field": "should_remain",
-        }
-
-        # Simulate the logic from the main function
-        project_data.pop("status", None)
-
-        # Verify the status field was removed
-        assert "status" not in project_data
-
-        # Other fields should remain
-        assert project_data["id"] == "prj-123abc456def789"
-        assert project_data["type"] == "projects"
-        assert project_data["attributes"]["name"] == "test-project"
-        assert project_data["other_field"] == "should_remain"
-
-    def test_status_field_removal_when_not_present(self):
-        """Test that status field removal works when status is not present."""
-        project_data = {
-            "id": "prj-123abc456def789",
-            "type": "projects",
-            "attributes": {"name": "test-project"},
-        }
-
-        # Simulate the logic from the main function
-        project_data.pop("status", None)
-
-        # Should not raise an error and data should remain unchanged
-        assert project_data == {
-            "id": "prj-123abc456def789",
-            "type": "projects",
-            "attributes": {"name": "test-project"},
-        }
 
     @pytest.mark.parametrize(
         "project_data,expected_result",
