@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new module hashicorp.terraform.configuration_version_info to fetch information about a configuration version in TFE/C.
