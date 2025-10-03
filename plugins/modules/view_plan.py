@@ -190,6 +190,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Dict, List, Optional, Tuple, Union
 
+from copy import deepcopy
+
 from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
@@ -713,7 +715,7 @@ def main() -> None:
         required_one_of=[["plan_id", "run_id"]],
     )
 
-    params = module.params
+    params = deepcopy(module.params)
     plan_id = params.get("plan_id")
     run_id = params.get("run_id")
     output_format = params.get("output_format")
