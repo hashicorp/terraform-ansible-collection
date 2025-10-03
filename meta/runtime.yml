@@ -8,3 +8,4 @@ action_groups:
     - workspace
     - view_plan
     - run_info
+    - configuration_version_info
