@@ -45,7 +45,6 @@ class TestProjectInfoModule:
         # Verify other module parameters
         assert call_args["supports_check_mode"] is True
 
-
     @pytest.mark.parametrize(
         "project_data,expected_result",
         [

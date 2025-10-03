@@ -63,7 +63,6 @@ class TestWorkspaceInfoModule:
             ["workspace", "organization"],
         ]
 
-
     @pytest.mark.parametrize(
         "workspace_data,expected_result",
         [
