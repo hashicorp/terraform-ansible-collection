@@ -11,7 +11,7 @@ __metaclass__ = type
 DOCUMENTATION = r"""
 ---
 module: workspace_info
-version_added: 1.0.0
+version_added: 1.1.0
 short_description: Gather information about a workspace in Terraform Enterprise/Cloud.
 author: "Shashank Venkat (@shvenkat)"
 description:
