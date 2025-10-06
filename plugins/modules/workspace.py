@@ -11,7 +11,7 @@ __metaclass__ = type
 DOCUMENTATION = r"""
 ---
 module: workspace
-version_added: 1.0.0
+version_added: 1.1.0
 short_description: Manage workspaces in Terraform Enterprise/Cloud.
 author: "Kaushiki Singh (@kausingh)"
 description:
