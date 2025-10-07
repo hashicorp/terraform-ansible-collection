@@ -24,6 +24,10 @@ Plugins and modules within a collection may be tested with only specific Ansible
 A collection may contain metadata that identifies these versions.
 PEP440 is the schema used to describe the versions of Ansible.
 
+## Python version compatibility
+
+This collection requires Python >= 3.10.
+
 ## Installation
 
 To install this collection from Automation Hub, the following needs to be added to `ansible.cfg`:
