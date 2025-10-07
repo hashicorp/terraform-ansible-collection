@@ -1,0 +1,3 @@
+---
+bugfixes:
+  - Ensures module invocation parameters in the task execution result aren't overridden by module code logic.
