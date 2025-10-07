@@ -365,6 +365,20 @@ class ClientMixin:
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to decode JSON string: {e}") from e
 
+    def _construct_url(self, path: str) -> str:
+        """
+        Construct the full URL from a path.
+
+        Args:
+            path (str): The API endpoint path or full URL.
+
+        Returns:
+            str: The complete URL.
+        """
+        if path.startswith(("http://", "https://")):
+            return path
+        return f"{self.base_url}{path}"
+
     @staticmethod
     def make_request(function: Callable):
         """Decorator to handle API requests and responses with retry on connection errors."""
@@ -385,14 +399,10 @@ class ClientMixin:
             if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
-            if not re.match(HTTP_URL_PATTERN, path):
-                url = f"{self.base_url}{path}"
-            else:
-                url = path
+            url = self._construct_url(path)
 
             # Let the session handle retries automatically
             # The retry mechanism is configured in create_session()
-            # Optimize by consolidating common parameters while maintaining API compatibility
             common_kwargs = {"timeout": self.timeout}
 
             if method == "GET" and query_params is not None:
