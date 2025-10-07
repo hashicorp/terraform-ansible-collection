@@ -242,7 +242,7 @@
 
     - name: Unlock workspace to check idempotency
       hashicorp.terraform.workspace:
-        workspace_id: '{{ workspace_id }}'
+        workspace_id: "{{ workspace_id }}"
         state: unlocked
       register: result_unlock
 
@@ -277,7 +277,7 @@
 
     - name: Delete workspace to check idempotency
       hashicorp.terraform.workspace:
-        workspace_id: '{{ workspace_id }}'
+        workspace_id: "{{ workspace_id }}"
         state: absent
       register: result_delete
 

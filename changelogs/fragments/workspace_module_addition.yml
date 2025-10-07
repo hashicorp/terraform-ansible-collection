@@ -1,2 +1,0 @@
-minor_changes:
-  - Adds a new module hashicorp.terraform.workspace for workspace management on TFE/C.

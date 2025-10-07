@@ -123,16 +123,19 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ## Release Notes and Roadmap
 
-### Latest Release: 1.0.0
-
-#### Release Summary
-
-This marks the first release of the `hashicorp.terraform` collection.
+### Latest Release: 1.1.0
 
 #### New Modules
 
-- `configuration_version` — Manage configuration versions in Terraform Enterprise/Cloud.
-- `run` — Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
+- configuration_version_info - Retrieve information about configuration versions in Terraform Enterprise/Cloud.
+- run_info - Retrieve information about a run in Terraform Enterprise/Cloud.
+- view_plan - View Terraform Cloud/Enterprise plan information
+- workspace - Manage workspaces in Terraform Enterprise/Cloud.
+- workspace_info - Gather information about a workspace in Terraform Enterprise/Cloud.
+
+#### Bugfixes
+
+- Ensures module invocation parameters in the task execution result aren't overridden by module code logic.
 
 ## Related Information
 

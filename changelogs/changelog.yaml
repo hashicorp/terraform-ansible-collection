@@ -22,3 +22,45 @@ releases:
         name: run
         namespace: ""
     release_date: "2025-09-03"
+  1.1.0:
+    changes:
+      bugfixes:
+        - Ensures module invocation parameters in the task execution result aren't overridden
+          by module code logic.
+      minor_changes:
+        - Adds a new module hashicorp.terraform.configuration_version_info to fetch
+          information about a configuration version in TFE/C.
+        - Adds a new module hashicorp.terraform.run_info to fetch information about
+          a run in TFE/C.
+        - Adds a new module hashicorp.terraform.view_plan for retrieving plan information
+          from TFE/C.
+        - Adds a new module hashicorp.terraform.workspace for workspace management on
+          TFE/C.
+        - Adds a new module hashicorp.terraform.workspace_info to fetch information
+          about a workspace in TFE/C.
+    fragments:
+      - configuration_version_info_module_addition.yml
+      - params_fix.yml
+      - plan_module_addition.yml
+      - run_info_module_addition.yml
+      - workspace_info_module_addition.yml
+      - workspace_module_addition.yml
+    modules:
+      - description:
+          Retrieve information about configuration versions in Terraform
+          Enterprise/Cloud.
+        name: configuration_version_info
+        namespace: ""
+      - description: Retrieve information about a run in Terraform Enterprise/Cloud.
+        name: run_info
+        namespace: ""
+      - description: View Terraform Cloud/Enterprise plan information
+        name: view_plan
+        namespace: ""
+      - description: Manage workspaces in Terraform Enterprise/Cloud.
+        name: workspace
+        namespace: ""
+      - description: Gather information about a workspace in Terraform Enterprise/Cloud.
+        name: workspace_info
+        namespace: ""
+    release_date: "2025-10-07"
