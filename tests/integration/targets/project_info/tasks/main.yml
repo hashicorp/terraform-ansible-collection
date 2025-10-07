@@ -121,7 +121,6 @@
           - result_empty_id.failed
           - '"required" in result_empty_id.msg'
 
-
     # Test that the same project ID returns consistent results
     - name: Get project info by ID again
       hashicorp.terraform.project_info:
