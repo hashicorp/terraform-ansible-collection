@@ -392,19 +392,13 @@ class ClientMixin:
 
             # Let the session handle retries automatically
             # The retry mechanism is configured in create_session()
-            request_kwargs = {
-                "method": method,
-                "url": url,
-                "timeout": self.timeout,
-            }
+            # Optimize by consolidating common parameters while maintaining API compatibility
+            common_kwargs = {"timeout": self.timeout}
 
-            # Add method-specific parameters efficiently
             if method == "GET" and query_params is not None:
-                request_kwargs["params"] = query_params
+                response = self.session.request(method, url, params=query_params, **common_kwargs)
             else:
-                request_kwargs["data"] = data
-
-            response = self.session.request(**request_kwargs)
+                response = self.session.request(method, url, data=data, **common_kwargs)
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
