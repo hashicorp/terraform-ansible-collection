@@ -1,2 +1,0 @@
-minor_changes:
-  - Adds a new module hashicorp.terraform.run_info to fetch information about a run in TFE/C.
