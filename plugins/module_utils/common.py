@@ -432,12 +432,13 @@ class ClientMixin:
         pass
 
     @make_request
-    def get(self, path: str) -> Any:
+    def get(self, path: str, query_params: Optional[Dict[str, Any]] = None) -> Any:
         """
         Retrieve data from the specified API endpoint.
 
         Args:
             path (str): The API endpoint path to retrieve data from.
+            query_params (dict, optional): Query parameters to include in the request.
 
         Returns:
             dict: The response data from the API.
