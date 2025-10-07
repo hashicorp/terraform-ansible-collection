@@ -4,7 +4,6 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or
 # https://www.gnu.org/licenses/gpl-3.0.txt)
-
 DOCUMENTATION = r"""
 ---
 module: project
@@ -45,7 +44,6 @@ options:
           - The execution mode for workspaces in this project.
           - Controls where Terraform operations are executed.
         type: str
-        choices: ['remote', 'local']
     default_agent_pool_id:
         description:
           - The ID of the default agent pool for workspaces in this project.
@@ -361,3 +359,64 @@ data:
                 "self": "/api/v2/projects/prj-7TwrwCoRQ3FXbFtP"
             }
 """
+import time
+from typing import Any, Optional, Dict
+from copy import deepcopy
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project import ProjectRequest
+from ansible_collections.hashicorp.terraform.plugins.module_utils.project import create_project, delete_project
+
+
+def state_present(params: Dict[str, Any]) -> Dict[str, Any]:
+  """
+    Create a new Terraform project.
+  """
+  return {}
+
+def state_absent(params: Dict[str, Any]) -> Dict[str, Any]:
+  """
+    Delete a Terraform project.
+  """
+  return {}
+
+def main():
+    module = AnsibleTerraformModule(
+        argument_spec={
+            "project_id": {"type": "str"},
+            "project": {"type": "str"},
+            "organization": {"type": "str"},
+            "description": {"type": "str"},
+            "auto_destroy_activity_duration": {"type": "str"},
+            "execution_mode": {"type": "str"},
+            "default_agent_pool_id": {"type": "str"},
+            "setting_overwrites": {"type": "dict"},
+            "tag_bindings": {"type": "dict"},
+            "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
+        },
+        required_together=[["project", "organization"]],
+        required_if=[
+            ("state", "present", ("project_id", "project"), True),
+            ("state", "absent", ("project_id", "project"), True),
+        ],
+        supports_check_mode=True,
+        mutually_exclusive=[
+            ("project", "project_id"),
+        ],
+    )
+    warnings = []
+    result = {"changed": False, "warnings": warnings}
+    action_result = {}
+    params = deepcopy(module.params)
+    params["check_mode"] = module.check_mode
+
+    if params["state"] == "present":
+        result = state_present(params)
+    elif params["state"] == "absent":
+        result = state_absent(params)
+    result.update(action_result)
+    module.exit_json(**result)
+
+if __name__ == "__main__":
+    main()
