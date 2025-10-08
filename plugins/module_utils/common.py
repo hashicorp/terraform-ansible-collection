@@ -385,10 +385,7 @@ class ClientMixin:
             if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
-            if not re.match(HTTP_URL_PATTERN, path):
-                url = f"{self.base_url}{path}"
-            else:
-                url = path
+            url = path if re.match(HTTP_URL_PATTERN, path) else f"{self.base_url}{path}"
 
             # Let the session handle retries automatically
             # The retry mechanism is configured in create_session()
