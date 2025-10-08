@@ -8,13 +8,13 @@ from __future__ import annotations
 
 DOCUMENTATION = r"""
 ---
-module: terraform_output
-version_added: "1.1.0"
+module: output
+version_added: "1.2.0"
 short_description: Retrieve Terraform Cloud/Enterprise state version outputs
 author: "Tanwi Geetika (@tgeetika)"
 description:
   - Retrieve state version output information from HashiCorp Terraform Cloud or Terraform Enterprise.
-  - Can retrieve a specific output by its ID or all outputs for a workspace's current state version.
+  - Can retrieve a specific output by its ID, by name, or all outputs for a workspace's current state version.
   - Supports both Terraform Cloud and Terraform Enterprise deployments.
   - Returns output names, values, types, and sensitivity information.
   - Sensitive values are masked and handled according to Terraform's sensitivity flags for security.
@@ -23,37 +23,47 @@ options:
     description:
       - The ID of a specific state version output to retrieve.
       - When provided, only this specific output will be retrieved.
-      - Mutually exclusive with I(workspace_id), I(workspace), I(organization), and I(output_name).
+      - Mutually exclusive with I(workspace_id), I(workspace), I(organization), and I(name).
     type: str
     aliases: ['output_id']
   workspace_id:
     description:
       - ID of the workspace to retrieve current state version outputs from.
-      - When provided without I(output_name), all outputs for the workspace's current state version are retrieved.
-      - Required when using I(output_name).
+      - When provided without I(name), all outputs for the workspace's current state version are retrieved.
+      - Required when using I(name).
       - Mutually exclusive with I(state_version_output_id).
       - Either I(workspace_id) or both I(workspace) and I(organization) must be specified.
     type: str
   workspace:
     description:
       - Name of the workspace to retrieve current state version outputs from.
-      - Must be used together with organization parameter.
-      - Mutually exclusive with state_version_output_id.
-      - Either both workspace and organization or workspace_id must be specified.
-    type: str
-  output_name:
-    description:
-      - Name of a specific output to retrieve from the workspace.
-      - Must be used with workspace identification (I(workspace_id) or I(workspace)/I(organization)).
+      - Must be used together with I(organization) parameter.
       - Mutually exclusive with I(state_version_output_id).
-      - Returns a single output in the same format as when using I(state_version_output_id).
+      - Either both I(workspace) and I(organization) or I(workspace_id) must be specified.
     type: str
   organization:
     description:
       - Name of the organization that the workspace belongs to.
-      - Required when workspace parameter is specified.
+      - Required when I(workspace) parameter is specified.
       - Used to resolve workspace name to workspace ID.
     type: str
+  name:
+    description:
+      - Name of a specific output to retrieve from the workspace.
+      - Must be used with workspace identification (I(workspace_id) or I(workspace)/I(organization)).
+      - Mutually exclusive with I(state_version_output_id) parameter.
+      - Returns a single output in the same format as I(state_version_output_id).
+      - Note: For sensitive outputs, the API returns null values which cannot be retrieved by name.
+    type: str
+  display_sensitive:
+    description:
+      - Whether to return actual values for sensitive outputs.
+      - When I(false) (default), sensitive values are masked as I('<sensitive>').
+      - When I(true), returns the actual sensitive value from the API.
+      - For workspace-based lookups (name or all outputs), when I(display_sensitive=true),
+        the module makes individual API calls to retrieve actual sensitive values.
+    type: bool
+    default: false
 extends_documentation_fragment:
   - hashicorp.terraform.common
 """
@@ -61,7 +71,7 @@ extends_documentation_fragment:
 EXAMPLES = r"""
 # Get a specific output by ID
 - name: Retrieve specific state version output
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     state_version_output_id: wsout-J2zM24JRHbfabcd5
   register: result
 
@@ -90,9 +100,9 @@ EXAMPLES = r"""
 
 # Get a specific output by name with workspace_id
 - name: Get API token output by name
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     workspace_id: ws-G4zMABcdeffc10E5
-    output_name: api_token
+    name: api_token
   register: api_token
 
 # Task output:
@@ -113,10 +123,10 @@ EXAMPLES = r"""
 
 # Get a specific output by name with workspace name and organization
 - name: Get web server ID by name using workspace name
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     workspace: my-workspace
     organization: my-org
-    output_name: web_server_id
+    name: web_server_id
   register: server_id
 
 # Task output:
@@ -137,7 +147,7 @@ EXAMPLES = r"""
 
 # Get all outputs for a workspace using workspace ID
 - name: Get workspace outputs by workspace ID
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     workspace_id: ws-G4zMABcdefGc10E5
   register: results
 
@@ -145,6 +155,7 @@ EXAMPLES = r"""
 # ------------
 # "results": {
 #         "changed": false,
+#         "count": 6,
 #         "failed": false,
 #         "outputs": [
 #             {
@@ -228,9 +239,10 @@ EXAMPLES = r"""
 
 # Get all outputs for a workspace using workspace and organization name
 - name: Get workspace outputs by workspace and organization name
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     workspace: plan_info_module
     organization: Ansible-BU-TFC
+    display_sensitive: true
   register: results
 
 # Task output:
@@ -246,7 +258,7 @@ EXAMPLES = r"""
 #                 "name": "api_token",
 #                 "sensitive": true,
 #                 "type": "string",
-#                 "value": "<sensitive>"
+#                 "value": "tok_updated_xyz125"
 #             },
 #             {
 #                 "detailed_type": [
@@ -262,14 +274,19 @@ EXAMPLES = r"""
 #                 "name": "combined_config",
 #                 "sensitive": true,
 #                 "type": "object",
-#                 "value": "<sensitive>"
-#             },
-#         ]
+#                 "value": {
+#                   "api_token": "tok_updated_xyz125",
+#                   "app_version": "1.1.0",
+#                   "database_password": "updated-secure-password-126",
+#                   "environment": "staged"
+#               }
+#           },
+#      ]
 # }
 
 # Invalid state_version_output_id
 - name: Retrieve output with invalid state_version_output_id
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     state_version_output_id: wsout-INVALID1234
   register: result
 
@@ -283,7 +300,7 @@ EXAMPLES = r"""
 
 # Invalid workspace_id
 - name: Get workspace outputs with invalid workspace_id
-  hashicorp.terraform.terraform_output:
+  hashicorp.terraform.output:
     workspace_id: ws-INVALID4567
   register: results
 
@@ -298,8 +315,8 @@ EXAMPLES = r"""
 
 RETURN = r"""
 output:
-  description: Single state version output information (when state_version_output_id or output_name is provided).
-  returned: when state_version_output_id or output_name is specified and found
+  description: Single state version output information (when I(state_version_output_id) or I(name) is provided).
+  returned: when I(state_version_output_id) or I(name) is specified and found
   type: dict
   contains: &output_fields
     id:
@@ -311,11 +328,11 @@ output:
       type: str
       sample: "combined_config"
     value:
-      description: The output value. Shows "<sensitive>" for sensitive outputs.
+      description: The output value. Shows I('<sensitive>') for sensitive outputs unless I(display_sensitive=true).
       type: raw
       sample: "<sensitive>"
     type:
-      description: The basic type of the output (string, object, etc.).
+      description: The basic type of the output (I(string), I(object), etc.).
       type: str
       sample: "object"
     detailed_type:
@@ -328,12 +345,13 @@ output:
       sample: true
 outputs:
   description: List of workspace state version outputs (when workspace parameters are provided).
-  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(output_name) is not.
+  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(name) is not.
   type: list
   elements: dict
   contains: *output_fields
 count:
   description: Number of outputs returned when retrieving workspace outputs.
-  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(output_name) is not.
+  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(name) is not.
   type: int
+  sample: 6
 """
