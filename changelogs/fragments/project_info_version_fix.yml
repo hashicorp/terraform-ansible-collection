@@ -1,3 +1,0 @@
----
-bugfixes:
-  - project_info - Fixed version_added metadata to correctly reflect 1.2.0 instead of 1.1.0.
