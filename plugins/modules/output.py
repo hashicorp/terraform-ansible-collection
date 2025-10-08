@@ -53,7 +53,8 @@ options:
       - Must be used with workspace identification (I(workspace_id) or I(workspace)/I(organization)).
       - Mutually exclusive with I(state_version_output_id) parameter.
       - Returns a single output in the same format as I(state_version_output_id).
-      - Note: For sensitive outputs, the API returns null values which cannot be retrieved by name.
+      - "Note: For sensitive outputs, use display_sensitive=true to retrieve actual values."
+      - "Example: api_token, web_server_id"
     type: str
   display_sensitive:
     description:
@@ -315,10 +316,10 @@ EXAMPLES = r"""
 
 RETURN = r"""
 output:
-  description: Single state version output information (when I(state_version_output_id) or I(name) is provided).
-  returned: when I(state_version_output_id) or I(name) is specified and found
+  description: Single state version output information (when state_version_output_id or name is provided).
+  returned: when state_version_output_id or name is specified and found
   type: dict
-  contains: &output_fields
+  contains:
     id:
       description: The unique identifier of the state version output.
       type: str
@@ -328,11 +329,11 @@ output:
       type: str
       sample: "combined_config"
     value:
-      description: The output value. Shows I('<sensitive>') for sensitive outputs unless I(display_sensitive=true).
+      description: The output value. Shows '<sensitive>' for sensitive outputs unless display_sensitive is true.
       type: raw
       sample: "<sensitive>"
     type:
-      description: The basic type of the output (I(string), I(object), etc.).
+      description: The basic type of the output (string, object, etc.).
       type: str
       sample: "object"
     detailed_type:
@@ -345,13 +346,39 @@ output:
       sample: true
 outputs:
   description: List of workspace state version outputs (when workspace parameters are provided).
-  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(name) is not.
+  returned: when workspace_id or workspace + organization is specified without name parameter.
   type: list
   elements: dict
-  contains: *output_fields
+  contains:
+    id:
+      description: The unique identifier of the state version output.
+      type: str
+      sample: "wsout-fPuxNABcdefEidjE"
+    name:
+      description: The name of the output variable.
+      type: str
+      sample: "combined_config"
+    value:
+      description:
+        - The output value.
+        - Shows '<sensitive>' for sensitive outputs unless display_sensitive is true.
+      type: raw
+      sample: "<sensitive>"
+    type:
+      description: The basic type of the output (string, object, etc.).
+      type: str
+      sample: "object"
+    detailed_type:
+      description: Detailed type information including nested structure.
+      type: raw
+      sample: ["object", {"api_token": "string"}]
+    sensitive:
+      description: Whether the output is marked as sensitive.
+      type: bool
+      sample: true
 count:
   description: Number of outputs returned when retrieving workspace outputs.
-  returned: when I(workspace_id) or I(workspace) + I(organization) is specified, and I(name) is not.
+  returned: when workspace_id or workspace + organization is specified without name parameter.
   type: int
   sample: 6
 """
