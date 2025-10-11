@@ -382,3 +382,101 @@ count:
   type: int
   sample: 6
 """
+
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from typing import Any, Dict
+
+from copy import deepcopy
+
+from ansible.module_utils._text import to_text
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.output import (
+    get_output_by_name,
+    get_specific_output,
+    get_workspace_id_by_name,
+    get_workspace_outputs,
+)
+
+
+def main() -> None:
+    """Main module execution function."""
+    module = AnsibleTerraformModule(
+        argument_spec={
+            "state_version_output_id": {"type": "str", "aliases": ["output_id"]},
+            "workspace_id": {"type": "str"},
+            "workspace": {"type": "str"},
+            "organization": {"type": "str"},
+            "name": {"type": "str"},
+            "display_sensitive": {"type": "bool", "default": False},
+        },
+        mutually_exclusive=[
+            ["state_version_output_id", "workspace_id"],
+            ["state_version_output_id", "workspace"],
+            ["state_version_output_id", "organization"],
+            ["state_version_output_id", "name"],
+        ],
+        required_together=[["workspace", "organization"]],
+        required_one_of=[
+            ["state_version_output_id", "workspace_id", "workspace"],
+        ],
+    )
+
+    params = deepcopy(module.params)
+    state_version_output_id = params.get("state_version_output_id")
+    workspace_id = params.get("workspace_id")
+    workspace = params.get("workspace")
+    organization = params.get("organization")
+    name = params.get("name")
+    display_sensitive = params.get("display_sensitive", False)
+
+    result: Dict[str, Any] = {"changed": False}
+
+    try:
+        client = TerraformClient(**params)
+
+        if state_version_output_id:
+            output_data = get_specific_output(client, state_version_output_id, display_sensitive=display_sensitive)
+            result["output"] = output_data
+
+        elif name:
+            if workspace and organization:
+                workspace_id = get_workspace_id_by_name(client, organization, workspace)
+
+            if not workspace_id:
+                raise ValueError("Either workspace_id or both workspace and organization must be provided when using the name parameter.")
+
+            output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
+            result["output"] = output_data
+
+        else:
+            if workspace and organization:
+                workspace_id = get_workspace_id_by_name(client, organization, workspace)
+
+            if not workspace_id:
+                raise ValueError("Either workspace_id or both workspace and organization must be provided")
+
+            outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
+
+            if outputs:
+                result["outputs"] = outputs
+                result["count"] = len(outputs)
+            else:
+                result["outputs"] = []
+                result["count"] = 0
+                result["msg"] = "No outputs found for workspace."
+
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=to_text(e))
+
+
+if __name__ == "__main__":
+    main()
