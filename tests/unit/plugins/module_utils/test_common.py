@@ -367,6 +367,99 @@ class TestClientMixin:
             timeout=10,
         )
 
+    def test_make_request_decorator_with_query_params(self):
+        """Test make_request decorator with query parameters passed as dict."""
+        client = self.MockClient()
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'{"data": "test", "filtered": true}'
+
+        client.session.request.return_value = mock_response
+
+        # Test GET with query parameters
+        query_params = {"page": "1", "size": "10", "filter": "active"}
+        result = client.get("/test", query_params=query_params)
+
+        assert result == {"status": 200, "data": {"data": "test", "filtered": True}}
+        client.session.request.assert_called_once_with(
+            "GET",
+            "https://api.terraform.io/api/v2/test",
+            timeout=10,
+            params=query_params,
+        )
+
+        # Reset mock and test GET with empty query params
+        client.session.request.reset_mock()
+        result = client.get("/test", query_params={})
+
+        assert result == {"status": 200, "data": {"data": "test", "filtered": True}}
+        client.session.request.assert_called_once_with(
+            "GET",
+            "https://api.terraform.io/api/v2/test",
+            timeout=10,
+            params={},
+        )
+
+        # Reset mock and test GET without query params (should not use params)
+        client.session.request.reset_mock()
+        result = client.get("/test")
+
+        assert result == {"status": 200, "data": {"data": "test", "filtered": True}}
+        client.session.request.assert_called_once_with(
+            "GET",
+            "https://api.terraform.io/api/v2/test",
+            data=None,
+            timeout=10,
+        )
+
+    def test_make_request_decorator_query_params_non_get_methods(self):
+        """Test make_request decorator with query parameters on non-GET methods."""
+        client = self.MockClient()
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.content = b'{"id": "123"}'
+
+        client.session.request.return_value = mock_response
+
+        # Test POST with query parameters (should ignore them and use data)
+        query_params = {"version": "1"}
+        test_data = {"name": "test"}
+        result = client.post("/test", test_data, query_params=query_params)
+
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_once_with(
+            "POST",
+            "https://api.terraform.io/api/v2/test",
+            data='{"name": "test"}',
+            timeout=10,
+        )
+
+        # Reset mock and test PUT with query parameters (should ignore them)
+        client.session.request.reset_mock()
+        result = client.put("/test", test_data, query_params=query_params)
+
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_once_with(
+            "PUT",
+            "https://api.terraform.io/api/v2/test",
+            data='{"name": "test"}',
+            timeout=10,
+        )
+
+        # Reset mock and test DELETE with query parameters (should ignore them)
+        client.session.request.reset_mock()
+        result = client.delete("/test", query_params=query_params)
+
+        assert result == {"status": 201, "data": {"id": "123"}}
+        client.session.request.assert_called_once_with(
+            "DELETE",
+            "https://api.terraform.io/api/v2/test",
+            data=None,
+            timeout=10,
+        )
+
 
 class TestTerraformClient:
     """Test suite for the TerraformClient class.
