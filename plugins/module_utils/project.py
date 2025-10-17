@@ -1,11 +1,12 @@
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from ansible.module_utils.common.text.converters import to_text
 
+from .common import TerraformClient
 from .exceptions import TerraformError
 
 
-def create_project(client, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+def create_project(client: TerraformClient, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Create a new project with the given parameters.
     Args:
@@ -62,7 +63,7 @@ def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any
         raise TerraformError(response)
 
 
-def update_project(client, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+def update_project(client: TerraformClient, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Update a project with the given project_id.
     Args:
@@ -80,7 +81,7 @@ def update_project(client, project_id: str, data: dict[str, Any]) -> Optional[di
     return response.get("data")
 
 
-def delete_project(client, project_id: str) -> Optional[dict[str, Any]]:
+def delete_project(client: TerraformClient, project_id: str) -> Optional[dict[str, Any]]:
     """
     Delete a project with the given project_id.
     Args:
@@ -97,7 +98,7 @@ def delete_project(client, project_id: str) -> Optional[dict[str, Any]]:
     return response.get("data")
 
 
-def get_project_tag_bindings(client, project_id: str) -> Optional[dict[str, Any]]:
+def get_project_tag_bindings(client: TerraformClient, project_id: str) -> Optional[dict[str, Any]]:
     """
     Get the tag bindings for a project with the given project_id.
     Args:
@@ -117,7 +118,7 @@ def get_project_tag_bindings(client, project_id: str) -> Optional[dict[str, Any]
         raise TerraformError(to_text(response))
 
 
-def update_project_tag_bindings(client, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+def update_project_tag_bindings(client: TerraformClient, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Update the tag bindings for a project with the given project_id.
     Args:
@@ -135,7 +136,7 @@ def update_project_tag_bindings(client, project_id: str, data: dict[str, Any]) -
     return response.get("data")
 
 
-def list_projects(client, organization: str, query_params: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
+def list_projects(client: TerraformClient, organization: str, query_params: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
     """
     List all projects for an organization.
     Args:
