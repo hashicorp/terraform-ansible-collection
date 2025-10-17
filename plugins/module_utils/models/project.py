@@ -6,6 +6,8 @@ This module contains models specifically for project-related API operations.
 
 from typing import Dict, List, Literal, Optional
 
+from pydantic import AliasChoices
+
 from .common import (
     BaseModel,
     BaseRequest,
@@ -21,7 +23,7 @@ class ProjectAttributes(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    name: StrictStr
+    project: StrictStr = Field(..., alias="name", validation_alias=AliasChoices("name", "project"))
     description: Optional[StrictStr] = None
     auto_destroy_activity_duration: Optional[StrictStr] = Field(None, alias="auto-destroy-activity-duration")
     execution_mode: Optional[Literal["remote", "local"]] = None

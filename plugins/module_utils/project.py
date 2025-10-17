@@ -23,7 +23,7 @@ def create_project(client, organization: str, data: dict[str, Any]) -> Optional[
     return response.get("data")
 
 
-def get_project(client, project_id: str) -> Optional[dict[str, Any]]:
+def get_project(client, project_id: str, query_params: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
     """
     Get a project with the given project_id.
     Args:
@@ -34,7 +34,7 @@ def get_project(client, project_id: str) -> Optional[dict[str, Any]]:
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    response = client.get(f"/projects/{project_id}")
+    response = client.get(f"/projects/{project_id}", query_params=query_params)
     if response.get("status") == 200:
         return response.get("data")
     elif response.get("status") == 404:
@@ -73,7 +73,7 @@ def delete_project(client, project_id: str) -> Optional[dict[str, Any]]:
         TerraformError: If the response does not return a 200 status code.
     """
     response = client.delete(f"/projects/{project_id}")
-    if response.get("status") != 200:
+    if response.get("status") != 204:
         raise TerraformError(to_text(response))
     return response.get("data")
 
@@ -114,3 +114,21 @@ def update_project_tag_bindings(client, project_id: str, data: dict[str, Any]) -
     if response.get("status") != 200:
         raise TerraformError(to_text(response))
     return response.get("data")
+
+
+def list_projects(client, organization: str, query_params: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
+    """
+    List all projects for an organization.
+    Args:
+        client: The Terraform client instance.
+        organization (str): The name of the organization to list projects for.
+    Returns:
+        The list of projects.
+    """
+    response = client.get(f"/organizations/{organization}/projects", query_params=query_params)
+    if response.get("status") == 200:
+        return response.get("data")
+    elif response.get("status") == 404:
+        return {}
+    else:
+        raise TerraformError(to_text(response))

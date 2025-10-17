@@ -359,27 +359,248 @@ data:
                 "self": "/api/v2/projects/prj-7TwrwCoRQ3FXbFtP"
             }
 """
-import time
-from typing import Any, Optional, Dict
 from copy import deepcopy
+from typing import Any, Callable, Dict, Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project import ProjectRequest
-from ansible_collections.hashicorp.terraform.plugins.module_utils.project import create_project, delete_project
+from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
+    create_project,
+    delete_project,
+    get_project,
+    get_project_tag_bindings,
+    list_projects,
+    update_project,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
 
 
-def state_present(params: Dict[str, Any]) -> Dict[str, Any]:
-  """
-    Create a new Terraform project.
-  """
-  return {}
+def get_project_by_name(client: TerraformClient, organization: str, name: str) -> Dict[str, Any]:
+    """
+    Get a project by name.
+    Args:
+        client: TerraformClient instance
+        organization: The name of the organization
+        name: The name of the project
+    Returns:
+        The project in the form of a dictionary, or empty dict if not found.
+    """
+    response = list_projects(client, organization, query_params={"filter[names]": name})
+    data = response.get("data", [])
+    return data[0] if data else {}
 
-def state_absent(params: Dict[str, Any]) -> Dict[str, Any]:
-  """
+
+def check_mode(function: Callable):
+    """
+    Decorator to handle check mode and check if the project exists.
+    Args:
+        function: The function to decorate.
+    Returns:
+        The decorated function.
+    """
+
+    def wrapper(*args, **kwargs):
+        check_mode_enabled = kwargs.get("check_mode", False)
+        if check_mode_enabled:
+            return {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any]:
+    """
+    Get a project by ID.
+    client: TerraformClient instance
+    project_id: The ID of the project
+    """
+    response = get_project(client, project_id)
+    return response
+
+
+def fetch_project_tag_bindings(client: TerraformClient, project_id: str) -> dict:
+    """
+    Fetch actual tag key-value pairs for a project's tag bindings.
+
+    Args:
+        client: An instance of TerraformClient.
+        project_id (str): The project ID.
+
+    Returns:
+        Dict[str, str]: A mapping of tag keys to values.
+    """
+    response = get_project_tag_bindings(client, project_id)
+
+    if not response or "data" not in response:
+        return {}
+
+    tag_values = {}
+    for item in response["data"]:
+        if item.get("type") == "tag-bindings":
+            attributes = item.get("attributes", {})
+            key = attributes.get("key")
+            value = attributes.get("value")
+            if key is not None:
+                tag_values[key] = value
+
+    return tag_values
+
+
+def normalize_project_response(response_data: dict, client: TerraformClient, project_id: str) -> dict:
+    """
+    Normalizes the raw project API response into a simplified, structured dictionary
+    representing the current state of a project.
+
+    This function extracts key attributes and relationships from the Terraform project
+    API response and formats certain fields for consistency. It also includes related data such
+    as tag bindings.
+
+    Args:
+        response_data (dict): The raw JSON response from the project API.
+        client: A client instance used to fetch additional project data
+        project_id (str): The ID of the project whose data is being normalized.
+
+    Returns:
+        dict: A dictionary representing the normalized state of the project, excluding
+              any fields that are `None`.
+    """
+
+    normalized = {
+        "name": response_data["data"].get("attributes", {}).get("name"),
+        "description": response_data["data"].get("attributes", {}).get("description"),
+        "auto_destroy_activity_duration": response_data["data"].get("attributes", {}).get("auto-destroy-activity-duration"),
+        "execution_mode": response_data["data"].get("attributes", {}).get("execution-mode"),
+        "default_agent_pool_id": response_data["data"].get("attributes", {}).get("default-agent-pool-id"),
+        "setting_overwrites": response_data["data"].get("attributes", {}).get("setting-overwrites"),
+    }
+
+    # Include tag bindings
+    tag_bindings = fetch_project_tag_bindings(client, project_id)
+    normalized["tag_bindings"] = tag_bindings
+
+    # return {k: v for k, v in normalized.items() if v is not None}
+    return normalized
+
+
+def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Check if a project exists.
+    client: TerraformClient instance
+    params: Dictionary of parameters for the project
+    Returns:
+        True if the project exists, False otherwise.
+    """
+    project_id = params.get("project_id")
+    project_name = params.get("project")
+    organization = params.get("organization")
+
+    if project_id:
+        project = get_project_by_id(client, project_id)
+        if project:
+            return project
+
+    if project_name and organization:
+        existing_project: Optional[Dict[str, Any]] = get_project_by_name(client, organization, project_name)
+        if existing_project and (project_id := existing_project.get("id")):
+            project = get_project_by_id(client, project_id)
+            return project
+
+    return {}
+
+
+def state_present(client: TerraformClient, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Create/update a Terraform project.
+    client: TerraformClient instance
+    params: Dictionary of parameters for the project
+    Returns:
+        The created/updated project in the form of a dictionary.
+    Raises:
+        TerraformError: If the response does not return a 201/200 status code.
+    """
+    ignore_params = {"check_mode", "state", "organization", "project_id"}
+    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
+
+    if project := fetch_project(client, params):
+        # Project exists, perform update logic with diff
+        return state_update(client, params, project)
+    else:
+        # Project doesn't exist, create it
+        project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
+            by_alias=True, exclude_unset=False, exclude_none=True
+        )
+        response = create_project(client, organization=params.get("organization"), data=project_request)
+        return {"changed": True, **response.get("data")}
+
+
+def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update an existing Terraform project using the provided client and parameters.
+
+    This function compares the current project state with desired state and only
+    updates if there are differences.
+
+    Args:
+        client: TerraformClient instance
+        params: Dictionary of parameters for the project
+        project: Existing project data from API
+    Returns:
+        Dictionary indicating the result of the operation
+    """
+    ignore_params = {"check_mode", "state", "organization", "project_id"}
+    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
+
+    project_id = project["data"].get("id")
+
+    # Get current state (what we have)
+    have = normalize_project_response(project, client, project_id)
+
+    # Get desired state (what we want) - handle field name mapping
+    want = project_params.copy()
+    # Map 'project' field to 'name' to match the normalized response
+    if "project" in want:
+        want["name"] = want.pop("project")
+    want = {k: v for k, v in want.items() if v is not None}
+
+    # Remove excessive keys from have to match it to want
+    have = {k: v for k, v in have.items() if k in want}
+
+    # Compare the two dictionaries to find differences
+    updates_response = dict_diff(have, want)
+
+    if not updates_response:
+        return {"changed": False}
+
+    project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
+        by_alias=True, exclude_unset=False, exclude_none=True
+    )
+    response = update_project(client, project_id, project_request)
+    return {"changed": True, **response.get("data")}
+
+
+def state_absent(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
     Delete a Terraform project.
-  """
-  return {}
+    client: TerraformClient instance
+    params: Dictionary of parameters for the project
+    Returns:
+        The deleted project in the form of a dictionary.
+    Raises:
+        TerraformError: If the response does not return a 200 status code.
+    """
+    project_id = params.get("project_id")
+    if not project_id:
+        project = fetch_project(client, params)
+        if project:
+            project_data = project.get("data")
+            if project_data:
+                project_id = project_data.get("id")
+
+    if not project_id:
+        return {"changed": False, "msg": "Project not found"}
+    delete_project(client, project_id)
+    return {"changed": True, "msg": f"Project {project_id} has been deleted successfully"}
+
 
 def main():
     module = AnsibleTerraformModule(
@@ -411,12 +632,21 @@ def main():
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
-    if params["state"] == "present":
-        result = state_present(params)
-    elif params["state"] == "absent":
-        result = state_absent(params)
-    result.update(action_result)
-    module.exit_json(**result)
+    try:
+        tf_client = TerraformClient(**params)
+
+        match params["state"]:
+            case "present":
+                action_result = state_present(tf_client, params)
+            case "absent":
+                action_result = state_absent(tf_client, params)
+
+        result.update(action_result)
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_from_exception(e)
+
 
 if __name__ == "__main__":
     main()
