@@ -6,9 +6,8 @@ This module contains models specifically for project-related API operations.
 
 from typing import Dict, List, Literal, Optional
 
-from pydantic import AliasChoices
-
 from .common import (
+    AliasChoices,
     BaseModel,
     BaseRequest,
     BaseTerraformResource,

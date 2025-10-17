@@ -5,7 +5,7 @@ HAS_PYDANTIC = False
 
 # Import pydantic components with fallbacks
 try:
-    from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+    from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictBool, StrictStr
 
     HAS_PYDANTIC = True
 except ImportError:
@@ -133,4 +133,5 @@ __all__ = [
     "create_run_reference",
     # Constants
     "HAS_PYDANTIC",
+    "AliasChoices",
 ]
