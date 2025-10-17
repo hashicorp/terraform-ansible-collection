@@ -360,6 +360,7 @@ import tarfile
 import tempfile
 import time
 
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -681,7 +682,7 @@ def main():
     warnings = []
     result = {"changed": False, "warnings": warnings}
     action_result = {}
-    params = module.params
+    params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
     try:

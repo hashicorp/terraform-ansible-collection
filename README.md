@@ -2,7 +2,7 @@
 
 This repository contains the `hashicorp.terraform` Ansible Collection.
 
-[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ansible-automation-platform_hashicorp.terraform&token=6483d30018f490cb8c7f200e90a638def89afd2e)](https://sonarcloud.io/summary/new_code?id=ansible-automation-platform_hashicorp.terraform)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ansible_hashicorp.terraform&metric=coverage&token=a9a61b290efd5fc9e2dc7623da5f1de9f722d951)](https://sonarcloud.io/summary/new_code?id=ansible_hashicorp.terraform)
 
 # Description
 
@@ -15,8 +15,8 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 This collection requires `requests` and `pydantic>=2.0.0` libraries to be installed.
 
 Some modules and plugins may require other external libraries. Please check the
-requirements for each plugin or module you use in the documentation to find out
-which requirements are needed.
+requirements for each plugin or module you use in the documentation to check the
+requirements.
 
 ## Ansible version compatibility
 
@@ -25,6 +25,10 @@ This collection has been tested against the following Ansible versions: **>=2.16
 Plugins and modules within a collection may be tested with only specific Ansible versions.
 A collection may contain metadata that identifies these versions.
 PEP440 is the schema used to describe the versions of Ansible.
+
+## Python version compatibility
+
+This collection requires Python >= 3.10.
 
 ## Installation
 

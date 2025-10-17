@@ -567,6 +567,7 @@ links:
 
 import time
 
+from copy import deepcopy
 from typing import Any, Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
@@ -816,7 +817,7 @@ def main():
     warnings = []
     result = {"changed": False, "warnings": warnings}
     action_result = {}
-    params = module.params
+    params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
     try:
