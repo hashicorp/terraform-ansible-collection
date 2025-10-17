@@ -367,7 +367,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     create_project,
     delete_project,
-    get_project,
+    get_project_by_id,
     get_project_tag_bindings,
     list_projects,
     update_project,
@@ -408,13 +408,13 @@ def check_mode(function: Callable):
     return wrapper
 
 
-def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any]:
+def get_project_by_id_wrapper(client: TerraformClient, project_id: str) -> Dict[str, Any]:
     """
     Get a project by ID.
     client: TerraformClient instance
     project_id: The ID of the project
     """
-    response = get_project(client, project_id)
+    response = get_project_by_id(client, project_id)
     return response
 
 
@@ -495,14 +495,14 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
     organization = params.get("organization")
 
     if project_id:
-        project = get_project_by_id(client, project_id)
+        project = get_project_by_id_wrapper(client, project_id)
         if project:
             return project
 
     if project_name and organization:
         existing_project: Optional[Dict[str, Any]] = get_project_by_name(client, organization, project_name)
         if existing_project and (project_id := existing_project.get("id")):
-            project = get_project_by_id(client, project_id)
+            project = get_project_by_id_wrapper(client, project_id)
             return project
 
     return {}

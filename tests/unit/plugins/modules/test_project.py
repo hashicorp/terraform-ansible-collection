@@ -11,7 +11,7 @@ from ansible_collections.hashicorp.terraform.plugins.modules.project import (
     check_mode,
     fetch_project,
     fetch_project_tag_bindings,
-    get_project_by_id,
+    get_project_by_id_wrapper,
     get_project_by_name,
     main,
     normalize_project_response,
@@ -72,10 +72,10 @@ class TestProjectHelperFunctions:
 
         expected_response = {"data": {"id": project_id, "type": "projects", "attributes": {"name": "test-project"}}}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
             mock_get.return_value = expected_response
 
-            result = get_project_by_id(mock_client, project_id)
+            result = get_project_by_id_wrapper(mock_client, project_id)
 
             assert result == expected_response
             mock_get.assert_called_once_with(mock_client, project_id)
