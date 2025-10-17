@@ -19,6 +19,10 @@ except ImportError:
         """Fallback Field function for when pydantic is not available."""
         return None
 
+    def AliasChoices(*args: Any) -> Any:  # type: ignore[no-redef]
+        """Fallback AliasChoices function for when pydantic is not available."""
+        return args[0] if args else None
+
     # Create fallback types - use built-in types directly
     StrictBool = bool  # type: ignore[misc,assignment]
     StrictStr = str  # type: ignore[misc,assignment]
