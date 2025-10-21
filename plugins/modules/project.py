@@ -606,14 +606,14 @@ def main():
     module = AnsibleTerraformModule(
         argument_spec={
             "project_id": {"type": "str"},
-            "project": {"type": "str"},
+            "project": {"type": "str", "aliases": ["name"]},
             "organization": {"type": "str"},
             "description": {"type": "str"},
             "auto_destroy_activity_duration": {"type": "str"},
             "execution_mode": {"type": "str"},
             "default_agent_pool_id": {"type": "str"},
             "setting_overwrites": {"type": "dict"},
-            "tag_bindings": {"type": "dict"},
+            "tag_bindings": {"type": "list", "elements": "dict"},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
         required_together=[["project", "organization"]],
