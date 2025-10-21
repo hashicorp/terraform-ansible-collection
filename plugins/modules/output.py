@@ -397,11 +397,14 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     TerraformClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.output import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
+    _extract_data_from_response,
     get_output_by_name,
     get_specific_output,
-    get_workspace_id_by_name,
     get_workspace_outputs,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+    get_workspace,
 )
 
 
@@ -444,33 +447,32 @@ def main() -> None:
         if state_version_output_id:
             output_data = get_specific_output(client, state_version_output_id, display_sensitive=display_sensitive)
             result["output"] = output_data
-
-        elif name:
-            if workspace and organization:
-                workspace_id = get_workspace_id_by_name(client, organization, workspace)
-
-            if not workspace_id:
-                raise ValueError("Either workspace_id or both workspace and organization must be provided when using the name parameter.")
-
-            output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
-            result["output"] = output_data
-
         else:
-            if workspace and organization:
-                workspace_id = get_workspace_id_by_name(client, organization, workspace)
-
             if not workspace_id:
-                raise ValueError("Either workspace_id or both workspace and organization must be provided")
+                if workspace and organization:
+                    workspace_data = get_workspace(client, organization, workspace)
+                    if not workspace_data:
+                        raise ValueError(f"Workspace '{workspace}' was not found in organization '{organization}'.")
+                    workspace_data = _extract_data_from_response(workspace_data)
+                    workspace_id = workspace_data.get("id")
+                    if not workspace_id:
+                        raise ValueError(f"Invalid workspace data returned for '{workspace}' in '{organization}'.")
+                else:
+                    raise ValueError("Either workspace_id or both workspace and organization must be provided")
 
-            outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
-
-            if outputs:
-                result["outputs"] = outputs
-                result["count"] = len(outputs)
+            if name:
+                output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
+                result["output"] = output_data
             else:
-                result["outputs"] = []
-                result["count"] = 0
-                result["msg"] = "No outputs found for workspace."
+                outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
+
+                if outputs:
+                    result["outputs"] = outputs
+                    result["count"] = len(outputs)
+                else:
+                    result["outputs"] = []
+                    result["count"] = 0
+                    result["msg"] = "No outputs found for workspace."
 
         module.exit_json(**result)
 

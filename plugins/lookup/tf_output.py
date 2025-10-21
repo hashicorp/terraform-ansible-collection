@@ -9,7 +9,7 @@ from __future__ import annotations
 DOCUMENTATION = r"""
 name: tf_output
 short_description: Retrieve Terraform Cloud/Enterprise output values
-version_added: "1.1.0"
+version_added: "1.2.0"
 author: "Tanwi Geetika (@tgeetika)"
 description:
   - Retrieve Terraform output values from HashiCorp Terraform Cloud or Terraform Enterprise.
@@ -159,11 +159,14 @@ from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.output import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
+    _extract_data_from_response,
     get_output_by_name,
     get_specific_output,
-    get_workspace_id_by_name,
     get_workspace_outputs,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+    get_workspace,
 )
 
 
@@ -205,7 +208,13 @@ class LookupModule(LookupBase):
                 value = output_data["value"]
             else:
                 if workspace and organization and not workspace_id:
-                    workspace_id = get_workspace_id_by_name(client, organization, workspace)
+                    workspace_data = get_workspace(client, organization, workspace)
+                    if not workspace_data:
+                        raise AnsibleError(f"Workspace '{workspace}' was not found in organization '{organization}'.")
+                    workspace_data = _extract_data_from_response(workspace_data)
+                    workspace_id = workspace_data.get("id")
+                    if not workspace_id:
+                        raise AnsibleError(f"Invalid workspace data returned for '{workspace}' in '{organization}'.")
 
                 if allow_all_outputs:
                     value = get_workspace_outputs(
@@ -223,8 +232,8 @@ class LookupModule(LookupBase):
                     value = output_data["value"]
 
         except ValueError as e:
-            raise AnsibleError(f"tf_output lookup failed: {str(e)}")
+            raise AnsibleError(f"Output lookup failed - resource not found: {str(e)}")
         except Exception as e:
-            raise AnsibleError(f"tf_output lookup failed: {str(e)}")
+            raise AnsibleError(f"Output lookup failed - API error: {str(e)}")
 
         return [value]

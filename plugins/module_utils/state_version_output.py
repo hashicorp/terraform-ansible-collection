@@ -49,12 +49,10 @@ def _extract_data_from_response(response: Dict[str, Any]) -> Any:
     Returns:
         The actual data from the response
     """
-    data = response.get("data", response)
-
-    if isinstance(data, dict) and "data" in data:
-        return data["data"]
-
-    return data
+    outer_data = response.get("data", response)
+    if isinstance(outer_data, dict) and "data" in outer_data:
+        return outer_data["data"]
+    return outer_data
 
 
 def _format_output_data(output_data: Dict) -> Dict[str, Any]:
@@ -83,36 +81,6 @@ def _format_output_data(output_data: Dict) -> Dict[str, Any]:
         "value": value,
         "detailed_type": attributes.get("detailed-type"),
     }
-
-
-def get_workspace_id_by_name(client: TerraformClient, organization: str, workspace: str) -> str:
-    """
-    Resolve workspace name and organization to workspace ID.
-
-    Args:
-        client: An authenticated client instance
-        organization: Organization name
-        workspace: Workspace name
-
-    Returns:
-        str: The workspace ID
-
-    Raises:
-        ValueError: If workspace is not found or response is invalid
-    """
-    response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
-    response = _handle_api_response(response)
-
-    if not response:
-        raise ValueError(f"Workspace '{workspace}' was not found in organization '{organization}'.")
-
-    workspace_data = _extract_data_from_response(response)
-    workspace_id = workspace_data.get("id")
-
-    if not workspace_id:
-        raise ValueError(f"Invalid workspace data returned for '{workspace}' in '{organization}'.")
-
-    return workspace_id
 
 
 def get_specific_output(client: TerraformClient, state_version_output_id: str, display_sensitive: bool = False) -> Dict[str, Any]:
