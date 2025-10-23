@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
 def _handle_api_response(response: Dict) -> Dict:
@@ -83,12 +84,67 @@ def _format_output_data(output_data: Dict) -> Dict[str, Any]:
     }
 
 
+def resolve_workspace_id(
+    client: TerraformClient,
+    workspace_id: str = None,
+    workspace: str = None,
+    organization: str = None,
+) -> str:
+    """
+    Resolve workspace ID from flexible input parameters.
+
+    This is a convenience wrapper that handles multiple input patterns for
+    workspace identification in state version output operations:
+    - If workspace_id is provided directly, returns it as-is
+    - If workspace and organization are provided, fetches workspace data
+      via get_workspace() from module_utils/workspace.py and extracts the ID
+
+    Args:
+        client: An authenticated client instance
+        workspace_id: Direct workspace ID (optional)
+        workspace: Workspace name (optional, requires organization)
+        organization: Organization name (optional, requires workspace)
+
+    Returns:
+        str: The resolved workspace ID
+
+    Raises:
+        ValueError: If workspace cannot be resolved, required parameters are
+                   missing, or workspace is not found
+
+    """
+
+    if workspace_id:
+        return workspace_id
+
+    if not (workspace and organization):
+        raise ValueError(
+            "Either workspace_id or both workspace and organization must be provided",
+        )
+
+    workspace_data = get_workspace(client, organization, workspace)
+    if not workspace_data:
+        raise ValueError(
+            f"Workspace '{workspace}' was not found in organization '{organization}'.",
+        )
+
+    workspace_data = _extract_data_from_response(workspace_data)
+    resolved_id = workspace_data.get("id")
+
+    if not resolved_id:
+        raise ValueError(
+            f"Invalid workspace data returned for '{workspace}' in '{organization}'.",
+        )
+
+    return resolved_id
+
+
 def get_specific_output(client: TerraformClient, state_version_output_id: str, display_sensitive: bool = False) -> Dict[str, Any]:
     """
     Retrieve a specific state version output by ID and format it.
 
     Args:
-        client: An authenticated client instance
+        client: An authenticated TerraformClient instance
         state_version_output_id: The output ID to retrieve
         display_sensitive: If False (default), mask sensitive values with '<sensitive>'.
                           If True, return actual values even for sensitive outputs.

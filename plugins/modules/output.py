@@ -398,13 +398,10 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
-    _extract_data_from_response,
     get_output_by_name,
     get_specific_output,
     get_workspace_outputs,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    get_workspace,
+    resolve_workspace_id,
 )
 
 
@@ -448,24 +445,12 @@ def main() -> None:
             output_data = get_specific_output(client, state_version_output_id, display_sensitive=display_sensitive)
             result["output"] = output_data
         else:
-            if not workspace_id:
-                if workspace and organization:
-                    workspace_data = get_workspace(client, organization, workspace)
-                    if not workspace_data:
-                        raise ValueError(f"Workspace '{workspace}' was not found in organization '{organization}'.")
-                    workspace_data = _extract_data_from_response(workspace_data)
-                    workspace_id = workspace_data.get("id")
-                    if not workspace_id:
-                        raise ValueError(f"Invalid workspace data returned for '{workspace}' in '{organization}'.")
-                else:
-                    raise ValueError("Either workspace_id or both workspace and organization must be provided")
-
+            workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
             if name:
                 output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
                 result["output"] = output_data
             else:
                 outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
-
                 if outputs:
                     result["outputs"] = outputs
                     result["count"] = len(outputs)

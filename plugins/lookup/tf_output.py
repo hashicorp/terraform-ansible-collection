@@ -160,13 +160,10 @@ from ansible.plugins.lookup import LookupBase
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
-    _extract_data_from_response,
     get_output_by_name,
     get_specific_output,
     get_workspace_outputs,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    get_workspace,
+    resolve_workspace_id,
 )
 
 
@@ -207,14 +204,10 @@ class LookupModule(LookupBase):
                 )
                 value = output_data["value"]
             else:
-                if workspace and organization and not workspace_id:
-                    workspace_data = get_workspace(client, organization, workspace)
-                    if not workspace_data:
-                        raise AnsibleError(f"Workspace '{workspace}' was not found in organization '{organization}'.")
-                    workspace_data = _extract_data_from_response(workspace_data)
-                    workspace_id = workspace_data.get("id")
-                    if not workspace_id:
-                        raise AnsibleError(f"Invalid workspace data returned for '{workspace}' in '{organization}'.")
+                try:
+                    workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
+                except ValueError as e:
+                    raise AnsibleError(f"Workspace resolution failed: {str(e)}")
 
                 if allow_all_outputs:
                     value = get_workspace_outputs(
