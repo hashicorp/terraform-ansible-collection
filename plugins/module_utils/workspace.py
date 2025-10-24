@@ -220,7 +220,7 @@ def safe_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[st
         or an empty dictionary if the workspace is not found.
 
     Raises:
-        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+        TerraformError: If the request fails with a non-404 or non-204 status code.
     """
     response = client.post(f"/workspaces/{workspace_id}/actions/safe-delete")
     response_status = response["status"]
@@ -259,7 +259,7 @@ def force_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[s
         or an empty dictionary if the workspace is not found.
 
     Raises:
-        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+        TerraformError: If the request fails with a non-404 or non-204 status code.
     """
     response = client.delete(f"/workspaces/{workspace_id}")
     response_status = response["status"]
