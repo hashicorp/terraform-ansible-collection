@@ -7,7 +7,7 @@
 DOCUMENTATION = r"""
 ---
 module: project
-version_added: "1.0.0"
+version_added: "1.2.0"
 short_description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
 author: "Siddarth Sharma (@siddasha)"
 description:
@@ -360,7 +360,7 @@ data:
             }
 """
 from copy import deepcopy
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project import ProjectRequest
@@ -388,24 +388,6 @@ def get_project_by_name(client: TerraformClient, organization: str, name: str) -
     response = list_projects(client, organization, query_params={"filter[names]": name})
     data = response.get("data", [])
     return data[0] if data else {}
-
-
-def check_mode(function: Callable):
-    """
-    Decorator to handle check mode and check if the project exists.
-    Args:
-        function: The function to decorate.
-    Returns:
-        The decorated function.
-    """
-
-    def wrapper(*args, **kwargs):
-        check_mode_enabled = kwargs.get("check_mode", False)
-        if check_mode_enabled:
-            return {"changed": True, "msg": "Check mode is enabled, no changes will be made"}
-        return function(*args, **kwargs)
-
-    return wrapper
 
 
 def get_project_by_id_wrapper(client: TerraformClient, project_id: str) -> Dict[str, Any]:
@@ -508,11 +490,12 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
     return {}
 
 
-def state_present(client: TerraformClient, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Optional[Dict[str, Any]]:
     """
     Create/update a Terraform project.
     client: TerraformClient instance
     params: Dictionary of parameters for the project
+    check_mode: If True, only report what would be changed without making changes
     Returns:
         The created/updated project in the form of a dictionary.
     Raises:
@@ -523,17 +506,24 @@ def state_present(client: TerraformClient, params: Dict[str, Any]) -> Optional[D
 
     if project := fetch_project(client, params):
         # Project exists, perform update logic with diff
-        return state_update(client, params, project)
+        return state_update(client, params, project, check_mode)
     else:
         # Project doesn't exist, create it
         project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
             by_alias=True, exclude_unset=False, exclude_none=True
         )
-        response = create_project(client, organization=params.get("organization"), data=project_request)
-        return {"changed": True, **response.get("data")}
+        if not check_mode:
+            response = create_project(client, organization=params.get("organization"), data=project_request)
+            return {"changed": True, **response.get("data")}
+        else:
+            return {
+                "changed": True,
+                "msg": f"The project {params.get('project')} would be created with the given options. Skipped creation due to check mode.",
+                **project_request["data"],
+            }
 
 
-def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[str, Any]) -> Dict[str, Any]:
+def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Update an existing Terraform project using the provided client and parameters.
 
@@ -544,6 +534,7 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
         client: TerraformClient instance
         params: Dictionary of parameters for the project
         project: Existing project data from API
+        check_mode: If True, only report what would be changed without making changes
     Returns:
         Dictionary indicating the result of the operation
     """
@@ -574,15 +565,23 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
         by_alias=True, exclude_unset=False, exclude_none=True
     )
-    response = update_project(client, project_id, project_request)
-    return {"changed": True, **response.get("data")}
+    if not check_mode:
+        response = update_project(client, project_id, project_request)
+        return {"changed": True, **response.get("data")}
+    else:
+        return {
+            "changed": True,
+            "msg": f"The project {project_id} would be updated with the given options. Skipped update due to check mode.",
+            **project_request.get("data"),
+        }
 
 
-def state_absent(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def state_absent(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Delete a Terraform project.
     client: TerraformClient instance
     params: Dictionary of parameters for the project
+    check_mode: If True, only report what would be changed without making changes
     Returns:
         The deleted project in the form of a dictionary.
     Raises:
@@ -598,8 +597,12 @@ def state_absent(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, A
 
     if not project_id:
         return {"changed": False, "msg": "Project not found"}
-    delete_project(client, project_id)
-    return {"changed": True, "msg": f"Project {project_id} has been deleted successfully"}
+
+    if not check_mode:
+        delete_project(client, project_id)
+        return {"changed": True, "msg": f"Project {project_id} has been deleted successfully"}
+    else:
+        return {"changed": True, "msg": f"The project {project_id} would be deleted. Skipped deletion due to check mode."}
 
 
 def main():
@@ -637,9 +640,9 @@ def main():
 
         match params["state"]:
             case "present":
-                action_result = state_present(tf_client, params)
+                action_result = state_present(tf_client, params, params["check_mode"])
             case "absent":
-                action_result = state_absent(tf_client, params)
+                action_result = state_absent(tf_client, params, params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)

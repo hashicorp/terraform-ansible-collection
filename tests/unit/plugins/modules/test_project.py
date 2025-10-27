@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.project import (
-    check_mode,
     fetch_project,
     fetch_project_tag_bindings,
     get_project_by_id_wrapper,
@@ -79,23 +78,6 @@ class TestProjectHelperFunctions:
 
             assert result == expected_response
             mock_get.assert_called_once_with(mock_client, project_id)
-
-    def test_check_mode_decorator(self):
-        """Test check_mode decorator functionality."""
-
-        @check_mode
-        def dummy_function(*args, **kwargs):
-            return {"changed": True, "msg": "Function executed"}
-
-        # Test with check_mode enabled
-        result = dummy_function(check_mode=True)
-        assert result["changed"] is True
-        assert "Check mode is enabled" in result["msg"]
-
-        # Test with check_mode disabled
-        result = dummy_function(check_mode=False)
-        assert result["changed"] is True
-        assert result["msg"] == "Function executed"
 
     def test_fetch_project_tag_bindings_success(self):
         """Test successful tag bindings retrieval."""
@@ -242,11 +224,30 @@ class TestStatePresent:
             mock_create.return_value = expected_response
             mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
-            result = state_present(mock_client, params)
+            result = state_present(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
             assert result["id"] == "prj-123abc456def"
             mock_create.assert_called_once()
+
+    def test_state_present_create_new_project_check_mode(self):
+        """Test creating a new project in check mode."""
+        mock_client = Mock()
+        params = {"project": "new-project", "organization": "test-org", "description": "New project description", "execution_mode": "remote"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
+        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+
+            mock_fetch.return_value = {}  # Project doesn't exist
+            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
+
+            result = state_present(mock_client, params, check_mode=True)
+
+            assert result["changed"] is True
+            assert "would be created" in result["msg"]
+            assert "check mode" in result["msg"]
+            mock_create.assert_not_called()
 
     def test_state_present_update_existing_project(self):
         """Test updating an existing project."""
@@ -262,10 +263,10 @@ class TestStatePresent:
             mock_fetch.return_value = existing_project
             mock_update.return_value = {"changed": True}
 
-            result = state_present(mock_client, params)
+            result = state_present(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
-            mock_update.assert_called_once_with(mock_client, params, existing_project)
+            mock_update.assert_called_once_with(mock_client, params, existing_project, False)
 
 
 class TestStateUpdate:
@@ -291,10 +292,34 @@ class TestStateUpdate:
             mock_update.return_value = expected_response
             mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
-            result = state_update(mock_client, params, project)
+            result = state_update(mock_client, params, project, check_mode=False)
 
             assert result["changed"] is True
             mock_update.assert_called_once()
+
+    def test_state_update_with_changes_check_mode(self):
+        """Test updating project when there are changes in check mode."""
+        mock_client = Mock()
+        params = {"project": "test-project", "organization": "test-org", "description": "Updated description"}
+
+        project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project", "description": "Old description"}}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
+        ) as mock_request:
+
+            mock_normalize.return_value = {"name": "test-project", "description": "Old description"}
+            mock_diff.return_value = {"description": "Updated description"}  # Changes detected
+            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
+
+            result = state_update(mock_client, params, project, check_mode=True)
+
+            assert result["changed"] is True
+            assert "would be updated" in result["msg"]
+            assert "check mode" in result["msg"]
+            mock_update.assert_not_called()
 
     def test_state_update_no_changes(self):
         """Test updating project when there are no changes."""
@@ -310,7 +335,7 @@ class TestStateUpdate:
             mock_normalize.return_value = {"name": "test-project", "description": "Same description"}
             mock_diff.return_value = {}  # No changes detected
 
-            result = state_update(mock_client, params, project)
+            result = state_update(mock_client, params, project, check_mode=False)
 
             assert result["changed"] is False
 
@@ -324,11 +349,24 @@ class TestStateAbsent:
         params = {"project_id": "prj-123abc456def"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.delete_project") as mock_delete:
-            result = state_absent(mock_client, params)
+            result = state_absent(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
             assert "has been deleted successfully" in result["msg"]
             mock_delete.assert_called_once_with(mock_client, "prj-123abc456def")
+
+    def test_state_absent_with_project_id_check_mode(self):
+        """Test deleting project using project_id in check mode."""
+        mock_client = Mock()
+        params = {"project_id": "prj-123abc456def"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.delete_project") as mock_delete:
+            result = state_absent(mock_client, params, check_mode=True)
+
+            assert result["changed"] is True
+            assert "would be deleted" in result["msg"]
+            assert "check mode" in result["msg"]
+            mock_delete.assert_not_called()
 
     def test_state_absent_with_project_name(self):
         """Test deleting project using project name."""
@@ -343,7 +381,7 @@ class TestStateAbsent:
 
             mock_fetch.return_value = existing_project
 
-            result = state_absent(mock_client, params)
+            result = state_absent(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
             assert "has been deleted successfully" in result["msg"]
@@ -357,7 +395,7 @@ class TestStateAbsent:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch:
             mock_fetch.return_value = {}
 
-            result = state_absent(mock_client, params)
+            result = state_absent(mock_client, params, check_mode=False)
 
             assert result["changed"] is False
             assert "not found" in result["msg"]
@@ -529,7 +567,7 @@ class TestProjectModuleEdgeCases:
             mock_update.return_value = {"data": {"id": "prj-123abc456def"}}
             mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
-            result = state_update(mock_client, params, project)
+            result = state_update(mock_client, params, project, check_mode=False)
 
             assert result["changed"] is True
             # Verify that dict_diff was called with the correctly mapped field names
