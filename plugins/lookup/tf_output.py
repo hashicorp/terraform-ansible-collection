@@ -148,13 +148,6 @@ value:
     - "Example single value: i-01fdABcdef57b5c4f"
 """
 
-
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:
-    pass
-
 from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
@@ -170,9 +163,60 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_
 class LookupModule(LookupBase):
     """Terraform output lookup plugin."""
 
+    def _validate_parameters(self, state_version_output_id, workspace_id, workspace, organization, name):
+        """Validate parameter combinations and return whether to allow all outputs."""
+        if state_version_output_id:
+            if workspace_id or workspace or organization or name:
+                raise AnsibleError(
+                    "state_version_output_id is mutually exclusive with workspace/name parameters",
+                )
+            return None
+
+        if not (workspace_id or (workspace and organization)):
+            raise AnsibleError(
+                "Either state_version_output_id or workspace identification must be provided",
+            )
+        return not name
+
+    def _get_output_value(
+        self,
+        client,
+        state_version_output_id,
+        workspace_id,
+        workspace,
+        organization,
+        name,
+        allow_all_outputs,
+        display_sensitive,
+    ):
+        """Retrieve output value based on the provided parameters."""
+        if state_version_output_id:
+            output_data = get_specific_output(
+                client,
+                state_version_output_id,
+                display_sensitive=display_sensitive,
+            )
+            return output_data["value"]
+
+        workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
+
+        if allow_all_outputs:
+            return get_workspace_outputs(
+                client,
+                workspace_id,
+                display_sensitive=display_sensitive,
+            )
+
+        output_data = get_output_by_name(
+            client,
+            workspace_id,
+            name,
+            display_sensitive=display_sensitive,
+        )
+        return output_data["value"]
+
     def run(self, terms, variables=None, **kwargs):
         """Run the lookup plugin."""
-
         state_version_output_id = kwargs.get("state_version_output_id")
         workspace_id = kwargs.get("workspace_id")
         workspace = kwargs.get("workspace")
@@ -181,49 +225,27 @@ class LookupModule(LookupBase):
         display_sensitive = kwargs.get("display_sensitive", False)
         kwargs.setdefault("tf_validate_certs", True)
 
-        if state_version_output_id:
-            if workspace_id or workspace or organization or name:
-                raise AnsibleError(
-                    "state_version_output_id is mutually exclusive with workspace/name parameters",
-                )
-        else:
-            if not (workspace_id or (workspace and organization)):
-                raise AnsibleError(
-                    "Either state_version_output_id or workspace identification must be provided",
-                )
-            allow_all_outputs = not name
+        allow_all_outputs = self._validate_parameters(
+            state_version_output_id,
+            workspace_id,
+            workspace,
+            organization,
+            name,
+        )
 
         client = TerraformClient(**kwargs)
 
         try:
-            if state_version_output_id:
-                output_data = get_specific_output(
-                    client,
-                    state_version_output_id,
-                    display_sensitive=display_sensitive,
-                )
-                value = output_data["value"]
-            else:
-                try:
-                    workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
-                except ValueError as e:
-                    raise AnsibleError(f"Workspace resolution failed: {str(e)}")
-
-                if allow_all_outputs:
-                    value = get_workspace_outputs(
-                        client,
-                        workspace_id,
-                        display_sensitive=display_sensitive,
-                    )
-                else:
-                    output_data = get_output_by_name(
-                        client,
-                        workspace_id,
-                        name,
-                        display_sensitive=display_sensitive,
-                    )
-                    value = output_data["value"]
-
+            value = self._get_output_value(
+                client,
+                state_version_output_id,
+                workspace_id,
+                workspace,
+                organization,
+                name,
+                allow_all_outputs,
+                display_sensitive,
+            )
         except ValueError as e:
             raise AnsibleError(f"Output lookup failed - resource not found: {str(e)}")
         except Exception as e:
