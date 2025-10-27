@@ -257,7 +257,7 @@ class TestTfOutputLookup:
 
         mock_resolve.side_effect = ValueError("Workspace 'nonexistent' was not found in organization 'my-org'")
 
-        with pytest.raises(AnsibleError, match="Workspace resolution failed"):
+        with pytest.raises(AnsibleError, match="Output lookup failed - resource not found"):
             lookup_plugin.run(
                 [],
                 None,
