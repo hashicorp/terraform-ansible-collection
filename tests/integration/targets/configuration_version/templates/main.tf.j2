@@ -27,13 +27,32 @@ provider "aws" {
 {% endif %}
 }
 
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+}
 
 resource "aws_instance" "new-tar-instance-{{ unique_id }}" {
-  ami           = "ami-07b0c09aab6e66ee9" # This is a dummy AMI ID for Amazon Linux 2 in us-west-2
+  ami           = data.aws_ami.amazon_linux.id
   instance_type = "t2.micro"
 
   tags = {
     Name  = "{{ unique_id }}-ec2",
-    env   = "dev",
+    Phase = "integration"
   }
 }
