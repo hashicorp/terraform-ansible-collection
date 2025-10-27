@@ -215,9 +215,6 @@ def get_workspace_outputs(client: TerraformClient, workspace_id: str, display_se
 
     outputs_data = _extract_data_from_response(response)
 
-    if isinstance(outputs_data, dict) and "data" in outputs_data:
-        outputs_data = outputs_data["data"]
-
     if not isinstance(outputs_data, list):
         raise ValueError(f"Unexpected response structure for workspace '{workspace_id}'.")
 
@@ -238,7 +235,8 @@ def get_workspace_outputs(client: TerraformClient, workspace_id: str, display_se
                     detailed = get_specific_output(client, output_id, display_sensitive=True)
                     formatted_outputs.append(detailed)
                     continue
-                except Exception:
+                except (ValueError, TerraformError):
+                    # If individual fetch fails, fall back to masked value
                     pass
 
         formatted_outputs.append(_format_output_data(output))
@@ -271,7 +269,8 @@ def get_output_by_name(client: TerraformClient, workspace_id: str, name: str, di
             if display_sensitive and output.get("sensitive") and output.get("id"):
                 try:
                     return get_specific_output(client, output.get("id"), display_sensitive=True)
-                except Exception:
+                except (ValueError, TerraformError):
+                    # If individual fetch fails, returns the already retrieved output
                     pass
 
             return output

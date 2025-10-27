@@ -310,7 +310,7 @@ EXAMPLES = r"""
 # FAILED! => {
 #     "changed": false,
 #     "failed": true,
-#     "msg": "Workspace with ID 'ws-INVALID456' was not found."
+#     "msg": "Workspace with ID 'ws-INVALID4567' was not found."
 # }
 """
 
@@ -329,7 +329,7 @@ output:
       type: str
       sample: "combined_config"
     value:
-      description: The output value. Shows '<sensitive>' for sensitive outputs unless display_sensitive is true.
+      description: The output value. Shows I('<sensitive>') for sensitive outputs unless I(display_sensitive) is C(true).
       type: raw
       sample: "<sensitive>"
     type:
@@ -361,7 +361,7 @@ outputs:
     value:
       description:
         - The output value.
-        - Shows '<sensitive>' for sensitive outputs unless display_sensitive is true.
+        - Shows I('<sensitive>') for sensitive outputs unless I(display_sensitive) is C(true).
       type: raw
       sample: "<sensitive>"
     type:
