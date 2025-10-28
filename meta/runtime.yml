@@ -9,4 +9,4 @@ action_groups:
     - view_plan
     - run_info
     - configuration_version_info
-    - output
+    - tf_output
