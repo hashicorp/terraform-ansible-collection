@@ -376,7 +376,14 @@
 
     - name: Test lookup plugin with display_sensitive
       ansible.builtin.set_fact:
-        lookup_sensitive: "{{ lookup('hashicorp.terraform.tf_output', name='sensitive_token', workspace_id=workspace_id, display_sensitive=true, tf_token=tfc_token) }}"
+        lookup_sensitive: >-
+          {{ lookup(
+              'hashicorp.terraform.tf_output',
+              name='sensitive_token',
+              workspace_id=workspace_id,
+              display_sensitive=true,
+              tf_token=tfc_token
+          ) }}
 
     - name: Assert lookup displays sensitive value
       ansible.builtin.assert:
@@ -388,7 +395,14 @@
 
     - name: Test lookup with workspace name and organization
       ansible.builtin.set_fact:
-        lookup_by_workspace_name: "{{ lookup('hashicorp.terraform.tf_output', name='vpc1_id', workspace=workspace_name, organization=organization, tf_token=tfc_token) }}"
+        lookup_by_workspace_name: >-
+          {{ lookup(
+              'hashicorp.terraform.tf_output',
+              name='vpc1_id',
+              workspace=workspace_name,
+              organization=organization,
+              tf_token=tfc_token
+          ) }}
 
     - name: Assert lookup with workspace name works
       ansible.builtin.assert:
