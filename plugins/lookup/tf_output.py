@@ -20,7 +20,7 @@ options:
   state_version_output_id:
     description:
       - The ID of a specific state version output to retrieve.
-      - Mutually exclusive with I(workspace) parameters.
+      - Mutually exclusive with I(name) and all workspace parameters (I(workspace_id), I(workspace), I(organization)).
     type: str
   name:
     description:
@@ -224,6 +224,7 @@ class LookupModule(LookupBase):
         name = kwargs.get("name")
         display_sensitive = kwargs.get("display_sensitive", False)
         kwargs.setdefault("tf_validate_certs", True)
+        kwargs.setdefault("tf_hostname", "app.terraform.io")
 
         allow_all_outputs = self._validate_parameters(
             state_version_output_id,
