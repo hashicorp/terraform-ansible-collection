@@ -89,6 +89,7 @@
     - name: Get all outputs by workspace_id
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
+        tf_token: "{{ tfc_token }}"
       register: all_outputs_by_id
 
     - name: Assert all outputs retrieved by workspace_id
@@ -110,6 +111,7 @@
       hashicorp.terraform.output:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
+        tf_token: "{{ tfc_token }}"
       register: all_outputs_by_name
 
     - name: Assert all outputs retrieved by workspace name
@@ -135,6 +137,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         display_sensitive: true
+        tf_token: "{{ tfc_token }}"
       register: all_outputs_sensitive
 
     - name: Find sensitive output with display_sensitive=true
@@ -154,6 +157,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "environment"
+        tf_token: "{{ tfc_token }}"
       register: output_by_name
 
     - name: Assert output retrieved by name
@@ -170,6 +174,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "sensitive_token"
+        tf_token: "{{ tfc_token }}"
       register: sensitive_by_name_masked
 
     - name: Assert sensitive output is masked
@@ -185,6 +190,7 @@
         workspace_id: "{{ workspace_id }}"
         name: "sensitive_token"
         display_sensitive: true
+        tf_token: "{{ tfc_token }}"
       register: sensitive_by_name_displayed
 
     - name: Assert sensitive output is displayed
@@ -200,6 +206,7 @@
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
         name: "vpc1_id"
+        tf_token: "{{ tfc_token }}"
       register: output_by_name_org
 
     - name: Assert output retrieved by name with workspace and organization
@@ -217,6 +224,7 @@
     - name: Get output by state_version_output_id
       hashicorp.terraform.output:
         state_version_output_id: "{{ test_output_id }}"
+        tf_token: "{{ tfc_token }}"
       register: output_by_id
 
     - name: Assert output retrieved by ID
@@ -235,6 +243,7 @@
       hashicorp.terraform.output:
         state_version_output_id: "{{ sensitive_output_id }}"
         display_sensitive: true
+        tf_token: "{{ tfc_token }}"
       register: sensitive_output_by_id
 
     - name: Assert sensitive output retrieved by ID
@@ -248,6 +257,7 @@
     - name: Get output using output_id alias
       hashicorp.terraform.output:
         output_id: "{{ test_output_id }}"
+        tf_token: "{{ tfc_token }}"
       register: output_by_alias
 
     - name: Assert alias works
@@ -260,6 +270,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "vpc_config"
+        tf_token: "{{ tfc_token }}"
       register: complex_output
 
     - name: Assert complex output structure
@@ -277,6 +288,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "vpc_ids"
+        tf_token: "{{ tfc_token }}"
       register: list_output
 
     - name: Assert list output
@@ -291,6 +303,7 @@
     - name: Test with invalid state_version_output_id
       hashicorp.terraform.output:
         state_version_output_id: "wsout-invalid123"
+        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_output_id
 
@@ -304,6 +317,7 @@
     - name: Test with invalid workspace_id
       hashicorp.terraform.output:
         workspace_id: "ws-invalid123"
+        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_workspace_id
 
@@ -318,6 +332,7 @@
       hashicorp.terraform.output:
         workspace: "nonexistent-workspace-xyz"
         organization: "{{ organization }}"
+        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_workspace_name
 
@@ -332,6 +347,7 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "nonexistent_output"
+        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_output_name
 
