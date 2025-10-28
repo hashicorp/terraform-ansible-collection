@@ -251,4 +251,7 @@ class LookupModule(LookupBase):
         except Exception as e:
             raise AnsibleError(f"Output lookup failed - API error: {str(e)}")
 
+        if allow_all_outputs is True:
+            return value
+
         return [value]

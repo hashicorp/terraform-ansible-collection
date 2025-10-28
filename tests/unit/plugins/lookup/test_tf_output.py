@@ -169,9 +169,9 @@ class TestTfOutputLookup:
             workspace_id="ws-123",
             tf_validate_certs=True,
         )
-        assert len(result[0]) == 2
-        assert result[0][0]["name"] == "output1"
-        assert result[0][1]["value"] == "<sensitive>"
+        assert len(result) == 2
+        assert result[0]["name"] == "output1"
+        assert result[1]["value"] == "<sensitive>"
         mock_resolve.assert_called_once_with(mock_client, "ws-123", None, None)
         mock_get_outputs.assert_called_once_with(mock_client, "ws-123", display_sensitive=False)
 
@@ -203,7 +203,7 @@ class TestTfOutputLookup:
             display_sensitive=True,
             tf_validate_certs=True,
         )
-        assert result[0][0]["value"] == "192.0.2.1"
+        assert result[0]["value"] == "192.0.2.1"
         mock_resolve.assert_called_once_with(mock_client, None, "prod-workspace", "acme-corp")
         mock_get_outputs.assert_called_once_with(mock_client, "ws-resolved-456", display_sensitive=True)
 
@@ -457,7 +457,7 @@ class TestTfOutputLookup:
             workspace_id="ws-empty",
             tf_validate_certs=True,
         )
-        assert result == [[]]
+        assert result == []
 
     def test_lookup_validate_certs_default(self, lookup_plugin):
         """Test that tf_validate_certs defaults to True."""
