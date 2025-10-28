@@ -44,6 +44,7 @@ options:
           - The execution mode for workspaces in this project.
           - Controls where Terraform operations are executed.
         type: str
+        choices: ["remote", "local", "agent"]
     default_agent_pool_id:
         description:
           - The ID of the default agent pool for workspaces in this project.
@@ -602,7 +603,7 @@ def main():
             "organization": {"type": "str"},
             "description": {"type": "str"},
             "auto_destroy_activity_duration": {"type": "str"},
-            "execution_mode": {"type": "str"},
+            "execution_mode": {"type": "str", "choices": ["remote", "local", "agent"]},
             "default_agent_pool_id": {"type": "str"},
             "setting_overwrites": {"type": "dict"},
             "tag_bindings": {"type": "list", "elements": "dict"},
