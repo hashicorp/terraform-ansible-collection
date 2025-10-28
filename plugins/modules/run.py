@@ -106,7 +106,7 @@ options:
             - Used in conjunction with the C(poll_interval) parameter.
             - Includes time for exponential backoff in case of transient errors.
         type: int
-        default: 25
+        default: 120
 """
 
 EXAMPLES = r"""
@@ -577,7 +577,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.run import app
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
-def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 25, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
+def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 120, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
     Wait for a run to reach a terminal state (success or failure).
     Args:
@@ -624,7 +624,7 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
     action_result = {}
     target_run_id = run_id or response.get("data", {}).get("id")
     if poll and target_run_id:
-        status, poll_response = wait_for_state(client, target_run_id, kwargs.get("poll_timeout", 25), kwargs.get("poll_interval", 5))
+        status, poll_response = wait_for_state(client, target_run_id, kwargs.get("poll_timeout", 120), kwargs.get("poll_interval", 5))
         if status == "success" and poll_response:
             poll_data = poll_response.get("data") or {}
             action_result.update({"changed": True, **poll_data})
@@ -787,7 +787,7 @@ def main():
             "organization": {"type": "str"},
             "poll": {"type": "bool", "default": True},
             "poll_interval": {"type": "int", "default": 5},
-            "poll_timeout": {"type": "int", "default": 25},
+            "poll_timeout": {"type": "int", "default": 120},
             "configuration_version": {"type": "str"},
             "run_message": {"type": "str"},
             "auto_apply": {"type": "bool"},
