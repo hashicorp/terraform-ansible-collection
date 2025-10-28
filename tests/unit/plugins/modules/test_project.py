@@ -10,7 +10,6 @@ import pytest
 from ansible_collections.hashicorp.terraform.plugins.modules.project import (
     fetch_project,
     fetch_project_tag_bindings,
-    get_project_by_id_wrapper,
     get_project_by_name,
     main,
     normalize_project_response,
@@ -63,21 +62,6 @@ class TestProjectHelperFunctions:
 
             assert result == expected_response["data"][0]
             mock_list.assert_called_once_with(mock_client, organization, query_params={"filter[names]": name})
-
-    def test_get_project_by_id_success(self):
-        """Test successful project retrieval by ID."""
-        mock_client = Mock()
-        project_id = "prj-123abc456def"
-
-        expected_response = {"data": {"id": project_id, "type": "projects", "attributes": {"name": "test-project"}}}
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
-            mock_get.return_value = expected_response
-
-            result = get_project_by_id_wrapper(mock_client, project_id)
-
-            assert result == expected_response
-            mock_get.assert_called_once_with(mock_client, project_id)
 
     def test_fetch_project_tag_bindings_success(self):
         """Test successful tag bindings retrieval."""

@@ -390,16 +390,6 @@ def get_project_by_name(client: TerraformClient, organization: str, name: str) -
     return data[0] if data else {}
 
 
-def get_project_by_id_wrapper(client: TerraformClient, project_id: str) -> Dict[str, Any]:
-    """
-    Get a project by ID.
-    client: TerraformClient instance
-    project_id: The ID of the project
-    """
-    response = get_project_by_id(client, project_id)
-    return response
-
-
 def fetch_project_tag_bindings(client: TerraformClient, project_id: str) -> dict:
     """
     Fetch actual tag key-value pairs for a project's tag bindings.
@@ -460,7 +450,6 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
     tag_bindings = fetch_project_tag_bindings(client, project_id)
     normalized["tag_bindings"] = tag_bindings
 
-    # return {k: v for k, v in normalized.items() if v is not None}
     return normalized
 
 
@@ -477,14 +466,14 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
     organization = params.get("organization")
 
     if project_id:
-        project = get_project_by_id_wrapper(client, project_id)
+        project = get_project_by_id(client, project_id)
         if project:
             return project
 
     if project_name and organization:
         existing_project: Optional[Dict[str, Any]] = get_project_by_name(client, organization, project_name)
         if existing_project and (project_id := existing_project.get("id")):
-            project = get_project_by_id_wrapper(client, project_id)
+            project = get_project_by_id(client, project_id)
             return project
 
     return {}
