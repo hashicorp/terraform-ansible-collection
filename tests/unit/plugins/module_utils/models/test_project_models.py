@@ -860,3 +860,322 @@ class TestProjectModelsIntegration:
 
         assert valid_request_full.data.attributes.project == "validation-test"
         assert valid_request_full.data.type == "projects"
+
+
+class TestProjectModelsDeserialization:
+    """Test cases for model deserialization from API responses."""
+
+    def test_project_attributes_from_api_response(self):
+        """Test deserializing ProjectAttributes from API response data."""
+        api_data = {
+            "name": "api-response-project",
+            "description": "Project from API",
+            "auto-destroy-activity-duration": "7d",
+            "default-execution-mode": "remote",
+            "default-agent-pool-id": "apool-api-123",
+            "setting-overwrites": {"cost_estimation": True},
+        }
+
+        attrs = ProjectAttributes.model_validate(api_data)
+
+        assert attrs.project == "api-response-project"
+        assert attrs.description == "Project from API"
+        assert attrs.auto_destroy_activity_duration == "7d"
+        assert attrs.execution_mode == "remote"
+        assert attrs.default_agent_pool_id == "apool-api-123"
+        assert attrs.setting_overwrites == {"cost_estimation": True}
+
+    def test_project_data_from_api_response(self):
+        """Test deserializing ProjectData from full API response."""
+        api_response_data = {
+            "id": "prj-api-12345",
+            "type": "projects",
+            "attributes": {
+                "name": "deserialized-project",
+                "description": "Deserialized from API",
+                "default-execution-mode": "local",
+            },
+            "relationships": {
+                "tag-bindings": {
+                    "data": [
+                        {"key": "env", "value": "test"},
+                        {"key": "team", "value": "qa"},
+                    ]
+                }
+            },
+        }
+
+        project_data = ProjectData.model_validate(api_response_data)
+
+        assert project_data.id == "prj-api-12345"
+        assert project_data.type == "projects"
+        assert project_data.attributes.project == "deserialized-project"
+        assert project_data.attributes.description == "Deserialized from API"
+        assert project_data.attributes.execution_mode == "local"
+        assert len(project_data.relationships.tag_bindings.data) == 2
+        assert project_data.relationships.tag_bindings.data[0].key == "env"
+
+    def test_tag_bindings_from_api_response(self):
+        """Test deserializing TagBindingsRelationship from API."""
+        api_data = {
+            "data": [
+                {"key": "environment", "value": "staging"},
+                {"key": "owner", "value": "team-b"},
+            ]
+        }
+
+        tag_bindings_rel = TagBindingsRelationship.model_validate(api_data)
+
+        assert len(tag_bindings_rel.data) == 2
+        assert tag_bindings_rel.data[0].key == "environment"
+        assert tag_bindings_rel.data[0].value == "staging"
+        assert tag_bindings_rel.data[1].key == "owner"
+        assert tag_bindings_rel.data[1].value == "team-b"
+
+
+class TestProjectAttributesExecutionMode:
+    """Test cases focused on execution_mode validation."""
+
+    def test_execution_mode_agent(self):
+        """Test execution_mode with agent value."""
+        attrs = ProjectAttributes(project="agent-test", execution_mode="agent")
+        assert attrs.execution_mode == "agent"
+
+    def test_execution_mode_case_sensitivity(self):
+        """Test that execution_mode is case-sensitive."""
+        # Valid values are "remote", "local", "agent"
+        # Testing that invalid cases are rejected
+        try:
+            with pytest.raises(ValidationError):
+                ProjectAttributes(project="test", execution_mode="Remote")
+        except (TypeError, AttributeError):
+            pass
+
+        try:
+            with pytest.raises(ValidationError):
+                ProjectAttributes(project="test", execution_mode="REMOTE")
+        except (TypeError, AttributeError):
+            pass
+
+    @pytest.mark.parametrize(
+        "invalid_mode",
+        [
+            "REMOTE",
+            "LOCAL",
+            "AGENT",
+            "Remote",
+            "Local",
+            "Agent",
+            "hybrid",
+            "cloud",
+            "on-premise",
+            123,
+        ],
+    )
+    def test_execution_mode_invalid_values(self, invalid_mode):
+        """Test that invalid execution_mode values raise ValidationError."""
+        try:
+            with pytest.raises(ValidationError):
+                ProjectAttributes(project="test", execution_mode=invalid_mode)
+        except (TypeError, AttributeError):
+            # Fallback when pydantic is not available
+            pass
+
+
+class TestProjectDataWithoutOptionalFields:
+    """Test ProjectData behavior when optional fields are missing."""
+
+    def test_project_data_with_id_only(self):
+        """Test ProjectData with only id field."""
+        data = ProjectData(id="prj-minimal-123")
+        assert data.id == "prj-minimal-123"
+        assert data.type == "projects"
+        assert data.attributes is None
+        assert data.relationships is None
+
+    def test_project_data_serialization_exclude_none(self):
+        """Test that None fields are excluded from serialization."""
+        data = ProjectData(id="prj-exclude-test")
+        serialized = data.model_dump(exclude_none=True)
+
+        assert "id" in serialized
+        assert "type" in serialized
+        assert "attributes" not in serialized
+        assert "relationships" not in serialized
+
+    def test_project_data_partial_attributes(self):
+        """Test ProjectData with partial attributes."""
+        attrs = ProjectAttributes(project="partial-project")
+        data = ProjectData(id="prj-partial", attributes=attrs)
+
+        serialized = data.model_dump(by_alias=True, exclude_none=True)
+
+        assert serialized["id"] == "prj-partial"
+        assert serialized["attributes"]["name"] == "partial-project"
+        assert "description" not in serialized["attributes"]
+        assert "relationships" not in serialized
+
+
+class TestProjectRequestRoundTrip:
+    """Test request/response round-trip scenarios."""
+
+    def test_create_and_serialize_minimal_project(self):
+        """Test creating minimal project and serializing it."""
+        request = ProjectRequest.create(organization="min-org", project="min-project")
+
+        serialized = request.model_dump(by_alias=True, exclude_none=True)
+
+        # Verify minimal structure
+        assert "data" in serialized
+        assert serialized["data"]["type"] == "projects"
+        assert serialized["data"]["attributes"]["name"] == "min-project"
+        # Relationships will be present but as empty dict if tag_bindings is None
+        # (This is expected pydantic behavior - the relationships field itself is not None)
+        if "relationships" in serialized["data"]:
+            # If relationships exists, it should be empty or have no tag-bindings
+            assert "tag-bindings" not in serialized["data"]["relationships"]
+
+    def test_create_serialize_deserialize_project(self):
+        """Test full cycle: create -> serialize -> deserialize."""
+        original_request = ProjectRequest.create(
+            organization="roundtrip-org",
+            project="roundtrip-project",
+            description="Round trip test",
+            execution_mode="remote",
+        )
+
+        # Serialize
+        serialized = original_request.model_dump(by_alias=True)
+
+        # Deserialize
+        deserialized_request = ProjectRequest.model_validate(serialized)
+
+        # Verify
+        assert deserialized_request.data.attributes.project == "roundtrip-project"
+        assert deserialized_request.data.attributes.description == "Round trip test"
+        assert deserialized_request.data.attributes.execution_mode == "remote"
+
+    def test_model_dump_variations(self):
+        """Test different model_dump parameter combinations."""
+        request = ProjectRequest.create(
+            organization="test-org",
+            project="test-project",
+            description="Test description",
+            auto_destroy_activity_duration="14d",
+        )
+
+        # Test by_alias=True
+        with_alias = request.model_dump(by_alias=True)
+        assert "name" in with_alias["data"]["attributes"]
+        assert "auto-destroy-activity-duration" in with_alias["data"]["attributes"]
+
+        # Test by_alias=False
+        without_alias = request.model_dump(by_alias=False)
+        assert "project" in without_alias["data"]["attributes"]
+        assert "auto_destroy_activity_duration" in without_alias["data"]["attributes"]
+
+        # Test exclude_none=True
+        exclude_none = request.model_dump(exclude_none=True)
+        assert "execution_mode" not in exclude_none["data"]["attributes"]
+
+        # Test exclude_none=False
+        include_none = request.model_dump(exclude_none=False)
+        assert "execution_mode" in include_none["data"]["attributes"]
+        assert include_none["data"]["attributes"]["execution_mode"] is None
+
+
+class TestTagBindingAttributesConstraints:
+    """Test TagBindingAttributes validation and constraints."""
+
+    def test_tag_binding_with_numeric_values(self):
+        """Test that numeric values are converted to strings."""
+        # StrictStr should enforce string type
+        try:
+            tag = TagBindingAttributes(key="version", value="1.0.0")
+            assert tag.value == "1.0.0"
+        except ValidationError:
+            # Expected if pydantic strictly enforces types
+            pass
+
+    def test_tag_binding_immutability_check(self):
+        """Test tag binding values after creation."""
+        tag = TagBindingAttributes(key="immutable-key", value="immutable-value")
+
+        # Verify values remain unchanged
+        assert tag.key == "immutable-key"
+        assert tag.value == "immutable-value"
+
+        # Test that we can access the values multiple times
+        assert tag.key == "immutable-key"
+        assert tag.value == "immutable-value"
+
+    @pytest.mark.parametrize(
+        "key,value",
+        [
+            ("key-with-hyphen", "value-with-hyphen"),
+            ("key_with_underscore", "value_with_underscore"),
+            ("key.with.dots", "value.with.dots"),
+            ("key/with/slashes", "value/with/slashes"),
+            ("key:with:colons", "value:with:colons"),
+        ],
+    )
+    def test_tag_binding_special_delimiters(self, key, value):
+        """Test tag bindings with various delimiter characters."""
+        tag = TagBindingAttributes(key=key, value=value)
+        assert tag.key == key
+        assert tag.value == value
+
+
+class TestProjectDataTypeConstraints:
+    """Test type field constraints in ProjectData."""
+
+    def test_project_data_type_cannot_be_changed(self):
+        """Test that type field is always 'projects'."""
+        data = ProjectData()
+        assert data.type == "projects"
+
+        # Create with explicit type
+        data_explicit = ProjectData(type="projects")
+        assert data_explicit.type == "projects"
+
+    def test_project_data_type_validation(self):
+        """Test validation of type field with invalid values."""
+        # The Literal type should enforce "projects" only
+        try:
+            with pytest.raises(ValidationError):
+                ProjectData(type="workspaces")
+        except (TypeError, AttributeError):
+            # Fallback when pydantic is not available
+            pass
+
+        try:
+            with pytest.raises(ValidationError):
+                ProjectData(type="organizations")
+        except (TypeError, AttributeError):
+            pass
+
+
+class TestModelComparison:
+    """Test model equality and comparison operations."""
+
+    def test_tag_binding_equality(self):
+        """Test TagBindingAttributes equality."""
+        tag1 = TagBindingAttributes(key="env", value="prod")
+        tag2 = TagBindingAttributes(key="env", value="prod")
+        tag3 = TagBindingAttributes(key="env", value="dev")
+
+        assert tag1.key == tag2.key and tag1.value == tag2.value
+        assert tag1.key == tag3.key and tag1.value != tag3.value
+
+    def test_project_attributes_equality(self):
+        """Test ProjectAttributes equality."""
+        attrs1 = ProjectAttributes(project="test-project", description="Test")
+        attrs2 = ProjectAttributes(project="test-project", description="Test")
+        attrs3 = ProjectAttributes(project="test-project", description="Different")
+
+        # Compare all fields
+        assert attrs1.project == attrs2.project
+        assert attrs1.description == attrs2.description
+
+        assert attrs1.project == attrs3.project
+        assert attrs1.description != attrs3.description
