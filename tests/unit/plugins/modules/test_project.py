@@ -108,7 +108,7 @@ class TestProjectHelperFunctions:
                     "name": "test-project",
                     "description": "Test project description",
                     "auto-destroy-activity-duration": "30d",
-                    "execution-mode": "remote",
+                    "default-execution-mode": "remote",
                     "default-agent-pool-id": "apool-123",
                     "setting-overwrites": {"auto_apply": True},
                 },
@@ -508,7 +508,7 @@ class TestProjectModuleEdgeCases:
                     "name": "test-project",
                     "description": None,
                     "auto-destroy-activity-duration": None,
-                    "execution-mode": None,
+                    "default-execution-mode": None,
                     "default-agent-pool-id": None,
                     "setting-overwrites": None,
                 },
@@ -521,6 +521,7 @@ class TestProjectModuleEdgeCases:
             result = normalize_project_response(response_data, mock_client, project_id)
 
             # Should include None values as they might be meaningful
+            # Empty tag_bindings are not included in the result
             expected = {
                 "name": "test-project",
                 "description": None,
@@ -528,7 +529,6 @@ class TestProjectModuleEdgeCases:
                 "execution_mode": None,
                 "default_agent_pool_id": None,
                 "setting_overwrites": None,
-                "tag_bindings": {},
             }
 
             assert result == expected

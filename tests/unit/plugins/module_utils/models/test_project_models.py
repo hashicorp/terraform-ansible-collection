@@ -302,7 +302,7 @@ class TestProjectAttributes:
                 {
                     "name": "full-serialization",
                     "description": "Full serialization test",
-                    "execution_mode": "local",
+                    "default-execution-mode": "local",
                     "setting-overwrites": {"cost_estimation": True},
                 },
                 [],
@@ -326,13 +326,11 @@ class TestProjectAttributes:
 
     def test_project_attributes_validation(self):
         """Test ProjectAttributes validation."""
-        # Test missing required project field
-        try:
-            with pytest.raises(ValidationError):
-                ProjectAttributes()  # missing project
-        except (TypeError, AttributeError):
-            # Fallback behavior when pydantic is not available
-            pass
+        # Test that all fields are optional
+        attrs = ProjectAttributes()  # All fields are optional
+        assert attrs.project is None
+        assert attrs.description is None
+        assert attrs.execution_mode is None
 
     @pytest.mark.parametrize(
         "execution_mode",
@@ -845,20 +843,20 @@ class TestProjectModelsIntegration:
 
     def test_model_validation_chain(self):
         """Test validation chain across all project models."""
-        # Test that invalid data is caught at the appropriate level
-        try:
-            # This should fail if pydantic validation is available
-            with pytest.raises(ValidationError):
-                ProjectAttributes()  # Missing required project field
-        except (TypeError, AttributeError):
-            # Fallback behavior when pydantic is not available
-            pass
-
-        # Test that valid nested structures work
-        valid_attrs = ProjectAttributes(project="validation-test")
+        # Test that valid nested structures work with minimal data
+        valid_attrs = ProjectAttributes()  # All fields are optional
         valid_rels = ProjectRelationships()
         valid_data = ProjectData(attributes=valid_attrs, relationships=valid_rels)
         valid_request = ProjectRequest(data=valid_data)
 
-        assert valid_request.data.attributes.project == "validation-test"
+        assert valid_request.data.attributes.project is None
         assert valid_request.data.type == "projects"
+
+        # Test with full data
+        valid_attrs_full = ProjectAttributes(project="validation-test")
+        valid_rels_full = ProjectRelationships()
+        valid_data_full = ProjectData(attributes=valid_attrs_full, relationships=valid_rels_full)
+        valid_request_full = ProjectRequest(data=valid_data_full)
+
+        assert valid_request_full.data.attributes.project == "validation-test"
+        assert valid_request_full.data.type == "projects"
