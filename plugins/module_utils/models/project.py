@@ -22,10 +22,10 @@ class ProjectAttributes(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    project: StrictStr = Field(..., alias="name", validation_alias=AliasChoices("name", "project"))
+    project: Optional[StrictStr] = Field(None, alias="name", validation_alias=AliasChoices("name", "project"))
     description: Optional[StrictStr] = None
     auto_destroy_activity_duration: Optional[StrictStr] = Field(None, alias="auto-destroy-activity-duration")
-    execution_mode: Optional[Literal["remote", "local"]] = None
+    execution_mode: Optional[Literal["remote", "local", "agent"]] = Field(None, alias="default-execution-mode")
     default_agent_pool_id: Optional[StrictStr] = Field(None, alias="default-agent-pool-id")
     setting_overwrites: Optional[Dict[str, bool]] = Field(None, alias="setting-overwrites")
 

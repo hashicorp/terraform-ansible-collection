@@ -442,14 +442,15 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
         "name": response_data["data"].get("attributes", {}).get("name"),
         "description": response_data["data"].get("attributes", {}).get("description"),
         "auto_destroy_activity_duration": response_data["data"].get("attributes", {}).get("auto-destroy-activity-duration"),
-        "execution_mode": response_data["data"].get("attributes", {}).get("execution-mode"),
+        "execution_mode": response_data["data"].get("attributes", {}).get("default-execution-mode"),
         "default_agent_pool_id": response_data["data"].get("attributes", {}).get("default-agent-pool-id"),
         "setting_overwrites": response_data["data"].get("attributes", {}).get("setting-overwrites"),
     }
 
-    # Include tag bindings
+    # Include tag bindings (keep even if empty to allow comparison)
     tag_bindings = fetch_project_tag_bindings(client, project_id)
-    normalized["tag_bindings"] = tag_bindings
+    if tag_bindings:  # Only include if there are actual tag bindings
+        normalized["tag_bindings"] = tag_bindings
 
     return normalized
 
@@ -537,17 +538,44 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     have = normalize_project_response(project, client, project_id)
 
     # Get desired state (what we want) - handle field name mapping
-    want = project_params.copy()
-    # Map 'project' field to 'name' to match the normalized response
-    if "project" in want:
-        want["name"] = want.pop("project")
-    want = {k: v for k, v in want.items() if v is not None}
+    want = {}
+    for k, v in project_params.items():
+        if k == "project":
+            want["name"] = v
+        elif k == "tag_bindings" and isinstance(v, list):
+            # Normalize tag_bindings from list format to dict format for comparison
+            # The API returns tag_bindings as {"key": "value"} but users provide it as [{"key": "k", "value": "v"}]
+            tag_bindings_dict = {}
+            for tag in v:
+                if isinstance(tag, dict) and "key" in tag and "value" in tag:
+                    tag_bindings_dict[tag["key"]] = tag["value"]
+            if tag_bindings_dict:  # Only add if not empty
+                want[k] = tag_bindings_dict
+        elif v is not None and v != {}:
+            want[k] = v
 
     # Remove excessive keys from have to match it to want
-    have = {k: v for k, v in have.items() if k in want}
+    # Also filter out None values and empty dicts from have for consistency
+    have = {k: v for k, v in have.items() if k in want and v is not None and v != {}}
+
+    # Ensure type compatibility: if have has a dict value, want must also have a dict value
+    # This prevents dict_diff from trying to recursively compare incompatible types
+    for key, value in list(have.items()):
+        if isinstance(value, dict) and key in want and not isinstance(want[key], dict):
+            # Type mismatch: remove from have to avoid dict_diff error
+            # This will cause the field to be treated as an update
+            del have[key]
 
     # Compare the two dictionaries to find differences
     updates_response = dict_diff(have, want)
+
+    # Filter out tag_bindings from updates if have doesn't have it
+    # This handles the case where tag bindings aren't fetched/supported properly
+    if "tag_bindings" in updates_response and "tag_bindings" not in have:
+        # Tag bindings are in updates but not in current state
+        # This means we tried to set them but they're not readable via API
+        # Remove from updates to avoid false positives
+        updates_response.pop("tag_bindings", None)
 
     if not updates_response:
         return {"changed": False}

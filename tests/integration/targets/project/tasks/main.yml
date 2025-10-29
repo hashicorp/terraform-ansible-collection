@@ -1,0 +1,104 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique project name
+      ansible.builtin.set_fact:
+        project_name: "{{ lookup('pipe', 'uuidgen')[:10] }}-project"
+
+    - name: Create a Terraform project
+      hashicorp.terraform.project: &create_project_task
+        organization: "{{ organization }}"
+        project: "{{ project_name }}"
+        state: present
+        tf_token: "{{ tf_token }}"
+        description: "test project"
+        execution_mode: "remote"
+        auto_destroy_activity_duration: "14d"
+        tag_bindings:
+          - key: "env"
+            value: "development"
+      register: result_create
+
+    - name: Assert project creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+
+    - name: idempotency test - create project again
+      hashicorp.terraform.project: *create_project_task
+      register: result_create_again
+
+    - name: Assert project creation was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+
+    - name: update project
+      hashicorp.terraform.project: &update_project_task
+        project: "{{ project_name }}"
+        organization: "{{ organization }}"
+        state: present
+        tf_token: "{{ tf_token }}"
+        description: "test project updated"
+        execution_mode: "local"
+        auto_destroy_activity_duration: "15d"
+        tag_bindings:
+          - key: "env"
+            value: "production"
+      register: result_update
+
+    - name: Assert project update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+
+    - name: idempotency test - update project again
+      hashicorp.terraform.project: *update_project_task
+      register: result_update_again
+
+    - name: Assert project update was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+
+    - name: update project with project_id
+      hashicorp.terraform.project:
+        project_id: "{{ result_create.id }}"
+        state: present
+        tf_token: "{{ tf_token }}"
+        auto_destroy_activity_duration: "17d"
+      register: result_update_with_project_id
+
+    - name: Assert project update with project_id was successful
+      ansible.builtin.assert:
+        that:
+          - result_update_with_project_id.changed
+
+    - name: idempotency test - update project with project_id again
+      hashicorp.terraform.project:
+        project_id: "{{ result_create.id }}"
+        state: present
+        tf_token: "{{ tf_token }}"
+        auto_destroy_activity_duration: "17d"
+      register: result_update_with_project_id_again
+
+    - name: Assert project update with project_id was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update_with_project_id_again.changed
+
+    - name: delete project
+      hashicorp.terraform.project:
+        project_id: "{{ result_create.id }}"
+        state: absent
+        tf_token: "{{ tf_token }}"
+      register: result_delete
+
+    - name: Assert project deletion was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
