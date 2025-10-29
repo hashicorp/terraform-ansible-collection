@@ -232,7 +232,10 @@ class TestTfOutputLookup:
 
     def test_lookup_missing_required_params(self, lookup_plugin):
         """Test error when no identification parameters provided."""
-        with pytest.raises(AnsibleError, match="Either state_version_output_id or workspace identification must be provided"):
+        with pytest.raises(
+            AnsibleError,
+            match="Either state_version_output_id or workspace identification \\(workspace_id or both workspace and organization\\) must be provided",
+        ):
             lookup_plugin.run(
                 [],
                 None,
@@ -241,7 +244,7 @@ class TestTfOutputLookup:
 
     def test_lookup_workspace_without_organization(self, lookup_plugin):
         """Test error when workspace provided without organization."""
-        with pytest.raises(AnsibleError, match="Either state_version_output_id or workspace identification must be provided"):
+        with pytest.raises(AnsibleError, match="organization is required when workspace is specified"):
             lookup_plugin.run(
                 [],
                 None,
