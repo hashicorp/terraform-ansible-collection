@@ -25,17 +25,22 @@ options:
   name:
     description:
       - Name of the specific output to retrieve.
-      - Must be used with I(workspace) parameters.
+      - If specified, one of I(workspace_id) or the pair I(workspace)/I(organization) must also be provided.
+      - If omitted (but workspace parameters are provided), all outputs for the workspace are returned.
     type: str
   workspace_id:
     description:
       - ID of the workspace to retrieve outputs from.
       - Required when looking up by output name.
+      - Must be provided if I(workspace) and I(organization) are not.
+      - Cannot be used with I(state_version_output_id).
     type: str
   workspace:
     description:
       - Name of the workspace to retrieve outputs from.
       - Must be used together with the I(organization) parameter.
+      - Required with I(organization) when I(workspace_id) is not provided.
+      - Cannot be used with I(state_version_output_id).
     type: str
   organization:
     description:
@@ -172,10 +177,21 @@ class LookupModule(LookupBase):
                 )
             return None
 
-        if not (workspace_id or (workspace and organization)):
+        if workspace and not organization:
             raise AnsibleError(
-                "Either state_version_output_id or workspace identification must be provided",
+                "organization is required when workspace is specified",
             )
+
+        if organization and not workspace:
+            raise AnsibleError(
+                "workspace is required when organization is specified",
+            )
+
+        if not workspace_id and not (workspace and organization):
+            raise AnsibleError(
+                "Either state_version_output_id or workspace identification (workspace_id or both workspace and organization) must be provided",
+            )
+
         return not name
 
     def _get_output_value(

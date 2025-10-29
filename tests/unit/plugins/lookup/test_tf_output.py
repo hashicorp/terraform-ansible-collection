@@ -10,6 +10,7 @@ import pytest
 from ansible.errors import AnsibleError
 
 from ansible_collections.hashicorp.terraform.plugins.lookup.tf_output import LookupModule
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 
 
 class TestTfOutputLookup:
@@ -309,8 +310,6 @@ class TestTfOutputLookup:
         """Test error handling for API failures."""
         mock_client = Mock()
         mock_client_class.return_value = mock_client
-
-        from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 
         mock_get_specific.side_effect = TerraformError({"status": 500, "error": "Internal server error"})
 
