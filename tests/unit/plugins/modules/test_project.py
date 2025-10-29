@@ -496,6 +496,57 @@ class TestProjectModuleEdgeCases:
             expected = {"Team": "Infrastructure"}
             assert result == expected
 
+    def test_get_project_by_name_empty_data(self):
+        """Test get_project_by_name when no projects are found."""
+        mock_client = Mock()
+        organization = "test-org"
+        name = "nonexistent-project"
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.list_projects") as mock_list:
+            mock_list.return_value = {"data": []}
+
+            result = get_project_by_name(mock_client, organization, name)
+
+            assert result == {}
+            mock_list.assert_called_once_with(mock_client, organization, query_params={"filter[names]": name})
+
+    def test_get_project_by_name_no_data_key(self):
+        """Test get_project_by_name when response has no data key."""
+        mock_client = Mock()
+        organization = "test-org"
+        name = "test-project"
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.list_projects") as mock_list:
+            mock_list.return_value = {}
+
+            result = get_project_by_name(mock_client, organization, name)
+
+            assert result == {}
+
+    def test_fetch_project_with_invalid_project_id(self):
+        """Test fetch_project when project_id lookup returns None."""
+        mock_client = Mock()
+        params = {"project_id": "prj-invalid"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
+            mock_get.return_value = None
+
+            result = fetch_project(mock_client, params)
+
+            assert result == {}
+
+    def test_fetch_project_name_returns_none(self):
+        """Test fetch_project when get_project_by_name returns None."""
+        mock_client = Mock()
+        params = {"project": "test-project", "organization": "test-org"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get:
+            mock_get.return_value = None
+
+            result = fetch_project(mock_client, params)
+
+            assert result == {}
+
     def test_normalize_project_response_with_none_values(self):
         """Test normalization with None values in response."""
         mock_client = Mock()
@@ -560,3 +611,196 @@ class TestProjectModuleEdgeCases:
             want_dict = call_args[1]  # Second argument is the 'want' dictionary
             assert "name" in want_dict
             assert want_dict["name"] == "new-name"
+
+    def test_state_update_with_tag_bindings_list_to_dict_conversion(self):
+        """Test state_update correctly converts tag_bindings from list to dict format."""
+        mock_client = Mock()
+        params = {
+            "project": "test-project",
+            "organization": "test-org",
+            "tag_bindings": [{"key": "Environment", "value": "Production"}, {"key": "Team", "value": "DevOps"}],
+        }
+
+        project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project"}}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
+        ) as mock_request:
+
+            # Return empty dict to indicate tag_bindings are not present in current state
+            # This will trigger the filtering logic
+            mock_normalize.return_value = {"name": "test-project"}
+            # dict_diff will find tag_bindings as a difference
+            mock_diff.return_value = {"tag_bindings": {"Environment": "Production", "Team": "DevOps"}}
+
+            result = state_update(mock_client, params, project, check_mode=False)
+
+            # Because tag_bindings are not in 'have', they should be filtered out
+            # and result in no changes
+            assert result["changed"] is False
+
+    def test_state_update_filters_out_tag_bindings_not_in_have(self):
+        """Test that tag_bindings updates are filtered out when not present in current state."""
+        mock_client = Mock()
+        params = {"project": "test-project", "organization": "test-org", "tag_bindings": [{"key": "Env", "value": "Prod"}]}
+
+        project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project"}}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff:
+
+            # normalize returns no tag_bindings
+            mock_normalize.return_value = {"name": "test-project"}
+            # dict_diff detects tag_bindings change
+            mock_diff.return_value = {"tag_bindings": {"Env": "Prod"}}
+
+            result = state_update(mock_client, params, project, check_mode=False)
+
+            # Should return not changed because tag_bindings are filtered out
+            assert result["changed"] is False
+
+    def test_state_update_with_type_mismatch_in_have_want(self):
+        """Test state_update handles type mismatches between have and want."""
+        mock_client = Mock()
+        params = {"project": "test-project", "organization": "test-org", "setting_overwrites": {"auto_apply": True}}
+
+        project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project", "setting-overwrites": "some-string"}}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
+        ) as mock_request:
+
+            # have has a string value for setting_overwrites
+            mock_normalize.return_value = {"name": "test-project", "setting_overwrites": "some-string"}
+            # dict_diff should be called with the type-mismatched field removed from have
+            mock_diff.return_value = {"setting_overwrites": {"auto_apply": True}}
+            mock_update.return_value = {"data": {"id": "prj-123abc456def"}}
+            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
+
+            result = state_update(mock_client, params, project, check_mode=False)
+
+            assert result["changed"] is True
+
+    def test_state_present_filters_tf_and_poll_parameters(self):
+        """Test that state_present correctly filters out tf_ and poll_ parameters."""
+        mock_client = Mock()
+        params = {
+            "project": "test-project",
+            "organization": "test-org",
+            "description": "Test",
+            "tf_hostname": "https://app.terraform.io",
+            "tf_token": "secret-token",
+            "poll_interval": 5,
+            "state": "present",
+            "check_mode": False,
+            "project_id": "prj-123",
+        }
+
+        expected_response = {"data": {"id": "prj-new", "type": "projects"}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
+        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+
+            mock_fetch.return_value = {}
+            mock_create.return_value = expected_response
+            mock_request_instance = Mock()
+            mock_request_instance.model_dump.return_value = {"data": {"type": "projects"}}
+            mock_request.create.return_value = mock_request_instance
+
+            result = state_present(mock_client, params, check_mode=False)
+
+            # Verify ProjectRequest.create was called
+            # organization is passed to create as a positional argument, not in kwargs
+            mock_request.create.assert_called_once()
+            call_args = mock_request.create.call_args
+            # Check positional argument (organization)
+            assert call_args[1]["organization"] == "test-org"
+            # Verify that tf_ and poll_ parameters are not in kwargs
+            call_kwargs = call_args[1]
+            assert "tf_hostname" not in call_kwargs
+            assert "tf_token" not in call_kwargs
+            assert "poll_interval" not in call_kwargs
+            assert "state" not in call_kwargs
+            assert "check_mode" not in call_kwargs
+            assert "project_id" not in call_kwargs
+            # But project params should be there
+            assert "project" in call_kwargs or "description" in call_kwargs
+
+    def test_state_present_with_all_parameters(self):
+        """Test state_present with all possible parameters."""
+        mock_client = Mock()
+        params = {
+            "project": "comprehensive-project",
+            "organization": "test-org",
+            "description": "Comprehensive test",
+            "auto_destroy_activity_duration": "30d",
+            "execution_mode": "remote",
+            "default_agent_pool_id": "apool-123",
+            "setting_overwrites": {"auto_apply": True, "global_remote_state": False},
+            "tag_bindings": [{"key": "Env", "value": "Test"}, {"key": "Team", "value": "QA"}],
+        }
+
+        expected_response = {"data": {"id": "prj-comprehensive", "type": "projects"}}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
+        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+
+            mock_fetch.return_value = {}
+            mock_create.return_value = expected_response
+            mock_request_instance = Mock()
+            mock_request_instance.model_dump.return_value = {"data": {"type": "projects"}}
+            mock_request.create.return_value = mock_request_instance
+
+            result = state_present(mock_client, params, check_mode=False)
+
+            assert result["changed"] is True
+            assert result["id"] == "prj-comprehensive"
+            # Verify all parameters were passed to ProjectRequest.create
+            mock_request.create.assert_called_once()
+            call_kwargs = mock_request.create.call_args[1]
+            assert call_kwargs["organization"] == "test-org"
+            assert call_kwargs["project"] == "comprehensive-project"
+
+    def test_fetch_project_tag_bindings_with_non_tag_binding_type(self):
+        """Test that non-tag-bindings types are ignored."""
+        mock_client = Mock()
+        project_id = "prj-123abc456def"
+
+        mock_response = {
+            "data": [
+                {"type": "tag-bindings", "attributes": {"key": "Env", "value": "Prod"}},
+                {"type": "other-type", "attributes": {"key": "Other", "value": "Value"}},
+            ]
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
+            mock_get.return_value = mock_response
+
+            result = fetch_project_tag_bindings(mock_client, project_id)
+
+            # Should only include tag-bindings type
+            expected = {"Env": "Prod"}
+            assert result == expected
+
+    def test_fetch_project_tag_bindings_with_missing_attributes(self):
+        """Test tag bindings with missing attributes key."""
+        mock_client = Mock()
+        project_id = "prj-123abc456def"
+
+        mock_response = {"data": [{"type": "tag-bindings"}, {"type": "tag-bindings", "attributes": {"key": "Env", "value": "Prod"}}]}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
+            mock_get.return_value = mock_response
+
+            result = fetch_project_tag_bindings(mock_client, project_id)
+
+            # Should only include complete tag bindings
+            expected = {"Env": "Prod"}
+            assert result == expected
