@@ -446,12 +446,20 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
         "setting_overwrites": response_data["data"].get("attributes", {}).get("setting-overwrites"),
     }
 
-    # Extract default_agent_pool_id from relationships
-    relationships = response_data["data"].get("relationships", {})
-    default_agent_pool = relationships.get("default-agent-pool", {})
-    agent_pool_data = default_agent_pool.get("data")
-    if agent_pool_data:
-        normalized["default_agent_pool_id"] = agent_pool_data.get("id")
+    # Extract default_agent_pool_id from attributes first, then relationships
+    default_agent_pool_id = response_data["data"].get("attributes", {}).get("default-agent-pool-id")
+    if default_agent_pool_id is None:
+        # If not in attributes or is None, try relationships
+        relationships = response_data["data"].get("relationships", {})
+        default_agent_pool = relationships.get("default-agent-pool", {})
+        agent_pool_data = default_agent_pool.get("data")
+        if agent_pool_data:
+            default_agent_pool_id = agent_pool_data.get("id")
+
+    # Include default_agent_pool_id if it was found in attributes (even if None)
+    # or if it was found in relationships
+    if "default-agent-pool-id" in response_data["data"].get("attributes", {}) or default_agent_pool_id:
+        normalized["default_agent_pool_id"] = default_agent_pool_id
 
     # Include tag bindings (keep even if empty to allow comparison)
     tag_bindings = fetch_project_tag_bindings(client, project_id)
@@ -597,7 +605,6 @@ def _filter_tag_binding_updates(updates: Dict[str, Any], have: Dict[str, Any]) -
     Filter out tag_bindings from updates if not present in current state.
 
     This handles the case where tag bindings aren't fetched/supported properly.
-    Also filters out setting_overwrites since it's auto-managed by the API.
 
     Args:
         updates: Dictionary of detected updates
@@ -611,9 +618,6 @@ def _filter_tag_binding_updates(updates: Dict[str, Any], have: Dict[str, Any]) -
         # This means we tried to set them but they're not readable via API
         # Remove from updates to avoid false positives
         updates.pop("tag_bindings", None)
-
-    if "setting_overwrites" in updates:
-        updates.pop("setting_overwrites", None)
 
     return updates
 
