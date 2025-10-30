@@ -473,7 +473,7 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
 
     if project_name and organization:
         if project := get_project_by_name(client, organization, project_name):
-            return project
+            return {"data": project}
 
     return {}
 
@@ -656,7 +656,7 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     ignore_params = {"check_mode", "state", "organization", "project_id"}
     project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
 
-    project_id = project["data"].get("id")
+    project_id = project["data"].get("id") or project.get("id")
 
     # Get current state (what we have)
     have = normalize_project_response(project, client, project_id)

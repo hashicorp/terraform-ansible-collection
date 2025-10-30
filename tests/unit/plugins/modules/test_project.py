@@ -461,14 +461,16 @@ class TestFetchProject:
         mock_client = Mock()
         params = {"project_id": "prj-123abc456def"}
 
-        expected_project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project"}}}
+        # get_project_by_id returns the project data directly (not wrapped in "data" key)
+        project_data = {"id": "prj-123abc456def", "attributes": {"name": "test-project"}, "status": 200}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
-            mock_get.return_value = expected_project
+            mock_get.return_value = project_data
 
             result = fetch_project(mock_client, params)
 
-            assert result == expected_project
+            # fetch_project returns the project data directly when using project_id
+            assert result == project_data
             mock_get.assert_called_once_with(mock_client, "prj-123abc456def")
 
     def test_fetch_project_by_name_success(self):
@@ -477,20 +479,16 @@ class TestFetchProject:
         params = {"project": "test-project", "organization": "test-org"}
 
         existing_project = {"id": "prj-123abc456def"}
-        expected_project = {"data": {"id": "prj-123abc456def", "attributes": {"name": "test-project"}}}
+        expected_result = {"data": {"id": "prj-123abc456def"}}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get_by_name, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id"
-        ) as mock_get_by_id:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get_by_name:
 
             mock_get_by_name.return_value = existing_project
-            mock_get_by_id.return_value = expected_project
 
             result = fetch_project(mock_client, params)
 
-            assert result == expected_project
+            assert result == expected_result
             mock_get_by_name.assert_called_once_with(mock_client, "test-org", "test-project")
-            mock_get_by_id.assert_called_once_with(mock_client, "prj-123abc456def")
 
     def test_fetch_project_not_found(self):
         """Test fetching project when it doesn't exist."""
