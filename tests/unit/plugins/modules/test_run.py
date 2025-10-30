@@ -114,12 +114,12 @@ class TestHandlePollingAndResult:
                 True,
                 None,
                 None,
-                25,
+                120,
                 5,
             ),
-            (True, "failure", None, None, True, None, 25, 5),
+            (True, "failure", None, None, True, None, 120, 5),
             (False, None, None, True, None, None, None, None),  # Polling disabled
-            (True, "success", {"data": {"id": "run-123"}}, True, None, "run-123", 25, 5),  # Custom run_id
+            (True, "success", {"data": {"id": "run-123"}}, True, None, "run-123", 120, 5),  # Custom run_id
             (True, "success", {"data": {"id": "run-123"}}, True, None, None, 60, 10),  # Custom timeouts
         ],
     )
@@ -146,7 +146,7 @@ class TestHandlePollingAndResult:
         kwargs = {}
         if custom_run_id:
             kwargs["run_id"] = custom_run_id
-        if poll_timeout and poll_timeout != 25:
+        if poll_timeout and poll_timeout != 120:
             kwargs["poll_timeout"] = poll_timeout
         if poll_interval and poll_interval != 5:
             kwargs["poll_interval"] = poll_interval
@@ -161,7 +161,7 @@ class TestHandlePollingAndResult:
 
         if poll_enabled:
             expected_run_id = custom_run_id or "run-123"
-            expected_timeout = poll_timeout or 25
+            expected_timeout = poll_timeout or 120
             expected_interval = poll_interval or 5
             mock_wait_for_state.assert_called_once_with(mock_client, expected_run_id, expected_timeout, expected_interval)
         else:
@@ -759,7 +759,7 @@ class TestRunsModuleIntegration:
         assert argument_spec["state"]["default"] == "present"
         assert argument_spec["poll"]["default"] is True
         assert argument_spec["poll_interval"]["default"] == 5
-        assert argument_spec["poll_timeout"]["default"] == 25
+        assert argument_spec["poll_timeout"]["default"] == 120
 
         # Verify validation rules
         assert call_args["required_together"] == [["workspace", "organization"]]
