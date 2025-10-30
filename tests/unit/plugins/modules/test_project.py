@@ -8,6 +8,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.project import (
+    _build_desired_state,
+    _create_update_response,
+    _filter_current_state,
+    _filter_tag_binding_updates,
+    _normalize_tag_bindings,
     fetch_project,
     fetch_project_tag_bindings,
     get_project_by_name,
@@ -134,6 +139,318 @@ class TestProjectHelperFunctions:
 
             assert result == expected
             mock_fetch.assert_called_once_with(mock_client, project_id)
+
+
+class TestStateUpdateHelperFunctions:
+    """Test cases for state_update helper functions."""
+
+    def test_normalize_tag_bindings_valid_list(self):
+        """Test normalizing a valid list of tag bindings."""
+        tag_bindings_list = [
+            {"key": "Environment", "value": "Production"},
+            {"key": "Team", "value": "Infrastructure"},
+            {"key": "CostCenter", "value": "Engineering"},
+        ]
+
+        result = _normalize_tag_bindings(tag_bindings_list)
+
+        expected = {
+            "Environment": "Production",
+            "Team": "Infrastructure",
+            "CostCenter": "Engineering",
+        }
+        assert result == expected
+
+    def test_normalize_tag_bindings_empty_list(self):
+        """Test normalizing an empty list."""
+        result = _normalize_tag_bindings([])
+        assert result == {}
+
+    def test_normalize_tag_bindings_invalid_format(self):
+        """Test normalizing list with invalid tag formats."""
+        tag_bindings_list = [
+            {"key": "ValidKey", "value": "ValidValue"},
+            {"key": "MissingValue"},  # Missing value
+            {"value": "MissingKey"},  # Missing key
+            "invalid_string",  # Not a dict
+            {"key": "OnlyKey"},  # Missing value
+        ]
+
+        result = _normalize_tag_bindings(tag_bindings_list)
+
+        # Only the valid tag should be included
+        expected = {"ValidKey": "ValidValue"}
+        assert result == expected
+
+    def test_normalize_tag_bindings_mixed_types(self):
+        """Test normalizing list with mixed valid and invalid types."""
+        tag_bindings_list = [
+            {"key": "Tag1", "value": "Value1"},
+            None,  # None value
+            {"key": "Tag2", "value": "Value2"},
+            123,  # Integer
+            {"key": "Tag3", "value": "Value3"},
+        ]
+
+        result = _normalize_tag_bindings(tag_bindings_list)
+
+        expected = {
+            "Tag1": "Value1",
+            "Tag2": "Value2",
+            "Tag3": "Value3",
+        }
+        assert result == expected
+
+    def test_build_desired_state_basic(self):
+        """Test building desired state with basic parameters."""
+        project_params = {
+            "project": "my-project",
+            "description": "Test description",
+            "auto_destroy_activity_duration": "30d",
+        }
+
+        result = _build_desired_state(project_params)
+
+        expected = {
+            "name": "my-project",  # project mapped to name
+            "description": "Test description",
+            "auto_destroy_activity_duration": "30d",
+        }
+        assert result == expected
+
+    def test_build_desired_state_with_tag_bindings(self):
+        """Test building desired state with tag bindings."""
+        project_params = {
+            "project": "my-project",
+            "tag_bindings": [
+                {"key": "Environment", "value": "Production"},
+                {"key": "Team", "value": "DevOps"},
+            ],
+        }
+
+        result = _build_desired_state(project_params)
+
+        expected = {
+            "name": "my-project",
+            "tag_bindings": {
+                "Environment": "Production",
+                "Team": "DevOps",
+            },
+        }
+        assert result == expected
+
+    def test_build_desired_state_filters_none_values(self):
+        """Test that None values and empty dicts are filtered out."""
+        project_params = {
+            "project": "my-project",
+            "description": "Test",
+            "execution_mode": None,  # Should be filtered
+            "setting_overwrites": {},  # Should be filtered
+            "auto_destroy_activity_duration": "30d",
+        }
+
+        result = _build_desired_state(project_params)
+
+        expected = {
+            "name": "my-project",
+            "description": "Test",
+            "auto_destroy_activity_duration": "30d",
+        }
+        assert result == expected
+
+    def test_build_desired_state_empty_tag_bindings_filtered(self):
+        """Test that empty tag bindings are filtered out."""
+        project_params = {
+            "project": "my-project",
+            "tag_bindings": [],  # Empty list should result in no tag_bindings key
+        }
+
+        result = _build_desired_state(project_params)
+
+        expected = {"name": "my-project"}
+        assert result == expected
+        assert "tag_bindings" not in result
+
+    def test_filter_current_state_basic(self):
+        """Test filtering current state to match desired state keys."""
+        have = {
+            "name": "test-project",
+            "description": "Test description",
+            "extra_field": "should be removed",
+            "another_extra": "also removed",
+        }
+        want = {
+            "name": "test-project",
+            "description": "Updated description",
+        }
+
+        result = _filter_current_state(have, want)
+
+        expected = {
+            "name": "test-project",
+            "description": "Test description",
+        }
+        assert result == expected
+
+    def test_filter_current_state_removes_none_and_empty(self):
+        """Test that None values and empty dicts are removed."""
+        have = {
+            "name": "test-project",
+            "description": None,  # Should be removed
+            "setting_overwrites": {},  # Should be removed
+            "execution_mode": "remote",
+        }
+        want = {
+            "name": "test-project",
+            "description": "New description",
+            "setting_overwrites": {"auto_apply": True},
+            "execution_mode": "remote",
+        }
+
+        result = _filter_current_state(have, want)
+
+        expected = {
+            "name": "test-project",
+            "execution_mode": "remote",
+        }
+        assert result == expected
+
+    def test_filter_current_state_type_mismatch(self):
+        """Test that type mismatches are handled (dict in have, non-dict in want)."""
+        have = {
+            "name": "test-project",
+            "setting_overwrites": {"auto_apply": True},  # Dict
+        }
+        want = {
+            "name": "test-project",
+            "setting_overwrites": "invalid_string",  # String (type mismatch)
+        }
+
+        result = _filter_current_state(have, want)
+
+        # setting_overwrites should be removed due to type mismatch
+        expected = {"name": "test-project"}
+        assert result == expected
+
+    def test_filter_current_state_preserves_matching_dicts(self):
+        """Test that matching dict values are preserved."""
+        have = {
+            "name": "test-project",
+            "setting_overwrites": {"auto_apply": True, "global_remote_state": False},
+        }
+        want = {
+            "name": "test-project",
+            "setting_overwrites": {"auto_apply": False},  # Different value, but both dicts
+        }
+
+        result = _filter_current_state(have, want)
+
+        # Both are dicts, so no type mismatch - should be preserved
+        expected = {
+            "name": "test-project",
+            "setting_overwrites": {"auto_apply": True, "global_remote_state": False},
+        }
+        assert result == expected
+
+    def test_filter_tag_binding_updates_removes_when_not_in_have(self):
+        """Test that tag_bindings are filtered when not present in current state."""
+        updates = {
+            "description": "New description",
+            "tag_bindings": {"Environment": "Production"},
+        }
+        have = {
+            "name": "test-project",
+            "description": "Old description",
+            # No tag_bindings
+        }
+
+        result = _filter_tag_binding_updates(updates, have)
+
+        # tag_bindings should be removed
+        expected = {"description": "New description"}
+        assert result == expected
+
+    def test_filter_tag_binding_updates_preserves_when_in_have(self):
+        """Test that tag_bindings are preserved when present in current state."""
+        updates = {
+            "description": "New description",
+            "tag_bindings": {"Environment": "Production"},
+        }
+        have = {
+            "name": "test-project",
+            "description": "Old description",
+            "tag_bindings": {"Environment": "Development"},  # Present in have
+        }
+
+        result = _filter_tag_binding_updates(updates, have)
+
+        # tag_bindings should be preserved
+        expected = {
+            "description": "New description",
+            "tag_bindings": {"Environment": "Production"},
+        }
+        assert result == expected
+
+    def test_filter_tag_binding_updates_no_tag_bindings_in_updates(self):
+        """Test filtering when tag_bindings are not in updates."""
+        updates = {"description": "New description"}
+        have = {"name": "test-project", "description": "Old description"}
+
+        result = _filter_tag_binding_updates(updates, have)
+
+        # Should return updates unchanged
+        expected = {"description": "New description"}
+        assert result == expected
+
+    def test_create_update_response_normal_mode(self):
+        """Test creating update response in normal mode."""
+        mock_client = Mock()
+        project_id = "prj-123abc456def"
+        project_params = {"project": "test-project", "description": "Updated"}
+        params = {"organization": "test-org", "project": "test-project", "description": "Updated"}
+
+        expected_api_response = {
+            "data": {
+                "id": project_id,
+                "type": "projects",
+                "attributes": {"name": "test-project", "description": "Updated"},
+            }
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
+        ) as mock_request:
+
+            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
+            mock_update.return_value = expected_api_response
+
+            result = _create_update_response(mock_client, project_id, project_params, params, check_mode=False)
+
+            assert result["changed"] is True
+            assert result["id"] == project_id
+            mock_update.assert_called_once()
+
+    def test_create_update_response_check_mode(self):
+        """Test creating update response in check mode."""
+        mock_client = Mock()
+        project_id = "prj-123abc456def"
+        project_params = {"project": "test-project", "description": "Updated"}
+        params = {"organization": "test-org", "project": "test-project", "description": "Updated"}
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
+        ) as mock_request:
+
+            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects", "attributes": {"name": "test-project"}}}
+
+            result = _create_update_response(mock_client, project_id, project_params, params, check_mode=True)
+
+            assert result["changed"] is True
+            assert "would be updated" in result["msg"]
+            assert project_id in result["msg"]
+            assert "check mode" in result["msg"]
+            # update_project should NOT be called in check mode
+            mock_update.assert_not_called()
 
 
 class TestFetchProject:

@@ -514,6 +514,133 @@ def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: b
             }
 
 
+def _normalize_tag_bindings(tag_bindings_list: list) -> dict:
+    """
+    Normalize tag_bindings from list format to dict format for comparison.
+
+    The API returns tag_bindings as {"key": "value"} but users provide it as
+    [{"key": "k", "value": "v"}].
+
+    Args:
+        tag_bindings_list: List of tag binding dictionaries with 'key' and 'value' keys
+
+    Returns:
+        Dictionary mapping tag keys to values
+    """
+    tag_bindings_dict = {}
+    for tag in tag_bindings_list:
+        if isinstance(tag, dict) and "key" in tag and "value" in tag:
+            tag_bindings_dict[tag["key"]] = tag["value"]
+    return tag_bindings_dict
+
+
+def _build_desired_state(project_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build the desired state dictionary from project parameters.
+
+    Handles field name mapping (e.g., 'project' -> 'name') and normalizes
+    tag_bindings format.
+
+    Args:
+        project_params: Dictionary of project parameters from user input
+
+    Returns:
+        Dictionary representing the desired state with normalized field names
+    """
+    want = {}
+    for k, v in project_params.items():
+        if k == "project":
+            want["name"] = v
+        elif k == "tag_bindings" and isinstance(v, list):
+            tag_bindings_dict = _normalize_tag_bindings(v)
+            if tag_bindings_dict:  # Only add if not empty
+                want[k] = tag_bindings_dict
+        elif v is not None and v != {}:
+            want[k] = v
+    return want
+
+
+def _filter_current_state(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Filter the current state to match keys in desired state and ensure type compatibility.
+
+    Removes excessive keys from 'have', filters out None values and empty dicts,
+    and handles type mismatches to prevent dict_diff errors.
+
+    Args:
+        have: Dictionary representing current state
+        want: Dictionary representing desired state
+
+    Returns:
+        Filtered current state dictionary
+    """
+    # Remove excessive keys from have to match it to want
+    # Also filter out None values and empty dicts from have for consistency
+    filtered = {k: v for k, v in have.items() if k in want and v is not None and v != {}}
+
+    # Ensure type compatibility: if have has a dict value, want must also have a dict value
+    # This prevents dict_diff from trying to recursively compare incompatible types
+    for key, value in list(filtered.items()):
+        if isinstance(value, dict) and key in want and not isinstance(want[key], dict):
+            # Type mismatch: remove from have to avoid dict_diff error
+            # This will cause the field to be treated as an update
+            del filtered[key]
+
+    return filtered
+
+
+def _filter_tag_binding_updates(updates: Dict[str, Any], have: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Filter out tag_bindings from updates if not present in current state.
+
+    This handles the case where tag bindings aren't fetched/supported properly.
+
+    Args:
+        updates: Dictionary of detected updates
+        have: Dictionary representing current state
+
+    Returns:
+        Filtered updates dictionary
+    """
+    if "tag_bindings" in updates and "tag_bindings" not in have:
+        # Tag bindings are in updates but not in current state
+        # This means we tried to set them but they're not readable via API
+        # Remove from updates to avoid false positives
+        updates.pop("tag_bindings", None)
+    return updates
+
+
+def _create_update_response(
+    client: TerraformClient, project_id: str, project_params: Dict[str, Any], params: Dict[str, Any], check_mode: bool
+) -> Dict[str, Any]:
+    """
+    Create and execute the update request or return check mode message.
+
+    Args:
+        client: TerraformClient instance
+        project_id: ID of the project to update
+        project_params: Dictionary of project parameters
+        params: Full parameters dictionary including organization
+        check_mode: If True, return what would be changed without making changes
+
+    Returns:
+        Dictionary with update results or check mode message
+    """
+    project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
+        by_alias=True, exclude_unset=False, exclude_none=True
+    )
+
+    if not check_mode:
+        response = update_project(client, project_id, project_request)
+        return {"changed": True, **response.get("data")}
+    else:
+        return {
+            "changed": True,
+            "msg": f"The project {project_id} would be updated with the given options. Skipped update due to check mode.",
+            **project_request.get("data"),
+        }
+
+
 def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Update an existing Terraform project using the provided client and parameters.
@@ -538,60 +665,21 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     have = normalize_project_response(project, client, project_id)
 
     # Get desired state (what we want) - handle field name mapping
-    want = {}
-    for k, v in project_params.items():
-        if k == "project":
-            want["name"] = v
-        elif k == "tag_bindings" and isinstance(v, list):
-            # Normalize tag_bindings from list format to dict format for comparison
-            # The API returns tag_bindings as {"key": "value"} but users provide it as [{"key": "k", "value": "v"}]
-            tag_bindings_dict = {}
-            for tag in v:
-                if isinstance(tag, dict) and "key" in tag and "value" in tag:
-                    tag_bindings_dict[tag["key"]] = tag["value"]
-            if tag_bindings_dict:  # Only add if not empty
-                want[k] = tag_bindings_dict
-        elif v is not None and v != {}:
-            want[k] = v
+    want = _build_desired_state(project_params)
 
-    # Remove excessive keys from have to match it to want
-    # Also filter out None values and empty dicts from have for consistency
-    have = {k: v for k, v in have.items() if k in want and v is not None and v != {}}
-
-    # Ensure type compatibility: if have has a dict value, want must also have a dict value
-    # This prevents dict_diff from trying to recursively compare incompatible types
-    for key, value in list(have.items()):
-        if isinstance(value, dict) and key in want and not isinstance(want[key], dict):
-            # Type mismatch: remove from have to avoid dict_diff error
-            # This will cause the field to be treated as an update
-            del have[key]
+    # Filter current state to match desired state
+    have = _filter_current_state(have, want)
 
     # Compare the two dictionaries to find differences
     updates_response = dict_diff(have, want)
 
     # Filter out tag_bindings from updates if have doesn't have it
-    # This handles the case where tag bindings aren't fetched/supported properly
-    if "tag_bindings" in updates_response and "tag_bindings" not in have:
-        # Tag bindings are in updates but not in current state
-        # This means we tried to set them but they're not readable via API
-        # Remove from updates to avoid false positives
-        updates_response.pop("tag_bindings", None)
+    updates_response = _filter_tag_binding_updates(updates_response, have)
 
     if not updates_response:
         return {"changed": False}
 
-    project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
-        by_alias=True, exclude_unset=False, exclude_none=True
-    )
-    if not check_mode:
-        response = update_project(client, project_id, project_request)
-        return {"changed": True, **response.get("data")}
-    else:
-        return {
-            "changed": True,
-            "msg": f"The project {project_id} would be updated with the given options. Skipped update due to check mode.",
-            **project_request.get("data"),
-        }
+    return _create_update_response(client, project_id, project_params, params, check_mode)
 
 
 def state_absent(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
