@@ -1,16 +1,27 @@
-# -*- coding: utf-8 -*-
+from typing import Any, Dict, Optional
 
-# Copyright (c) 2025 Red Hat, Inc.
-# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+from ansible.module_utils.common.text.converters import to_text
 
-from __future__ import annotations
+from .common import TerraformClient
+from .exceptions import TerraformError
 
-from typing import Any, Dict
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
-    TerraformError,
-)
+def create_project(client: TerraformClient, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """
+    Create a new project with the given parameters.
+    Args:
+        client: The Terraform client instance.
+        organization (str): The name of the Terraform Cloud organization.
+        data (dict): The project data to create.
+    Returns:
+        The created project in the form of a dictionary.
+    Raises:
+        TerraformError: If the response does not return a 201 status code.
+    """
+    response = client.post(f"/organizations/{organization}/projects", data=data)
+    if response.get("status") != 201:
+        raise TerraformError(to_text(response))
+    return response.get("data")
 
 
 def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any]:
@@ -50,3 +61,94 @@ def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any
         # A failure status code was received when attempting to fetch the specified project
         # there can be several reasons for this so we raise an exception with the response
         raise TerraformError(response)
+
+
+def update_project(client: TerraformClient, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """
+    Update a project with the given project_id.
+    Args:
+        client: The Terraform client instance.
+        project_id (str): The ID of the project to update.
+        data (dict): The project data to update.
+    Returns:
+        The updated project in the form of a dictionary.
+    Raises:
+        TerraformError: If the response does not return a 200 status code.
+    """
+    response = client.patch(f"/projects/{project_id}", data=data)
+    if response.get("status") != 200:
+        raise TerraformError(to_text(response))
+    return response.get("data")
+
+
+def delete_project(client: TerraformClient, project_id: str) -> Optional[dict[str, Any]]:
+    """
+    Delete a project with the given project_id.
+    Args:
+        client: The Terraform client instance.
+        project_id (str): The ID of the project to delete.
+    Returns:
+        The deleted project in the form of a dictionary.
+    Raises:
+        TerraformError: If the response does not return a 200 status code.
+    """
+    response = client.delete(f"/projects/{project_id}")
+    if response.get("status") != 204:
+        raise TerraformError(to_text(response))
+    return response.get("data")
+
+
+def get_project_tag_bindings(client: TerraformClient, project_id: str) -> Optional[dict[str, Any]]:
+    """
+    Get the tag bindings for a project with the given project_id.
+    Args:
+        client: The Terraform client instance.
+        project_id (str): The ID of the project to get the tag bindings for.
+    Returns:
+        The tag bindings for the project.
+    Raises:
+        TerraformError: If the response does not return a 200 status code.
+    """
+    response = client.get(f"/projects/{project_id}/tag-bindings")
+    if response.get("status") == 200:
+        return response.get("data")
+    elif response.get("status") == 404:
+        return {}
+    else:
+        raise TerraformError(to_text(response))
+
+
+def update_project_tag_bindings(client: TerraformClient, project_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """
+    Update the tag bindings for a project with the given project_id.
+    Args:
+        client: The Terraform client instance.
+        project_id (str): The ID of the project to update the tag bindings for.
+        data (dict): The tag bindings data to update.
+    Returns:
+        The updated tag bindings for the project.
+    Raises:
+        TerraformError: If the response does not return a 200 status code.
+    """
+    response = client.patch(f"/projects/{project_id}/tag-bindings", data=data)
+    if response.get("status") != 200:
+        raise TerraformError(to_text(response))
+    return response.get("data")
+
+
+def list_projects(client: TerraformClient, organization: str, query_params: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
+    """
+    List all projects for an organization.
+    Args:
+        client: The Terraform client instance.
+        organization (str): The name of the organization to list projects for.
+    Returns:
+        The list of projects.
+    """
+    response = client.get(f"/organizations/{organization}/projects", query_params=query_params)
+    if response.get("status") == 200:
+        return response.get("data")
+    elif response.get("status") == 404:
+        return {}
+    else:
+        raise TerraformError(to_text(response))
