@@ -468,14 +468,11 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
     organization = params.get("organization")
 
     if project_id:
-        project = get_project_by_id(client, project_id)
-        if project:
+        if project := get_project_by_id(client, project_id):
             return project
 
     if project_name and organization:
-        existing_project: Optional[Dict[str, Any]] = get_project_by_name(client, organization, project_name)
-        if existing_project and (project_id := existing_project.get("id")):
-            project = get_project_by_id(client, project_id)
+        if project := get_project_by_name(client, organization, project_name):
             return project
 
     return {}
