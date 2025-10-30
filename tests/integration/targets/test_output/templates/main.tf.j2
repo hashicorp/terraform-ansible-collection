@@ -1,0 +1,81 @@
+terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+  }
+  required_version = ">= 1.2.0"
+  cloud {
+    organization = "{{ organization }}"
+    token = "{{ tfc_token }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name    = "{{ workspace_name }}"
+    }
+  }
+}
+
+# Resources that generate outputs
+resource "random_id" "vpc1" {
+  byte_length = 8
+  prefix      = "vpc-"
+}
+
+resource "random_id" "vpc2" {
+  byte_length = 8
+  prefix      = "vpc-"
+}
+
+resource "random_password" "sensitive_token" {
+  length  = 32
+  special = true
+}
+
+# Non-sensitive string output
+output "vpc1_id" {
+  description = "ID of VPC 1"
+  value       = random_id.vpc1.id
+  sensitive   = false
+}
+
+# Non-sensitive string output
+output "vpc2_id" {
+  description = "ID of VPC 2"
+  value       = random_id.vpc2.id
+  sensitive   = false
+}
+
+# Non-sensitive string output
+output "environment" {
+  description = "Environment name"
+  value       = "test"
+  sensitive   = false
+}
+
+# Sensitive string output
+output "sensitive_token" {
+  description = "Sensitive authentication token"
+  value       = random_password.sensitive_token.result
+  sensitive   = true
+}
+
+# Complex object output
+output "vpc_config" {
+  description = "VPC configuration object"
+  value = {
+    vpc1_id   = random_id.vpc1.id
+    vpc2_id   = random_id.vpc2.id
+    vpc1_cidr = "10.0.0.0/16"
+    vpc2_cidr = "10.1.0.0/16"
+    region    = "us-east-1"
+  }
+  sensitive = false
+}
+
+# List output
+output "vpc_ids" {
+  description = "List of VPC IDs"
+  value       = [random_id.vpc1.id, random_id.vpc2.id]
+  sensitive   = false
+}
