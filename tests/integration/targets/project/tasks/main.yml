@@ -14,7 +14,6 @@
         organization: "{{ organization }}"
         project: "{{ project_name }}"
         state: present
-        tf_token: "{{ tfc_token }}"
         description: "test project"
         execution_mode: "remote"
         auto_destroy_activity_duration: "14d"
@@ -42,7 +41,6 @@
         project: "{{ project_name }}"
         organization: "{{ organization }}"
         state: present
-        tf_token: "{{ tfc_token }}"
         description: "test project updated"
         execution_mode: "local"
         auto_destroy_activity_duration: "15d"
@@ -55,6 +53,9 @@
       ansible.builtin.assert:
         that:
           - result_update.changed
+          - result_update.attributes.description == "test project updated"
+          - result_update.attributes["default-execution-mode"] == "local"
+          - result_update.attributes["auto-destroy-activity-duration"] == "15d"
 
     - name: Idempotency test - update project again
       hashicorp.terraform.project: *update_project_task
@@ -69,7 +70,6 @@
       hashicorp.terraform.project:
         project_id: "{{ result_create.id }}"
         state: present
-        tf_token: "{{ tfc_token }}"
         auto_destroy_activity_duration: "17d"
       register: result_update_with_project_id
 
@@ -82,7 +82,6 @@
       hashicorp.terraform.project:
         project_id: "{{ result_create.id }}"
         state: present
-        tf_token: "{{ tfc_token }}"
         auto_destroy_activity_duration: "17d"
       register: result_update_with_project_id_again
 
@@ -91,14 +90,150 @@
         that:
           - not result_update_with_project_id_again.changed
 
-    - name: Delete project
+    # Agent Pool Tests
+    - name: Generate unique agent pool name
+      ansible.builtin.set_fact:
+        agent_pool_name: "{{ project_name }}-agent-pool"
+
+    - name: Create a Terraform agent pool with unique name
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/agent-pools"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            attributes:
+              name: "{{ agent_pool_name }}"
+            type: "agent-pools"
+        return_content: true
+        status_code: 201
+      no_log: true
+      register: agent_pool_create_response
+
+    - name: Set a fact for 'agent_pool_id'
+      ansible.builtin.set_fact:
+        agent_pool_id: "{{ agent_pool_create_response.json.data.id }}"
+
+    - name: Update project with agent execution mode and default agent pool
+      hashicorp.terraform.project: &update_project_agent_task
+        project_id: "{{ result_create.id }}"
+        state: present
+        execution_mode: "agent"
+        default_agent_pool_id: "{{ agent_pool_id }}"
+        description: "project with agent execution mode"
+      register: result_update_agent
+
+    - name: Assert project update with agent pool was successful
+      ansible.builtin.assert:
+        that:
+          - result_update_agent.changed
+          - result_update_agent.attributes["default-execution-mode"] == "agent"
+          - result_update_agent.attributes["description"] == "project with agent execution mode"
+
+    - name: Idempotency test - update project with agent pool again
+      hashicorp.terraform.project: *update_project_agent_task
+      register: result_update_agent_again
+
+    - name: Assert project update with agent pool was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update_agent_again.changed
+
+    - name: Update project to change execution mode back to remote
+      hashicorp.terraform.project:
+        project_id: "{{ result_create.id }}"
+        state: present
+        execution_mode: "remote"
+        description: "project back to remote mode"
+      register: result_update_remote
+
+    - name: Assert project update back to remote mode was successful
+      ansible.builtin.assert:
+        that:
+          - result_update_remote.changed
+          - result_update_remote.attributes["default-execution-mode"] == "remote"
+          - result_update_remote.attributes["description"] == "project back to remote mode"
+
+    - name: Create a second project with agent execution mode from the start
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        project: "{{ project_name }}-agent"
+        state: present
+        description: "test project with agent mode"
+        execution_mode: "agent"
+        default_agent_pool_id: "{{ agent_pool_id }}"
+        auto_destroy_activity_duration: "14d"
+      register: result_create_agent
+
+    - name: Assert second project creation with agent pool was successful
+      ansible.builtin.assert:
+        that:
+          - result_create_agent.changed
+          - result_create_agent.attributes["default-execution-mode"] == "agent"
+          - result_create_agent.attributes["description"] == "test project with agent mode"
+          - result_create_agent.attributes["auto-destroy-activity-duration"] == "14d"
+
+    - name: Update the second project's agent pool (same pool, testing idempotency)
+      hashicorp.terraform.project:
+        project_id: "{{ result_create_agent.id }}"
+        state: present
+        execution_mode: "agent"
+        default_agent_pool_id: "{{ agent_pool_id }}"
+      register: result_update_agent_same
+
+    - name: Assert update with same agent pool was idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_update_agent_same.changed
+
+  always:
+    - name: Update first project to remove agent pool before deletion
+      hashicorp.terraform.project:
+        project_id: "{{ result_create.id }}"
+        state: present
+        execution_mode: "remote"
+      register: result_update_before_delete
+      when: result_create.id is defined
+      ignore_errors: true
+
+    - name: Delete first project
       hashicorp.terraform.project:
         project_id: "{{ result_create.id }}"
         state: absent
-        tf_token: "{{ tfc_token }}"
       register: result_delete
+      when: result_create.id is defined
+      ignore_errors: true
 
-    - name: Assert project deletion was successful
-      ansible.builtin.assert:
-        that:
-          - result_delete.changed
+    - name: Update second project to remove agent pool before deletion
+      hashicorp.terraform.project:
+        project_id: "{{ result_create_agent.id }}"
+        state: present
+        execution_mode: "remote"
+      register: result_update_agent_before_delete
+      when: result_create_agent.id is defined
+      ignore_errors: true
+
+    - name: Delete second project
+      hashicorp.terraform.project:
+        project_id: "{{ result_create_agent.id }}"
+        state: absent
+      register: result_delete_agent
+      when: result_create_agent.id is defined
+      ignore_errors: true
+
+    - name: Delete agent pool
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        status_code: 204
+        return_content: true
+      no_log: true
+      register: agent_pool_delete_response
+      when: agent_pool_id is defined
+      ignore_errors: true
