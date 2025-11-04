@@ -380,23 +380,19 @@ class ClientMixin:
             """
             method = function.__name__.upper()
             content_type = self.session.headers.get("Content-Type", "application/vnd.api+json")
+            query_params = kwargs.get("query_params")
 
             if method in ["POST", "PUT", "DELETE", "PATCH"] and data and content_type.endswith("json"):
                 data = self.dict_to_json(data)
 
-            if not re.match(HTTP_URL_PATTERN, path):
-                url = f"{self.base_url}{path}"
-            else:
-                url = path
+            url = path if re.match(HTTP_URL_PATTERN, path) else f"{self.base_url}{path}"
 
             # Let the session handle retries automatically
             # The retry mechanism is configured in create_session()
-            response = self.session.request(
-                method,
-                url,
-                data=data,
-                timeout=self.timeout,
-            )
+            if method == "GET" and query_params is not None:
+                response = self.session.request(method, url, params=query_params, timeout=self.timeout)
+            else:
+                response = self.session.request(method, url, data=data, timeout=self.timeout)
 
             if response.content and content_type.endswith("json"):
                 result = self.json_to_dict(response.content)
@@ -419,25 +415,20 @@ class ClientMixin:
 
         Returns:
             Response: The response object resulting from the HEAD request.
-
-        Raises:
-            Exception: If the request fails due to network or server error.
         """
         pass
 
     @make_request
-    def get(self, path: str) -> Any:
+    def get(self, path: str, query_params: Optional[Dict[str, Any]] = None) -> Any:
         """
         Retrieve data from the specified API endpoint.
 
         Args:
             path (str): The API endpoint path to retrieve data from.
+            query_params (dict, optional): Query parameters to include in the request.
 
         Returns:
             dict: The response data from the API.
-
-        Raises:
-            Exception: If the request fails due to network or server error.
         """
         pass
 
@@ -452,9 +443,6 @@ class ClientMixin:
 
         Returns:
             Response: The response object resulting from the POST request.
-
-        Raises:
-            Exception: If the request fails due to network or server error.
         """
         pass
 
@@ -468,9 +456,6 @@ class ClientMixin:
 
         Returns:
             Response: The response object resulting from the PUT request.
-
-        Raises:
-            Exception: If the request fails due to network or server error.
         """
         pass
 
@@ -485,9 +470,6 @@ class ClientMixin:
 
         Returns:
             Response: The response object resulting from the PATCH request.
-
-        Raises:
-            Exception: If the request fails due to network or server error.
         """
         pass
 
@@ -499,12 +481,8 @@ class ClientMixin:
         Args:
             path (str): The file system path to the file or directory to be deleted.
 
-        Raises:
-            Exception: If the deletion fails due to network or server error.
-
         Returns:
             None
-
         """
         pass
 
