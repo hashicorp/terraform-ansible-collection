@@ -63,47 +63,6 @@ class TestWorkspaceInfoModule:
             ["workspace", "organization"],
         ]
 
-    def test_status_field_removal_logic(self):
-        """Test that status field removal logic works correctly."""
-        # Test the simple logic of removing status field from workspace data
-        workspace_data = {
-            "id": "ws-123abc456def789",
-            "type": "workspaces",
-            "attributes": {"name": "test-workspace"},
-            "status": 200,  # This should be removed
-            "other_field": "should_remain",
-        }
-
-        # Simulate the logic from the main function
-        workspace_data.pop("status", None)
-
-        # Verify the status field was removed
-        assert "status" not in workspace_data
-
-        # Other fields should remain
-        assert workspace_data["id"] == "ws-123abc456def789"
-        assert workspace_data["type"] == "workspaces"
-        assert workspace_data["attributes"]["name"] == "test-workspace"
-        assert workspace_data["other_field"] == "should_remain"
-
-    def test_status_field_removal_when_not_present(self):
-        """Test that status field removal works when status is not present."""
-        workspace_data = {
-            "id": "ws-123abc456def789",
-            "type": "workspaces",
-            "attributes": {"name": "test-workspace"},
-        }
-
-        # Simulate the logic from the main function
-        workspace_data.pop("status", None)
-
-        # Should not raise an error and data should remain unchanged
-        assert workspace_data == {
-            "id": "ws-123abc456def789",
-            "type": "workspaces",
-            "attributes": {"name": "test-workspace"},
-        }
-
     @pytest.mark.parametrize(
         "workspace_data,expected_result",
         [
