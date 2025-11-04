@@ -14,30 +14,19 @@
         workspace_name: "{{ unique_id }}-workspace"
 
     - name: Create a Terraform workspace with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ workspace_name }}"
-            type: "workspaces"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
       register: workspace_create_response
 
     - name: Debug workspace creation response
       ansible.builtin.debug:
-        var: workspace_create_response.json
+        var: workspace_create_response
 
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
-        workspace_id: "{{ workspace_create_response.json.data.id }}"
+        workspace_id: "{{ workspace_create_response.id }}"
 
     - name: Wait a moment for workspace to be fully created
       ansible.builtin.pause:
@@ -239,13 +228,8 @@
 
   always:
     - name: Force delete workspace
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
-      register: workspace_delete_response
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: absent
+        force: true
+      failed_when: false
