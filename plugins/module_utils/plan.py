@@ -58,11 +58,7 @@ def get_plan_data(
             plan metadata. Defaults to False.
 
     Returns:
-        The full response data if the plan is found (status 200),
-        or an empty dictionary if not found (status 404).
-
-    Raises:
-        TerraformError: If the request fails with a non-404 or non-200 status code.
+        The full response data.
 
     Examples:
         # Get plan metadata
