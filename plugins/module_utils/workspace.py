@@ -220,7 +220,7 @@ def safe_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[st
         or an empty dictionary if the workspace is not found.
 
     Raises:
-        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+        TerraformError: If the request fails with a non-404 or non-204 status code.
     """
     response = client.post(f"/workspaces/{workspace_id}/actions/safe-delete")
     response_status = response["status"]
@@ -259,7 +259,7 @@ def force_delete_workspace(client: TerraformClient, workspace_id: str) -> Dict[s
         or an empty dictionary if the workspace is not found.
 
     Raises:
-        TerraformError: If the archive request fails with a non-404 or non-204 status code.
+        TerraformError: If the request fails with a non-404 or non-204 status code.
     """
     response = client.delete(f"/workspaces/{workspace_id}")
     response_status = response["status"]
@@ -291,14 +291,14 @@ def lock_workspace(client: TerraformClient, workspace_id: str, lock_reason: str)
     Args:
         client (TerraformClient): An authenticated client instance used to interact
             with the Terraform Cloud API.
-        workspace_id (str): The ID of the workspace to safe delete.
+        workspace_id (str): The ID of the workspace to lock.
 
     Returns:
-        dict: Response data if the delete request is successfully initiated,
+        dict: Response data if the lock request is successfully initiated,
         or an empty dictionary if the workspace is not found.
 
     Raises:
-        TerraformError: If the archive request fails with a non-404 or non-200 status code.
+        TerraformError: If the lock request fails with a non-404 or non-200 status code.
     """
     payload = {
         "reason": lock_reason,
@@ -331,7 +331,7 @@ def unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[str, An
     Args:
         client (TerraformClient): An authenticated client instance used to interact
             with the Terraform Cloud API.
-        workspace_id (str): The ID of the workspace to safe delete.
+        workspace_id (str): The ID of the workspace to unlock.
 
     Returns:
         dict: Response data if the unlock request is successfully initiated,
@@ -368,7 +368,7 @@ def force_unlock_workspace(client: TerraformClient, workspace_id: str) -> Dict[s
     Args:
         client (TerraformClient): An authenticated client instance used to interact
             with the Terraform Cloud API.
-        workspace_id (str): The ID of the workspace to safe delete.
+        workspace_id (str): The ID of the workspace to force unlock.
 
     Returns:
         dict: Response data if the force unlock request is successfully initiated,

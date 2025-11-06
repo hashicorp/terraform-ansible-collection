@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new module hashicorp.terraform.output for retrieving state version outputs information from TFE/C.

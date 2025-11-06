@@ -13,6 +13,8 @@
       ansible.builtin.set_fact:
         project_name: "{{ unique_id[:30] }}-project"
 
+    # TODO: Replace with hashicorp.terraform.project module once available
+    # Currently using uri module because no project management module exists
     - name: Create a Terraform project with unique name
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/projects"
@@ -176,6 +178,8 @@
             "conversion is not allowed" in result_null_id.msg
 
   always:
+    # TODO: Replace with hashicorp.terraform.project module once available
+    # Currently using uri module because no project management module exists
     - name: Force delete project
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
