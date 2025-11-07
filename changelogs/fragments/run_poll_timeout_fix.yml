@@ -1,0 +1,3 @@
+---
+bugfixes:
+  - Increased the default poll_timeout for the run module to 120s. The previous default of 25s was low and caused issues in tasks.
