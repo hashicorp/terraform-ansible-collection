@@ -129,8 +129,8 @@ EXAMPLES = r"""
 - name: Display plan changes summary
   ansible.builtin.debug:
     msg: |
-      Plan has changes: {{ plan_result.changed }}
-  when: plan_result.output_format == 'diff'
+      Plan has changes: {{ plan_diff_result.changed }}
+  when: plan_diff_result is defined
 
 # Task output:
 # ------------
