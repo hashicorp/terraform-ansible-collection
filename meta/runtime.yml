@@ -9,4 +9,5 @@ action_groups:
     - view_plan
     - run_info
     - configuration_version_info
+    - project
     - test_output

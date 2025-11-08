@@ -5,7 +5,7 @@ HAS_PYDANTIC = False
 
 # Import pydantic components with fallbacks
 try:
-    from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+    from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictBool, StrictStr
 
     HAS_PYDANTIC = True
 except ImportError:
@@ -18,6 +18,10 @@ except ImportError:
     def Field(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
         """Fallback Field function for when pydantic is not available."""
         return None
+
+    def AliasChoices(*args: Any) -> Any:  # type: ignore[no-redef]
+        """Fallback AliasChoices function for when pydantic is not available."""
+        return args[0] if args else None
 
     # Create fallback types - use built-in types directly
     StrictBool = bool  # type: ignore[misc,assignment]
@@ -133,4 +137,5 @@ __all__ = [
     "create_run_reference",
     # Constants
     "HAS_PYDANTIC",
+    "AliasChoices",
 ]
