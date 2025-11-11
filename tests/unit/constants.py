@@ -92,6 +92,7 @@ def create_workspace_response(
     locked: bool = False,
     execution_mode: str = "remote",
     organization_id: str = TEST_ORGANIZATION_ID,
+    status: Optional[int] = None,
     **extra_attributes
 ) -> Dict[str, Any]:
     """
@@ -104,6 +105,7 @@ def create_workspace_response(
         locked: Whether the workspace is locked
         execution_mode: Execution mode ('remote', 'local', 'agent')
         organization_id: Associated organization ID
+        status: Optional HTTP status code (e.g., 200)
         **extra_attributes: Additional attributes to merge into the response
 
     Returns:
@@ -111,7 +113,7 @@ def create_workspace_response(
 
     Example:
         >>> response = create_workspace_response(name="my-workspace", locked=True)
-        >>> response = create_workspace_response(workspace_id="ws-custom")
+        >>> response = create_workspace_response(workspace_id="ws-custom", status=200)
     """
     attributes = {
         "name": name,
@@ -126,7 +128,7 @@ def create_workspace_response(
     # Merge extra attributes
     attributes.update(extra_attributes)
 
-    return {
+    response = {
         "data": {
             "id": workspace_id,
             "type": "workspaces",
@@ -134,6 +136,11 @@ def create_workspace_response(
             "relationships": {"organization": {"data": {"id": organization_id, "type": "organizations"}}},
         }
     }
+
+    if status is not None:
+        response["status"] = status
+
+    return response
 
 
 def create_configuration_version_response(
