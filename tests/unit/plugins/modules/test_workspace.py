@@ -19,6 +19,7 @@ from ansible_collections.hashicorp.terraform.plugins.modules.workspace import (
     state_unlocked,
     state_update,
 )
+from tests.unit.constants import create_workspace_response
 
 
 class TestWorkspaceLockAndUnlock:
@@ -32,11 +33,11 @@ class TestWorkspaceLockAndUnlock:
 
     @pytest.fixture
     def workspace_response_locked(self):
-        return {"data": {"attributes": {"locked": True}}}
+        return create_workspace_response(locked=True)
 
     @pytest.fixture
     def workspace_response_unlocked(self):
-        return {"data": {"attributes": {"locked": False}}}
+        return create_workspace_response(locked=False)
 
     def test_workspace_already_locked(self, params, workspace_response_locked):
         result = state_locked(Mock(), params, workspace_response_locked, check_mode=False)
@@ -454,7 +455,7 @@ class TestGetWorkspaceID:
         }
 
     def test_get_workspace_id_success(self, params):
-        mock_response = {"data": {"id": "ws-123", "attributes": {"name": "my-workspace"}}}
+        mock_response = create_workspace_response(workspace_id="ws-123", name="my-workspace")
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace") as mock_get_workspace:
             mock_get_workspace.return_value = mock_response
@@ -619,7 +620,9 @@ class TestMainFunctionBehavior:
         test_module.params["workspace_id"] = None
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value={"data": {"id": "ws-123"}}), patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=create_workspace_response(workspace_id="ws-123")
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_update", return_value={"changed": False, "msg": "no changes"}
         ):
 
@@ -648,7 +651,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": False}}}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=False)
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_locked", return_value={"changed": True, "msg": "locked"}
         ):
@@ -664,7 +667,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": True}}}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=True)
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_unlocked", return_value={"changed": True, "msg": "unlocked"}
         ):

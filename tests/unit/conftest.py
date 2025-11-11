@@ -14,6 +14,16 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from .constants import (
+    create_configuration_version_response,
+    create_empty_response,
+    create_error_response,
+    create_list_response,
+    create_plan_response,
+    create_run_response,
+    create_workspace_response,
+)
+
 
 class DummyModule:
     """A basic mock Ansible module for testing."""
@@ -142,3 +152,126 @@ def mock_time():
         mock_time_func.side_effect = range(1000)  # Incrementing time
 
         yield {"sleep": mock_sleep, "time": mock_time_func}
+
+
+# ============================================================================
+# Payload Factory Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def payload_factory():
+    """
+    Factory fixture providing functions to create API response payloads.
+
+    Returns:
+        dict: Dictionary of factory functions for creating test payloads
+
+    Usage:
+        def test_something(payload_factory):
+            # Create a run response
+            run = payload_factory['run'](run_id="run-123", status="applied")
+
+            # Create a workspace response
+            workspace = payload_factory['workspace'](name="my-workspace", locked=True)
+
+            # Create a custom response
+            custom_run = payload_factory['run'](
+                run_id="run-custom",
+                status="planned",
+                message="Custom message"
+            )
+
+    Available factories:
+        - run: Create run API responses
+        - workspace: Create workspace API responses
+        - configuration_version: Create configuration version API responses
+        - plan: Create plan API responses
+        - error: Create error API responses
+        - empty: Create empty API responses
+        - list: Create list API responses
+    """
+    return {
+        "run": create_run_response,
+        "workspace": create_workspace_response,
+        "configuration_version": create_configuration_version_response,
+        "plan": create_plan_response,
+        "error": create_error_response,
+        "empty": create_empty_response,
+        "list": create_list_response,
+    }
+
+
+@pytest.fixture
+def sample_run_response():
+    """
+    Fixture providing a standard run API response.
+
+    Returns:
+        dict: Standard run response with default values
+
+    Usage:
+        def test_something(sample_run_response):
+            assert sample_run_response["data"]["id"] == "run-test123"
+    """
+    return create_run_response()
+
+
+@pytest.fixture
+def sample_workspace_response():
+    """
+    Fixture providing a standard workspace API response.
+
+    Returns:
+        dict: Standard workspace response with default values
+
+    Usage:
+        def test_something(sample_workspace_response):
+            assert sample_workspace_response["data"]["attributes"]["name"] == "test-workspace"
+    """
+    return create_workspace_response()
+
+
+@pytest.fixture
+def sample_configuration_version_response():
+    """
+    Fixture providing a standard configuration version API response.
+
+    Returns:
+        dict: Standard configuration version response with default values
+
+    Usage:
+        def test_something(sample_configuration_version_response):
+            assert sample_configuration_version_response["data"]["id"] == "cv-test123"
+    """
+    return create_configuration_version_response()
+
+
+@pytest.fixture
+def sample_plan_response():
+    """
+    Fixture providing a standard plan API response.
+
+    Returns:
+        dict: Standard plan response with default values
+
+    Usage:
+        def test_something(sample_plan_response):
+            assert sample_plan_response["data"]["attributes"]["status"] == "finished"
+    """
+    return create_plan_response()
+
+
+@pytest.fixture
+def sample_error_response():
+    """
+    Fixture providing a standard error API response.
+
+    Returns:
+        dict: Standard error response with default values
+
+    Usage:
+        def test_something(sample_error_response):
+            assert sample_error_response["errors"][0]["status"] == "404"
+    """
+    return create_error_response()
