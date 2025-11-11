@@ -79,30 +79,6 @@ def temp_test_dir():
         yield temp_dir
 
 
-class EnhancedDummyModule:
-    """Enhanced mock Ansible module for detailed test inspection and control.
-
-    Provides better testing capabilities than standard Mock objects by tracking
-    exit and failure conditions, argument inspection, and simulating actual
-    Ansible module behavior patterns for more realistic testing scenarios.
-    """
-
-    def __init__(self, params=None):
-        self.params = params or {}
-        self.failed = False
-        self.exit_args = None
-        self.fail_args = None
-
-    def fail_json(self, **kwargs):
-        self.failed = True
-        self.fail_args = kwargs
-        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
-
-    def exit_json(self, **kwargs):
-        self.exit_args = kwargs
-        raise SystemExit(kwargs)
-
-
 class TestValidateAndPrepareTar:
     """Test suite for the validate_and_prepare_tar function.
 

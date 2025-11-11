@@ -10,13 +10,9 @@ This file provides common fixtures and configuration that can be used
 across all unit tests in the collection.
 """
 
-import json
-
 from unittest.mock import Mock, patch
 
 import pytest
-
-from .constants import SAMPLE_TERRAFORM_RESPONSES
 
 
 class DummyModule:
@@ -128,88 +124,6 @@ def mock_terraform_client():
 
 
 @pytest.fixture
-def mock_ansible_terraform_module():
-    """
-    Mock AnsibleTerraformModule class fixture.
-
-    Returns:
-        Mock: A mock AnsibleTerraformModule class that returns a mock instance
-    """
-    with patch("ansible_collections.hashicorp.terraform.plugins.module_utils.common.AnsibleTerraformModule") as mock_class:
-        mock_instance = Mock()
-        mock_instance.params = {}
-        mock_instance.check_mode = False
-        mock_instance.changed = False
-        mock_instance.fail_json = Mock(side_effect=SystemExit)
-        mock_instance.exit_json = Mock(side_effect=SystemExit)
-        mock_instance.warn = Mock()
-        mock_instance.deprecate = Mock()
-        mock_instance.debug = Mock()
-        mock_class.return_value = mock_instance
-        yield mock_class
-
-
-@pytest.fixture
-def mock_function():
-    """
-    Flexible fixture to mock any function in any module.
-
-    Returns:
-        function: A factory function to create mocks for any module.function
-
-    Usage:
-        def test_something(mock_function):
-            # Mock a single function
-            mock_get_run = mock_function('ansible_collections.hashicorp.terraform.plugins.modules.run.get_run')
-            mock_get_run.return_value = {"data": {"id": "test-123"}}
-
-            # Mock multiple functions
-            mocks = mock_function.multiple([
-                'ansible_collections.hashicorp.terraform.plugins.modules.run.get_run',
-                'ansible_collections.hashicorp.terraform.plugins.modules.run.create_run',
-                'ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace'
-            ])
-            mocks['get_run'].return_value = {"data": {"id": "run-123"}}
-            mocks['create_run'].return_value = {"data": {"id": "run-456"}}
-    """
-    active_patches = []
-
-    def _mock_single_function(function_path, return_value=None, side_effect=None, **kwargs):
-        """Mock a single function."""
-        patcher = patch(function_path, **kwargs)
-        mock_func = patcher.start()
-        active_patches.append(patcher)
-
-        if return_value is not None:
-            mock_func.return_value = return_value
-        if side_effect is not None:
-            mock_func.side_effect = side_effect
-
-        return mock_func
-
-    def _mock_multiple_functions(function_paths, default_return_value=None):
-        """Mock multiple functions and return a dictionary of mocks."""
-        mocks = {}
-        for path in function_paths:
-            # Extract function name from path for dictionary key
-            func_name = path.split(".")[-1]
-            mocks[func_name] = _mock_single_function(path, return_value=default_return_value)
-        return mocks
-
-    # Add the multiple method to the main function
-    _mock_single_function.multiple = _mock_multiple_functions
-
-    yield _mock_single_function
-
-    # Cleanup all patches
-    for patcher in active_patches:
-        try:
-            patcher.stop()
-        except RuntimeError:
-            pass
-
-
-@pytest.fixture
 def mock_time():
     """
     Mock time.sleep and time.time for tests that involve timing.
@@ -228,69 +142,3 @@ def mock_time():
         mock_time_func.side_effect = range(1000)  # Incrementing time
 
         yield {"sleep": mock_sleep, "time": mock_time_func}
-
-
-@pytest.fixture
-def mock_requests_response():
-    """
-    Factory fixture to create mock HTTP responses.
-
-    Returns:
-        function: Factory function to create mock responses
-
-    Usage:
-        def test_api_call(mock_requests_response):
-            # Create successful response
-            response = mock_requests_response(
-                status_code=200,
-                json_data={"data": {"id": "test-123"}},
-                headers={"Content-Type": "application/json"}
-            )
-
-            # Create error response
-            error_response = mock_requests_response(
-                status_code=404,
-                json_data={"errors": [{"detail": "Not found"}]}
-            )
-    """
-
-    def _create_response(status_code=200, json_data=None, text=None, headers=None, raise_for_status_side_effect=None):
-        mock_response = Mock()
-        mock_response.status_code = status_code
-        mock_response.headers = headers or {}
-
-        if json_data is not None:
-            mock_response.json.return_value = json_data
-        else:
-            mock_response.json.side_effect = ValueError("No JSON object could be decoded")
-
-        mock_response.text = text or (json.dumps(json_data) if json_data else "")
-
-        if raise_for_status_side_effect:
-            mock_response.raise_for_status.side_effect = raise_for_status_side_effect
-        elif status_code >= 400:
-            from requests.exceptions import HTTPError
-
-            mock_response.raise_for_status.side_effect = HTTPError(f"{status_code} Error")
-        else:
-            mock_response.raise_for_status.return_value = None
-
-        return mock_response
-
-    return _create_response
-
-
-@pytest.fixture
-def sample_terraform_responses():
-    """
-    Fixture providing sample Terraform API responses for testing.
-
-    Returns:
-        dict: Dictionary of common response structures
-
-    Usage:
-        def test_something(sample_terraform_responses):
-            run_response = sample_terraform_responses['run']
-            workspace_response = sample_terraform_responses['workspace']
-    """
-    return SAMPLE_TERRAFORM_RESPONSES

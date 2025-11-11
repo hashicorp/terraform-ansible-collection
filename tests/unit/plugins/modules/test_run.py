@@ -21,31 +21,6 @@ from ansible_collections.hashicorp.terraform.plugins.modules.run import (
 )
 
 
-class EnhancedDummyModule:
-    """A mock Ansible module for better inspection in tests."""
-
-    def __init__(self, params=None):
-        self.params = params or {}
-        self.failed = False
-        self.exit_args = None
-        self.fail_args = None
-        self.check_mode = False
-
-    def fail_json(self, **kwargs):
-        self.failed = True
-        self.fail_args = kwargs
-        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
-
-    def fail_from_exception(self, exception):
-        self.failed = True
-        self.fail_args = {"msg": str(exception)}
-        raise AssertionError(f"fail_from_exception called with: {exception}")
-
-    def exit_json(self, **kwargs):
-        self.exit_args = kwargs
-        raise SystemExit(kwargs)
-
-
 class TestWaitForState:
     """Test cases for wait_for_state function."""
 
@@ -59,9 +34,8 @@ class TestWaitForState:
             ("run-def", "policy_soft_failed", "failure", False, True),
         ],
     )
-    @patch("time.sleep")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
-    def test_wait_for_state_final_states(self, mock_get_run, mock_sleep, run_id, final_status, expected_state, is_success, is_failure):
+    def test_wait_for_state_final_states(self, mock_get_run, run_id, final_status, expected_state, is_success, is_failure, mock_time):
         """Test wait_for_state with various final states."""
         mock_client = Mock()
 
@@ -78,15 +52,13 @@ class TestWaitForState:
             assert response_result == response
             mock_get_run.assert_called_with(mock_client, run_id)
 
-    @patch("time.sleep")
-    @patch("time.time")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
-    def test_wait_for_state_timeout(self, mock_get_run, mock_time, mock_sleep):
+    def test_wait_for_state_timeout(self, mock_get_run, mock_time):
         """Test wait_for_state with timeout."""
         mock_client = Mock()
 
         # Mock time progression to trigger timeout after one iteration
-        mock_time.side_effect = [0, 30, 60]  # Start at 0, then 30 (within timeout), then 60 (exceeds timeout of 50)
+        mock_time["time"].side_effect = [0, 30, 60]  # Start at 0, then 30 (within timeout), then 60 (exceeds timeout of 50)
 
         pending_response = {"data": {"id": "run-123", "attributes": {"status": "pending"}}}
         mock_get_run.return_value = pending_response
@@ -624,9 +596,10 @@ class TestMainFunction:
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
-    def test_main_state_functions(self, mock_tf_client, mock_module_class, state, state_function_name, module_params):
+    def test_main_state_functions(self, mock_tf_client, mock_module_class, state, state_function_name, module_params, enhanced_dummy_module):
         """Test main function with different state functions."""
-        mock_module = EnhancedDummyModule(module_params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = module_params
         mock_module_class.return_value = mock_module
 
         mock_client_instance = Mock()
@@ -645,17 +618,16 @@ class TestMainFunction:
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.state_present")
-    def test_main_state_present_with_workspace_name(self, mock_state_present, mock_get_workspace_id, mock_tf_client, mock_module_class):
+    def test_main_state_present_with_workspace_name(self, mock_state_present, mock_get_workspace_id, mock_tf_client, mock_module_class, enhanced_dummy_module):
         """Test main function with state=present and workspace name provided."""
-        mock_module = EnhancedDummyModule(
-            {
-                "workspace": "test-workspace",
-                "organization": "test-org",
-                "message": "Test run",
-                "state": "present",
-                "poll": True,
-            }
-        )
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "workspace": "test-workspace",
+            "organization": "test-org",
+            "message": "Test run",
+            "state": "present",
+            "poll": True,
+        }
         mock_module_class.return_value = mock_module
 
         mock_client_instance = Mock()
@@ -696,9 +668,11 @@ class TestMainFunction:
         check_mode,
         client_side_effect,
         expected_behavior,
+        enhanced_dummy_module,
     ):
         """Test main function edge cases."""
-        mock_module = EnhancedDummyModule(module_params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = module_params
         mock_module.check_mode = check_mode
         mock_module_class.return_value = mock_module
 
