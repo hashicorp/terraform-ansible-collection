@@ -638,7 +638,7 @@ class TestIntegrationFlows:
 
     def test_full_integration_archived_state(self):
         """Test full integration of archived state."""
-        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
+        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5, "check_mode": False}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
@@ -648,6 +648,7 @@ class TestIntegrationFlows:
 
             mock_module = Mock()
             mock_module.params = params
+            mock_module.check_mode = False
             mock_module_class.return_value = mock_module
 
             mock_state.return_value = {"changed": True, "msg": "Archived successfully"}

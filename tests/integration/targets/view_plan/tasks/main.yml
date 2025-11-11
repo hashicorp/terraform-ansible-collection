@@ -16,26 +16,15 @@
         workspace_name: "{{ unique_id }}-view-plan-workspace"
 
     - name: Create a Terraform workspace with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/workspaces"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ workspace_name }}"
-            type: "workspaces"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
       register: workspace_create_response
 
     - name: Set a fact for 'workspace_id'
       ansible.builtin.set_fact:
-        workspace_id: "{{ workspace_create_response.json.data.id }}"
+        workspace_id: "{{ workspace_create_response.id }}"
 
     - name: Create temporary directory to store main.tf configuration and expected JSON
       ansible.builtin.tempfile:
@@ -306,14 +295,9 @@
       failed_when: false
 
     - name: Cancel any active runs
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/runs/{{ item }}/actions/cancel"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: [200, 409]
-      no_log: true
+      hashicorp.terraform.run:
+        run_id: "{{ item }}"
+        state: canceled
       loop:
         - "{{ run_result.id | default('') }}"
         - "{{ no_changes_run_result.id | default('') }}"
@@ -323,26 +307,17 @@
       failed_when: false
 
     - name: Force unlock workspace
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}/actions/force-unlock"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: [200, 409]
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: unlocked
+        force: true
       failed_when: false
 
     - name: Delete workspace
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/workspaces/{{ workspace_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: [204, 404, 403]
-        return_content: true
-      no_log: true
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: absent
+        force: true
       failed_when: false
 
     - name: Clean up config directory

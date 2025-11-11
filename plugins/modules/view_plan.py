@@ -129,8 +129,8 @@ EXAMPLES = r"""
 - name: Display plan changes summary
   ansible.builtin.debug:
     msg: |
-      Plan has changes: {{ plan_result.changed }}
-  when: plan_result.output_format == 'diff'
+      Plan has changes: {{ plan_diff_result.changed }}
+  when: plan_diff_result is defined
 
 # Task output:
 # ------------
@@ -189,6 +189,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, Dict, List, Optional, Tuple, Union
+
+from copy import deepcopy
 
 from ansible.module_utils._text import to_text
 
@@ -713,7 +715,7 @@ def main() -> None:
         required_one_of=[["plan_id", "run_id"]],
     )
 
-    params = module.params
+    params = deepcopy(module.params)
     plan_id = params.get("plan_id")
     run_id = params.get("run_id")
     output_format = params.get("output_format")

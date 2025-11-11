@@ -7,3 +7,7 @@ action_groups:
     - run
     - workspace
     - view_plan
+    - run_info
+    - configuration_version_info
+    - project
+    - test_output
