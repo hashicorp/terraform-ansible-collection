@@ -20,6 +20,7 @@ from .constants import (
     create_error_response,
     create_list_response,
     create_plan_response,
+    create_project_response,
     create_run_response,
     create_workspace_response,
 )
@@ -187,6 +188,7 @@ def payload_factory():
         - workspace: Create workspace API responses
         - configuration_version: Create configuration version API responses
         - plan: Create plan API responses
+        - project: Create project API responses
         - error: Create error API responses
         - empty: Create empty API responses
         - list: Create list API responses
@@ -196,6 +198,7 @@ def payload_factory():
         "workspace": create_workspace_response,
         "configuration_version": create_configuration_version_response,
         "plan": create_plan_response,
+        "project": create_project_response,
         "error": create_error_response,
         "empty": create_empty_response,
         "list": create_list_response,
@@ -260,6 +263,21 @@ def sample_plan_response():
             assert sample_plan_response["data"]["attributes"]["status"] == "finished"
     """
     return create_plan_response()
+
+
+@pytest.fixture
+def sample_project_response():
+    """
+    Fixture providing a standard project API response.
+
+    Returns:
+        dict: Standard project response with default values
+
+    Usage:
+        def test_something(sample_project_response):
+            assert sample_project_response["data"]["type"] == "projects"
+    """
+    return create_project_response()
 
 
 @pytest.fixture

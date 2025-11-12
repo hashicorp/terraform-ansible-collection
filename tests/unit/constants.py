@@ -22,11 +22,13 @@ TEST_WORKSPACE_ID = "ws-test123"
 TEST_ORGANIZATION_ID = "org-test123"
 TEST_CONFIGURATION_VERSION_ID = "cv-test123"
 TEST_PLAN_ID = "plan-test123"
+TEST_PROJECT_ID = "prj-test123"
 
 # Common test attributes
 TEST_WORKSPACE_NAME = "test-workspace"
 TEST_ORGANIZATION_NAME = "test-org"
 TEST_RUN_MESSAGE = "Test run"
+TEST_PROJECT_NAME = "test-project"
 
 
 # ============================================================================
@@ -144,7 +146,11 @@ def create_workspace_response(
 
 
 def create_configuration_version_response(
-    cv_id: str = TEST_CONFIGURATION_VERSION_ID, status: str = "uploaded", upload_url: Optional[str] = None, **extra_attributes
+    cv_id: str = TEST_CONFIGURATION_VERSION_ID,
+    status: str = "uploaded",
+    upload_url: Optional[str] = None,
+    http_status: Optional[int] = None,
+    **extra_attributes
 ) -> Dict[str, Any]:
     """
     Create a Terraform configuration version API response payload.
@@ -153,6 +159,7 @@ def create_configuration_version_response(
         cv_id: The configuration version identifier
         status: Configuration version status ('uploaded', 'pending', 'errored')
         upload_url: Optional upload URL
+        http_status: Optional HTTP status code (e.g., 201, 200)
         **extra_attributes: Additional attributes to merge into the response
 
     Returns:
@@ -160,7 +167,7 @@ def create_configuration_version_response(
 
     Example:
         >>> response = create_configuration_version_response(status="pending")
-        >>> response = create_configuration_version_response(cv_id="cv-custom")
+        >>> response = create_configuration_version_response(cv_id="cv-custom", http_status=201)
     """
     attributes = {
         "status": status,
@@ -173,7 +180,7 @@ def create_configuration_version_response(
     # Merge extra attributes
     attributes.update(extra_attributes)
 
-    return {
+    response = {
         "data": {
             "id": cv_id,
             "type": "configuration-versions",
@@ -181,8 +188,15 @@ def create_configuration_version_response(
         }
     }
 
+    if http_status is not None:
+        response["status"] = http_status
 
-def create_plan_response(plan_id: str = TEST_PLAN_ID, status: str = "finished", has_changes: bool = True, **extra_attributes) -> Dict[str, Any]:
+    return response
+
+
+def create_plan_response(
+    plan_id: str = TEST_PLAN_ID, status: str = "finished", has_changes: bool = True, http_status: Optional[int] = None, **extra_attributes
+) -> Dict[str, Any]:
     """
     Create a Terraform plan API response payload.
 
@@ -190,6 +204,7 @@ def create_plan_response(plan_id: str = TEST_PLAN_ID, status: str = "finished", 
         plan_id: The plan identifier
         status: Plan status ('finished', 'pending', 'errored')
         has_changes: Whether the plan has changes
+        http_status: Optional HTTP status code (e.g., 200)
         **extra_attributes: Additional attributes to merge into the response
 
     Returns:
@@ -197,7 +212,7 @@ def create_plan_response(plan_id: str = TEST_PLAN_ID, status: str = "finished", 
 
     Example:
         >>> response = create_plan_response(status="pending")
-        >>> response = create_plan_response(plan_id="plan-123", has_changes=False)
+        >>> response = create_plan_response(plan_id="plan-123", has_changes=False, http_status=200)
     """
     attributes = {
         "status": status,
@@ -207,13 +222,18 @@ def create_plan_response(plan_id: str = TEST_PLAN_ID, status: str = "finished", 
     # Merge extra attributes
     attributes.update(extra_attributes)
 
-    return {
+    response = {
         "data": {
             "id": plan_id,
             "type": "plans",
             "attributes": attributes,
         }
     }
+
+    if http_status is not None:
+        response["status"] = http_status
+
+    return response
 
 
 def create_error_response(
@@ -281,11 +301,61 @@ def create_list_response(items: list, meta: Optional[Dict] = None) -> Dict[str, 
     return response
 
 
+def create_project_response(
+    project_id: str = TEST_PROJECT_ID,
+    name: str = TEST_PROJECT_NAME,
+    description: Optional[str] = None,
+    organization_id: str = TEST_ORGANIZATION_ID,
+    http_status: Optional[int] = None,
+    **extra_attributes
+) -> Dict[str, Any]:
+    """
+    Create a Terraform API project response payload.
+
+    Args:
+        project_id: Project ID (e.g., "prj-123abc456def")
+        name: Project name
+        description: Optional project description
+        organization_id: Organization ID this project belongs to
+        http_status: Optional HTTP status code at root level
+        **extra_attributes: Additional project attributes
+
+    Returns:
+        Dictionary representing a project API response
+
+    Example:
+        >>> response = create_project_response(
+        ...     project_id="prj-123",
+        ...     name="my-project",
+        ...     description="Test project"
+        ... )
+    """
+    attributes = {"name": name}
+    if description is not None:
+        attributes["description"] = description
+    attributes.update(extra_attributes)
+
+    response = {
+        "data": {
+            "id": project_id,
+            "type": "projects",
+            "attributes": attributes,
+            "relationships": {"organization": {"data": {"id": organization_id, "type": "organizations"}}},
+        }
+    }
+
+    if http_status is not None:
+        response["status"] = http_status
+
+    return response
+
+
 SAMPLE_RUN_RESPONSE = create_run_response()
 SAMPLE_WORKSPACE_RESPONSE = create_workspace_response()
 SAMPLE_CONFIGURATION_VERSION_RESPONSE = create_configuration_version_response()
 SAMPLE_ERROR_RESPONSE = create_error_response()
 SAMPLE_PLAN_RESPONSE = create_plan_response()
+SAMPLE_PROJECT_RESPONSE = create_project_response()
 
 # Consolidated dictionary for easy access
 SAMPLE_TERRAFORM_RESPONSES = {
@@ -293,5 +363,6 @@ SAMPLE_TERRAFORM_RESPONSES = {
     "workspace": SAMPLE_WORKSPACE_RESPONSE,
     "configuration_version": SAMPLE_CONFIGURATION_VERSION_RESPONSE,
     "plan": SAMPLE_PLAN_RESPONSE,
+    "project": SAMPLE_PROJECT_RESPONSE,
     "error": SAMPLE_ERROR_RESPONSE,
 }

@@ -2,6 +2,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.unit.constants import create_configuration_version_response
+
 
 class TestConfigurationVersionInfo:
 
@@ -96,9 +98,9 @@ class TestConfigurationVersionInfo:
     @pytest.mark.parametrize(
         "workspace, organization, config_data, expected_config_id",
         [
-            ("ws-abc", "org-1", {"data": {"id": "cv-123", "type": "configuration-versions", "attributes": {"status": "uploaded"}}}, "cv-123"),
-            ("ws-def", "org-2", {"data": {"id": "cv-456", "type": "configuration-versions", "attributes": {"status": "uploaded"}}}, "cv-456"),
-            ("ws-xyz", "org-3", {"data": {"id": "cv-789", "type": "configuration-versions", "attributes": {"status": "uploaded"}}}, "cv-789"),
+            ("ws-abc", "org-1", create_configuration_version_response(cv_id="cv-123", status="uploaded"), "cv-123"),
+            ("ws-def", "org-2", create_configuration_version_response(cv_id="cv-456", status="uploaded"), "cv-456"),
+            ("ws-xyz", "org-3", create_configuration_version_response(cv_id="cv-789", status="uploaded"), "cv-789"),
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version_info.get_config")

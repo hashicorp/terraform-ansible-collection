@@ -13,6 +13,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_data,
 )
+from tests.unit.constants import create_plan_response
 
 
 class TestPlanFunctions:
@@ -308,7 +309,7 @@ class TestPlanFunctions:
             (False, True, run_id, f"/runs/{run_id}/plan/json-output"),
         ]
 
-        mock_tf_client.get.return_value = {"status": 200, "data": {}}
+        mock_tf_client.get.return_value = create_plan_response(http_status=200)
 
         for use_plan_id, include_json_output, identifier, expected_endpoint in test_cases:
             mock_tf_client.reset_mock()
@@ -319,7 +320,7 @@ class TestPlanFunctions:
         """Test that get_plan_data properly handles different response scenarios."""
         plan_id = "plan-response-test"
 
-        success_response = {"status": 200, "data": {"id": plan_id}}
+        success_response = create_plan_response(plan_id=plan_id, http_status=200)
         mock_tf_client.get.return_value = success_response
         result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
         assert result == success_response

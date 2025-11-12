@@ -163,7 +163,7 @@ class TestIdempotencyCheck:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
             if run_id:
-                mock_get_run.return_value = {"data": {"id": run_id, "attributes": {"status": current_status}}}
+                mock_get_run.return_value = create_run_response(run_id=run_id, status=current_status)
 
             @idempotency_check
             def state_applied(client, **kwargs):
@@ -488,7 +488,7 @@ class TestStateActions:
             mock_handle_polling.return_value = {"changed": True, "id": "run-123"}
 
             with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
-                mock_get_run.return_value = {"data": {"attributes": {"status": "pending"}}}
+                mock_get_run.return_value = create_run_response(status="pending")
 
                 # Get the function by name
                 state_func = globals()[state_function_name]
@@ -509,7 +509,7 @@ class TestStateActions:
             mock_handle_polling.return_value = {"changed": True, "id": "run-456"}
 
             with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
-                mock_get_run.return_value = {"data": {"attributes": {"status": "pending"}}}
+                mock_get_run.return_value = create_run_response(status="pending")
 
                 # Get the function by name
                 state_func = globals()[state_function_name]
@@ -814,7 +814,7 @@ class TestRunsModuleEdgeCases:
             with patch("time.time", side_effect=[0, 20, 100]):  # Simulate timeout after one iteration
                 with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run") as mock_get_run:
                     with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.RunStates") as mock_run_states:
-                        mock_get_run.return_value = {"data": {"attributes": {"status": "pending"}}}
+                        mock_get_run.return_value = create_run_response(status="pending")
                         mock_run_states.is_success_state.return_value = False
                         mock_run_states.is_failure_state.return_value = False
 
