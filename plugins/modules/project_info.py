@@ -133,7 +133,7 @@ project:
           returned: always
           description: The description of the project.
           sample: "A sample Terraform project for demonstration purposes"
-        created-at:
+        created_at:
           type: str
           returned: always
           description: The creation timestamp of the project.
@@ -142,32 +142,32 @@ project:
           type: dict
           returned: always
           description: The permissions for the current user on this project.
-        workspace-count:
+        workspace_count:
           type: int
           returned: always
           description: The number of workspaces in the project.
           sample: 3
-        team-count:
+        team_count:
           type: int
           returned: always
           description: The number of teams associated with the project.
           sample: 0
-        stack-count:
+        stack_count:
           type: int
           returned: always
           description: The number of stacks in the project.
           sample: 0
-        auto-destroy-activity-duration:
+        auto_destroy_activity_duration:
           type: str
           returned: always
           description: The auto-destroy activity duration setting.
           sample: null
-        default-execution-mode:
+        default_execution_mode:
           type: str
           returned: always
           description: The default execution mode for workspaces in this project.
           sample: "remote"
-        setting-overwrites:
+        setting_overwrites:
           type: dict
           returned: always
           description: Settings that are overwritten at the project level.
@@ -180,7 +180,7 @@ project:
           type: dict
           returned: always
           description: The organization this project belongs to.
-        default-agent-pool:
+        default_agent_pool:
           type: dict
           returned: always
           description: The default agent pool for the project.
