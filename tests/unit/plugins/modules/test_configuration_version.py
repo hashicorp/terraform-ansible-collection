@@ -21,6 +21,7 @@ from ansible_collections.hashicorp.terraform.plugins.modules.configuration_versi
     upload_configuration_version,
     validate_and_prepare_tar,
 )
+from tests.unit.constants import create_configuration_version_response
 
 
 @pytest.fixture
@@ -77,30 +78,6 @@ def temp_test_dir():
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
-
-
-class EnhancedDummyModule:
-    """Enhanced mock Ansible module for detailed test inspection and control.
-
-    Provides better testing capabilities than standard Mock objects by tracking
-    exit and failure conditions, argument inspection, and simulating actual
-    Ansible module behavior patterns for more realistic testing scenarios.
-    """
-
-    def __init__(self, params=None):
-        self.params = params or {}
-        self.failed = False
-        self.exit_args = None
-        self.fail_args = None
-
-    def fail_json(self, **kwargs):
-        self.failed = True
-        self.fail_args = kwargs
-        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
-
-    def exit_json(self, **kwargs):
-        self.exit_args = kwargs
-        raise SystemExit(kwargs)
 
 
 class TestValidateAndPrepareTar:
@@ -325,7 +302,7 @@ class TestConfigurationVersionPolling:
         params = {"poll_interval": 1, "poll_timeout": 5}
         config_id = "cv-123"
 
-        mock_response = {"data": {"attributes": {"status": "uploaded"}}}
+        mock_response = create_configuration_version_response(status="uploaded")
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             mock_get.return_value = mock_response
@@ -341,7 +318,7 @@ class TestConfigurationVersionPolling:
         params = {"poll_interval": 0.1, "poll_timeout": 0.3}  # Very short timeout
         config_id = "cv-timeout"
 
-        mock_response = {"data": {"attributes": {"status": "pending"}}}  # Never reaches "uploaded"
+        mock_response = create_configuration_version_response(status="pending")  # Never reaches "uploaded"
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             with patch("time.sleep"):  # Speed up the test
@@ -362,9 +339,9 @@ class TestConfigurationVersionPolling:
 
         # Mock progression from pending to uploaded
         responses = [
-            {"data": {"attributes": {"status": "pending"}}},
-            {"data": {"attributes": {"status": "pending"}}},
-            {"data": {"attributes": {"status": "uploaded"}}},
+            create_configuration_version_response(status="pending"),
+            create_configuration_version_response(status="pending"),
+            create_configuration_version_response(status="uploaded"),
         ]
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
@@ -483,7 +460,7 @@ class TestStateOperations:
         mock_client = Mock()
         config_id = "cv-archive-me"
 
-        mock_response = {"data": {"attributes": {"status": "uploaded"}}}
+        mock_response = create_configuration_version_response(status="uploaded")
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config",
@@ -503,7 +480,7 @@ class TestStateOperations:
         mock_client = Mock()
         config_id = "cv-already-archived"
 
-        mock_response = {"data": {"attributes": {"status": "archived"}}}
+        mock_response = create_configuration_version_response(status="archived")
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             mock_get.return_value = mock_response

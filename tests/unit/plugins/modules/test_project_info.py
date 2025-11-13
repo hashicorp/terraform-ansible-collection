@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from tests.unit.constants import create_project_response
 
 
 class TestProjectInfoModule:
@@ -50,49 +51,43 @@ class TestProjectInfoModule:
         [
             # Successful project retrieval
             (
-                {"id": "prj-123abc456def789", "type": "projects", "attributes": {"name": "test-project"}, "status": 200},
-                {"id": "prj-123abc456def789", "type": "projects", "attributes": {"name": "test-project"}},
+                {**create_project_response(project_id="prj-123abc456def789", name="test-project")["data"], "status": 200},
+                create_project_response(project_id="prj-123abc456def789", name="test-project")["data"],
             ),
             # Complex project data
             (
                 {
-                    "id": "prj-complex123",
-                    "type": "projects",
-                    "attributes": {
-                        "name": "complex-project",
-                        "description": "A complex project",
-                        "created-at": "2025-01-01T00:00:00.000Z",
-                        "permissions": {
-                            "can-read": True,
-                            "can-update": True,
-                            "can-destroy": False,
+                    **create_project_response(
+                        project_id="prj-complex123",
+                        name="complex-project",
+                        description="A complex project",
+                        organization_id="test-org",
+                        **{
+                            "created-at": "2025-01-01T00:00:00.000Z",
+                            "permissions": {
+                                "can-read": True,
+                                "can-update": True,
+                                "can-destroy": False,
+                            },
+                            "workspace-count": 5,
+                            "team-count": 2,
+                            "stack-count": 1,
+                            "auto-destroy-activity-duration": None,
+                            "default-execution-mode": "remote",
+                            "setting-overwrites": {
+                                "default-execution-mode": False,
+                                "default-agent-pool": False,
+                            },
                         },
-                        "workspace-count": 5,
-                        "team-count": 2,
-                        "stack-count": 1,
-                        "auto-destroy-activity-duration": None,
-                        "default-execution-mode": "remote",
-                        "setting-overwrites": {
-                            "default-execution-mode": False,
-                            "default-agent-pool": False,
-                        },
-                    },
-                    "relationships": {
-                        "organization": {
-                            "data": {"id": "test-org", "type": "organizations"},
-                            "links": {"related": "/api/v2/organizations/test-org"},
-                        },
-                        "default-agent-pool": {"data": None},
-                    },
-                    "links": {"self": "/api/v2/projects/prj-complex123"},
+                    )["data"],
                     "status": 200,
                 },
-                {
-                    "id": "prj-complex123",
-                    "type": "projects",
-                    "attributes": {
-                        "name": "complex-project",
-                        "description": "A complex project",
+                create_project_response(
+                    project_id="prj-complex123",
+                    name="complex-project",
+                    description="A complex project",
+                    organization_id="test-org",
+                    **{
                         "created-at": "2025-01-01T00:00:00.000Z",
                         "permissions": {
                             "can-read": True,
@@ -109,15 +104,7 @@ class TestProjectInfoModule:
                             "default-agent-pool": False,
                         },
                     },
-                    "relationships": {
-                        "organization": {
-                            "data": {"id": "test-org", "type": "organizations"},
-                            "links": {"related": "/api/v2/organizations/test-org"},
-                        },
-                        "default-agent-pool": {"data": None},
-                    },
-                    "links": {"self": "/api/v2/projects/prj-complex123"},
-                },
+                )["data"],
             ),
         ],
     )
@@ -215,8 +202,8 @@ class TestProjectInfoModule:
         mock_module.params = {"project_id": project_id}
         mock_client = Mock()
 
-        project_data = {"id": project_id, "type": "projects", "attributes": {"name": "test-project"}, "status": 200}
-        expected_result = {"id": project_id, "type": "projects", "attributes": {"name": "test-project"}}
+        project_data = {**create_project_response(project_id=project_id, name="test-project")["data"], "status": 200}
+        expected_result = create_project_response(project_id=project_id, name="test-project")["data"]
 
         mock_ansible_module.return_value = mock_module
         mock_terraform_client.return_value = mock_client
@@ -247,11 +234,7 @@ class TestProjectInfoModule:
 
         # Simulate response where project_data has a nested 'data' key
         project_data_with_nested_data = {
-            "data": {
-                "id": project_id,
-                "type": "projects",
-                "attributes": {"name": "nested-test-project"},
-            },
+            **create_project_response(project_id=project_id, name="nested-test-project"),
             "status": 200,
         }
 
@@ -269,11 +252,7 @@ class TestProjectInfoModule:
         call_args = mock_module.exit_json.call_args[1]
 
         # Should use the nested 'data' content
-        expected_result = {
-            "id": project_id,
-            "type": "projects",
-            "attributes": {"name": "nested-test-project"},
-        }
+        expected_result = create_project_response(project_id=project_id, name="nested-test-project")["data"]
         assert call_args["project"] == expected_result
         assert call_args["changed"] is False
 
@@ -292,9 +271,7 @@ class TestProjectInfoModule:
 
         # Simulate response where project_data doesn't have a nested 'data' key
         project_data_direct = {
-            "id": project_id,
-            "type": "projects",
-            "attributes": {"name": "direct-test-project"},
+            **create_project_response(project_id=project_id, name="direct-test-project")["data"],
             "status": 200,
         }
 
@@ -312,11 +289,7 @@ class TestProjectInfoModule:
         call_args = mock_module.exit_json.call_args[1]
 
         # Should use the direct data content (without status field)
-        expected_result = {
-            "id": project_id,
-            "type": "projects",
-            "attributes": {"name": "direct-test-project"},
-        }
+        expected_result = create_project_response(project_id=project_id, name="direct-test-project")["data"]
         assert call_args["project"] == expected_result
         assert call_args["changed"] is False
 
@@ -334,9 +307,7 @@ class TestProjectInfoModule:
         mock_client = Mock()
 
         project_data = {
-            "id": project_id,
-            "type": "projects",
-            "attributes": {"name": "warnings-test-project"},
+            **create_project_response(project_id=project_id, name="warnings-test-project")["data"],
             "status": 200,
         }
 
@@ -371,7 +342,7 @@ class TestProjectInfoModule:
         }
         mock_client = Mock()
 
-        project_data = {"id": project_id, "type": "projects", "attributes": {"name": "test"}}
+        project_data = create_project_response(project_id=project_id, name="test")["data"]
 
         mock_ansible_module.return_value = mock_module
         mock_terraform_client.return_value = mock_client
