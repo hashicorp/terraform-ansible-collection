@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from tests.unit.constants import create_run_response
 
 
 class TestRunInfo:
@@ -59,8 +60,8 @@ class TestRunInfo:
         "run_info_data,expected_result",
         [
             (
-                {"id": "run-12ab345cde78", "type": "run", "attributes": {"status": "succeeded"}},
-                {"id": "run-12ab345cde78", "type": "run", "attributes": {"status": "succeeded"}},
+                create_run_response(run_id="run-12ab345cde78", status="succeeded")["data"],
+                create_run_response(run_id="run-12ab345cde78", status="succeeded")["data"],
             ),
         ],
     )

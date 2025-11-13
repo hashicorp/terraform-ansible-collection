@@ -14,6 +14,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from tests.unit.constants import create_workspace_response
 
 
 class TestWorkspaceInfoModule:
@@ -68,24 +69,18 @@ class TestWorkspaceInfoModule:
         [
             # Successful workspace retrieval
             (
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace"}, "status": 200},
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace"}},
+                {**create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"], "status": 200},
+                create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"],
             ),
             # Complex workspace data
             (
                 {
-                    "id": "ws-complex123",
-                    "type": "workspaces",
-                    "attributes": {"name": "complex-workspace", "auto-apply": True},
-                    "relationships": {"organization": {"data": {"id": "org-456"}}},
+                    **create_workspace_response(workspace_id="ws-complex123", name="complex-workspace", organization_id="org-456", **{"auto-apply": True})[
+                        "data"
+                    ],
                     "status": 200,
                 },
-                {
-                    "id": "ws-complex123",
-                    "type": "workspaces",
-                    "attributes": {"name": "complex-workspace", "auto-apply": True},
-                    "relationships": {"organization": {"data": {"id": "org-456"}}},
-                },
+                create_workspace_response(workspace_id="ws-complex123", name="complex-workspace", organization_id="org-456", **{"auto-apply": True})["data"],
             ),
         ],
     )
@@ -122,13 +117,13 @@ class TestWorkspaceInfoModule:
         [
             # Successful workspace retrieval
             (
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace"}, "status": 200},
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace"}},
+                {**create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"], "status": 200},
+                create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"],
             ),
             # Minimal workspace data
             (
-                {"id": "ws-minimal", "type": "workspaces", "status": 200},
-                {"id": "ws-minimal", "type": "workspaces"},
+                {**create_workspace_response(workspace_id="ws-minimal", name="minimal-workspace")["data"], "status": 200},
+                create_workspace_response(workspace_id="ws-minimal", name="minimal-workspace")["data"],
             ),
         ],
     )
@@ -253,8 +248,8 @@ class TestWorkspaceInfoModule:
         mock_module.params = {"workspace_id": workspace_id}
         mock_client = Mock()
 
-        workspace_data = {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}, "status": 200}
-        expected_result = {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}
+        workspace_data = {**create_workspace_response(workspace_id=workspace_id, name="test-workspace")["data"], "status": 200}
+        expected_result = create_workspace_response(workspace_id=workspace_id, name="test-workspace")["data"]
 
         mock_ansible_module.return_value = mock_module
         mock_terraform_client.return_value = mock_client

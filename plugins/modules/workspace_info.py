@@ -271,7 +271,7 @@ workspace:
           type: str
           returned: always
           description: API endpoint for this workspace.
-        self-html:
+        self_html:
           type: str
           returned: always
           description: Web UI URL for this workspace.

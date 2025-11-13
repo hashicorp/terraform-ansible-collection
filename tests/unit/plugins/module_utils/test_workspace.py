@@ -26,6 +26,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     unlock_workspace,
     update_workspace,
 )
+from tests.unit.constants import create_workspace_response
 
 
 class TestGetWorkspace:
@@ -86,12 +87,14 @@ class TestGetWorkspace:
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {"data": {"id": workspace_id, "attributes": {"name": workspace_name}}, "status": 200}
+        expected_response = create_workspace_response(workspace_id=workspace_id, name=workspace_name, status=200)
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace(mock_tf_client, organization, workspace_name)
 
-        expected_result = {"id": workspace_id, "attributes": {"name": workspace_name}, "status": 200}
+        # The result should include the data from the response plus the status
+        expected_result = expected_response["data"].copy()
+        expected_result["status"] = 200
         assert result == expected_result
         mock_tf_client.get.assert_called_with(f"/organizations/{organization}/workspaces/{workspace_name}")
 
@@ -102,23 +105,18 @@ class TestGetWorkspace:
         workspace_name = "test-workspace"
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {
-            "data": {
-                "id": workspace_id,
-                "type": "workspaces",
-                "attributes": {
-                    "name": workspace_name,
-                    "environment": "production",
-                    "auto-apply": False,
-                    "terraform-version": "1.0.0",
-                    "working-directory": "/terraform",
-                    "vcs-repo": {"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
-                    "tags": ["production", "webapp"],
-                },
-                "relationships": {"organization": {"data": {"id": "org-123", "type": "organizations"}}},
-            },
-            "status": 200,
-        }
+        expected_response = create_workspace_response(
+            workspace_id=workspace_id,
+            name=workspace_name,
+            status=200,
+            organization_id="org-123",
+            environment="production",
+            auto_apply=False,
+            terraform_version="1.0.0",
+            working_directory="/terraform",
+            vcs_repo={"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
+            tags=["production", "webapp"],
+        )
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace(mock_tf_client, organization, workspace_name)
@@ -176,12 +174,14 @@ class TestGetWorkspaceById:
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}}, "status": 200}
+        expected_response = create_workspace_response(workspace_id=workspace_id, name="test-workspace", status=200)
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace_by_id(mock_tf_client, workspace_id)
 
-        expected_result = {"id": workspace_id, "type": "workspaces", "attributes": {"name": "test-workspace"}, "status": 200}
+        # The result should include the data from the response plus the status
+        expected_result = expected_response["data"].copy()
+        expected_result["status"] = 200
         assert result == expected_result
         mock_tf_client.get.assert_called_with(f"/workspaces/{workspace_id}")
 
@@ -190,28 +190,23 @@ class TestGetWorkspaceById:
         mock_tf_client = Mock()
         workspace_id = "ws-123abc456def789"
 
-        expected_response = {
-            "data": {
-                "id": workspace_id,
-                "type": "workspaces",
-                "attributes": {
-                    "name": "complex-workspace",
-                    "environment": "staging",
-                    "auto-apply": True,
-                    "terraform-version": "1.5.0",
-                    "working-directory": "/terraform/modules",
-                    "vcs-repo": {"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
-                    "tags": ["staging", "infrastructure", "automated"],
-                    "permissions": {"can-update": True, "can-destroy": False, "can-queue-run": True},
-                },
-                "relationships": {
-                    "organization": {"data": {"id": "org-456", "type": "organizations"}},
-                    "current-run": {"data": {"id": "run-789", "type": "runs"}},
-                },
-                "links": {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"},
-            },
-            "status": 200,
-        }
+        expected_response = create_workspace_response(
+            workspace_id=workspace_id,
+            name="complex-workspace",
+            status=200,
+            organization_id="org-456",
+            environment="staging",
+            auto_apply=True,
+            terraform_version="1.5.0",
+            working_directory="/terraform/modules",
+            vcs_repo={"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
+            tags=["staging", "infrastructure", "automated"],
+            permissions={"can-update": True, "can-destroy": False, "can-queue-run": True},
+        )
+        # Add current-run relationship manually as it's not a standard parameter
+        expected_response["data"]["relationships"]["current-run"] = {"data": {"id": "run-789", "type": "runs"}}
+        # Add links manually as they're not standard
+        expected_response["data"]["links"] = {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"}
         mock_tf_client.get.return_value = expected_response
 
         result = get_workspace_by_id(mock_tf_client, workspace_id)
@@ -468,10 +463,13 @@ class TestLockWorkspace:
         workspace_id = "ws-123"
         lock_reason = "Prevent changes during release"
 
-        mock_tf_client.post.return_value = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"locked": True}}, "status": 200}
+        expected_response = create_workspace_response(workspace_id=workspace_id, locked=True, status=200)
+        mock_tf_client.post.return_value = expected_response
 
         result = lock_workspace(mock_tf_client, workspace_id, lock_reason)
-        assert result == {"id": workspace_id, "type": "workspaces", "attributes": {"locked": True}, "status": 200}
+        expected_result = expected_response["data"].copy()
+        expected_result["status"] = 200
+        assert result == expected_result
         mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/lock", data={"reason": lock_reason})
 
     @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
@@ -499,10 +497,13 @@ class TestUnlockWorkspace:
         mock_tf_client = Mock()
         workspace_id = "ws-123"
 
-        mock_tf_client.post.return_value = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"locked": False}}, "status": 200}
+        expected_response = create_workspace_response(workspace_id=workspace_id, locked=False, status=200)
+        mock_tf_client.post.return_value = expected_response
 
         result = unlock_workspace(mock_tf_client, workspace_id)
-        assert result == {"id": workspace_id, "type": "workspaces", "attributes": {"locked": False}, "status": 200}
+        expected_result = expected_response["data"].copy()
+        expected_result["status"] = 200
+        assert result == expected_result
         mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/unlock")
 
     @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
@@ -529,11 +530,14 @@ class TestForceUnlockWorkspace:
         mock_tf_client = Mock()
         workspace_id = "ws-123"
 
-        mock_tf_client.post.return_value = {"data": {"id": workspace_id, "type": "workspaces", "attributes": {"locked": False}}, "status": 200}
+        expected_response = create_workspace_response(workspace_id=workspace_id, locked=False, status=200)
+        mock_tf_client.post.return_value = expected_response
 
         result = force_unlock_workspace(mock_tf_client, workspace_id)
 
-        assert result == {"id": workspace_id, "type": "workspaces", "attributes": {"locked": False}, "status": 200}
+        expected_result = expected_response["data"].copy()
+        expected_result["status"] = 200
+        assert result == expected_result
         mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/force-unlock")
 
     @pytest.mark.parametrize(

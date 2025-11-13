@@ -21,26 +21,6 @@ from ansible_collections.hashicorp.terraform.plugins.modules.view_plan import (
 )
 
 
-class EnhancedDummyModule:
-    """Enhanced mock Ansible module for detailed test inspection and control."""
-
-    def __init__(self, params=None):
-        self.params = params or {}
-        self.failed = False
-        self.exit_args = None
-        self.fail_args = None
-        self.check_mode = False
-
-    def fail_json(self, **kwargs):
-        self.failed = True
-        self.fail_args = kwargs
-        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
-
-    def exit_json(self, **kwargs):
-        self.exit_args = kwargs
-        raise SystemExit(kwargs)
-
-
 class TestViewPlanModule:
     """Unit tests for view_plan module main function."""
 
@@ -127,9 +107,11 @@ class TestViewPlanModule:
         json_response,
         expected_keys,
         expected_changed,
+        enhanced_dummy_module,
     ):
         """Test main function with various success scenarios."""
-        mock_module = EnhancedDummyModule(params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
         mock_module_class.return_value = mock_module
 
         def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
@@ -173,6 +155,7 @@ class TestViewPlanModule:
         run_id,
         use_plan_id,
         expected_msg,
+        enhanced_dummy_module,
     ):
         """Test main function when plan is not found."""
         params = {
@@ -182,7 +165,8 @@ class TestViewPlanModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        mock_module = EnhancedDummyModule(params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
         mock_module_class.return_value = mock_module
 
         mock_get_data.return_value = {}
@@ -199,11 +183,12 @@ class TestViewPlanModule:
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
-    def test_main_exception_handling(self, mock_module_class, mock_client_class):
+    def test_main_exception_handling(self, mock_module_class, mock_client_class, enhanced_dummy_module):
         """Test main function exception handling."""
         params = {"plan_id": "plan-exception123", "run_id": None, "tf_token": "test-token"}
 
-        mock_module = EnhancedDummyModule(params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
         mock_module_class.return_value = mock_module
 
         mock_client_class.side_effect = Exception("Connection failed")
@@ -334,6 +319,7 @@ class TestViewPlanModule:
         scenario,
         json_data,
         expected_diff_count,
+        enhanced_dummy_module,
     ):
         """Test main function with complex data scenarios."""
         params = {
@@ -344,7 +330,8 @@ class TestViewPlanModule:
             "tf_hostname": "app.terraform.io",
         }
 
-        mock_module = EnhancedDummyModule(params)
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
         mock_module_class.return_value = mock_module
 
         metadata_response = {"data": {"id": f"plan-{scenario}123", "attributes": {"status": "finished"}}}
@@ -373,17 +360,16 @@ class TestViewPlanModule:
         assert not mock_module.failed
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
-    def test_module_argument_spec(self, mock_module_class):
+    def test_module_argument_spec(self, mock_module_class, enhanced_dummy_module):
         """Test that the module has correct argument specification."""
-        mock_module = EnhancedDummyModule(
-            {
-                "plan_id": "plan-test123",
-                "run_id": None,
-                "output_format": "diff",
-                "tf_token": "test-token",
-                "tf_hostname": "app.terraform.io",
-            },
-        )
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "plan_id": "plan-test123",
+            "run_id": None,
+            "output_format": "diff",
+            "tf_token": "test-token",
+            "tf_hostname": "app.terraform.io",
+        }
         mock_module_class.return_value = mock_module
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient"), patch(
