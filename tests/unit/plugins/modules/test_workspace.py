@@ -19,26 +19,7 @@ from ansible_collections.hashicorp.terraform.plugins.modules.workspace import (
     state_unlocked,
     state_update,
 )
-
-
-class EnhancedDummyModule:
-    """A mock Ansible module for better inspection in tests."""
-
-    def __init__(self, params=None):
-        self.params = params or {}
-        self.failed = False
-        self.exit_args = None
-        self.fail_args = None
-        self.check_mode = False
-
-    def fail_json(self, **kwargs):
-        self.failed = True
-        self.fail_args = kwargs
-        raise AssertionError(kwargs.get("msg", "fail_json called with no message"))
-
-    def exit_json(self, **kwargs):
-        self.exit_args = kwargs
-        raise SystemExit(kwargs)
+from tests.unit.constants import create_workspace_response
 
 
 class TestWorkspaceLockAndUnlock:
@@ -52,11 +33,11 @@ class TestWorkspaceLockAndUnlock:
 
     @pytest.fixture
     def workspace_response_locked(self):
-        return {"data": {"attributes": {"locked": True}}}
+        return create_workspace_response(locked=True)
 
     @pytest.fixture
     def workspace_response_unlocked(self):
-        return {"data": {"attributes": {"locked": False}}}
+        return create_workspace_response(locked=False)
 
     def test_workspace_already_locked(self, params, workspace_response_locked):
         result = state_locked(Mock(), params, workspace_response_locked, check_mode=False)
@@ -474,7 +455,7 @@ class TestGetWorkspaceID:
         }
 
     def test_get_workspace_id_success(self, params):
-        mock_response = {"data": {"id": "ws-123", "attributes": {"name": "my-workspace"}}}
+        mock_response = create_workspace_response(workspace_id="ws-123", name="my-workspace")
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace") as mock_get_workspace:
             mock_get_workspace.return_value = mock_response
@@ -613,19 +594,17 @@ class TestNormalizeWorkspaceResponse:
 
 class TestMainFunctionBehavior:
     @pytest.fixture
-    def dummy_module(self):
-        module = EnhancedDummyModule(
-            {
-                "workspace": "test-ws",
-                "organization": "test-org",
-                "state": "present",
-                "description": "test",
-            }
-        )
-        return module
+    def test_module(self, enhanced_dummy_module):
+        enhanced_dummy_module.params = {
+            "workspace": "test-ws",
+            "organization": "test-org",
+            "state": "present",
+            "description": "test",
+        }
+        return enhanced_dummy_module
 
-    def test_main_creates_workspace_if_not_exists(self, dummy_module):
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_creates_workspace_if_not_exists(self, test_module):
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=None), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_create", return_value={"changed": True, "msg": "created"}
@@ -634,26 +613,28 @@ class TestMainFunctionBehavior:
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is True
-            assert dummy_module.exit_args["msg"] == "created"
+            assert test_module.exit_args["changed"] is True
+            assert test_module.exit_args["msg"] == "created"
 
-    def test_main_updates_workspace_if_exists(self, dummy_module):
-        dummy_module.params["workspace_id"] = None
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_updates_workspace_if_exists(self, test_module):
+        test_module.params["workspace_id"] = None
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value={"data": {"id": "ws-123"}}), patch(
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=create_workspace_response(workspace_id="ws-123")
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_update", return_value={"changed": False, "msg": "no changes"}
         ):
 
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is False
-            assert dummy_module.exit_args["msg"] == "no changes"
+            assert test_module.exit_args["changed"] is False
+            assert test_module.exit_args["msg"] == "no changes"
 
-    def test_main_deletes_workspace(self, dummy_module):
-        dummy_module.params.update({"state": "absent", "workspace_id": "ws-123"})
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_deletes_workspace(self, test_module):
+        test_module.params.update({"state": "absent", "workspace_id": "ws-123"})
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {}}), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_absent", return_value={"changed": True, "msg": "deleted"}
@@ -662,15 +643,15 @@ class TestMainFunctionBehavior:
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is True
-            assert dummy_module.exit_args["msg"] == "deleted"
+            assert test_module.exit_args["changed"] is True
+            assert test_module.exit_args["msg"] == "deleted"
 
-    def test_main_locks_workspace(self, dummy_module):
-        dummy_module.params.update({"state": "locked", "workspace_id": "ws-123"})
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_locks_workspace(self, test_module):
+        test_module.params.update({"state": "locked", "workspace_id": "ws-123"})
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": False}}}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=False)
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_locked", return_value={"changed": True, "msg": "locked"}
         ):
@@ -678,15 +659,15 @@ class TestMainFunctionBehavior:
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is True
-            assert dummy_module.exit_args["msg"] == "locked"
+            assert test_module.exit_args["changed"] is True
+            assert test_module.exit_args["msg"] == "locked"
 
-    def test_main_unlocks_workspace(self, dummy_module):
-        dummy_module.params.update({"state": "unlocked", "workspace_id": "ws-123"})
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_unlocks_workspace(self, test_module):
+        test_module.params.update({"state": "unlocked", "workspace_id": "ws-123"})
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"data": {"attributes": {"locked": True}}}
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=True)
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_unlocked", return_value={"changed": True, "msg": "unlocked"}
         ):
@@ -694,12 +675,12 @@ class TestMainFunctionBehavior:
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is True
-            assert dummy_module.exit_args["msg"] == "unlocked"
+            assert test_module.exit_args["changed"] is True
+            assert test_module.exit_args["msg"] == "unlocked"
 
-    def test_main_check_mode_creation(self, dummy_module):
-        dummy_module.check_mode = True
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_check_mode_creation(self, test_module):
+        test_module.check_mode = True
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=None), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_create", return_value={"changed": True, "msg": "would be created"}
@@ -708,11 +689,11 @@ class TestMainFunctionBehavior:
             with pytest.raises(SystemExit):
                 main()
 
-            assert dummy_module.exit_args["changed"] is True
-            assert "would be created" in dummy_module.exit_args["msg"]
+            assert test_module.exit_args["changed"] is True
+            assert "would be created" in test_module.exit_args["msg"]
 
-    def test_main_fails_on_exception(self, dummy_module):
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=dummy_module), patch(
+    def test_main_fails_on_exception(self, test_module):
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient", side_effect=Exception("something broke")
         ):
 
