@@ -85,6 +85,8 @@ Modules in this collection can be used for various operations on Terraform Cloud
 
 - Creating, uploading and archiving configuration versions
 - Creating, applying, and discarding runs
+- Managing Projects and Workspaces
+- Retrieving state version outputs
 
 These modules can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
 For examples on how to use modules included in this collection, please refer to their documentation.
