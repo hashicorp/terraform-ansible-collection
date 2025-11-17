@@ -85,6 +85,8 @@ Modules in this collection can be used for various operations on Terraform Cloud
 
 - Creating, uploading and archiving configuration versions
 - Creating, applying, and discarding runs
+- Managing Projects and Workspaces
+- Retrieving state version outputs
 
 These modules can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
 For examples on how to use modules included in this collection, please refer to their documentation.
@@ -127,19 +129,21 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ## Release Notes and Roadmap
 
-### Latest Release: 1.1.0
+### Latest Release: 1.2.0
 
 #### New Modules
 
-- configuration_version_info - Retrieve information about configuration versions in Terraform Enterprise/Cloud.
-- run_info - Retrieve information about a run in Terraform Enterprise/Cloud.
-- view_plan - View Terraform Cloud/Enterprise plan information
-- workspace - Manage workspaces in Terraform Enterprise/Cloud.
-- workspace_info - Gather information about a workspace in Terraform Enterprise/Cloud.
+- output - Retrieve Terraform Cloud/Enterprise state version outputs
+- project - Manage Terraform Cloud/Enterprise projects (create, update, delete).
+- project_info - Gather information about a project in Terraform Enterprise/Cloud.
+
+#### Lookup
+
+- tf_output - Retrieve Terraform Cloud/Enterprise output values
 
 #### Bugfixes
 
-- Ensures module invocation parameters in the task execution result aren't overridden by module code logic.
+- Increased the default poll_timeout for the run module to 120s. The previous default of 25s was low and caused issues in tasks.
 
 ## Related Information
 
