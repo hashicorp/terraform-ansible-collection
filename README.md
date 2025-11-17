@@ -127,19 +127,21 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ## Release Notes and Roadmap
 
-### Latest Release: 1.1.0
+### Latest Release: 1.2.0
 
-#### New Modules
+####Bugfixes
 
-- configuration_version_info - Retrieve information about configuration versions in Terraform Enterprise/Cloud.
-- run_info - Retrieve information about a run in Terraform Enterprise/Cloud.
-- view_plan - View Terraform Cloud/Enterprise plan information
-- workspace - Manage workspaces in Terraform Enterprise/Cloud.
-- workspace_info - Gather information about a workspace in Terraform Enterprise/Cloud.
+- Increased the default poll_timeout for the run module to 120s. The previous default of 25s was low and caused issues in tasks.
 
-#### Bugfixes
+####Lookup
 
-- Ensures module invocation parameters in the task execution result aren't overridden by module code logic.
+- tf_output - Retrieve Terraform Cloud/Enterprise output values
+
+####New Modules
+
+- output - Retrieve Terraform Cloud/Enterprise state version outputs
+- project - Manage Terraform Cloud/Enterprise projects (create, update, delete).
+- project_info - Gather information about a project in Terraform Enterprise/Cloud.
 
 ## Related Information
 
