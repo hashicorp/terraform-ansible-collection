@@ -129,15 +129,15 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ### Latest Release: 1.2.0
 
-####Bugfixes
+#### Bugfixes
 
 - Increased the default poll_timeout for the run module to 120s. The previous default of 25s was low and caused issues in tasks.
 
-####Lookup
+#### Lookup
 
 - tf_output - Retrieve Terraform Cloud/Enterprise output values
 
-####New Modules
+#### New Modules
 
 - output - Retrieve Terraform Cloud/Enterprise state version outputs
 - project - Manage Terraform Cloud/Enterprise projects (create, update, delete).
