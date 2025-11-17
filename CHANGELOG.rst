@@ -4,6 +4,35 @@ Hashicorp Terraform Collection Release Notes
 
 .. contents:: Topics
 
+v1.2.0
+======
+
+Minor Changes
+-------------
+
+- Adds a new module hashicorp.terraform.output for retrieving state version outputs information from TFE/C.
+- Adds a new module hashicorp.terraform.project for project management on TFE/C.
+
+Bugfixes
+--------
+
+- Increased the default poll_timeout for the run module to 120s. The previous default of 25s was low and caused issues in tasks.
+
+New Plugins
+-----------
+
+Lookup
+~~~~~~
+
+- tf_output - Retrieve Terraform Cloud/Enterprise output values
+
+New Modules
+-----------
+
+- output - Retrieve Terraform Cloud/Enterprise state version outputs
+- project - Manage Terraform Cloud/Enterprise projects (create, update, delete).
+- project_info - Gather information about a project in Terraform Enterprise/Cloud.
+
 v1.1.0
 ======
 
