@@ -10,4 +10,4 @@ action_groups:
     - run_info
     - configuration_version_info
     - project
-    - test_output
+    - output
