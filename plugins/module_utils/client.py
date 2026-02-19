@@ -22,7 +22,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
     TerraformTokenNotFoundError,
 )
 
-
 # Authentication argument specification injected into all modules
 AUTH_ARGSPEC = {
     "tfe_token": {

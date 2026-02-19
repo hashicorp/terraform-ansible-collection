@@ -3,562 +3,462 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import os
-import sys
+"""
+Unit tests for WorkspaceAdapter class.
+
+These tests verify the WorkspaceAdapter's methods for interacting with
+Terraform Cloud/Enterprise workspaces using the pytfe SDK.
+"""
 
 from unittest.mock import Mock
 
 import pytest
 
+from pytfe.errors import AuthError, NotFound
+from pytfe.models import Workspace as PytfeWorkspace
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
-
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    create_workspace,
-    force_delete_workspace,
-    force_unlock_workspace,
-    get_tag_bindings,
-    get_workspace,
-    get_workspace_by_id,
-    lock_workspace,
-    safe_delete_workspace,
-    unlock_workspace,
-    update_workspace,
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
+    TerraformError,
 )
-from tests.unit.constants import create_workspace_response
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+    WorkspaceAdapter,
+)
 
 
-class TestGetWorkspace:
-    """Test cases for get_workspace function."""
+class TestWorkspaceAdapterInit:
+    """Test WorkspaceAdapter initialization."""
 
-    @pytest.mark.parametrize("status_code", [401, 403, 500, 502])
-    def test_get_workspace_raises_terraform_error_on_error_status(self, status_code):
-        """Test get_workspace raises TerraformError for error status codes."""
-        mock_tf_client = Mock()
-        organization = "test-org"
-        workspace_name = "test-workspace"
+    def test_adapter_initialization_with_token(self):
+        """Test adapter can be initialized with token."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        
+        assert adapter.token == "test-token"
+        assert adapter.address == "https://app.terraform.io"
 
-        response = {"status": status_code}
-        mock_tf_client.get.return_value = response
-
-        with pytest.raises(TerraformError):
-            get_workspace(mock_tf_client, organization, workspace_name)
-
-    @pytest.mark.parametrize(
-        "response_data,expected_result",
-        [
-            # Successful response with full data
-            (
-                {
-                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
-                    "status": 200,
-                },
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
-            ),
-            # Empty data section
-            ({"data": {}, "status": 200}, {"status": 200}),
-            # No data key
-            ({"status": 200}, {"status": 200}),
-            # Workspace not found
-            ({"status": 404}, {}),
-        ],
-    )
-    def test_get_workspace_responses(self, response_data, expected_result):
-        """Test get_workspace with various response formats."""
-        mock_tf_client = Mock()
-        organization = "test-org"
-        workspace_name = "test-workspace"
-
-        mock_tf_client.get.return_value = response_data
-        result = get_workspace(mock_tf_client, organization, workspace_name)
-        assert result == expected_result
-
-    @pytest.mark.parametrize(
-        "organization,workspace_name",
-        [
-            ("test-org", "test-workspace"),
-            ("my-company", "production-app"),
-            ("dev-team", "staging-environment"),
-        ],
-    )
-    def test_get_workspace_with_valid_names(self, organization, workspace_name):
-        """Test get_workspace with realistic organization and workspace names."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
-
-        expected_response = create_workspace_response(workspace_id=workspace_id, name=workspace_name, status=200)
-        mock_tf_client.get.return_value = expected_response
-
-        result = get_workspace(mock_tf_client, organization, workspace_name)
-
-        # The result should include the data from the response plus the status
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.get.assert_called_with(f"/organizations/{organization}/workspaces/{workspace_name}")
-
-    def test_get_workspace_with_complex_data_structure(self):
-        """Test get_workspace with complex nested data structure."""
-        mock_tf_client = Mock()
-        organization = "test-org"
-        workspace_name = "test-workspace"
-        workspace_id = "ws-123abc456def789"
-
-        expected_response = create_workspace_response(
-            workspace_id=workspace_id,
-            name=workspace_name,
-            status=200,
-            organization_id="org-123",
-            environment="production",
-            auto_apply=False,
-            terraform_version="1.0.0",
-            working_directory="/terraform",
-            vcs_repo={"identifier": "org/repo", "branch": "main", "oauth-token-id": "ot-123"},
-            tags=["production", "webapp"],
+    def test_adapter_initialization_with_custom_address(self):
+        """Test adapter can be initialized with custom address."""
+        adapter = WorkspaceAdapter(
+            tfe_token="test-token",
+            tfe_address="https://custom.terraform.io"
         )
-        mock_tf_client.get.return_value = expected_response
+        
+        assert adapter.token == "test-token"
+        assert adapter.address == "https://custom.terraform.io"
 
-        result = get_workspace(mock_tf_client, organization, workspace_name)
+    def test_adapter_initialization_without_token_raises_error(self):
+        """Test adapter raises error when initialized without token."""
+        with pytest.raises(Exception):  # TerraformTokenNotFoundError
+            WorkspaceAdapter(tfe_token=None)
 
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
+
+class TestWorkspaceAdapterGetWorkspaceById:
+    """Test WorkspaceAdapter.get_workspace_by_id method."""
+
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
+
+    @pytest.fixture
+    def mock_workspace(self):
+        """Create a mock pytfe Workspace object."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-123"
+        workspace.name = "test-workspace"
+        workspace.description = "Test description"
+        workspace.auto_apply = True
+        workspace.locked = False
+        workspace.terraform_version = "1.5.0"
+        workspace.execution_mode = "remote"
+        return workspace
+
+    def test_get_workspace_by_id_success(self, mock_adapter, mock_workspace):
+        """Test successfully retrieving workspace by ID."""
+        mock_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "description": "Test description",
+            "auto_apply": True,
+        }
+        mock_adapter.client.workspaces.read_by_id.return_value = mock_workspace
+        
+        result = mock_adapter.get_workspace_by_id("ws-123")
+        
+        mock_adapter.client.workspaces.read_by_id.assert_called_once_with("ws-123")
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["name"] == "test-workspace"
+
+    def test_get_workspace_by_id_not_found(self, mock_adapter):
+        """Test handling workspace not found."""
+        mock_adapter.client.workspaces.read_by_id.side_effect = NotFound("Workspace not found")
+        
+        result = mock_adapter.get_workspace_by_id("ws-nonexistent")
+        
+        assert result is None
+
+    def test_get_workspace_by_id_auth_error(self, mock_adapter):
+        """Test handling authentication error."""
+        mock_adapter.client.workspaces.read_by_id.side_effect = AuthError("Unauthorized")
+        
+        # AuthError propagates directly (not wrapped in TerraformError)
+        with pytest.raises(AuthError):
+            mock_adapter.get_workspace_by_id("ws-123")
 
 
-class TestGetWorkspaceById:
-    """Test cases for get_workspace_by_id function."""
+class TestWorkspaceAdapterGetWorkspaceByName:
+    """Test WorkspaceAdapter.get_workspace_by_name method."""
 
-    @pytest.mark.parametrize("status_code", [401, 403, 500, 502])
-    def test_get_workspace_by_id_raises_terraform_error_on_error_status(self, status_code):
-        """Test get_workspace_by_id raises TerraformError for error status codes."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
 
-        response = {"status": status_code}
-        mock_tf_client.get.return_value = response
+    @pytest.fixture
+    def mock_workspace(self):
+        """Create a mock pytfe Workspace object."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-123"
+        workspace.name = "test-workspace"
+        workspace.description = "Test description"
+        workspace.organization_name = "test-org"
+        return workspace
 
-        with pytest.raises(TerraformError):
-            get_workspace_by_id(mock_tf_client, workspace_id)
-
-    @pytest.mark.parametrize(
-        "response_data,expected_result",
-        [
-            # Successful response with full data
-            (
-                {
-                    "data": {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}},
-                    "status": 200,
-                },
-                {"id": "ws-123abc456def789", "type": "workspaces", "attributes": {"name": "test-workspace", "environment": "production"}, "status": 200},
-            ),
-            # Empty data section
-            ({"data": {}, "status": 200}, {"status": 200}),
-            # No data key
-            ({"status": 200}, {"status": 200}),
-            # Workspace not found
-            ({"status": 404}, {}),
-        ],
-    )
-    def test_get_workspace_by_id_responses(self, response_data, expected_result):
-        """Test get_workspace_by_id with various response formats."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
-
-        mock_tf_client.get.return_value = response_data
-        result = get_workspace_by_id(mock_tf_client, workspace_id)
-        assert result == expected_result
-
-    def test_get_workspace_by_id_with_valid_id(self):
-        """Test get_workspace_by_id with a valid workspace ID."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
-
-        expected_response = create_workspace_response(workspace_id=workspace_id, name="test-workspace", status=200)
-        mock_tf_client.get.return_value = expected_response
-
-        result = get_workspace_by_id(mock_tf_client, workspace_id)
-
-        # The result should include the data from the response plus the status
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.get.assert_called_with(f"/workspaces/{workspace_id}")
-
-    def test_get_workspace_by_id_with_complex_data_structure(self):
-        """Test get_workspace_by_id with complex nested data structure."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
-
-        expected_response = create_workspace_response(
-            workspace_id=workspace_id,
-            name="complex-workspace",
-            status=200,
-            organization_id="org-456",
-            environment="staging",
-            auto_apply=True,
-            terraform_version="1.5.0",
-            working_directory="/terraform/modules",
-            vcs_repo={"identifier": "company/infrastructure", "branch": "develop", "oauth-token-id": "ot-987654321"},
-            tags=["staging", "infrastructure", "automated"],
-            permissions={"can-update": True, "can-destroy": False, "can-queue-run": True},
+    def test_get_workspace_by_name_success(self, mock_adapter, mock_workspace):
+        """Test successfully retrieving workspace by name."""
+        mock_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "description": "Test description",
+            "organization_name": "test-org",
+        }
+        mock_adapter.client.workspaces.read.return_value = mock_workspace
+        
+        result = mock_adapter.get_workspace_by_name("test-org", "test-workspace")
+        
+        mock_adapter.client.workspaces.read.assert_called_once_with(
+            "test-workspace",
+            organization="test-org"
         )
-        # Add current-run relationship manually as it's not a standard parameter
-        expected_response["data"]["relationships"]["current-run"] = {"data": {"id": "run-789", "type": "runs"}}
-        # Add links manually as they're not standard
-        expected_response["data"]["links"] = {"self": "/api/v2/workspaces/ws-123abc456def789", "self-html": "/app/org-456/workspaces/complex-workspace"}
-        mock_tf_client.get.return_value = expected_response
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["name"] == "test-workspace"
 
-        result = get_workspace_by_id(mock_tf_client, workspace_id)
+    def test_get_workspace_by_name_not_found(self, mock_adapter):
+        """Test handling workspace not found by name."""
+        mock_adapter.client.workspaces.read.side_effect = NotFound("Workspace not found")
+        
+        result = mock_adapter.get_workspace_by_name("test-org", "nonexistent-workspace")
+        
+        assert result is None
 
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
+    def test_get_workspace_by_name_auth_error(self, mock_adapter):
+        """Test handling authentication error."""
+        mock_adapter.client.workspaces.read.side_effect = AuthError("Unauthorized")
+        
+        # AuthError propagates directly (not wrapped in TerraformError)
+        with pytest.raises(AuthError):
+            mock_adapter.get_workspace_by_name("test-org", "test-workspace")
 
 
-class TestGetTagBindings:
-    """Test cases for get_tag_bindings function."""
+class TestWorkspaceAdapterCreateWorkspace:
+    """Test WorkspaceAdapter.create_workspace method."""
 
-    @pytest.mark.parametrize("status_code", [401, 403])
-    def test_get_tag_bindings_raises_terraform_error_on_error_status(self, status_code):
-        """Test get_tag_bindings raises TerraformError for error status codes."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
 
-        response = {"status": status_code}
-        mock_tf_client.get.return_value = response
+    @pytest.fixture
+    def mock_workspace(self):
+        """Create a mock pytfe Workspace object."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-new-123"
+        workspace.name = "new-workspace"
+        workspace.description = "New workspace"
+        workspace.auto_apply = True
+        return workspace
 
-        with pytest.raises(TerraformError):
-            get_tag_bindings(mock_tf_client, workspace_id)
-
-    @pytest.mark.parametrize(
-        "response_data,expected_result",
-        [
-            # Successful response with full data
-            (
-                {
-                    "data": {
-                        "id": "tag-bindings-123",
-                        "type": "tag-bindings",
-                        "attributes": {"key": "environment", "value": "uat"},
-                    },
-                    "status": 200,
-                },
-                {
-                    "id": "tag-bindings-123",
-                    "type": "tag-bindings",
-                    "attributes": {"key": "environment", "value": "uat"},
-                    "status": 200,
-                },
-            ),
-            # Empty data section
-            ({"data": {}, "status": 200}, {"status": 200}),
-            # No data key
-            ({"status": 200}, {"status": 200}),
-            # Workspace not found
-            ({"status": 404}, {}),
-        ],
-    )
-    def test_get_tag_bindings_responses(self, response_data, expected_result):
-        """Test get_tag_bindings with various response formats."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc456def789"
-
-        mock_tf_client.get.return_value = response_data
-        result = get_tag_bindings(mock_tf_client, workspace_id)
-        assert result == expected_result
-
-    def test_get_tag_bindings_with_valid_workspace_id(self):
-        """Test get_tag_bindings returns correct structure with known response."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-abc123"
-
-        response_data = {
-            "data": {
-                "id": "tag-bindings-999",
-                "type": "tag-bindings",
-                "attributes": {"key": "region", "value": "us-east"},
-            },
-            "status": 200,
+    def test_create_workspace_success(self, mock_adapter, mock_workspace):
+        """Test successfully creating a workspace."""
+        mock_workspace.model_dump.return_value = {
+            "id": "ws-new-123",
+            "name": "new-workspace",
+            "description": "New workspace",
+            "auto_apply": True,
         }
+        mock_adapter.client.workspaces.create.return_value = mock_workspace
+        
+        result = mock_adapter.create_workspace(
+            "test-org",
+            name="new-workspace",
+            description="New workspace",
+            auto_apply=True
+        )
+        
+        assert result is not None
+        assert result["id"] == "ws-new-123"
+        assert result["name"] == "new-workspace"
+        assert result["description"] == "New workspace"
 
-        mock_tf_client.get.return_value = response_data
-        result = get_tag_bindings(mock_tf_client, workspace_id)
-
-        expected_result = response_data["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.get.assert_called_once_with(f"/workspaces/{workspace_id}/tag-bindings")
-
-
-class TestCreateWorkspace:
-    """Test cases for create_workspace function."""
-
-    def test_create_workspace_success(self):
-        """Test that create_workspace returns data correctly on successful creation (201)."""
-        mock_tf_client = Mock()
-        organization = "test-org"
-        workspace_payload = {"name": "my-workspace", "description": "Test workspace"}
-
-        mock_response = {
-            "data": {
-                "id": "ws-123456",
-                "type": "workspaces",
-                "attributes": workspace_payload,
-            },
-            "status": 201,
+    def test_create_workspace_minimal_attributes(self, mock_adapter, mock_workspace):
+        """Test creating workspace with minimal attributes."""
+        mock_workspace.description = None
+        mock_workspace.model_dump.return_value = {
+            "id": "ws-new-123",
+            "name": "new-workspace",
         }
-        mock_tf_client.post.return_value = mock_response
-
-        result = create_workspace(mock_tf_client, organization, workspace_payload)
-
-        expected_result = mock_response["data"].copy()
-        expected_result["status"] = 201
-        assert result == expected_result
-        mock_tf_client.post.assert_called_once_with(f"/organizations/{organization}/workspaces", data=workspace_payload)
-
-    @pytest.mark.parametrize("status_code", [400, 401, 500])
-    def test_create_workspace_failure_raises_terraform_error(self, status_code):
-        """Test that create_workspace raises TerraformError on failure (non-201 status)."""
-        mock_tf_client = Mock()
-        organization = "test-org"
-        workspace_payload = {"name": "invalid-workspace"}
-
-        mock_response = {"status": status_code}
-        mock_tf_client.post.return_value = mock_response
-
-        with pytest.raises(TerraformError):
-            create_workspace(mock_tf_client, organization, workspace_payload)
+        mock_adapter.client.workspaces.create.return_value = mock_workspace
+        
+        result = mock_adapter.create_workspace("test-org", name="new-workspace")
+        
+        assert result is not None
+        assert result["id"] == "ws-new-123"
 
 
-class TestUpdateWorkspace:
-    """Test cases for update_workspace function."""
+class TestWorkspaceAdapterUpdateWorkspace:
+    """Test WorkspaceAdapter.update_workspace method."""
 
-    def test_update_workspace_success(self):
-        """Test that update_workspace returns updated data correctly on success (200)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-789xyz"
-        update_payload = {"description": "Updated description"}
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
 
-        mock_response = {
-            "data": {
-                "id": workspace_id,
-                "type": "workspaces",
-                "attributes": update_payload,
-            },
-            "status": 200,
+    @pytest.fixture
+    def mock_workspace(self):
+        """Create a mock pytfe Workspace object."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-123"
+        workspace.name = "test-workspace"
+        workspace.description = "Updated description"
+        workspace.auto_apply = False
+        return workspace
+
+    def test_update_workspace_success(self, mock_adapter, mock_workspace):
+        """Test successfully updating a workspace."""
+        mock_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "description": "Updated description",
+            "auto_apply": False,
         }
-        mock_tf_client.patch.return_value = mock_response
+        mock_adapter.client.workspaces.update_by_id.return_value = mock_workspace
+        
+        result = mock_adapter.update_workspace(
+            "ws-123",
+            name="test-workspace",
+            description="Updated description",
+            auto_apply=False
+        )
+        
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["description"] == "Updated description"
+        assert result["auto_apply"] is False
 
-        result = update_workspace(mock_tf_client, workspace_id, update_payload)
-
-        expected_result = mock_response["data"].copy()
-        expected_result["status"] = 200
-
-        assert result == expected_result
-        mock_tf_client.patch.assert_called_once_with(f"/workspaces/{workspace_id}", data=update_payload)
-
-    @pytest.mark.parametrize("status_code", [400, 401, 404])
-    def test_update_workspace_failure_raises_terraform_error(self, status_code):
-        """Test that update_workspace raises TerraformError on failure (non-200 status)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-invalid"
-        update_payload = {"name": "bad-workspace"}
-
-        mock_response = {"status": status_code}
-        mock_tf_client.patch.return_value = mock_response
-
+    def test_update_workspace_not_found(self, mock_adapter):
+        """Test updating a workspace that doesn't exist."""
+        mock_adapter.client.workspaces.update_by_id.side_effect = NotFound("Workspace not found")
+        
         with pytest.raises(TerraformError):
-            update_workspace(mock_tf_client, workspace_id, update_payload)
+            mock_adapter.update_workspace("ws-nonexistent", name="test", description="New")
 
 
-class TestSafeDeleteWorkspace:
-    """Test cases for safe_delete_workspace function."""
+class TestWorkspaceAdapterDeleteWorkspace:
+    """Test WorkspaceAdapter delete methods."""
 
-    def test_safe_delete_successful(self):
-        """Should return status=204 when deletion is successful."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123abc"
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
 
-        mock_tf_client.post.return_value = {"status": 204}
+    def test_safe_delete_workspace_success(self, mock_adapter):
+        """Test successfully performing safe delete."""
+        mock_adapter.client.workspaces.safe_delete_by_id.return_value = None
+        
+        # Should not raise error
+        mock_adapter.safe_delete_workspace("ws-123")
+        
+        mock_adapter.client.workspaces.safe_delete_by_id.assert_called_once_with("ws-123")
 
-        result = safe_delete_workspace(mock_tf_client, workspace_id)
-        assert result == {"status": 204}
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/safe-delete")
+    def test_force_delete_workspace_success(self, mock_adapter):
+        """Test successfully performing force delete."""
+        mock_adapter.client.workspaces.delete_by_id.return_value = None
+        
+        # Should not raise error
+        mock_adapter.force_delete_workspace("ws-123")
+        
+        mock_adapter.client.workspaces.delete_by_id.assert_called_once_with("ws-123")
 
-    def test_safe_delete_workspace_not_found(self):
-        """Should return empty dict when workspace is not found (404)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-notfound"
-
-        mock_tf_client.post.return_value = {"status": 404}
-
-        result = safe_delete_workspace(mock_tf_client, workspace_id)
-        assert result == {}
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/safe-delete")
-
-    @pytest.mark.parametrize("status_code", [400, 401, 403])
-    def test_safe_delete_raises_terraform_error_on_failure(self, status_code):
-        """Should raise TerraformError for any status code not 204 or 404."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-error"
-
-        mock_tf_client.post.return_value = {"status": status_code}
-
-        with pytest.raises(TerraformError) as exc_info:
-            safe_delete_workspace(mock_tf_client, workspace_id)
-
-        assert exc_info.type is TerraformError
-        assert exc_info.value.args[0]["status"] == status_code
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/safe-delete")
+    def test_delete_workspace_not_found(self, mock_adapter):
+        """Test deleting a workspace that doesn't exist."""
+        mock_adapter.client.workspaces.safe_delete_by_id.side_effect = NotFound("Workspace not found")
+        
+        with pytest.raises(TerraformError):
+            mock_adapter.safe_delete_workspace("ws-nonexistent")
 
 
-class TestForceDeleteWorkspace:
-    """Test cases for force_delete_workspace function."""
+class TestWorkspaceAdapterLockUnlock:
+    """Test WorkspaceAdapter lock and unlock methods."""
 
-    def test_force_delete_successful(self):
-        """Should return status=204 when deletion is successful."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123"
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter with mocked client."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        adapter._client = Mock()
+        return adapter
 
-        mock_tf_client.delete.return_value = {"status": 204}
+    @pytest.fixture
+    def mock_locked_workspace(self):
+        """Create a mock locked workspace."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-123"
+        workspace.name = "test-workspace"
+        workspace.locked = True
+        workspace.lock_reason = "Maintenance"
+        return workspace
 
-        result = force_delete_workspace(mock_tf_client, workspace_id)
-        assert result == {"status": 204}
-        mock_tf_client.delete.assert_called_once_with(f"/workspaces/{workspace_id}")
+    @pytest.fixture
+    def mock_unlocked_workspace(self):
+        """Create a mock unlocked workspace."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.id = "ws-123"
+        workspace.name = "test-workspace"
+        workspace.locked = False
+        workspace.lock_reason = None
+        return workspace
 
-    def test_force_delete_workspace_not_found(self):
-        """Should return empty dict when workspace is not found (404)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-404"
+    def test_lock_workspace_success(self, mock_adapter, mock_locked_workspace):
+        """Test successfully locking a workspace."""
+        mock_locked_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "locked": True,
+            "lock_reason": "Maintenance",
+        }
+        mock_adapter.client.workspaces.lock.return_value = mock_locked_workspace
+        
+        result = mock_adapter.lock_workspace("ws-123", "Maintenance")
+        
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["locked"] is True
+        assert result["lock_reason"] == "Maintenance"
 
-        mock_tf_client.delete.return_value = {"status": 404}
+    def test_unlock_workspace_success(self, mock_adapter, mock_unlocked_workspace):
+        """Test successfully unlocking a workspace."""
+        mock_unlocked_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "locked": False,
+        }
+        mock_adapter.client.workspaces.unlock.return_value = mock_unlocked_workspace
+        
+        result = mock_adapter.unlock_workspace("ws-123")
+        
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["locked"] is False
 
-        result = force_delete_workspace(mock_tf_client, workspace_id)
-        assert result == {}
-        mock_tf_client.delete.assert_called_once_with(f"/workspaces/{workspace_id}")
+    def test_force_unlock_workspace_success(self, mock_adapter, mock_unlocked_workspace):
+        """Test successfully force unlocking a workspace."""
+        mock_unlocked_workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "locked": False,
+        }
+        mock_adapter.client.workspaces.force_unlock.return_value = mock_unlocked_workspace
+        
+        result = mock_adapter.force_unlock_workspace("ws-123")
+        
+        assert result is not None
+        assert result["id"] == "ws-123"
+        assert result["locked"] is False
 
-    @pytest.mark.parametrize("status_code", [400, 401, 403])
-    def test_force_delete_raises_terraform_error(self, status_code):
-        """Should raise TerraformError for any non-204/404 status."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-failure"
+    def test_lock_workspace_not_found(self, mock_adapter):
+        """Test locking a workspace that doesn't exist."""
+        mock_adapter.client.workspaces.lock.side_effect = NotFound("Workspace not found")
+        
+        with pytest.raises(TerraformError):
+            mock_adapter.lock_workspace("ws-nonexistent", "Test")
 
-        mock_tf_client.delete.return_value = {"status": status_code}
-
-        with pytest.raises(TerraformError) as exc_info:
-            force_delete_workspace(mock_tf_client, workspace_id)
-
-        assert exc_info.type is TerraformError
-        assert exc_info.value.args[0]["status"] == status_code
-        mock_tf_client.delete.assert_called_once_with(f"/workspaces/{workspace_id}")
-
-
-class TestLockWorkspace:
-    """Test cases for lock_workspace function."""
-
-    def test_lock_workspace_successful(self):
-        """Should return data with status when lock is successful (200)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123"
-        lock_reason = "Prevent changes during release"
-
-        expected_response = create_workspace_response(workspace_id=workspace_id, locked=True, status=200)
-        mock_tf_client.post.return_value = expected_response
-
-        result = lock_workspace(mock_tf_client, workspace_id, lock_reason)
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/lock", data={"reason": lock_reason})
-
-    @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
-    def test_lock_workspace_raises_terraform_error(self, status_code):
-        """Should raise TerraformError on any non-200 response status."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-error"
-        lock_reason = "Testing failure"
-
-        mock_tf_client.post.return_value = {"status": status_code, "error": f"Failed with {status_code}"}
-
-        with pytest.raises(TerraformError) as exc_info:
-            lock_workspace(mock_tf_client, workspace_id, lock_reason)
-
-        assert exc_info.type is TerraformError
-        assert exc_info.value.args[0]["status"] == status_code
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/lock", data={"reason": lock_reason})
-
-
-class TestUnlockWorkspace:
-    """Test cases for unlock_workspace function."""
-
-    def test_unlock_workspace_successful(self):
-        """Should return data with status when unlock is successful (200)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123"
-
-        expected_response = create_workspace_response(workspace_id=workspace_id, locked=False, status=200)
-        mock_tf_client.post.return_value = expected_response
-
-        result = unlock_workspace(mock_tf_client, workspace_id)
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/unlock")
-
-    @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
-    def test_unlock_workspace_raises_terraform_error(self, status_code):
-        """Should raise TerraformError on any non-200 response status."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-error"
-
-        mock_tf_client.post.return_value = {"status": status_code, "error": f"Failed with status {status_code}"}
-
-        with pytest.raises(TerraformError) as exc_info:
-            unlock_workspace(mock_tf_client, workspace_id)
-
-        assert exc_info.type is TerraformError
-        assert exc_info.value.args[0]["status"] == status_code
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/unlock")
+    def test_unlock_workspace_auth_error(self, mock_adapter):
+        """Test unlocking without proper permissions."""
+        mock_adapter.client.workspaces.unlock.side_effect = AuthError("Unauthorized")
+        
+        with pytest.raises(TerraformError):
+            mock_adapter.unlock_workspace("ws-123")
 
 
-class TestForceUnlockWorkspace:
-    """Test cases for force_unlock_workspace function."""
+class TestWorkspaceAdapterFormatResponse:
+    """Test WorkspaceAdapter.format_response method."""
 
-    def test_force_unlock_workspace_successful(self):
-        """Should return response data when force unlock succeeds (status 200)."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-123"
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock adapter."""
+        return WorkspaceAdapter(tfe_token="test-token")
 
-        expected_response = create_workspace_response(workspace_id=workspace_id, locked=False, status=200)
-        mock_tf_client.post.return_value = expected_response
+    def test_format_response_with_pytfe_workspace(self, mock_adapter):
+        """Test formatting a pytfe Workspace object."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "type": "workspaces",
+            "description": "Test",
+            "auto_apply": True,
+            "locked": False,
+            "terraform_version": "1.5.0",
+            "execution_mode": "remote",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-02T00:00:00Z",
+        }
+        
+        result = mock_adapter.format_response(workspace)
+        
+        assert isinstance(result, dict)
+        assert result["id"] == "ws-123"
+        assert result["name"] == "test-workspace"
+        assert result["type"] == "workspaces"
 
-        result = force_unlock_workspace(mock_tf_client, workspace_id)
+    def test_format_response_handles_nested_objects(self, mock_adapter):
+        """Test formatting workspace with nested objects."""
+        workspace = Mock(spec=PytfeWorkspace)
+        workspace.model_dump.return_value = {
+            "id": "ws-123",
+            "name": "test-workspace",
+            "project": {
+                "id": "prj-123",
+                "name": "test-project",
+            }
+        }
+        
+        result = mock_adapter.format_response(workspace)
+        
+        assert result["id"] == "ws-123"
+        assert result["project"]["id"] == "prj-123"
 
-        expected_result = expected_response["data"].copy()
-        expected_result["status"] = 200
-        assert result == expected_result
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/force-unlock")
 
-    @pytest.mark.parametrize(
-        "status_code",
-        [
-            400,
-            401,
-            403,
-            404,
-        ],
-    )
-    def test_force_unlock_workspace_raises_terraform_error(self, status_code):
-        """Should raise TerraformError when force unlock fails with non-200 status."""
-        mock_tf_client = Mock()
-        workspace_id = "ws-error"
+class TestWorkspaceAdapterCleanup:
+    """Test WorkspaceAdapter cleanup functionality."""
 
-        mock_tf_client.post.return_value = {"status": status_code, "error": f"Force unlock failed with status {status_code}"}
-
-        with pytest.raises(TerraformError) as exc_info:
-            force_unlock_workspace(mock_tf_client, workspace_id)
-
-        assert exc_info.type is TerraformError
-        assert exc_info.value.args[0]["status"] == status_code
-        mock_tf_client.post.assert_called_once_with(f"/workspaces/{workspace_id}/actions/force-unlock")
+    def test_adapter_cleanup(self):
+        """Test adapter cleanup is called."""
+        adapter = WorkspaceAdapter(tfe_token="test-token")
+        mock_client = Mock()
+        adapter._client = mock_client
+        
+        adapter.cleanup()
+        
+        mock_client.close.assert_called_once()
+        assert adapter._client is None

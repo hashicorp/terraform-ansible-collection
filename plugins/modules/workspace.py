@@ -5,7 +5,6 @@
 
 from __future__ import absolute_import, annotations, division, print_function
 
-
 __metaclass__ = type
 
 DOCUMENTATION = r"""
@@ -296,7 +295,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     WorkspaceAdapter,
 )
-
 
 IGNORE_LIST = [
     "tfe_token",

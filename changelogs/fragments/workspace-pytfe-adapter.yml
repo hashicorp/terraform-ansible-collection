@@ -1,0 +1,7 @@
+---
+major_changes:
+  - workspace - Refactored to use pytfe SDK with WorkspaceAdapter pattern for improved maintainability and type safety.
+
+minor_changes:
+  - client - Added TerraformClient base class with lazy SDK initialization and centralized error handling.
+  - client - Added AnsibleTerraformModule wrapper to inject common auth parameters (tfe_token, tfe_address).

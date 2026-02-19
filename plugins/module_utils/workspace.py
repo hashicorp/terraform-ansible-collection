@@ -27,6 +27,7 @@ from pytfe.models import (
     WorkspaceSettingOverwrites,
     WorkspaceUpdateOptions,
 )
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 
 
@@ -72,7 +73,7 @@ class WorkspaceAdapter(TerraformClient):
         Retrieves a specified workspace from Terraform Cloud.
 
         Sends a GET request using the pytfe SDK to fetch details of a workspace identified by its name
-        within a given organization. If the workspace is not found, returns None. 
+        within a given organization. If the workspace is not found, returns None.
         If successful, returns the workspace data with an added "status" field.
         For any other error status, raises an HTTPError.
 
