@@ -698,7 +698,7 @@ def main():
                 if not workspace_response:
                     raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 # retrieve the workspace ID
-                workspace_id = workspace_response.get("data")["id"]
+                workspace_id = workspace_response["id"]
                 # update module params to have a workspace ID
                 params["workspace_id"] = workspace_id
 
