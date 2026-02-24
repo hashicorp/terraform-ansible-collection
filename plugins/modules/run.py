@@ -776,7 +776,7 @@ def get_workspace_id(client: TerraformClient, workspace: str, organization: str)
     response = get_workspace(client, organization, workspace)
     if not response:
         raise TerraformError(f"The Workspace {workspace} was not found in the organization {organization}")
-    return response.get("data").get("id")
+    return response.get("id")
 
 
 def main():

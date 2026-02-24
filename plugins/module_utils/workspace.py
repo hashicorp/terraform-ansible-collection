@@ -12,7 +12,7 @@ and unlock operations.
 Example:
     adapter = TerraformClient(tfe_token="my-token", tfe_address="https://app.terraform.io")
     with adapter:
-        workspace = get_workspace_by_name(adapter, 'my-org', 'my-workspace')
+        workspace = get_workspace(adapter, 'my-org', 'my-workspace')
 """
 
 from typing import Any, Dict
@@ -57,7 +57,7 @@ def get_workspace_by_id(adapter: TerraformClient, workspace_id: str) -> Dict[str
         # This should not raise an exception
         return None
 
-def get_workspace_by_name(adapter: TerraformClient, organization: str, workspace_name: str) -> Dict[str, Any] | None:
+def get_workspace(adapter: TerraformClient, organization: str, workspace_name: str) -> Dict[str, Any] | None:
     """
     Retrieves a specified workspace from Terraform Cloud.
 
@@ -96,6 +96,7 @@ def _build_workspace_payload(attributes: Dict[str, Any]) -> Dict[str, Any]:
 
     # Map simple attributes (direct pass-through)
     simple_attrs = [
+        "name",
         "description",
         "auto_apply",
         "terraform_version",
@@ -147,8 +148,7 @@ def create_workspace(adapter: TerraformClient, organization: str, **attributes) 
         workspace details.
     """
     # Build create options from attributes
-    create_kwargs = {"name": attributes["name"]}
-    create_kwargs.update(_build_workspace_payload(attributes))
+    create_kwargs = _build_workspace_payload(attributes)
 
     create_options = WorkspaceCreateOptions(**create_kwargs)
 
@@ -177,9 +177,8 @@ def update_workspace(adapter: TerraformClient, workspace_id: str, **attributes) 
         dict: The response data from Terraform Cloud, including the updated
         workspace details.
     """
-    # Build update options - name is required by SDK
-    update_kwargs = {"name": attributes["name"]}
-    update_kwargs.update(_build_workspace_payload(attributes))
+    # Build update options from provided attributes
+    update_kwargs = _build_workspace_payload(attributes)
 
     update_options = WorkspaceUpdateOptions(**update_kwargs)
 

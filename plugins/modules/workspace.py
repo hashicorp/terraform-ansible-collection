@@ -295,7 +295,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     get_workspace_by_id,
-    get_workspace_by_name,
+    get_workspace,
     create_workspace,
     update_workspace,
     safe_delete_workspace,
@@ -693,6 +693,7 @@ def main():
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
     state = params["state"]
+    adapter = None
 
     try:
         # Create adapter with params dict
@@ -706,7 +707,7 @@ def main():
             # when a workspace is provided, organization must be given
             if not params.get("workspace_id"):
                 # get the workspace_id from the provided workspace name
-                workspace_response = get_workspace_by_name(adapter, params.get("organization"), params.get("workspace"))
+                workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
                 if not workspace_response:
                     action_result = state_create(adapter, params, params["check_mode"])
                 else:
@@ -721,7 +722,7 @@ def main():
         elif state in ("absent", "locked", "unlocked"):
             # get the workspace response
             if not params.get("workspace_id"):
-                workspace_response = get_workspace_by_name(adapter, params.get("organization"), params.get("workspace"))
+                workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
                 if not workspace_response:
                     raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 params["workspace_id"] = workspace_response["id"]
@@ -743,7 +744,8 @@ def main():
     except Exception as e:
         module.fail_json(msg=to_text(e))
     finally:
-        adapter.cleanup()
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
