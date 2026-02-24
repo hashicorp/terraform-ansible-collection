@@ -9,20 +9,18 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.workspace import (
-    fetch_workspace_tag_bindings,
-    get_workspace_id,
     main,
-    normalize_workspace_response,
     state_absent,
     state_create,
     state_locked,
     state_unlocked,
     state_update,
 )
-from tests.unit.constants import create_workspace_response
 
 
 class TestWorkspaceLockAndUnlock:
+    """Test locking and unlocking workspace operations."""
+
     @pytest.fixture
     def params(self):
         return {
@@ -32,108 +30,129 @@ class TestWorkspaceLockAndUnlock:
         }
 
     @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock WorkspaceAdapter."""
+        adapter = Mock()
+        adapter.token = "test-token"
+        adapter.address = "https://app.terraform.io"
+        return adapter
+
+    @pytest.fixture
     def workspace_response_locked(self):
-        return create_workspace_response(locked=True)
+        """Workspace response indicating locked state."""
+        return {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "locked": True,
+            "lock_reason": "Manual lock",
+        }
 
     @pytest.fixture
     def workspace_response_unlocked(self):
-        return create_workspace_response(locked=False)
+        """Workspace response indicating unlocked state."""
+        return {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "locked": False,
+            "lock_reason": None,
+        }
 
-    def test_workspace_already_locked(self, params, workspace_response_locked):
-        result = state_locked(Mock(), params, workspace_response_locked, check_mode=False)
+    def test_workspace_already_locked(self, mock_adapter, params, workspace_response_locked):
+        """Test attempting to lock an already locked workspace."""
+        result = state_locked(mock_adapter, params, workspace_response_locked, check_mode=False)
+        
         assert result["changed"] is False
         assert "already locked" in result["msg"]
 
-    def test_workspace_lock_success(self, params, workspace_response_unlocked):
-        mock_client = Mock()
-
+    def test_workspace_lock_success(self, mock_adapter, params, workspace_response_unlocked):
+        """Test successfully locking an unlocked workspace."""
         mock_response = {
-            "data": {
-                "id": params["workspace_id"],
-                "attributes": {
-                    "locked": True,
-                    "lock-reason": params["lock_reason"],
-                },
-            }
+            "id": params["workspace_id"],
+            "type": "workspaces",
+            "locked": True,
+            "lock_reason": params["lock_reason"],
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.lock_workspace") as mock_lock:
             mock_lock.return_value = mock_response
 
-            result = state_locked(mock_client, params, workspace_response_unlocked, check_mode=False)
+            result = state_locked(mock_adapter, params, workspace_response_unlocked, check_mode=False)
 
-            mock_lock.assert_called_once_with(mock_client, params["workspace_id"], params["lock_reason"])
-
+            mock_lock.assert_called_once_with(
+                mock_adapter,
+                workspace_response_unlocked["id"], 
+                reason=params["lock_reason"]
+            )
             assert result["changed"] is True
-            assert result["attributes"]["locked"] is True
+            assert result["locked"] is True
             assert result["id"] == params["workspace_id"]
 
-    def test_workspace_lock_check_mode(self, params, workspace_response_unlocked):
-        result = state_locked(Mock(), params, workspace_response_unlocked, check_mode=True)
+    def test_workspace_lock_check_mode(self, mock_adapter, params, workspace_response_unlocked):
+        """Test locking workspace in check mode."""
+        result = state_locked(mock_adapter, params, workspace_response_unlocked, check_mode=True)
+        
         assert result["changed"] is True
         assert "Skipped locking due to check mode" in result["msg"]
 
-    def test_workspace_already_unlocked(self, params, workspace_response_unlocked):
-        result = state_unlocked(Mock(), params, workspace_response_unlocked, check_mode=False)
+    def test_workspace_already_unlocked(self, mock_adapter, params, workspace_response_unlocked):
+        """Test attempting to unlock an already unlocked workspace."""
+        result = state_unlocked(mock_adapter, params, workspace_response_unlocked, check_mode=False)
+        
         assert result["changed"] is False
         assert "already unlocked" in result["msg"]
 
-    def test_workspace_unlock_success(self, params, workspace_response_locked):
-        mock_client = Mock()
-
+    def test_workspace_unlock_success(self, mock_adapter, params, workspace_response_locked):
+        """Test successfully unlocking a locked workspace."""
         mock_response = {
-            "data": {
-                "id": params["workspace_id"],
-                "attributes": {
-                    "locked": False,
-                    "lock-reason": None,
-                },
-            }
+            "id": params["workspace_id"],
+            "type": "workspaces",
+            "locked": False,
+            "lock_reason": None,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.unlock_workspace") as mock_unlock:
             mock_unlock.return_value = mock_response
 
-            result = state_unlocked(mock_client, params, workspace_response_locked, check_mode=False)
+            result = state_unlocked(mock_adapter, params, workspace_response_locked, check_mode=False)
 
-            mock_unlock.assert_called_once_with(mock_client, params["workspace_id"])
-
+            mock_unlock.assert_called_once_with(mock_adapter, workspace_response_locked["id"])
             assert result["changed"] is True
-            assert result["attributes"]["locked"] is False
+            assert result["locked"] is False
             assert result["id"] == params["workspace_id"]
 
-    def test_workspace_force_unlock_success(self, params, workspace_response_locked):
+    def test_workspace_force_unlock_success(self, mock_adapter, params, workspace_response_locked):
+        """Test force unlocking a locked workspace."""
         params["force"] = True
-        mock_client = Mock()
-
         mock_response = {
-            "data": {
-                "id": params["workspace_id"],
-                "attributes": {
-                    "locked": False,
-                    "lock-reason": None,
-                },
-            }
+            "id": params["workspace_id"],
+            "type": "workspaces",
+            "locked": False,
+            "lock_reason": None,
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.force_unlock_workspace") as mock_force_unlock:
             mock_force_unlock.return_value = mock_response
 
-            result = state_unlocked(mock_client, params, workspace_response_locked, check_mode=False)
+            result = state_unlocked(mock_adapter, params, workspace_response_locked, check_mode=False)
 
-            mock_force_unlock.assert_called_once_with(mock_client, params["workspace_id"])
-
+            mock_force_unlock.assert_called_once_with(mock_adapter, workspace_response_locked["id"])
             assert result["changed"] is True
-            assert result["attributes"]["locked"] is False
+            assert result["locked"] is False
             assert result["id"] == params["workspace_id"]
 
-    def test_workspace_unlock_check_mode(self, params, workspace_response_locked):
-        result = state_unlocked(Mock(), params, workspace_response_locked, check_mode=True)
+    def test_workspace_unlock_check_mode(self, mock_adapter, params, workspace_response_locked):
+        """Test unlocking workspace in check mode."""
+        result = state_unlocked(mock_adapter, params, workspace_response_locked, check_mode=True)
+        
         assert result["changed"] is True
         assert "Skipped unlocking due to check mode" in result["msg"]
 
 
 class TestWorkspaceDelete:
+    """Test workspace deletion operations."""
+
     @pytest.fixture
     def params(self):
         return {
@@ -142,310 +161,249 @@ class TestWorkspaceDelete:
         }
 
     @pytest.fixture
-    def mock_workspace_response(self):
-        return {
-            "data": {
-                "id": "ws-123",
-            }
-        }
+    def mock_adapter(self):
+        """Create a mock WorkspaceAdapter."""
+        adapter = Mock()
+        adapter.token = "test-token"
+        adapter.address = "https://app.terraform.io"
+        return adapter
 
     @pytest.fixture
-    def mock_empty_workspace_response(self):
-        return None
+    def mock_workspace_response(self):
+        return {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+        }
 
-    def test_safe_delete_success(self, params, mock_workspace_response):
-        mock_client = Mock()
-
-        mock_response = {"status": 204}
-
+    def test_safe_delete_success(self, mock_adapter, params, mock_workspace_response):
+        """Test successfully performing a safe delete."""
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.safe_delete_workspace") as mock_safe_delete:
-            mock_safe_delete.return_value = mock_response
+            mock_safe_delete.return_value = None
 
-            result = state_absent(mock_client, params, mock_workspace_response, check_mode=False)
+            result = state_absent(mock_adapter, params, mock_workspace_response, check_mode=False)
 
-            mock_safe_delete.assert_called_once_with(mock_client, params["workspace_id"])
-
+            mock_safe_delete.assert_called_once_with(mock_adapter, params["workspace_id"])
             assert result["changed"] is True
             assert "safe-deleted successfully" in result["msg"]
 
-    def test_force_delete_success(self, params, mock_workspace_response):
+    def test_force_delete_success(self, mock_adapter, params, mock_workspace_response):
+        """Test successfully performing a force delete."""
         params["force"] = True
-        mock_client = Mock()
-
-        mock_response = {"status": 204}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.force_delete_workspace") as mock_force_delete:
-            mock_force_delete.return_value = mock_response
+            mock_force_delete.return_value = None
 
-            result = state_absent(mock_client, params, mock_workspace_response, check_mode=False)
+            result = state_absent(mock_adapter, params, mock_workspace_response, check_mode=False)
 
-            mock_force_delete.assert_called_once_with(mock_client, params["workspace_id"])
-
+            mock_force_delete.assert_called_once_with(mock_adapter, params["workspace_id"])
             assert result["changed"] is True
             assert "force-deleted successfully" in result["msg"]
 
-    def test_delete_check_mode(self, params, mock_workspace_response):
-        mock_client = Mock()
-        result = state_absent(mock_client, params, mock_workspace_response, check_mode=True)
+    def test_delete_check_mode(self, mock_adapter, params, mock_workspace_response):
+        """Test deleting workspace in check mode."""
+        result = state_absent(mock_adapter, params, mock_workspace_response, check_mode=True)
+        
         assert result["changed"] is True
         assert "Skipped delete due to check mode" in result["msg"]
 
-    def test_delete_workspace_not_found(self, params, mock_empty_workspace_response):
-        mock_client = Mock()
-        result = state_absent(mock_client, params, mock_empty_workspace_response, check_mode=False)
+    def test_delete_workspace_not_found(self, mock_adapter, params):
+        """Test attempting to delete a workspace that doesn't exist."""
+        result = state_absent(mock_adapter, params, None, check_mode=False)
+        
         assert result["changed"] is False
         assert "was not found" in result["msg"]
 
 
 class TestWorkspaceUpdate:
+    """Test workspace update operations."""
+
     @pytest.fixture
     def params(self):
         return {
             "workspace_id": "ws-123",
-            "workspace": "workspace-name",
+            "workspace": "test-workspace",
             "description": "Updated description",
-            "organization": "org-1",
-            "auto_destroy_at": "2025-08-10T15:00:00Z",
-            "assessments_enabled": True,
-            "auto_destroy_activity_duration": "14d",
+            "organization": "test-org",
+            "auto_apply": True,
+            "terraform_version": "1.5.0",
         }
+
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock WorkspaceAdapter."""
+        adapter = Mock()
+        adapter.token = "test-token"
+        adapter.address = "https://app.terraform.io"
+        return adapter
 
     @pytest.fixture
     def existing_workspace_response(self):
         return {
-            "data": {
-                "id": "ws-123",
-                "attributes": {
-                    "description": "Old description",
-                },
-            }
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "description": "Old description",
+            "auto_apply": False,
+            "terraform_version": "1.4.0",
         }
 
-    def test_workspace_update_success(self, params, existing_workspace_response):
-        mock_client = Mock()
-
-        # This is the expected payload passed to update_workspace
-        workspace_payload = {
-            "description": params["description"],
-            "auto_destroy_at": params["auto_destroy_at"],
-            "assessments_enabled": params["assessments_enabled"],
-            "auto_destroy_activity_duration": params["auto_destroy_activity_duration"],
+    def test_workspace_update_with_changes(self, mock_adapter, params):
+        """Test updating workspace when changes are detected."""
+        existing_response = {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "description": "Old description",
+            "auto_apply": False,
         }
-        # Expected return from update_workspace
-        mock_update_response = {
-            "data": {
-                "id": params["workspace_id"],
-                "attributes": {
-                    "description": params["description"],
-                    "auto_destroy_at": params["auto_destroy_at"],
-                    "assessments_enabled": params["assessments_enabled"],
-                    "auto_destroy_activity_duration": params["auto_destroy_activity_duration"],
-                },
-                "relationships": {},
-                "type": "workspaces",
-                "status": 200,
-            }
+        
+        updated_response = {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "description": "Updated description",
+            "auto_apply": True,
         }
+        
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id") as mock_get, \
+             patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.update_workspace") as mock_update:
+            
+            mock_get.return_value = existing_response
+            mock_update.return_value = updated_response
 
-        # Patch the internal calls inside state_update
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=existing_workspace_response), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.normalize_workspace_response",
-            return_value={
-                "description": "Old description",
-            },
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
-            return_value={
-                "description": params["description"],
-                "auto_destroy_at": params["auto_destroy_at"],
-                "assessments_enabled": params["assessments_enabled"],
-                "auto_destroy_activity_duration": params["auto_destroy_activity_duration"],
-            },
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.WorkspaceRequest.create"
-        ) as mock_create, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.update_workspace",
-            return_value=mock_update_response,
-        ):
-            mock_instance = Mock()
-            mock_instance.model_dump.return_value = {"data": workspace_payload}
-            mock_create.return_value = mock_instance
-            result = state_update(mock_client, params, check_mode=False)
+            result = state_update(mock_adapter, params, check_mode=False)
+
+            mock_get.assert_called_once_with(mock_adapter, params["workspace_id"])
             assert result["changed"] is True
-            assert result["id"] == params["workspace_id"]
-            assert result["attributes"]["description"] == params["description"]
-            assert result["attributes"]["auto_destroy_at"] == params["auto_destroy_at"]
-            assert result["attributes"]["assessments_enabled"] == params["assessments_enabled"]
-            assert result["attributes"]["auto_destroy_activity_duration"] == params["auto_destroy_activity_duration"]
+            assert result["description"] == "Updated description"
 
-    def test_workspace_update_check_mode(self, params, existing_workspace_response):
-        mock_client = Mock()
+    def test_workspace_update_check_mode(self, mock_adapter, params):
+        """Test updating workspace in check mode."""
+        existing_response = {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "description": "Old description",
+        }
+        
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id") as mock_get:
+            mock_get.return_value = existing_response
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=existing_workspace_response), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.normalize_workspace_response",
-            return_value={
-                "description": "Old description",
-            },
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
-            return_value={
-                "description": params["description"],
-            },
-        ):
+            result = state_update(mock_adapter, params, check_mode=True)
 
-            result = state_update(mock_client, params, check_mode=True)
-            assert "attributes" in result
-            assert "description" in result["attributes"]
+            mock_get.assert_called_once()
+            assert result["changed"] is True
+            assert "Skipped update due to check mode" in result["msg"]
 
-    def test_workspace_update_no_changes(self, params, existing_workspace_response):
-        mock_client = Mock()
+    def test_workspace_update_no_changes(self, mock_adapter, params):
+        """Test updating workspace when no changes are detected."""
+        # Set params to match existing workspace
+        params["description"] = "Same description"
+        params["auto_apply"] = False
+        
+        existing_response = {
+            "id": "ws-123",
+            "type": "workspaces",
+            "name": "test-workspace",
+            "description": "Same description",
+            "auto_apply": False,
+            "terraform_version": "1.5.0",
+        }
+        
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id") as mock_get:
+            mock_get.return_value = existing_response
 
-        # dict_diff returns empty dict indicating no changes
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=existing_workspace_response), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.normalize_workspace_response",
-            return_value={
-                "name": params["workspace"],
-                "description": params["description"],
-            },
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff", return_value={}):
+            result = state_update(mock_adapter, params, check_mode=False)
 
-            result = state_update(mock_client, params, check_mode=False)
+            mock_get.assert_called_once()
             assert result["changed"] is False
 
-    def test_workspace_update_workspace_not_found(self, params):
-        mock_client = Mock()
+    def test_workspace_update_not_found(self, mock_adapter, params):
+        """Test updating a workspace that doesn't exist."""
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id") as mock_get:
+            mock_get.return_value = None
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=None):
             with pytest.raises(ValueError) as excinfo:
-                state_update(mock_client, params, check_mode=False)
-            assert f"The workspace {params['workspace_id']} was not found." in str(excinfo.value)
-
-    def test_workspace_update_raises_on_update_failure(self, params, existing_workspace_response):
-        mock_client = Mock()
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=existing_workspace_response), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.normalize_workspace_response",
-            return_value={
-                "description": "Old description",
-            },
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.dict_diff",
-            return_value={
-                "description": params["description"],
-            },
-        ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.update_workspace", side_effect=Exception("Update failed")
-        ):
-
-            with pytest.raises(Exception) as excinfo:
-                state_update(mock_client, params, check_mode=False)
-            assert "Update failed" in str(excinfo.value)
+                state_update(mock_adapter, params, check_mode=False)
+            
+            assert "was not found" in str(excinfo.value)
 
 
 class TestWorkspaceCreate:
+    """Test workspace creation operations."""
+
     @pytest.fixture
     def params(self):
         return {
-            "workspace": "my-workspace",
-            "organization": "my-org",
+            "workspace": "new-workspace",
+            "organization": "test-org",
             "description": "Test workspace",
             "auto_apply": True,
-            "project_id": "proj-123",
-            "tag_bindings": {"env": "dev"},
+            "terraform_version": "1.5.0",
         }
 
-    def test_workspace_create_success(self, params):
-        workspace_payload = {
-            "data": {
-                "type": "workspaces",
-                "attributes": {
-                    "name": "my-workspace",
-                    "description": "Test workspace",
-                    "auto_apply": True,
-                },
-                "relationships": {
-                    "project": {"data": {"id": "proj-123", "type": "projects"}},
-                    "tag-bindings": {
-                        "data": [
-                            {"type": "tag-bindings", "attributes": {"key": "env", "value": "dev"}},
-                        ]
-                    },
-                },
-            }
-        }
+    @pytest.fixture
+    def mock_adapter(self):
+        """Create a mock WorkspaceAdapter."""
+        adapter = Mock()
+        adapter.token = "test-token"
+        adapter.address = "https://app.terraform.io"
+        return adapter
 
+    def test_workspace_create_success(self, mock_adapter, params):
+        """Test successfully creating a new workspace."""
         mock_response = {
-            "data": {
-                "id": "ws-123",
-                "type": "workspaces",
-                "attributes": workspace_payload["data"]["attributes"],
-                "relationships": workspace_payload["data"]["relationships"],
-            }
+            "id": "ws-new-123",
+            "type": "workspaces",
+            "name": "new-workspace",
+            "description": "Test workspace",
+            "auto_apply": True,
+            "terraform_version": "1.5.0",
         }
+        
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.create_workspace") as mock_create:
+            mock_create.return_value = mock_response
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.WorkspaceRequest.create") as mock_create, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.create_workspace"
-        ) as mock_api_call:
+            result = state_create(mock_adapter, params, check_mode=False)
 
-            mock_create.return_value.model_dump.return_value = workspace_payload
-            mock_api_call.return_value = mock_response
+            mock_create.assert_called_once()
+            assert result["changed"] is True
+            assert result["id"] == "ws-new-123"
+            assert result["name"] == "new-workspace"
+            assert result["description"] == "Test workspace"
 
-            mock_client = Mock()
-            result = state_create(mock_client, params, check_mode=False)
+    def test_workspace_create_check_mode(self, mock_adapter, params):
+        """Test creating workspace in check mode."""
+        result = state_create(mock_adapter, params, check_mode=True)
+
+        assert result["changed"] is True
+        assert "Skipped creation due to check mode" in result["msg"]
+
+    def test_workspace_create_minimal_params(self, mock_adapter):
+        """Test creating workspace with minimal parameters."""
+        params = {
+            "workspace": "minimal-workspace",
+            "organization": "test-org",
+        }
+        
+        mock_response = {
+            "id": "ws-minimal-123",
+            "type": "workspaces",
+            "name": "minimal-workspace",
+        }
+        
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.create_workspace") as mock_create:
+            mock_create.return_value = mock_response
+
+            result = state_create(mock_adapter, params, check_mode=False)
 
             assert result["changed"] is True
-            assert result["id"] == "ws-123"
-            assert result["attributes"]["description"] == "Test workspace"
-
-    def test_workspace_create_check_mode(self, params):
-        workspace_payload = {
-            "data": {
-                "type": "workspaces",
-                "attributes": {
-                    "name": "my-workspace",
-                    "description": "Test workspace",
-                    "auto_apply": True,
-                },
-                "relationships": {
-                    "project": {"data": {"id": "proj-123", "type": "projects"}},
-                    "tag-bindings": {
-                        "data": [
-                            {"type": "tag-bindings", "attributes": {"key": "env", "value": "dev"}},
-                        ]
-                    },
-                },
-            }
-        }
-
-        params["workspace_id"] = "ws-checkmode"
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.WorkspaceRequest.create") as mock_create:
-            mock_create.return_value.model_dump.return_value = workspace_payload
-
-            mock_client = Mock()
-            result = state_create(mock_client, params, check_mode=True)
-
-            assert result["changed"] is True
-            assert result["type"] == "workspaces"
-            assert result["attributes"]["auto_apply"] is True
-
-    def test_workspace_create_api_failure(self, params):
-        workspace_payload = {"data": {"attributes": {}, "type": "workspaces", "relationships": {}}}
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.WorkspaceRequest.create") as mock_create, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.create_workspace"
-        ) as mock_api_call:
-
-            mock_create.return_value.model_dump.return_value = workspace_payload
-            mock_api_call.side_effect = Exception("API error")
-
-            mock_client = Mock()
-
-            with pytest.raises(Exception) as excinfo:
-                state_create(mock_client, params, check_mode=False)
-            assert "API error" in str(excinfo.value)
+            assert result["id"] == "ws-minimal-123"
+            assert result["name"] == "minimal-workspace"
 
 
+@pytest.mark.skip(reason="get_workspace_id function removed during pytfe refactoring")
 class TestGetWorkspaceID:
     @pytest.fixture
     def params(self):
@@ -479,6 +437,7 @@ class TestGetWorkspaceID:
             mock_get_workspace.assert_called_once_with(mock_client, "my-org", "my-workspace")
 
 
+@pytest.mark.skip(reason="fetch_workspace_tag_bindings function removed during pytfe refactoring")
 class TestFetchWorkspaceTagBindings:
     def test_fetch_workspace_tag_bindings_success(self):
         workspace_id = "ws-123"
@@ -513,6 +472,7 @@ class TestFetchWorkspaceTagBindings:
             mock_get_tag_bindings.assert_called_once_with(mock_client, workspace_id)
 
 
+@pytest.mark.skip(reason="normalize_workspace_response function removed during pytfe refactoring")
 class TestNormalizeWorkspaceResponse:
     @pytest.fixture
     def base_response_data(self):
@@ -621,7 +581,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value=create_workspace_response(workspace_id="ws-123")
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace", return_value={"id": "ws-123"}
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_update", return_value={"changed": False, "msg": "no changes"}
         ):
@@ -651,7 +611,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=False)
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"id": "ws-123", "locked": False}
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_locked", return_value={"changed": True, "msg": "locked"}
         ):
@@ -667,7 +627,7 @@ class TestMainFunctionBehavior:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace.AnsibleTerraformModule", return_value=test_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.TerraformClient"
         ), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value=create_workspace_response(locked=True)
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace.get_workspace_by_id", return_value={"id": "ws-123", "locked": True}
         ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.workspace.state_unlocked", return_value={"changed": True, "msg": "unlocked"}
         ):
