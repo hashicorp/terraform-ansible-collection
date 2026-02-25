@@ -2,11 +2,13 @@
 
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+from typing import Any, Dict
+
+from pytfe.errors import AuthError, NotFound, ServerError, TFEError
+
 from .exceptions import (
     TerraformError,
 )
-from typing import Any, Dict
-from pytfe.errors import AuthError, NotFound, ServerError, TFEError
 
 
 def sort_list(val):
@@ -67,6 +69,7 @@ def dict_diff(base, comparable):
 
     return updates
 
+
 def handle_error(error: Exception, context: str = "") -> None:
     """Translate and re-raise SDK exceptions with additional context.
 
@@ -97,6 +100,7 @@ def handle_error(error: Exception, context: str = "") -> None:
 
     raise TerraformError(error_msg) from error
 
+
 def safe_api_call(operation, *args, **kwargs) -> Any:
     """Execute API operation with error handling.
 
@@ -120,6 +124,7 @@ def safe_api_call(operation, *args, **kwargs) -> Any:
         handle_error(e, context=error_context)
     except Exception as e:
         raise TerraformError(f"Unexpected error: {str(e)}") from e
+
 
 def format_response(response: Any) -> Dict[str, Any]:
     """Format SDK response for Ansible output.

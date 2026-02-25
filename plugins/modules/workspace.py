@@ -294,15 +294,15 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
     dict_diff,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    get_workspace_by_id,
-    get_workspace,
     create_workspace,
-    update_workspace,
-    safe_delete_workspace,
     force_delete_workspace,
-    lock_workspace,
-    unlock_workspace,
     force_unlock_workspace,
+    get_workspace,
+    get_workspace_by_id,
+    lock_workspace,
+    safe_delete_workspace,
+    unlock_workspace,
+    update_workspace,
 )
 
 IGNORE_LIST = [

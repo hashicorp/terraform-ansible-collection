@@ -8,21 +8,20 @@ Unit tests for refactored workspace module_utils functions.
 These tests mock the pytfe SDK calls instead of HTTP responses.
 """
 
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
-import pytest
 from pytfe.errors import NotFound
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    get_workspace_by_id,
-    get_workspace,
     create_workspace,
-    update_workspace,
-    safe_delete_workspace,
     force_delete_workspace,
-    lock_workspace,
-    unlock_workspace,
     force_unlock_workspace,
+    get_workspace,
+    get_workspace_by_id,
+    lock_workspace,
+    safe_delete_workspace,
+    unlock_workspace,
+    update_workspace,
 )
 
 
@@ -35,16 +34,12 @@ class TestGetWorkspace:
         mock_workspace = Mock()
         mock_workspace.id = "ws-123"
         mock_workspace.name = "test-workspace"
-        mock_workspace.model_dump.return_value = {
-            "id": "ws-123",
-            "name": "test-workspace",
-            "description": "Test workspace"
-        }
-        
+        mock_workspace.model_dump.return_value = {"id": "ws-123", "name": "test-workspace", "description": "Test workspace"}
+
         mock_adapter.client.workspaces.read.return_value = mock_workspace
-        
+
         result = get_workspace(mock_adapter, "test-org", "test-workspace")
-        
+
         assert result is not None
         assert result["id"] == "ws-123"
         assert result["name"] == "test-workspace"
@@ -54,9 +49,9 @@ class TestGetWorkspace:
         """Test get_workspace returns None when workspace not found."""
         mock_adapter = Mock()
         mock_adapter.client.workspaces.read.side_effect = NotFound("Workspace not found")
-        
+
         result = get_workspace(mock_adapter, "test-org", "nonexistent")
-        
+
         assert result is None
         mock_adapter.client.workspaces.read.assert_called_once_with("nonexistent", organization="test-org")
 
@@ -70,16 +65,12 @@ class TestGetWorkspaceById:
         mock_workspace = Mock()
         mock_workspace.id = "ws-456"
         mock_workspace.name = "prod-workspace"
-        mock_workspace.model_dump.return_value = {
-            "id": "ws-456",
-            "name": "prod-workspace",
-            "auto_apply": True
-        }
-        
+        mock_workspace.model_dump.return_value = {"id": "ws-456", "name": "prod-workspace", "auto_apply": True}
+
         mock_adapter.client.workspaces.read_by_id.return_value = mock_workspace
-        
+
         result = get_workspace_by_id(mock_adapter, "ws-456")
-        
+
         assert result is not None
         assert result["id"] == "ws-456"
         assert result["name"] == "prod-workspace"
@@ -89,9 +80,9 @@ class TestGetWorkspaceById:
         """Test get_workspace_by_id returns None when workspace not found."""
         mock_adapter = Mock()
         mock_adapter.client.workspaces.read_by_id.side_effect = NotFound("Workspace not found")
-        
+
         result = get_workspace_by_id(mock_adapter, "ws-nonexistent")
-        
+
         assert result is None
         mock_adapter.client.workspaces.read_by_id.assert_called_once_with("ws-nonexistent")
 
@@ -107,13 +98,13 @@ class TestCreateWorkspace:
         mock_adapter = Mock()
         mock_workspace = Mock()
         mock_workspace.id = "ws-new"
-        
+
         mock_build_payload.return_value = {"name": "new-workspace"}
         mock_safe_call.return_value = mock_workspace
         mock_format.return_value = {"id": "ws-new", "name": "new-workspace"}
-        
+
         result = create_workspace(mock_adapter, "test-org", name="new-workspace")
-        
+
         assert result["id"] == "ws-new"
         mock_build_payload.assert_called_once()
         mock_safe_call.assert_called_once()
@@ -131,14 +122,14 @@ class TestUpdateWorkspace:
         mock_adapter = Mock()
         mock_workspace = Mock()
         mock_workspace.id = "ws-123"
-        
+
         # Include name in the payload since WorkspaceUpdateOptions requires it
         mock_build_payload.return_value = {"name": "test-workspace", "description": "Updated description"}
         mock_safe_call.return_value = mock_workspace
         mock_format.return_value = {"id": "ws-123", "name": "test-workspace", "description": "Updated description"}
-        
+
         result = update_workspace(mock_adapter, "ws-123", name="test-workspace", description="Updated description")
-        
+
         assert result["id"] == "ws-123"
         mock_build_payload.assert_called_once()
         mock_safe_call.assert_called_once()
@@ -156,12 +147,12 @@ class TestLockWorkspace:
         mock_workspace = Mock()
         mock_workspace.id = "ws-123"
         mock_workspace.locked = True
-        
+
         mock_safe_call.return_value = mock_workspace
         mock_format.return_value = {"id": "ws-123", "locked": True}
-        
+
         result = lock_workspace(mock_adapter, "ws-123", "Maintenance")
-        
+
         assert result["locked"] is True
         mock_safe_call.assert_called_once()
         mock_format.assert_called_once_with(mock_workspace)
@@ -178,12 +169,12 @@ class TestUnlockWorkspace:
         mock_workspace = Mock()
         mock_workspace.id = "ws-123"
         mock_workspace.locked = False
-        
+
         mock_safe_call.return_value = mock_workspace
         mock_format.return_value = {"id": "ws-123", "locked": False}
-        
+
         result = unlock_workspace(mock_adapter, "ws-123")
-        
+
         assert result["locked"] is False
         mock_safe_call.assert_called_once()
         mock_format.assert_called_once_with(mock_workspace)
@@ -200,12 +191,12 @@ class TestForceUnlockWorkspace:
         mock_workspace = Mock()
         mock_workspace.id = "ws-123"
         mock_workspace.locked = False
-        
+
         mock_safe_call.return_value = mock_workspace
         mock_format.return_value = {"id": "ws-123", "locked": False}
-        
+
         result = force_unlock_workspace(mock_adapter, "ws-123")
-        
+
         assert result["locked"] is False
         mock_safe_call.assert_called_once()
         mock_format.assert_called_once_with(mock_workspace)
@@ -219,9 +210,9 @@ class TestDeleteWorkspace:
         """Test safe_delete_workspace calls safe_api_call correctly."""
         mock_adapter = Mock()
         mock_safe_call.return_value = None
-        
+
         safe_delete_workspace(mock_adapter, "ws-123")
-        
+
         mock_safe_call.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.workspace.safe_api_call")
@@ -229,7 +220,7 @@ class TestDeleteWorkspace:
         """Test force_delete_workspace calls safe_api_call correctly."""
         mock_adapter = Mock()
         mock_safe_call.return_value = None
-        
+
         force_delete_workspace(mock_adapter, "ws-123")
-        
+
         mock_safe_call.assert_called_once()
