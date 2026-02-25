@@ -57,6 +57,7 @@ def get_workspace_by_id(adapter: TerraformClient, workspace_id: str) -> Dict[str
         # This should not raise an exception
         return None
 
+
 def get_workspace(adapter: TerraformClient, organization: str, workspace_name: str) -> Dict[str, Any] | None:
     """
     Retrieves a specified workspace from Terraform Cloud.
@@ -82,6 +83,7 @@ def get_workspace(adapter: TerraformClient, organization: str, workspace_name: s
         # workspace was not found
         # This should not raise an exception
         return None
+
 
 def _build_workspace_payload(attributes: Dict[str, Any]) -> Dict[str, Any]:
     """Build workspace payload from attributes for create/update operations.
@@ -131,6 +133,7 @@ def _build_workspace_payload(attributes: Dict[str, Any]) -> Dict[str, Any]:
 
     return payload
 
+
 def create_workspace(adapter: TerraformClient, organization: str, **attributes) -> Dict[str, Any]:
     """
     Creates a new workspace for a specified Terraform Cloud workspace.
@@ -161,6 +164,7 @@ def create_workspace(adapter: TerraformClient, organization: str, **attributes) 
 
     return format_response(workspace)
 
+
 def update_workspace(adapter: TerraformClient, workspace_id: str, **attributes) -> Dict[str, Any]:
     """
     Updates an existing workspace for a specified Terraform Cloud workspace.
@@ -182,11 +186,10 @@ def update_workspace(adapter: TerraformClient, workspace_id: str, **attributes) 
 
     update_options = WorkspaceUpdateOptions(**update_kwargs)
 
-    workspace = safe_api_call(
-        adapter.client.workspaces.update_by_id, workspace_id, update_options, error_context=f"Failed to update workspace {workspace_id}"
-    )
+    workspace = safe_api_call(adapter.client.workspaces.update_by_id, workspace_id, update_options, error_context=f"Failed to update workspace {workspace_id}")
 
     return format_response(workspace)
+
 
 def safe_delete_workspace(adapter: TerraformClient, workspace_id: str) -> None:
     """
@@ -199,6 +202,7 @@ def safe_delete_workspace(adapter: TerraformClient, workspace_id: str) -> None:
     """
     safe_api_call(adapter.client.workspaces.safe_delete_by_id, workspace_id, error_context=f"Failed to safely delete workspace {workspace_id}")
 
+
 def force_delete_workspace(adapter: TerraformClient, workspace_id: str) -> None:
     """
     Force deletes a specified workspace in Terraform Cloud.
@@ -209,6 +213,7 @@ def force_delete_workspace(adapter: TerraformClient, workspace_id: str) -> None:
         workspace_id (str): The ID of the workspace to delete.
     """
     safe_api_call(adapter.client.workspaces.delete_by_id, workspace_id, error_context=f"Failed to force delete workspace {workspace_id}")
+
 
 def lock_workspace(adapter: TerraformClient, workspace_id: str, reason: str) -> Dict[str, Any]:
     """
@@ -231,6 +236,7 @@ def lock_workspace(adapter: TerraformClient, workspace_id: str, reason: str) -> 
 
     return format_response(workspace)
 
+
 def unlock_workspace(
     adapter: TerraformClient,
     workspace_id: str,
@@ -251,6 +257,7 @@ def unlock_workspace(
     workspace = safe_api_call(adapter.client.workspaces.unlock, workspace_id, error_context=f"Failed to unlock workspace {workspace_id}")
 
     return format_response(workspace)
+
 
 def force_unlock_workspace(adapter: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
