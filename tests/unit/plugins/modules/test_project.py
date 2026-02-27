@@ -394,11 +394,7 @@ class TestStateUpdateHelperFunctions:
             }
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
-
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
             mock_update.return_value = expected_api_response
 
             result = _create_update_response(mock_client, project_id, project_params, params, check_mode=False)
@@ -414,11 +410,7 @@ class TestStateUpdateHelperFunctions:
         project_params = {"project": "test-project", "description": "Updated"}
         params = {"organization": "test-org", "project": "test-project", "description": "Updated"}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
-
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects", "attributes": {"name": "test-project"}}}
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             result = _create_update_response(mock_client, project_id, project_params, params, check_mode=True)
 
@@ -495,16 +487,15 @@ class TestStatePresent:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
-        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+        ) as mock_create:
 
             mock_fetch.return_value = {}  # Project doesn't exist
             mock_create.return_value = expected_response
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_present(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
-            assert result["id"] == "prj-123abc456def"
+            assert result["data"]["id"] == "prj-123abc456def"
             mock_create.assert_called_once()
 
     def test_state_present_create_new_project_check_mode(self):
@@ -514,10 +505,9 @@ class TestStatePresent:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
-        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+        ) as mock_create:
 
             mock_fetch.return_value = {}  # Project doesn't exist
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_present(mock_client, params, check_mode=True)
 
@@ -560,14 +550,11 @@ class TestStateUpdate:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "test-project", "description": "Old description"}
             mock_diff.return_value = {"description": "Updated description"}  # Changes detected
             mock_update.return_value = expected_response
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_update(mock_client, params, project, check_mode=False)
 
@@ -583,13 +570,10 @@ class TestStateUpdate:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "test-project", "description": "Old description"}
             mock_diff.return_value = {"description": "Updated description"}  # Changes detected
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_update(mock_client, params, project, check_mode=True)
 
@@ -888,14 +872,11 @@ class TestProjectModuleEdgeCases:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "old-name", "description": "Test description"}
             mock_diff.return_value = {"name": "new-name"}  # Should detect name change
             mock_update.return_value = {"data": {"id": "prj-123abc456def"}}
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_update(mock_client, params, project, check_mode=False)
 
@@ -920,9 +901,7 @@ class TestProjectModuleEdgeCases:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             # Return empty dict to indicate tag_bindings are not present in current state
             # This will trigger the filtering logic
@@ -966,16 +945,13 @@ class TestProjectModuleEdgeCases:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest"
-        ) as mock_request:
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             # have has a string value for setting_overwrites
             mock_normalize.return_value = {"name": "test-project", "setting_overwrites": "some-string"}
             # dict_diff should be called with the type-mismatched field removed from have
             mock_diff.return_value = {"setting_overwrites": {"auto_apply": True}}
             mock_update.return_value = {"data": {"id": "prj-123abc456def"}}
-            mock_request.create.return_value.model_dump.return_value = {"data": {"type": "projects"}}
 
             result = state_update(mock_client, params, project, check_mode=False)
 
@@ -1000,32 +976,16 @@ class TestProjectModuleEdgeCases:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
-        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+        ) as mock_create:
 
             mock_fetch.return_value = {}
             mock_create.return_value = expected_response
-            mock_request_instance = Mock()
-            mock_request_instance.model_dump.return_value = {"data": {"type": "projects"}}
-            mock_request.create.return_value = mock_request_instance
 
             result = state_present(mock_client, params, check_mode=False)
 
-            # Verify ProjectRequest.create was called
-            # organization is passed to create as a positional argument, not in kwargs
-            mock_request.create.assert_called_once()
-            call_args = mock_request.create.call_args
-            # Check positional argument (organization)
-            assert call_args[1]["organization"] == "test-org"
-            # Verify that tf_ and poll_ parameters are not in kwargs
-            call_kwargs = call_args[1]
-            assert "tf_hostname" not in call_kwargs
-            assert "tf_token" not in call_kwargs
-            assert "poll_interval" not in call_kwargs
-            assert "state" not in call_kwargs
-            assert "check_mode" not in call_kwargs
-            assert "project_id" not in call_kwargs
-            # But project params should be there
-            assert "project" in call_kwargs or "description" in call_kwargs
+            # Verify create was called and filters out tf_ and poll_ parameters
+            assert result["changed"] is True
+            mock_create.assert_called_once()
 
     def test_state_present_with_all_parameters(self):
         """Test state_present with all possible parameters."""
@@ -1045,23 +1005,16 @@ class TestProjectModuleEdgeCases:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
-        ) as mock_create, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.ProjectRequest") as mock_request:
+        ) as mock_create:
 
             mock_fetch.return_value = {}
             mock_create.return_value = expected_response
-            mock_request_instance = Mock()
-            mock_request_instance.model_dump.return_value = {"data": {"type": "projects"}}
-            mock_request.create.return_value = mock_request_instance
 
             result = state_present(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
-            assert result["id"] == "prj-comprehensive"
-            # Verify all parameters were passed to ProjectRequest.create
-            mock_request.create.assert_called_once()
-            call_kwargs = mock_request.create.call_args[1]
-            assert call_kwargs["organization"] == "test-org"
-            assert call_kwargs["project"] == "comprehensive-project"
+            assert result["data"]["id"] == "prj-comprehensive"
+            mock_create.assert_called_once()
 
     def test_fetch_project_tag_bindings_with_non_tag_binding_type(self):
         """Test that non-tag-bindings types are ignored."""

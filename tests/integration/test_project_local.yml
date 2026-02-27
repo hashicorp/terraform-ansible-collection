@@ -1,0 +1,25 @@
+---
+# Test Project Module Locally
+# This follows the same pattern as test_workspace_local.yml
+# Includes the actual integration tests from targets/project/tasks/main.yml
+#
+# Prerequisites:
+#   1. Set environment variables:
+#      export TFE_TOKEN="your-token"
+#      export TFC_ORGANIZATION="your-org"
+#
+# Usage:
+#   cd tests/integration
+#   ansible-playbook test_project_local.yml \
+#     -e "tfc_token=$TFE_TOKEN" \
+#     -e "organization=$TFC_ORGANIZATION" \
+#     -vvv
+
+- name: Test Project Module Locally
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Run project integration tests
+      ansible.builtin.include_tasks:
+        file: targets/project/tasks/main.yml

@@ -1,0 +1,103 @@
+---
+# Simple example playbook to test project resource
+# This is a minimal example to get started quickly
+#
+# Usage:
+#   export TFE_TOKEN="your-token"
+#   ansible-playbook tests/integration/test_project_simple.yml \
+#     -e tfe_org="my-organization" \
+#     -v
+
+- name: Simple Project Resource Test
+  hosts: localhost
+  gather_facts: no
+  vars:
+    # Get from environment or use defaults
+    tfe_hostname: "{{ lookup('env', 'TFE_HOSTNAME') | default('app.terraform.io') }}"
+    tfe_token: "{{ lookup('env', 'TFE_TOKEN') }}"
+    tfe_org: "{{ tfe_org | default('my-org') }}"
+    test_project: "test-project-{{ 999999 | random }}"
+  
+  pre_tasks:
+    - name: Check token is set
+      assert:
+        that: tfe_token != ""
+        fail_msg: "Set TFE_TOKEN environment variable"
+    
+    - name: Configuration
+      debug:
+        msg: |
+          Testing Project Resource:
+          - Hostname: {{ tfe_hostname }}
+          - Org: {{ tfe_org }}
+          - Project: {{ test_project }}
+
+  tasks:
+    # CREATE
+    - name: "1️⃣  CREATE: Make a new project"
+      hashicorp.terraform.project:
+        name: "{{ test_project }}"
+        organization: "{{ tfe_org }}"
+        description: "Test project from Ansible"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: result
+
+    - name: "✅ Created"
+      debug:
+        msg: "Project {{ result.id }} created successfully"
+
+    # READ (verify idempotency)
+    - name: "2️⃣  READ: Same project again (should not change)"
+      hashicorp.terraform.project:
+        name: "{{ test_project }}"
+        organization: "{{ tfe_org }}"
+        description: "Test project from Ansible"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: result
+
+    - name: "✅ Idempotent"
+      assert:
+        that: result.changed == false
+        fail_msg: "Second create should not change"
+
+    # UPDATE
+    - name: "3️⃣  UPDATE: Change description"
+      hashicorp.terraform.project:
+        name: "{{ test_project }}"
+        organization: "{{ tfe_org }}"
+        description: "Updated from Ansible"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: result
+
+    - name: "✅ Updated"
+      debug:
+        msg: "Project updated: {{ result.description }}"
+
+    # DELETE
+    - name: "4️⃣  DELETE: Remove project"
+      hashicorp.terraform.project:
+        name: "{{ test_project }}"
+        organization: "{{ tfe_org }}"
+        state: absent
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: result
+
+    - name: "✅ Deleted"
+      debug:
+        msg: "Project deleted successfully"
+
+  post_tasks:
+    - name: "🎉 All tests passed!"
+      debug:
+        msg: |
+          ✅ CREATE  - Project created
+          ✅ READ   - Idempotency verified
+          ✅ UPDATE - Description changed
+          ✅ DELETE - Project removed

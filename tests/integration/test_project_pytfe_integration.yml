@@ -1,0 +1,236 @@
+---
+# Integration tests for Project resource with pytfe SDK
+# Tests CRUD operations against actual Terraform Cloud/Enterprise instance
+#
+# Prerequisites:
+#   - TFE_TOKEN environment variable set
+#   - TFE_HOSTNAME (optional, defaults to app.terraform.io)
+#   - Access to valid organization in TFC/TFE
+#
+# Run with:
+#   export TFE_TOKEN="your-token-here"
+#   ansible-playbook tests/integration/test_project_pytfe_integration.yml \
+#     -e tfe_org="my-org" \
+#     -e test_project_name="ansible-test-project"
+
+- name: Project Resource pytfe SDK Integration Tests
+  hosts: localhost
+  gather_facts: no
+  vars:
+    tfe_hostname: "{{ lookup('env', 'TFE_HOSTNAME') | default('app.terraform.io') }}"
+    tfe_token: "{{ lookup('env', 'TFE_TOKEN') }}"
+    tfe_org: "{{ tfe_org | default('my-org') }}"
+    test_project_name: "{{ test_project_name | default('ansible-test-project-' + (ansible_date_time.iso8601_basic_short | regex_replace('[T:]', ''))) }}"
+    test_project_description: "Test project created by Ansible"
+  
+  tasks:
+    - name: Validate TFE token is provided
+      assert:
+        that:
+          - tfe_token is defined
+          - tfe_token != ""
+        fail_msg: "TFE_TOKEN environment variable must be set"
+    
+    - name: Display test configuration
+      debug:
+        msg: |
+          Integration Test Configuration:
+          ================================
+          Hostname: {{ tfe_hostname }}
+          Organization: {{ tfe_org }}
+          Test Project Name: {{ test_project_name }}
+          Description: {{ test_project_description }}
+
+    # ========== CREATE TESTS ==========
+    - name: "CREATE: Test basic project creation"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        description: "{{ test_project_description }}"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: create_result
+    
+    - name: "CREATE: Verify project was created"
+      assert:
+        that:
+          - create_result.changed == true
+          - create_result.id is defined
+          - create_result.name == test_project_name
+          - create_result.description == test_project_description
+        fail_msg: "Project creation failed"
+      register: create_test
+
+    - name: "CREATE: Store project ID for later use"
+      set_fact:
+        created_project_id: "{{ create_result.id }}"
+
+    - name: "CREATE: Display created project details"
+      debug:
+        var: create_result
+
+    # ========== READ TESTS ==========
+    - name: "READ: Test idempotent create (should not change)"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        description: "{{ test_project_description }}"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: read_result
+    
+    - name: "READ: Verify idempotency (no change)"
+      assert:
+        that:
+          - read_result.changed == false
+          - read_result.id == created_project_id
+        fail_msg: "Idempotent create test failed"
+      register: read_test
+
+    - name: "READ: Test read by project_id"
+      hashicorp.terraform.project:
+        project_id: "{{ created_project_id }}"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: read_by_id_result
+    
+    - name: "READ: Verify read by ID successful"
+      assert:
+        that:
+          - read_by_id_result.changed == false
+          - read_by_id_result.id == created_project_id
+        fail_msg: "Read by project_id failed"
+
+    # ========== UPDATE TESTS ==========
+    - name: "UPDATE: Change project description"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        description: "Updated test project description"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: update_desc_result
+    
+    - name: "UPDATE: Verify description changed"
+      assert:
+        that:
+          - update_desc_result.changed == true
+          - update_desc_result.description == "Updated test project description"
+        fail_msg: "Description update failed"
+      register: update_desc_test
+
+    - name: "UPDATE: Change execution mode to remote"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        execution_mode: "remote"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: update_exec_result
+    
+    - name: "UPDATE: Verify execution mode changed"
+      assert:
+        that:
+          - update_exec_result.changed == true
+          - update_exec_result.execution_mode == "remote"
+        fail_msg: "Execution mode update failed"
+
+    - name: "UPDATE: Change execution mode to local"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        execution_mode: "local"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: update_exec_local_result
+    
+    - name: "UPDATE: Verify execution mode changed to local"
+      assert:
+        that:
+          - update_exec_local_result.changed == true
+          - update_exec_local_result.execution_mode == "local"
+        fail_msg: "Execution mode update to local failed"
+
+    - name: "UPDATE: Set auto-destroy activity duration"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        auto_destroy_activity_duration: "30d"
+        state: present
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: update_autodestroy_result
+    
+    - name: "UPDATE: Verify auto-destroy duration set"
+      assert:
+        that:
+          - update_autodestroy_result.changed == true
+          - update_autodestroy_result.auto_destroy_activity_duration == "30d"
+        fail_msg: "Auto-destroy duration update failed"
+
+    # ========== DELETE TESTS ==========
+    - name: "DELETE: Remove project"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        state: absent
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: delete_result
+    
+    - name: "DELETE: Verify project was deleted"
+      assert:
+        that:
+          - delete_result.changed == true
+          - delete_result.msg is search("deleted|removed")
+        fail_msg: "Project deletion failed"
+      register: delete_test
+
+    - name: "DELETE: Verify delete is idempotent (second delete)"
+      hashicorp.terraform.project:
+        name: "{{ test_project_name }}"
+        organization: "{{ tfe_org }}"
+        state: absent
+        tfe_hostname: "{{ tfe_hostname }}"
+        tfe_token: "{{ tfe_token }}"
+      register: delete_idempotent_result
+    
+    - name: "DELETE: Verify second delete is idempotent"
+      assert:
+        that:
+          - delete_idempotent_result.changed == false
+        fail_msg: "Delete idempotency test failed"
+
+    # ========== SUMMARY ==========
+    - name: Display test summary
+      debug:
+        msg: |
+          ✅ Integration Test Summary
+          ===========================
+          CREATE Tests: PASSED
+            - Basic project creation: ✅
+            - Idempotency check: ✅
+            - Read by project_id: ✅
+          
+          UPDATE Tests: PASSED
+            - Description update: ✅
+            - Execution mode change (remote): ✅
+            - Execution mode change (local): ✅
+            - Auto-destroy duration: ✅
+          
+          DELETE Tests: PASSED
+            - Project deletion: ✅
+            - Delete idempotency: ✅
+          
+          All integration tests passed!
+
+  handlers:
+    - name: cleanup_on_failure
+      debug:
+        msg: "Integration tests failed. Cleanup may be needed."

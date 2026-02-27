@@ -21,6 +21,7 @@ dev = [
 [tool.isort]
 profile = "black"
 line_length = 160
+multi_line_mode = 3
 known_first_party = ["ansible_collections.hashicorp.terraform"]
 lines_after_imports = 2
 lines_between_types = 1

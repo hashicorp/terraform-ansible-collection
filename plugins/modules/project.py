@@ -363,8 +363,7 @@ data:
 from copy import deepcopy
 from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project import ProjectRequest
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     create_project,
     delete_project,
@@ -437,20 +436,22 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
         dict: A dictionary representing the normalized state of the project, excluding
               any fields that are `None`.
     """
+    # Extract the actual data dict from response wrapper
+    project_data = response_data.get("data", response_data)
 
     normalized = {
-        "name": response_data["data"].get("attributes", {}).get("name"),
-        "description": response_data["data"].get("attributes", {}).get("description"),
-        "auto_destroy_activity_duration": response_data["data"].get("attributes", {}).get("auto-destroy-activity-duration"),
-        "execution_mode": response_data["data"].get("attributes", {}).get("default-execution-mode"),
-        "setting_overwrites": response_data["data"].get("attributes", {}).get("setting-overwrites"),
+        "name": project_data.get("attributes", {}).get("name"),
+        "description": project_data.get("attributes", {}).get("description"),
+        "auto_destroy_activity_duration": project_data.get("attributes", {}).get("auto-destroy-activity-duration"),
+        "execution_mode": project_data.get("attributes", {}).get("default-execution-mode"),
+        "setting_overwrites": project_data.get("attributes", {}).get("setting-overwrites"),
     }
 
     # Extract default_agent_pool_id from attributes first, then relationships
-    default_agent_pool_id = response_data["data"].get("attributes", {}).get("default-agent-pool-id")
+    default_agent_pool_id = project_data.get("attributes", {}).get("default-agent-pool-id")
     if default_agent_pool_id is None:
         # If not in attributes or is None, try relationships
-        relationships = response_data["data"].get("relationships", {})
+        relationships = project_data.get("relationships", {})
         default_agent_pool = relationships.get("default-agent-pool", {})
         agent_pool_data = default_agent_pool.get("data")
         if agent_pool_data:
@@ -458,7 +459,7 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
 
     # Include default_agent_pool_id if it was found in attributes (even if None)
     # or if it was found in relationships
-    if "default-agent-pool-id" in response_data["data"].get("attributes", {}) or default_agent_pool_id:
+    if "default-agent-pool-id" in project_data.get("attributes", {}) or default_agent_pool_id:
         normalized["default_agent_pool_id"] = default_agent_pool_id
 
     # Include tag bindings (keep even if empty to allow comparison)
@@ -511,17 +512,30 @@ def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: b
         return state_update(client, params, project, check_mode)
     else:
         # Project doesn't exist, create it
-        project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
-            by_alias=True, exclude_unset=False, exclude_none=True
-        )
         if not check_mode:
-            response = create_project(client, organization=params.get("organization"), data=project_request)
-            return {"changed": True, **response.get("data")}
+            response = create_project(
+                client,
+                organization=params.get("organization"),
+                name=params.get("project"),
+                description=params.get("description"),
+                auto_destroy_activity_duration=params.get("auto_destroy_activity_duration"),
+                execution_mode=params.get("execution_mode"),
+                default_agent_pool_id=params.get("default_agent_pool_id"),
+                setting_overwrites=params.get("setting_overwrites"),
+                tag_bindings=params.get("tag_bindings"),
+            )
+            return {"changed": True, **response}
         else:
             return {
                 "changed": True,
                 "msg": f"The project {params.get('project')} would be created with the given options. Skipped creation due to check mode.",
-                **project_request["data"],
+                "name": params.get("project"),
+                "description": params.get("description"),
+                "auto_destroy_activity_duration": params.get("auto_destroy_activity_duration"),
+                "execution_mode": params.get("execution_mode"),
+                "default_agent_pool_id": params.get("default_agent_pool_id"),
+                "setting_overwrites": params.get("setting_overwrites"),
+                "tag_bindings": params.get("tag_bindings"),
             }
 
 
@@ -638,18 +652,30 @@ def _create_update_response(
     Returns:
         Dictionary with update results or check mode message
     """
-    project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
-        by_alias=True, exclude_unset=False, exclude_none=True
-    )
-
     if not check_mode:
-        response = update_project(client, project_id, project_request)
+        response = update_project(
+            client,
+            project_id,
+            name=project_params.get("project") or project_params.get("name"),
+            description=project_params.get("description"),
+            auto_destroy_activity_duration=project_params.get("auto_destroy_activity_duration"),
+            execution_mode=project_params.get("execution_mode"),
+            default_agent_pool_id=project_params.get("default_agent_pool_id"),
+            setting_overwrites=project_params.get("setting_overwrites"),
+            tag_bindings=project_params.get("tag_bindings"),
+        )
         return {"changed": True, **response.get("data")}
     else:
         return {
             "changed": True,
             "msg": f"The project {project_id} would be updated with the given options. Skipped update due to check mode.",
-            **project_request.get("data"),
+            "name": project_params.get("project") or project_params.get("name"),
+            "description": project_params.get("description"),
+            "auto_destroy_activity_duration": project_params.get("auto_destroy_activity_duration"),
+            "execution_mode": project_params.get("execution_mode"),
+            "default_agent_pool_id": project_params.get("default_agent_pool_id"),
+            "setting_overwrites": project_params.get("setting_overwrites"),
+            "tag_bindings": project_params.get("tag_bindings"),
         }
 
 
@@ -766,7 +792,7 @@ def main():
         module.exit_json(**result)
 
     except Exception as e:
-        module.fail_from_exception(e)
+        module.fail_json(msg=str(e))
 
 
 if __name__ == "__main__":

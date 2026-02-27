@@ -2,7 +2,7 @@
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
-      tf_token: "{{ tfc_token }}"
+      tfe_token: "{{ tfc_token }}"
 
   block:
     - name: Generate a unique project name
