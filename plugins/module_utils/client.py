@@ -140,9 +140,14 @@ class TerraformClient:
 
         This method can be called explicitly or used in a context manager.
         """
+    def cleanup(self) -> None:
+        """Cleanup resources (if needed).
+
+        This method can be called explicitly or used in a context manager.
+        """
         # Close any open connections or resources
-        if self._client:
+        if self._client and hasattr(self._client, "close"):
             self._client.close()
-            self._client = None
+        self._client = None
 
         self._config = None
