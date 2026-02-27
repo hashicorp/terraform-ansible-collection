@@ -165,6 +165,24 @@ EXAMPLES = r"""
     organization: <your-organization>
     state: present
 
+# Task output:
+# ------------
+# "result_create": {
+#     "changed": true,
+#     "id": "ws-ybMGvqhs6MWLa5S2",
+#     "name": "my-workspace",
+#     "organization": "my-organization",
+#     "execution_mode": "remote",
+#     "auto_apply": false,
+#     "auto_apply_run_trigger": true,
+#     "terraform_version": "1.12.2",
+#     "description": "",
+#     "locked": false,
+#     "created_at": "2026-02-26T08:00:00.000000Z",
+#     "updated_at": "2026-02-26T08:00:00.000000Z",
+#     "msg": "Workspace 'my-workspace' created successfully."
+# }
+
 - name: Create a new workspace
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
@@ -181,6 +199,41 @@ EXAMPLES = r"""
     auto_destroy_at: "2025-08-10T15:00:00Z"
     state: present
 
+# Task output:
+# ------------
+# "result_create": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "organization": "my-organization",
+#     "execution_mode": "remote",
+#     "description": "This is a dev workspace.",
+#     "auto_apply": true,
+#     "terraform_version": "1.12.2",
+#     "project_id": "prj-abc123",
+#     "allow_destroy_plan": true,
+#     "assessments_enabled": false,
+#     "file_triggers_enabled": true,
+#     "global_remote_state": false,
+#     "operations": true,
+#     "queue_all_runs": false,
+#     "speculative_enabled": true,
+#     "structured_run_output_enabled": true,
+#     "locked": false,
+#     "tag_names": [],
+#     "tag_bindings": [],
+#     "source_name": "xyz",
+#     "created_at": "2026-02-26T08:00:00.000000Z",
+#     "updated_at": "2026-02-26T08:00:00.000000Z",
+#     "permissions": {
+#         "can_update": true,
+#         "can_destroy": true,
+#         "can_queue_run": true,
+#         "can_lock": true
+#     },
+#     "msg": "Workspace 'my-workspace' created successfully."
+# }
+
 - name: Update an existing workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
@@ -194,6 +247,20 @@ EXAMPLES = r"""
     assessments_enabled: true
     state: present
 
+# Task output:
+# ------------
+# "result_update": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "execution_mode": "remote",
+#     "description": "This is an updated dev workspace.",
+#     "auto_apply": true,
+#     "project_id": "prj-xyz456",
+#     "terraform_version": "1.12.2",
+#     "updated_at": "2026-02-26T09:00:00.000000Z",
+# }
+
 - name: Update workspace execution mode to 'agent' by overwriting inherited execution mode from project
   hashicorp.terraform.workspace:
     workspace: <your-workspace-name>
@@ -204,6 +271,19 @@ EXAMPLES = r"""
       execution_mode: true
       agent_pool: true
     state: present
+
+# Task output:
+# ------------
+# "result_update": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "execution_mode": "agent",
+#     "setting_overwrites": {
+#         "execution_mode": true,
+#         "agent_pool": true
+#     },
+# }
 
 - name: Safe delete a workspace
   hashicorp.terraform.workspace:
@@ -239,10 +319,33 @@ EXAMPLES = r"""
     lock_reason: "your specific reason"
     state: locked
 
+# Task output:
+# ------------
+# "result_lock": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "locked": true,
+#     "execution_mode": "remote",
+#     "terraform_version": "1.12.2",
+#     "msg": "Workspace 'ws-abc123xyz' locked successfully."
+# }
+
 - name: Unlock a workspace
   hashicorp.terraform.workspace:
     workspace_id: <your-workspace-id>
     state: unlocked
+
+# Task output:
+# ------------
+# "result_unlock": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "locked": false,
+#     "execution_mode": "remote",
+#     "msg": "Workspace 'ws-abc123xyz' unlocked successfully."
+# }
 
 - name: Force unlock a workspace
   hashicorp.terraform.workspace:
@@ -257,27 +360,181 @@ id:
   returned: when state is 'present' or 'locked' or 'unlocked'
   type: str
   sample: "ws-ybMGvqhs6MWLa5S2"
-type:
-    description: The resource type, always 'workspaces'.
-    returned: when state is 'present' or 'locked' or 'unlocked'
-    type: str
-    sample: "workspaces"
-attributes:
-  type: dict
+name:
+  description: The name of the workspace.
   returned: when state is 'present' or 'locked' or 'unlocked'
-  description: The attributes of the workspace created/updated/locked/unlocked.
-relationships:
-  description: Related resources linked to the run.
-  returned: when state is 'present' or 'locked' or 'unlocked'
-  type: dict
-links:
-  description: API links for the run.
-  returned: when state is 'present' or 'locked' or 'unlocked'
-  type: dict
-msg:
   type: str
-  returned: when state is 'absent'.
-  description: The status of the operation.
+  sample: "my-workspace"
+organization:
+  description: The organization name.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "my-organization"
+execution_mode:
+  description: The execution mode of the workspace (remote, local, or agent).
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "remote"
+description:
+  description: A description for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "My workspace description"
+auto_apply:
+  description: Whether to automatically apply changes when a Terraform plan is successful.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+auto_apply_run_trigger:
+  description: Whether to automatically queue a run when new configuration versions are uploaded.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+terraform_version:
+  description: The version of Terraform to use for this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "1.12.2"
+working_directory:
+  description: The directory relative to the root of the repository where Terraform will be run.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "terraform/"
+locked:
+  description: Whether the workspace is locked.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+created_at:
+  description: The timestamp when the workspace was created.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "2026-02-26T08:00:00.000000Z"
+updated_at:
+  description: The timestamp when the workspace was last updated.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "2026-02-26T09:00:00.000000Z"
+allow_destroy_plan:
+  description: Whether destroy plans can be queued on the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+assessments_enabled:
+  description: Whether health assessments are enabled for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+file_triggers_enabled:
+  description: Whether to filter runs based on the changed files in a VCS push.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+global_remote_state:
+  description: Whether the workspace allows all workspaces in the organization to access its state data.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+operations:
+  description: Whether to use Terraform Cloud as the execution platform for this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+queue_all_runs:
+  description: Whether runs should be queued immediately after workspace creation.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+speculative_enabled:
+  description: Whether to allow speculative plans.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+structured_run_output_enabled:
+  description: Whether to enable structured run output.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+project_id:
+  description: The ID of the project this workspace belongs to.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "prj-abc123xyz"
+setting_overwrites:
+  description: Settings that have been overridden at the workspace level.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    execution_mode:
+      description: Whether execution mode is overridden.
+      type: bool
+    agent_pool:
+      description: Whether agent pool is overridden.
+      type: bool
+permissions:
+  description: The permissions for the current user on this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    can_update:
+      description: Whether the user can update the workspace.
+      type: bool
+    can_destroy:
+      description: Whether the user can destroy the workspace.
+      type: bool
+    can_queue_run:
+      description: Whether the user can queue a run.
+      type: bool
+    can_lock:
+      description: Whether the user can lock the workspace.
+      type: bool
+    can_unlock:
+      description: Whether the user can unlock the workspace.
+      type: bool
+actions:
+  description: Actions available for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    is_destroyable:
+      description: Whether the workspace can be destroyed.
+      type: bool
+tag_names:
+  description: List of tag names associated with the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: list
+  elements: str
+  sample: ["tag1", "tag2"]
+resource_count:
+  description: The number of resources managed by the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 5
+runs_count:
+  description: The total number of runs for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 10
+policy_check_failures:
+  description: The number of policy check failures.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 0
+run_failures:
+  description: The number of failed runs.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 0
+msg:
+  description: The status message of the operation.
+  returned: always
+  type: str
+  sample: "Workspace 'my-workspace' created successfully."
+changed:
+  description: Whether the workspace was changed.
+  returned: always
+  type: bool
+  sample: true
 """
 
 from copy import deepcopy
@@ -375,8 +632,7 @@ def extract_comparable_attributes(workspace_data: Dict[str, Any]) -> Dict[str, A
         "terraform_version": workspace_data.get("terraform_version"),
         "execution_mode": workspace_data.get("execution_mode"),
         "setting_overwrites": workspace_data.get("setting_overwrites", {}),
-        "agent_pool_id": workspace_data.get("agent_pool_id"),
-        "project_id": workspace_data.get("project_id"),
+        "tag_bindings": workspace_data.get("tag_bindings", []),
     }
 
     # Normalize auto_destroy_at timestamp for consistent comparison
@@ -501,7 +757,7 @@ def state_update(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
         return action_result
 
     # Coupled fields that must be sent together to avoid mismatches
-    preserve_keys = {"name", "setting_overwrites", "execution_mode", "agent_pool_id"}
+    preserve_keys = {"name", "setting_overwrites", "execution_mode"}
 
     # Remove keys from workspace_params that are not in updates (unless they're preserve_keys)
     for key in list(workspace_params.keys()):
