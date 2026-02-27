@@ -387,7 +387,28 @@ def get_project_by_name(client: TerraformClient, organization: str, name: str) -
     """
     response = list_projects(client, organization, query_params={"filter[names]": name})
     data = response.get("data", [])
-    return data[0] if data else {}
+    
+    if not data:
+        return {}
+    
+    # Get the first matching project (has name from list)
+    project = data[0]
+    project_id = project.get("id")
+    
+    if not project_id:
+        return project
+    
+    # Re-fetch with _get_project_full to get complete data (not SDK-filtered)
+    from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
+        _get_project_full,
+    )
+    
+    full_data = _get_project_full(client, project_id)
+    if full_data:
+        return full_data
+    
+    # Fallback to SDK-filtered data if direct API call fails
+    return project
 
 
 def fetch_project_tag_bindings(client: TerraformClient, project_id: str) -> dict:

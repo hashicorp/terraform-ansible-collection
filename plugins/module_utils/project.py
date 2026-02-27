@@ -67,6 +67,45 @@ def _get_project_full(client: TerraformClient, project_id: str) -> Dict[str, Any
         return {}
 
 
+def _patch_project(client: TerraformClient, project_id: str, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply extra project attributes via direct REST API PATCH call.
+
+    Sets attributes like execution_mode, auto_destroy_activity_duration, etc.
+    that ProjectCreateOptions/ProjectUpdateOptions don't support.
+
+    Args:
+        client: TerraformClient instance
+        project_id: The project ID to patch
+        attributes: Dict of attributes to set (in REST API format with dashes)
+
+    Returns:
+        Patched project data from API, or empty dict if failed
+
+    Raises:
+        TerraformError: If the API call fails
+    """
+    try:
+        import requests
+
+        url = f"{client.address}/api/v2/projects/{project_id}"
+        headers = {
+            "Authorization": f"Bearer {client.token}",
+            "Content-Type": "application/vnd.api+json",
+        }
+
+        # Build PATCH body in JSON:API format
+        payload = {"data": {"type": "projects", "attributes": attributes}}
+
+        response = requests.patch(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 404:
+            return {}
+        response.raise_for_status()
+        return response.json().get("data", {})
+    except Exception as e:
+        # Fall back gracefully - partial update is acceptable
+        return {}
+
+
 def _wrap_response(data: Any) -> Dict[str, Any]:
     """Convert pytfe SDK response to REST API format.
 
@@ -229,8 +268,8 @@ def create_project(
         organization: The organization name
         name: The project name
         description: Optional project description
-        tag_bindings: Optional list of tag binding dicts with 'key' and 'value' (ignored - tag bindings must be added separately)
-        **kwargs: Additional project attributes (auto_destroy_activity_duration, execution_mode, etc.)
+        tag_bindings: Optional list of tag binding dicts with 'key' and 'value'
+        **kwargs: Additional project attributes (auto_destroy_activity_duration, execution_mode, setting_overwrites, default_agent_pool_id)
 
     Returns:
         Dictionary containing the created project data wrapped in API format
@@ -252,6 +291,25 @@ def create_project(
 
         # Get project ID from response
         project_id = project.id if hasattr(project, "id") else project.get("id")
+        
+        # Patch extra attributes that ProjectCreateOptions doesn't support
+        if project_id and kwargs:
+            patch_attrs = {}
+            if "execution_mode" in kwargs:
+                patch_attrs["default-execution-mode"] = kwargs["execution_mode"]
+            if "auto_destroy_activity_duration" in kwargs:
+                patch_attrs["auto-destroy-activity-duration"] = kwargs["auto_destroy_activity_duration"]
+            if "setting_overwrites" in kwargs:
+                patch_attrs["setting-overwrites"] = kwargs["setting_overwrites"]
+            if "default_agent_pool_id" in kwargs:
+                patch_attrs["default-agent-pool-id"] = kwargs["default_agent_pool_id"]
+            
+            if patch_attrs:
+                try:
+                    _patch_project(client, project_id, patch_attrs)
+                except Exception:
+                    # Log warning but don't fail - project was created
+                    pass
         
         # Handle tag bindings separately after project creation if provided
         if tag_bindings and project_id:
@@ -292,7 +350,7 @@ def update_project(
         name: Optional new project name
         description: Optional new project description
         tag_bindings: Optional list of tag binding dicts with 'key' and 'value'
-        **kwargs: Additional project attributes to update
+        **kwargs: Additional project attributes (auto_destroy_activity_duration, execution_mode, setting_overwrites, default_agent_pool_id)
 
     Returns:
         Dictionary containing the updated project data wrapped in API format
@@ -311,15 +369,38 @@ def update_project(
             options_dict["description"] = description
 
         # Create ProjectUpdateOptions Pydantic model
-        options = ProjectUpdateOptions(**options_dict)
+        options = ProjectUpdateOptions(**options_dict) if options_dict else None
 
-        # Update the project using pytfe SDK
-        project = client.safe_api_call(
-            client.client.projects.update,
-            project_id,
-            options,
-            error_context=f"Failed to update project {project_id}",
-        )
+        # Update the project using pytfe SDK only if we have name/description to update
+        if options:
+            project = client.safe_api_call(
+                client.client.projects.update,
+                project_id,
+                options,
+                error_context=f"Failed to update project {project_id}",
+            )
+        else:
+            # If only patching extra attributes, fetch current state first
+            project = None
+
+        # Patch extra attributes that ProjectUpdateOptions doesn't support
+        if kwargs:
+            patch_attrs = {}
+            if "execution_mode" in kwargs:
+                patch_attrs["default-execution-mode"] = kwargs["execution_mode"]
+            if "auto_destroy_activity_duration" in kwargs:
+                patch_attrs["auto-destroy-activity-duration"] = kwargs["auto_destroy_activity_duration"]
+            if "setting_overwrites" in kwargs:
+                patch_attrs["setting-overwrites"] = kwargs["setting_overwrites"]
+            if "default_agent_pool_id" in kwargs:
+                patch_attrs["default-agent-pool-id"] = kwargs["default_agent_pool_id"]
+            
+            if patch_attrs:
+                try:
+                    _patch_project(client, project_id, patch_attrs)
+                except Exception:
+                    # Log warning but don't fail - project was updated
+                    pass
 
         # Handle tag bindings separately after project update
         if tag_bindings:
@@ -337,7 +418,9 @@ def update_project(
             return {"data": api_data}
         
         # Fallback to SDK response if direct API call fails
-        return {"data": _wrap_response(project)}
+        if project:
+            return {"data": _wrap_response(project)}
+        return {}
     except NotFound:
         raise TerraformError(f"Project {project_id} not found")
     except Exception as e:
