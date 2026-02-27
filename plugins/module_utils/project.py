@@ -32,6 +32,41 @@ from .client import TerraformClient
 from .exceptions import TerraformError
 
 
+def _get_project_full(client: TerraformClient, project_id: str) -> Dict[str, Any]:
+    """Fetch full project data via direct REST API call.
+
+    Bypasses the pytfe SDK which strips fields not in the Project model.
+    This ensures we get all attributes including execution_mode, auto_destroy_activity_duration, etc.
+
+    Args:
+        client: TerraformClient instance
+        project_id: The project ID to fetch
+
+    Returns:
+        Full project data from API with all attributes, or empty dict if not found
+
+    Raises:
+        TerraformError: If the API call fails
+    """
+    try:
+        import requests
+
+        url = f"{client.address}/api/v2/projects/{project_id}"
+        headers = {
+            "Authorization": f"Bearer {client.token}",
+            "Content-Type": "application/vnd.api+json",
+        }
+
+        response = requests.get(url, headers=headers, timeout=30)
+        if response.status_code == 404:
+            return {}
+        response.raise_for_status()
+        return response.json().get("data", {})
+    except Exception as e:
+        # Fall back gracefully if direct API call fails
+        return {}
+
+
 def _wrap_response(data: Any) -> Dict[str, Any]:
     """Convert pytfe SDK response to REST API format.
 
@@ -117,7 +152,9 @@ def _wrap_list_response(items: List[Any]) -> List[Dict[str, Any]]:
 
 def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any]:
     """
-    Retrieve a project by its ID using the pytfe SDK.
+    Retrieve a project by its ID.
+
+    Uses direct API call to ensure we get all attributes (not just what pytfe SDK model supports).
 
     Args:
         client: TerraformClient instance
@@ -129,16 +166,11 @@ def get_project_by_id(client: TerraformClient, project_id: str) -> Dict[str, Any
     Raises:
         TerraformError: If the SDK operation fails (other than 404)
     """
-    try:
-        project = client.safe_api_call(
-            client.client.projects.read,
-            project_id,
-            error_context=f"Failed to retrieve project {project_id}",
-        )
-        return {"data": _wrap_response(project)}
-    except NotFound:
-        # Project doesn't exist - return empty dict
-        return {}
+    # Use direct API call to get full project data with all attributes
+    api_data = _get_project_full(client, project_id)
+    if api_data:
+        return {"data": api_data}
+    return {}
 
 
 def get_project_by_name(client: TerraformClient, organization: str, name: str) -> Dict[str, Any]:
@@ -218,6 +250,24 @@ def create_project(
             error_context=f"Failed to create project {name} in organization {organization}",
         )
 
+        # Get project ID from response
+        project_id = project.id if hasattr(project, "id") else project.get("id")
+        
+        # Handle tag bindings separately after project creation if provided
+        if tag_bindings and project_id:
+            try:
+                add_project_tag_bindings(client, project_id, tag_bindings)
+            except Exception:
+                # Log warning but don't fail - project was created successfully
+                pass
+
+        # Refetch the project using direct API to get ALL attributes
+        if project_id:
+            api_data = _get_project_full(client, project_id)
+            if api_data:
+                return {"data": api_data}
+        
+        # Fallback to SDK response if direct API call fails
         return {"data": _wrap_response(project)}
     except Exception as e:
         if isinstance(e, TerraformError):
@@ -281,6 +331,12 @@ def update_project(
                 # Log warning but don't fail - project was updated
                 pass
 
+        # Refetch the project using direct API to get ALL attributes
+        api_data = _get_project_full(client, project_id)
+        if api_data:
+            return {"data": api_data}
+        
+        # Fallback to SDK response if direct API call fails
         return {"data": _wrap_response(project)}
     except NotFound:
         raise TerraformError(f"Project {project_id} not found")
