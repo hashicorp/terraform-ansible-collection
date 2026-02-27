@@ -525,7 +525,7 @@ def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: b
     Raises:
         TerraformError: If the response does not return a 201/200 status code.
     """
-    ignore_params = {"check_mode", "state", "organization", "project_id"}
+    ignore_params = {"check_mode", "state", "organization", "project_id", "tfe_token", "tfe_address"}
     project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
 
     if project := fetch_project(client, params):
@@ -715,7 +715,7 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     Returns:
         Dictionary indicating the result of the operation
     """
-    ignore_params = {"check_mode", "state", "organization", "project_id"}
+    ignore_params = {"check_mode", "state", "organization", "project_id", "tfe_token", "tfe_address"}
     project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
 
     project_id = project["data"].get("id") or project.get("id")

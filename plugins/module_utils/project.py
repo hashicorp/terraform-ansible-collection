@@ -295,13 +295,13 @@ def create_project(
         # Patch extra attributes that ProjectCreateOptions doesn't support
         if project_id and kwargs:
             patch_attrs = {}
-            if "execution_mode" in kwargs:
+            if "execution_mode" in kwargs and kwargs["execution_mode"] is not None:
                 patch_attrs["default-execution-mode"] = kwargs["execution_mode"]
-            if "auto_destroy_activity_duration" in kwargs:
+            if "auto_destroy_activity_duration" in kwargs and kwargs["auto_destroy_activity_duration"] is not None:
                 patch_attrs["auto-destroy-activity-duration"] = kwargs["auto_destroy_activity_duration"]
-            if "setting_overwrites" in kwargs:
+            if "setting_overwrites" in kwargs and kwargs["setting_overwrites"] is not None:
                 patch_attrs["setting-overwrites"] = kwargs["setting_overwrites"]
-            if "default_agent_pool_id" in kwargs:
+            if "default_agent_pool_id" in kwargs and kwargs["default_agent_pool_id"] is not None:
                 patch_attrs["default-agent-pool-id"] = kwargs["default_agent_pool_id"]
             
             if patch_attrs:
@@ -386,13 +386,13 @@ def update_project(
         # Patch extra attributes that ProjectUpdateOptions doesn't support
         if kwargs:
             patch_attrs = {}
-            if "execution_mode" in kwargs:
+            if "execution_mode" in kwargs and kwargs["execution_mode"] is not None:
                 patch_attrs["default-execution-mode"] = kwargs["execution_mode"]
-            if "auto_destroy_activity_duration" in kwargs:
+            if "auto_destroy_activity_duration" in kwargs and kwargs["auto_destroy_activity_duration"] is not None:
                 patch_attrs["auto-destroy-activity-duration"] = kwargs["auto_destroy_activity_duration"]
-            if "setting_overwrites" in kwargs:
+            if "setting_overwrites" in kwargs and kwargs["setting_overwrites"] is not None:
                 patch_attrs["setting-overwrites"] = kwargs["setting_overwrites"]
-            if "default_agent_pool_id" in kwargs:
+            if "default_agent_pool_id" in kwargs and kwargs["default_agent_pool_id"] is not None:
                 patch_attrs["default-agent-pool-id"] = kwargs["default_agent_pool_id"]
             
             if patch_attrs:
