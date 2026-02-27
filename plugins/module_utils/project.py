@@ -70,10 +70,12 @@ def _wrap_response(data: Any) -> Dict[str, Any]:
     relationships = {}
 
     # Map pytfe fields to REST API attribute names for projects
+    # Note: pytfe Project.model_dump() produces field names with underscores (e.g., default_execution_mode)
+    # We map these to REST API format with dashes (e.g., default-execution-mode)
     field_mapping = {
         "name": "name",
         "description": "description",
-        "execution_mode": "default-execution-mode",
+        "default_execution_mode": "default-execution-mode",  # pytfe field name: default_execution_mode
         "auto_destroy_activity_duration": "auto-destroy-activity-duration",
         "setting_overwrites": "setting-overwrites",
         "default_agent_pool_id": "default-agent-pool-id",
@@ -155,10 +157,14 @@ def get_project_by_name(client: TerraformClient, organization: str, name: str) -
         TerraformError: If the SDK operation fails
     """
     try:
-        # Use the pytfe SDK's list method to get all projects
+        # Create list options to filter by project name
+        options = ProjectListOptions(name=name)
+        
+        # Use the pytfe SDK's list method with filtering
         projects = client.safe_api_call(
             client.client.projects.list,
             organization,
+            options,
             error_context=f"Failed to list projects in organization {organization}",
         )
 
@@ -360,11 +366,15 @@ def add_project_tag_bindings(client: TerraformClient, project_id: str, tag_bindi
         TerraformError: If the SDK operation fails
     """
     try:
-        # Convert list of dicts to pytfe SDK format
+        # Convert list of dicts to pytfe SDK Pydantic models
+        tag_binding_models = [TagBinding(key=tb["key"], value=tb["value"]) for tb in tag_bindings]
+        options = ProjectAddTagBindingsOptions(tag_bindings=tag_binding_models)
+        
+        # Add tag bindings using pytfe SDK
         result = client.safe_api_call(
             client.client.projects.add_tag_bindings,
             project_id,
-            tag_bindings,
+            options,
             error_context=f"Failed to add tag bindings to project {project_id}",
         )
 
@@ -427,9 +437,15 @@ def list_projects(
         TerraformError: If the SDK operation fails
     """
     try:
+        options = None
+        if query_params:
+            options = ProjectListOptions(
+                name=query_params.get("filter[names]")
+            )
         projects = client.safe_api_call(
             client.client.projects.list,
             organization,
+            options,
             error_context=f"Failed to list projects in organization {organization}",
         )
 
