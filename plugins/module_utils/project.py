@@ -20,6 +20,13 @@ Each function:
 from typing import Any, Dict, List, Optional
 
 from pytfe.errors import NotFound
+from pytfe.models.common import TagBinding
+from pytfe.models.project import (
+    ProjectAddTagBindingsOptions,
+    ProjectCreateOptions,
+    ProjectListOptions,
+    ProjectUpdateOptions,
+)
 
 from .client import TerraformClient
 from .exceptions import TerraformError
@@ -194,24 +201,14 @@ def create_project(
         TerraformError: If the SDK operation fails
     """
     try:
-        # Build the ProjectCreateOptions payload
-        project_options = {
-            "name": name,
-        }
-
-        if description:
-            project_options["description"] = description
-
-        # Add any additional attributes from kwargs (excluding tag_bindings which are handled separately)
-        for key, value in kwargs.items():
-            if value is not None and key != "tag_bindings":
-                project_options[key] = value
+        # ProjectCreateOptions only supports name and description
+        options = ProjectCreateOptions(name=name, description=description)
 
         # Create the project using pytfe SDK
         project = client.safe_api_call(
             client.client.projects.create,
             organization,
-            project_options,
+            options,
             error_context=f"Failed to create project {name} in organization {organization}",
         )
 
@@ -248,25 +245,23 @@ def update_project(
         TerraformError: If the SDK operation fails
     """
     try:
-        # Build the ProjectUpdateOptions payload
-        project_options = {}
+        # Build the ProjectUpdateOptions Pydantic model
+        options_dict = {}
 
         if name is not None:
-            project_options["name"] = name
+            options_dict["name"] = name
 
         if description is not None:
-            project_options["description"] = description
+            options_dict["description"] = description
 
-        # Add any additional attributes from kwargs (excluding tag_bindings)
-        for key, value in kwargs.items():
-            if value is not None and key != "tag_bindings":
-                project_options[key] = value
+        # Create ProjectUpdateOptions Pydantic model
+        options = ProjectUpdateOptions(**options_dict)
 
         # Update the project using pytfe SDK
         project = client.safe_api_call(
             client.client.projects.update,
             project_id,
-            project_options,
+            options,
             error_context=f"Failed to update project {project_id}",
         )
 
