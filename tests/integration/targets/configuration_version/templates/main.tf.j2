@@ -1,58 +1,15 @@
-
 terraform {
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
-    }
-  }
   required_version = ">= 1.2.0"
+
   cloud {
     organization = "{{ organization }}"
-    token = "{{ tfc_token }}"
     hostname     = "app.terraform.io"
     workspaces {
-      name    = "{{ workspace_name }}"
+      name = "{{ workspace_name }}"
     }
   }
 }
 
-provider "aws" {
-  access_key = "{{ aws_access_key }}"
-  secret_key = "{{ aws_secret_key }}"
-  region = "{{ aws_region }}"
-{% if aws_session_token | default(false) %}
-  token = "{{ aws_session_token }}"
-{% endif %}
-}
+resource "null_resource" "test1" {}
 
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-}
-
-resource "aws_instance" "new-tar-instance-{{ unique_id }}" {
-  ami           = data.aws_ami.amazon_linux.id
-  instance_type = "t2.micro"
-
-  tags = {
-    Name  = "{{ unique_id }}-ec2",
-    Phase = "integration"
-  }
-}
+resource "null_resource" "test2" {}

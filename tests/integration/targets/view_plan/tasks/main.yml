@@ -105,8 +105,8 @@
 
     - name: Sort diffs for run_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after.cidr_block') }}"
-        sorted_expected_diff: "{{ expected_diff | sort(attribute='after.cidr_block') }}"
+        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after_header') }}"
+        sorted_expected_diff: "{{ expected_diff | sort(attribute='after_header') }}"
 
     - name: Assert diff from run_id matches expected
       ansible.builtin.assert:
@@ -122,7 +122,7 @@
 
     - name: Sort diffs for plan_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after.cidr_block') }}"
+        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after_header') }}"
 
     - name: Assert diff from plan_id matches expected (order-independent)
       ansible.builtin.assert:
@@ -138,8 +138,8 @@
 
     - name: Sort JSON resource_changes for plan_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
-        sorted_expected_json: "{{ expected_json | sort(attribute='change.after.cidr_block') }}"
+        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='address') }}"
+        sorted_expected_json: "{{ expected_json | sort(attribute='address') }}"
 
     - name: Assert JSON from plan_id matches expected structure (order-independent)
       ansible.builtin.assert:
@@ -155,7 +155,7 @@
 
     - name: Sort JSON resource_changes for run_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='address') }}"
 
     - name: Assert JSON from run_id matches expected structure (order-independent)
       ansible.builtin.assert:

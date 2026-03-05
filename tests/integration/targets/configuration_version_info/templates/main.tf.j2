@@ -1,37 +1,15 @@
 terraform {
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
-    }
-  }
   required_version = ">= 1.2.0"
+
   cloud {
     organization = "{{ organization }}"
-    token = "{{ tfc_token }}"
     hostname     = "app.terraform.io"
     workspaces {
-      name    = "{{ workspace_name }}"
+      name = "{{ workspace_name }}"
     }
   }
 }
 
-provider "aws" {
-  access_key = "{{ aws_access_key }}"
-  secret_key = "{{ aws_secret_key }}"
-  region = "{{ aws_region }}"
-{% if aws_session_token | default(false) %}
-  token = "{{ aws_session_token }}"
-{% endif %}
-}
+resource "null_resource" "test1" {}
 
-# VPC 1
-resource "aws_vpc" "vpc1-{{ unique_id }}" {
-  cidr_block = "10.0.0.0/16"
-
-  tags = {
-    Name = "{{ unique_id }}-vpc1"
-    env  = "dev"
-  }
-}
+resource "null_resource" "test2" {}
