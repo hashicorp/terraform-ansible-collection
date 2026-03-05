@@ -10,7 +10,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
