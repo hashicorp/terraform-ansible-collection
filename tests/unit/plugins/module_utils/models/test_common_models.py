@@ -7,7 +7,6 @@
 from typing import Optional
 
 import pytest
-
 from pydantic import ValidationError
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import (

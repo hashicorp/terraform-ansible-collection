@@ -6,7 +6,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-
 from ansible.errors import AnsibleError
 
 from ansible_collections.hashicorp.terraform.plugins.lookup.tf_output import LookupModule

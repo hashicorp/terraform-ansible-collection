@@ -22,8 +22,6 @@ dev = [
 profile = "black"
 line_length = 160
 known_first_party = ["ansible_collections.hashicorp.terraform"]
-lines_after_imports = 2
-lines_between_types = 1
 extend_skip = [
     ".tox",
     ".pytest_cache",

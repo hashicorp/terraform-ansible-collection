@@ -8,7 +8,6 @@ import os
 import sys
 import threading
 import time
-
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 from unittest.mock import Mock, patch
