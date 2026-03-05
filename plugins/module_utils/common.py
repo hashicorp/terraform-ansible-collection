@@ -9,6 +9,7 @@ import traceback
 
 from typing import Any, Callable, Dict, List, Optional, Union
 
+
 try:
     import requests
     import requests.adapters
@@ -33,6 +34,7 @@ from .exceptions import (
     TerraformHostnameNotFoundError,
     TerraformTokenNotFoundError,
 )
+
 
 # Constants
 HTTP_URL_PATTERN = r"^https?://"

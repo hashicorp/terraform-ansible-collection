@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import, annotations, division, print_function
 
+
 DOCUMENTATION = r"""
 ---
 module: configuration_version_info
@@ -207,6 +208,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
+
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional

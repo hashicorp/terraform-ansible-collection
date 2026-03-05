@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import, annotations, division, print_function
 
+
 __metaclass__ = type
 
 DOCUMENTATION = r"""
@@ -364,6 +365,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
+
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Tuple

@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 
 from plugins.module_utils.common import (

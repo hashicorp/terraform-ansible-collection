@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+
 DOCUMENTATION = r"""
 ---
 module: output
@@ -383,6 +384,7 @@ count:
 """
 
 from typing import TYPE_CHECKING
+
 
 if TYPE_CHECKING:
     from typing import Any, Dict

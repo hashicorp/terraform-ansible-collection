@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import, annotations, division, print_function
 
+
 __metaclass__ = type
 
 DOCUMENTATION = r"""
@@ -1379,6 +1380,7 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
+
 if TYPE_CHECKING:
     from typing import Any, Dict
 
@@ -1400,6 +1402,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     unlock_workspace,
     update_workspace,
 )
+
 
 IGNORE_LIST = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
 
