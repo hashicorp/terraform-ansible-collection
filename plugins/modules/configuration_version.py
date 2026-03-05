@@ -602,8 +602,10 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
         action_result.update(
             {
                 "changed": True,
-                "msg": f"The configuration_files_path {configuration_files_path} was validated, "
-                "but configuration version creation was skipped due to check mode.",
+                "msg": (
+                    f"The configuration_files_path {configuration_files_path} was validated, "
+                    "but configuration version creation was skipped due to check mode."
+                ),
             },
         )
     return action_result
