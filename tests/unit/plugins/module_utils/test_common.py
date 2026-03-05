@@ -8,13 +8,11 @@ import os
 import sys
 import threading
 import time
-
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
-
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
 

@@ -8,6 +8,7 @@ on:
   pull_request:
   push:
     branches: [main, devel]
+  workflow_dispatch:
 
 jobs:
   common-tests:
@@ -32,13 +33,13 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Install python 3.11
+      - name: Install python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Install requirements
-        run: pip3.11 install -r test-requirements.txt
+        run: pip3.12 install -r test-requirements.txt
 
       - name: Run check ${{ matrix.tests.name }}
         run: make ${{ matrix.tests.command }}
