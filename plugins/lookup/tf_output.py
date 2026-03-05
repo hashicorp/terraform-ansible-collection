@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-
 DOCUMENTATION = r"""
 name: tf_output
 short_description: Retrieve Terraform Cloud/Enterprise output values
