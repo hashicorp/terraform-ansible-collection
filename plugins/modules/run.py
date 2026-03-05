@@ -566,7 +566,6 @@ links:
 """
 
 import time
-
 from copy import deepcopy
 from typing import Any, Optional
 

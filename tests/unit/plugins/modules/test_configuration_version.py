@@ -6,7 +6,6 @@
 import os
 import tarfile
 import tempfile
-
 from pathlib import Path
 from unittest.mock import ANY, Mock, patch
 

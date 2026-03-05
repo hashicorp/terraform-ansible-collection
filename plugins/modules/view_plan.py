@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-
 DOCUMENTATION = r"""
 ---
 module: view_plan
@@ -186,7 +185,6 @@ msg:
 
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -205,7 +203,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan im
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_data,
 )
-
 
 # Action mapping constants
 ACTION_MAPPING = {
