@@ -564,6 +564,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 
 IGNORE_LIST = [
     "tfe_token",
+    "tf_token",
     "tfe_address",
     "check_mode",
     "state",
