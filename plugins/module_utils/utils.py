@@ -5,8 +5,8 @@
 from typing import Any, Dict
 
 from pytfe.errors import AuthError, NotFound, ServerError, TFEError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 
 from .exceptions import (
     TerraformError,
