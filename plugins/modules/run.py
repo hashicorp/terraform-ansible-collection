@@ -573,7 +573,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run import RunRequest, RunStates
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, cancel_run, create_run, discard_run, get_run
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import get_workspace
 
 
 def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 120, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
@@ -775,7 +775,7 @@ def get_workspace_id(client: TerraformClient, workspace: str, organization: str)
     response = get_workspace(client, organization, workspace)
     if not response:
         raise TerraformError(f"The Workspace {workspace} was not found in the organization {organization}")
-    return response.get("id")
+    return response.get("data").get("id")
 
 
 def main():

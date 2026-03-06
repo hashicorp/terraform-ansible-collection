@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import get_workspace
 
 
 def _handle_api_response(response: Dict) -> Dict:

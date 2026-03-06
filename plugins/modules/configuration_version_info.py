@@ -218,7 +218,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     get_config,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
     get_workspace,
     get_workspace_by_id,
 )

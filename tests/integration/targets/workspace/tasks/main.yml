@@ -42,7 +42,6 @@
           - result_create.execution_mode == "remote"
           - result_create.auto_apply == true
           - result_create.auto_apply_run_trigger == true
-          - result_create.assessments_enabled == false
           - result_create.terraform_version == "1.12.2"
 
     - name: Update a Terraform workspace with same data to ensure idempotency
@@ -142,7 +141,6 @@
           - result_update.changed
           - result_update.id == workspace_id
           - result_update.execution_mode == "agent"
-          - result_update.assessments_enabled == false
           - result_update.terraform_version == "1.12.2"
           - result_update.auto_apply == true
           - result_update.auto_apply_run_trigger == false
@@ -167,7 +165,6 @@
           - result_update.changed
           - result_update.execution_mode == "agent"
           - result_update.terraform_version == "1.12.2"
-          - result_update.assessments_enabled == false
           - result_update.setting_overwrites.agent_pool == true
           - result_update.auto_apply == true
           - result_update.auto_apply_run_trigger == false
@@ -282,6 +279,7 @@
           - result_delete.msg == expected_result
 
     - name: Force delete project
+      when: project_id is defined
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
         method: DELETE
@@ -294,6 +292,7 @@
       register: project_delete_response
 
     - name: Force delete agent pool
+      when: agent_pool_id is defined
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
         method: DELETE

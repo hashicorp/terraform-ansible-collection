@@ -378,7 +378,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_
     get_config,
     upload_config,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import get_workspace
 
 
 def validate_and_prepare_tar(configuration_files_path: Path) -> str:
@@ -698,7 +698,7 @@ def main():
                 if not workspace_response:
                     raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 # retrieve the workspace ID
-                workspace_id = workspace_response["id"]
+                workspace_id = workspace_response.get("data")["id"]
                 # update module params to have a workspace ID
                 params["workspace_id"] = workspace_id
 
