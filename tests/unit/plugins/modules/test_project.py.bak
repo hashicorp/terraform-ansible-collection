@@ -13,23 +13,12 @@ import pytest
 # Make the collection-style import name resolve to the local repo module during tests.
 # This avoids having to change every patch target in the file.
 try:
-    # Map collection-style module_utils names to the local repository implementations
-    mapping = {
-        'ansible_collections.hashicorp.terraform.plugins.module_utils.client': 'plugins.module_utils.client',
-        'ansible_collections.hashicorp.terraform.plugins.module_utils.project': 'plugins.module_utils.project',
-        'ansible_collections.hashicorp.terraform.plugins.module_utils.utils': 'plugins.module_utils.utils',
-    }
-    for alias, real in mapping.items():
-        try:
-            sys.modules[alias] = importlib.import_module(real)
-        except Exception:
-            # If mapping fails, allow import to proceed and let tests surface the error
-            pass
+    sys.modules['ansible_collections.hashicorp.terraform.plugins.modules.project'] = importlib.import_module('plugins.modules.project')
 except Exception:
     # If the import fails, fall back and let the test import raise normally.
     pass
 
-from plugins.modules.project import (
+from ansible_collections.hashicorp.terraform.plugins.modules.project import (
     _build_desired_state,
     _create_update_response,
     _filter_current_state,
@@ -59,7 +48,7 @@ class TestProjectHelperFunctions:
         project_data = create_project_response(project_id="prj-123abc456def", name=name)["data"]
         expected_response = {"data": [project_data]}
 
-        with patch("plugins.modules.project.list_projects") as mock_list:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.list_projects") as mock_list:
             mock_list.return_value = expected_response
 
             result = get_project_by_name(mock_client, organization, name)
@@ -79,7 +68,7 @@ class TestProjectHelperFunctions:
             ]
         }
 
-        with patch("plugins.modules.project.get_project_tag_bindings") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
             mock_get.return_value = mock_response
 
             result = fetch_project_tag_bindings(mock_client, project_id)
@@ -93,7 +82,7 @@ class TestProjectHelperFunctions:
         mock_client = Mock()
         project_id = "prj-123abc456def"
 
-        with patch("plugins.modules.project.get_project_tag_bindings") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
             mock_get.return_value = {}
 
             result = fetch_project_tag_bindings(mock_client, project_id)
@@ -121,7 +110,7 @@ class TestProjectHelperFunctions:
 
         mock_tag_bindings = {"Environment": "Production"}
 
-        with patch("plugins.modules.project.fetch_project_tag_bindings") as mock_fetch:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project_tag_bindings") as mock_fetch:
             mock_fetch.return_value = mock_tag_bindings
 
             result = normalize_project_response(response_data, mock_client, project_id)
@@ -416,7 +405,7 @@ class TestStateUpdateHelperFunctions:
             }
         }
 
-        with patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
             mock_update.return_value = expected_api_response
 
             result = _create_update_response(mock_client, project_id, project_params, params, check_mode=False)
@@ -432,7 +421,7 @@ class TestStateUpdateHelperFunctions:
         project_params = {"project": "test-project", "description": "Updated"}
         params = {"organization": "test-org", "project": "test-project", "description": "Updated"}
 
-        with patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             result = _create_update_response(mock_client, project_id, project_params, params, check_mode=True)
 
@@ -455,7 +444,7 @@ class TestFetchProject:
         # get_project_by_id returns the project data directly (not wrapped in "data" key)
         project_data = {"id": "prj-123abc456def", "attributes": {"name": "test-project"}, "status": 200}
 
-        with patch("plugins.modules.project.get_project_by_id") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
             mock_get.return_value = project_data
 
             result = fetch_project(mock_client, params)
@@ -473,7 +462,7 @@ class TestFetchProject:
         # fetch_project wraps the result in {"data": {...}}
         expected_result = {"data": {"id": "prj-123abc456def"}}
 
-        with patch("plugins.modules.project.get_project_by_name") as mock_get_by_name:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get_by_name:
 
             mock_get_by_name.return_value = existing_project
 
@@ -487,7 +476,7 @@ class TestFetchProject:
         mock_client = Mock()
         params = {"project": "nonexistent-project", "organization": "test-org"}
 
-        with patch("plugins.modules.project.get_project_by_name") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get:
             mock_get.return_value = None
 
             result = fetch_project(mock_client, params)
@@ -507,8 +496,8 @@ class TestStatePresent:
             "data": {"id": "prj-123abc456def", "type": "projects", "attributes": {"name": "new-project", "description": "New project description"}}
         }
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.create_project"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
         ) as mock_create:
 
             mock_fetch.return_value = {}  # Project doesn't exist
@@ -525,8 +514,8 @@ class TestStatePresent:
         mock_client = Mock()
         params = {"project": "new-project", "organization": "test-org", "description": "New project description", "execution_mode": "remote"}
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.create_project"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
         ) as mock_create:
 
             mock_fetch.return_value = {}  # Project doesn't exist
@@ -545,8 +534,8 @@ class TestStatePresent:
 
         existing_project = create_project_response(project_id="prj-123abc456def", name="existing-project")
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.state_update"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.state_update"
         ) as mock_update:
 
             mock_fetch.return_value = existing_project
@@ -570,9 +559,9 @@ class TestStateUpdate:
 
         expected_response = create_project_response(project_id="prj-123abc456def", name="test-project", description="Updated description")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "test-project", "description": "Old description"}
             mock_diff.return_value = {"description": "Updated description"}  # Changes detected
@@ -590,9 +579,9 @@ class TestStateUpdate:
 
         project = create_project_response(project_id="prj-123abc456def", name="test-project", description="Old description")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "test-project", "description": "Old description"}
             mock_diff.return_value = {"description": "Updated description"}  # Changes detected
@@ -611,8 +600,8 @@ class TestStateUpdate:
 
         project = create_project_response(project_id="prj-123abc456def", name="test-project", description="Same description")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
         ) as mock_diff:
 
             mock_normalize.return_value = {"name": "test-project", "description": "Same description"}
@@ -631,7 +620,7 @@ class TestStateAbsent:
         mock_client = Mock()
         params = {"project_id": "prj-123abc456def"}
 
-        with patch("plugins.modules.project.delete_project") as mock_delete:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.delete_project") as mock_delete:
             result = state_absent(mock_client, params, check_mode=False)
 
             assert result["changed"] is True
@@ -643,7 +632,7 @@ class TestStateAbsent:
         mock_client = Mock()
         params = {"project_id": "prj-123abc456def"}
 
-        with patch("plugins.modules.project.delete_project") as mock_delete:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.delete_project") as mock_delete:
             result = state_absent(mock_client, params, check_mode=True)
 
             assert result["changed"] is True
@@ -658,8 +647,8 @@ class TestStateAbsent:
 
         existing_project = create_project_response(project_id="prj-123abc456def")
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.delete_project"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.delete_project"
         ) as mock_delete:
 
             mock_fetch.return_value = existing_project
@@ -675,7 +664,7 @@ class TestStateAbsent:
         mock_client = Mock()
         params = {"project": "nonexistent-project", "organization": "test-org"}
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch:
             mock_fetch.return_value = {}
 
             result = state_absent(mock_client, params, check_mode=False)
@@ -694,8 +683,8 @@ class TestMainFunction:
             ("absent_state", {"project_id": "prj-123", "state": "absent"}, "success"),
         ],
     )
-    @patch("plugins.modules.project.AnsibleTerraformModule")
-    @patch("plugins.modules.project.TerraformClient")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project.TerraformClient")
     def test_main_success_scenarios(self, mock_tf_client, mock_module_class, scenario, module_params, expected_behavior, enhanced_dummy_module):
         """Test main function success scenarios."""
         enhanced_dummy_module.params = module_params
@@ -707,8 +696,8 @@ class TestMainFunction:
 
         expected_result = {"changed": True, "id": "prj-123abc456def"}
 
-        with patch("plugins.modules.project.state_present") as mock_present, patch(
-            "plugins.modules.project.state_absent"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.state_present") as mock_present, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.state_absent"
         ) as mock_absent:
 
             if module_params["state"] == "present":
@@ -721,8 +710,8 @@ class TestMainFunction:
 
             assert mock_module.exit_args["changed"] is True
 
-    @patch("plugins.modules.project.AnsibleTerraformModule")
-    @patch("plugins.modules.project.TerraformClient")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project.TerraformClient")
     def test_main_exception_handling(self, mock_tf_client, mock_module_class, enhanced_dummy_module):
         """Test main function exception handling."""
         enhanced_dummy_module.params = {"project": "test", "organization": "org", "state": "present"}
@@ -736,7 +725,7 @@ class TestMainFunction:
 
         assert mock_module.failed is True
 
-    @patch("plugins.modules.project.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project.AnsibleTerraformModule")
     def test_argument_spec_validation(self, mock_module_class):
         """Test that argument spec is properly configured."""
         main()
@@ -788,7 +777,7 @@ class TestProjectModuleEdgeCases:
             ]
         }
 
-        with patch("plugins.modules.project.get_project_tag_bindings") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
             mock_get.return_value = mock_response
 
             result = fetch_project_tag_bindings(mock_client, project_id)
@@ -803,7 +792,7 @@ class TestProjectModuleEdgeCases:
         organization = "test-org"
         name = "nonexistent-project"
 
-        with patch("plugins.modules.project.list_projects") as mock_list:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.list_projects") as mock_list:
             mock_list.return_value = {"data": []}
 
             result = get_project_by_name(mock_client, organization, name)
@@ -817,7 +806,7 @@ class TestProjectModuleEdgeCases:
         organization = "test-org"
         name = "test-project"
 
-        with patch("plugins.modules.project.list_projects") as mock_list:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.list_projects") as mock_list:
             mock_list.return_value = {}
 
             result = get_project_by_name(mock_client, organization, name)
@@ -829,7 +818,7 @@ class TestProjectModuleEdgeCases:
         mock_client = Mock()
         params = {"project_id": "prj-invalid"}
 
-        with patch("plugins.modules.project.get_project_by_id") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_id") as mock_get:
             mock_get.return_value = None
 
             result = fetch_project(mock_client, params)
@@ -841,7 +830,7 @@ class TestProjectModuleEdgeCases:
         mock_client = Mock()
         params = {"project": "test-project", "organization": "test-org"}
 
-        with patch("plugins.modules.project.get_project_by_name") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_by_name") as mock_get:
             mock_get.return_value = None
 
             result = fetch_project(mock_client, params)
@@ -867,7 +856,7 @@ class TestProjectModuleEdgeCases:
             }
         }
 
-        with patch("plugins.modules.project.fetch_project_tag_bindings") as mock_fetch:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project_tag_bindings") as mock_fetch:
             mock_fetch.return_value = {}
 
             result = normalize_project_response(response_data, mock_client, project_id)
@@ -892,9 +881,9 @@ class TestProjectModuleEdgeCases:
 
         project = create_project_response(project_id="prj-123abc456def", name="old-name", description="Test description")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             mock_normalize.return_value = {"name": "old-name", "description": "Test description"}
             mock_diff.return_value = {"name": "new-name"}  # Should detect name change
@@ -921,9 +910,9 @@ class TestProjectModuleEdgeCases:
 
         project = create_project_response(project_id="prj-123abc456def", name="test-project")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             # Return empty dict to indicate tag_bindings are not present in current state
             # This will trigger the filtering logic
@@ -944,8 +933,8 @@ class TestProjectModuleEdgeCases:
 
         project = create_project_response(project_id="prj-123abc456def", name="test-project")
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
         ) as mock_diff:
 
             # normalize returns no tag_bindings
@@ -965,9 +954,9 @@ class TestProjectModuleEdgeCases:
 
         project = create_project_response(project_id="prj-123abc456def", name="test-project", **{"setting-overwrites": "some-string"})
 
-        with patch("plugins.modules.project.normalize_project_response") as mock_normalize, patch(
-            "plugins.modules.project.dict_diff"
-        ) as mock_diff, patch("plugins.modules.project.update_project") as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.normalize_project_response") as mock_normalize, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.dict_diff"
+        ) as mock_diff, patch("ansible_collections.hashicorp.terraform.plugins.modules.project.update_project") as mock_update:
 
             # have has a string value for setting_overwrites
             mock_normalize.return_value = {"name": "test-project", "setting_overwrites": "some-string"}
@@ -996,8 +985,8 @@ class TestProjectModuleEdgeCases:
 
         expected_response = create_project_response(project_id="prj-new")
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.create_project"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
         ) as mock_create:
 
             mock_fetch.return_value = {}
@@ -1025,8 +1014,8 @@ class TestProjectModuleEdgeCases:
 
         expected_response = create_project_response(project_id="prj-comprehensive")
 
-        with patch("plugins.modules.project.fetch_project") as mock_fetch, patch(
-            "plugins.modules.project.create_project"
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.fetch_project") as mock_fetch, patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.project.create_project"
         ) as mock_create:
 
             mock_fetch.return_value = {}
@@ -1050,7 +1039,7 @@ class TestProjectModuleEdgeCases:
             ]
         }
 
-        with patch("plugins.modules.project.get_project_tag_bindings") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
             mock_get.return_value = mock_response
 
             result = fetch_project_tag_bindings(mock_client, project_id)
@@ -1066,7 +1055,7 @@ class TestProjectModuleEdgeCases:
 
         mock_response = {"data": [{"type": "tag-bindings"}, {"type": "tag-bindings", "attributes": {"key": "Env", "value": "Prod"}}]}
 
-        with patch("plugins.modules.project.get_project_tag_bindings") as mock_get:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.get_project_tag_bindings") as mock_get:
             mock_get.return_value = mock_response
 
             result = fetch_project_tag_bindings(mock_client, project_id)
