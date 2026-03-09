@@ -362,6 +362,9 @@ data:
 """
 from copy import deepcopy
 from typing import Any, Dict, Optional
+import json
+import os
+import sys
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
@@ -632,6 +635,7 @@ def _filter_current_state(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[st
             # This will cause the field to be treated as an update
             del filtered[key]
 
+    print(f"DEBUG _filter_current_state: have_keys={list(have.keys())}, want_keys={list(want.keys())}, filtered_keys={list(filtered.keys())}", file=sys.stderr)
     return filtered
 
 
@@ -735,10 +739,37 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     # Filter out tag_bindings from updates if have doesn't have it
     updates_response = _filter_tag_binding_updates(updates_response, have)
 
-    if not updates_response:
-        return {"changed": False}
+    # DEBUG: Print comparison details for troubleshooting
+    import sys
+    print(f"DEBUG [state_update]: project_id={project_id}", file=sys.stderr)
+    print(f"DEBUG [state_update]: have={json.dumps(have, default=str)}", file=sys.stderr)
+    print(f"DEBUG [state_update]: want={json.dumps(want, default=str)}", file=sys.stderr)
+    print(f"DEBUG [state_update]: updates_response={json.dumps(updates_response, default=str)}", file=sys.stderr)
+    print(f"DEBUG [state_update]: updates_empty={not bool(updates_response)}", file=sys.stderr)
 
-    return _create_update_response(client, project_id, project_params, params, check_mode)
+    # If enabled via environment, include structured debug info in the module return
+    debug_enabled = bool(os.getenv("TERRAFORM_MODULE_DEBUG"))
+    debug_payload = None
+    if debug_enabled:
+        # Keep the payload small but useful for debugging idempotency issues
+        debug_payload = {
+            "have": have,
+            "want": want,
+            "updates_response": updates_response,
+        }
+
+    if not updates_response:
+        result = {"changed": False}
+        if debug_enabled:
+            result["_debug"] = debug_payload
+        return result
+
+    update_result = _create_update_response(client, project_id, project_params, params, check_mode)
+    # Attach debug payload to the returned result if enabled
+    if debug_enabled and isinstance(update_result, dict):
+        update_result.setdefault("_debug", debug_payload)
+
+    return update_result
 
 
 def state_absent(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:

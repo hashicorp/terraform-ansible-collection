@@ -14,6 +14,22 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+# Ensure the repository's local `collections` directory is on sys.path so tests
+# import the local collection code.
+import os
+import sys
+
+# Put the repository's local `collections` directory first on `sys.path` so tests
+# use the local copy of the collection only (avoid mixing with installed copies).
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+local_collections = os.path.join(REPO_ROOT, "collections")
+if os.path.isdir(local_collections):
+    # Remove any installed ansible_collections entries to avoid multiple candidate
+    # paths for the Ansible collection loader which expects a single path.
+    sys.path = [p for p in sys.path if not p.endswith(os.path.join('ansible_collections'))]
+    if local_collections not in sys.path:
+        sys.path.insert(0, local_collections)
+
 from .constants import (
     create_configuration_version_response,
     create_empty_response,
