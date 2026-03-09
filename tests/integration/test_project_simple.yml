@@ -34,7 +34,7 @@
 
   tasks:
     # CREATE
-    - name: "1️⃣  CREATE: Make a new project"
+    - name: "1. CREATE: Make a new project"
       hashicorp.terraform.project:
         name: "{{ test_project }}"
         organization: "{{ tfe_org }}"
@@ -44,12 +44,12 @@
         tfe_token: "{{ tfe_token }}"
       register: result
 
-    - name: "✅ Created"
+    - name: "Created"
       debug:
         msg: "Project {{ result.id }} created successfully"
 
     # READ (verify idempotency)
-    - name: "2️⃣  READ: Same project again (should not change)"
+    - name: "2. READ: Same project again (should not change)"
       hashicorp.terraform.project:
         name: "{{ test_project }}"
         organization: "{{ tfe_org }}"
@@ -59,13 +59,13 @@
         tfe_token: "{{ tfe_token }}"
       register: result
 
-    - name: "✅ Idempotent"
+    - name: "Idempotent"
       assert:
         that: result.changed == false
         fail_msg: "Second create should not change"
 
     # UPDATE
-    - name: "3️⃣  UPDATE: Change description"
+    - name: "3. UPDATE: Change description"
       hashicorp.terraform.project:
         name: "{{ test_project }}"
         organization: "{{ tfe_org }}"
@@ -75,12 +75,12 @@
         tfe_token: "{{ tfe_token }}"
       register: result
 
-    - name: "✅ Updated"
+    - name: "Updated"
       debug:
         msg: "Project updated: {{ result.description }}"
 
     # DELETE
-    - name: "4️⃣  DELETE: Remove project"
+    - name: "4. DELETE: Remove project"
       hashicorp.terraform.project:
         name: "{{ test_project }}"
         organization: "{{ tfe_org }}"
@@ -89,15 +89,15 @@
         tfe_token: "{{ tfe_token }}"
       register: result
 
-    - name: "✅ Deleted"
+    - name: "Deleted"
       debug:
         msg: "Project deleted successfully"
 
   post_tasks:
-    - name: "🎉 All tests passed!"
+    - name: "All tests passed!"
       debug:
         msg: |
-          ✅ CREATE  - Project created
-          ✅ READ   - Idempotency verified
-          ✅ UPDATE - Description changed
-          ✅ DELETE - Project removed
+          CREATE  - Project created
+          READ    - Idempotency verified
+          UPDATE  - Description changed
+          DELETE  - Project removed

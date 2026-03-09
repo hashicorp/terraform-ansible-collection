@@ -211,23 +211,23 @@
     - name: Display test summary
       debug:
         msg: |
-          ✅ Integration Test Summary
-          ===========================
+          Integration Test Summary
+          ==========================
           CREATE Tests: PASSED
-            - Basic project creation: ✅
-            - Idempotency check: ✅
-            - Read by project_id: ✅
-          
+            - Basic project creation: PASS
+            - Idempotency check: PASS
+            - Read by project_id: PASS
+
           UPDATE Tests: PASSED
-            - Description update: ✅
-            - Execution mode change (remote): ✅
-            - Execution mode change (local): ✅
-            - Auto-destroy duration: ✅
-          
+            - Description update: PASS
+            - Execution mode change (remote): PASS
+            - Execution mode change (local): PASS
+            - Auto-destroy duration: PASS
+
           DELETE Tests: PASSED
-            - Project deletion: ✅
-            - Delete idempotency: ✅
-          
+            - Project deletion: PASS
+            - Delete idempotency: PASS
+
           All integration tests passed!
 
   handlers:
