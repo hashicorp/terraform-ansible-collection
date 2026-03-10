@@ -6,8 +6,6 @@ from typing import Any, Dict
 
 from pytfe.errors import AuthError, NotFound, ServerError, TFEError
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
-
 from .exceptions import (
     TerraformError,
 )
@@ -139,82 +137,3 @@ def format_response(response: Any) -> Dict[str, Any]:
     """
     # Convert SDK response to dictionary with JSON-serializable types
     return response.model_dump(mode="json", exclude_none=True)
-
-
-def get_workspace(client: TerraformClient, organization: str, workspace: str) -> Dict[str, Any]:
-    """
-    Retrieves a specified workspace from Terraform Cloud.
-
-    Sends a GET request to fetch details of a workspace identified by its name
-    within a given organization. If the workspace is not found, returns an empty
-    dictionary. If successful, returns the workspace data with an added "status" field.
-    For any other error status, raises an HTTPError.
-
-    Args:
-        client (TerraformClient): An authenticated client used to interact with
-            the Terraform Cloud API.
-        organization (str): The name of the Terraform Cloud organization.
-        workspace (str): The name of the workspace to retrieve.
-
-    Returns:
-        dict: A dictionary containing the workspace data (with an added "status" field)
-        if found, or an empty dictionary if the workspace is not found (status 404).
-
-    Raises:
-        TerraformError: If the request fails with a non-404 status code.
-    """
-    response = client.get(f"/organizations/{organization}/workspaces/{workspace}")
-    response_data = response.get("data", {})
-    response_status = response["status"]
-
-    if response_status == 404:
-        # workspace was not found
-        # This should not raise an exception
-        return {}
-    elif response_status == 200:
-        # workspace was fetched successfully
-        response_data.update({"status": response_status})
-        return response_data
-    else:
-        # A failure status code was received when attempting to fetch the specified workspace
-        # there can be several reasons for this so we raise an exception with the response
-        raise TerraformError(response)
-
-
-def get_workspace_by_id(client: TerraformClient, workspace_id: str) -> Dict[str, Any]:
-    """
-    Retrieves a specified workspace from Terraform Cloud by its ID.
-
-    Sends a GET request to fetch details of a workspace identified by its unique ID.
-    If the workspace is not found, returns an empty dictionary. If successful,
-    returns the workspace data with an added "status" field. For any other error
-    status, raises a TerraformError.
-
-    Args:
-        client (TerraformClient): An authenticated client used to interact with
-            the Terraform Cloud API.
-        workspace_id (str): The unique ID of the workspace to retrieve.
-
-    Returns:
-        dict: A dictionary containing the workspace data (with an added "status" field)
-        if found, or an empty dictionary if the workspace is not found (status 404).
-
-    Raises:
-        TerraformError: If the request fails with a non-404 status code.
-    """
-    response = client.get(f"/workspaces/{workspace_id}")
-    response_data = response.get("data", {})
-    response_status = response["status"]
-
-    if response_status == 404:
-        # workspace was not found
-        # This should not raise an exception
-        return {}
-    elif response_status == 200:
-        # workspace was fetched successfully
-        response_data.update({"status": response_status})
-        return response_data
-    else:
-        # A failure status code was received when attempting to fetch the specified workspace
-        # there can be several reasons for this so we raise an exception with the response
-        raise TerraformError(response)

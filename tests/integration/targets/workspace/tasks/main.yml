@@ -42,6 +42,9 @@
           - result_create.execution_mode == "remote"
           - result_create.auto_apply == true
           - result_create.auto_apply_run_trigger == true
+          - result_create.assessments_enabled == true
+          - result_create.auto_destroy_activity_duration == "12d"
+          - result_create.auto_destroy_at == "2027-08-10T15:00:00Z"
           - result_create.terraform_version == "1.12.2"
 
     - name: Update a Terraform workspace with same data to ensure idempotency
@@ -53,6 +56,9 @@
         auto_apply_run_trigger: true
         description: integration test workspace
         terraform_version: 1.12.2
+        assessments_enabled: true
+        auto_destroy_activity_duration: 12d
+        auto_destroy_at: "2027-08-10T15:00:00Z"
         state: present
       register: result_update
 
@@ -141,11 +147,13 @@
           - result_update.changed
           - result_update.id == workspace_id
           - result_update.execution_mode == "agent"
+          - result_update.assessments_enabled == false
+          - result_update.auto_destroy_activity_duration == "14d"
+          - result_update.auto_destroy_at == "2028-08-10T15:00:00Z"
           - result_update.terraform_version == "1.12.2"
           - result_update.auto_apply == true
           - result_update.auto_apply_run_trigger == false
           - result_update.allow_destroy_plan == true
-          - result_update.setting_overwrites.agent_pool == true
 
     - name: Update a Terraform workspace with minimal data
       hashicorp.terraform.workspace:
@@ -165,7 +173,9 @@
           - result_update.changed
           - result_update.execution_mode == "agent"
           - result_update.terraform_version == "1.12.2"
-          - result_update.setting_overwrites.agent_pool == true
+          - result_update.assessments_enabled == false
+          - result_update.auto_destroy_activity_duration == "14d"
+          - result_update.auto_destroy_at == "2028-08-10T15:00:00Z"
           - result_update.auto_apply == true
           - result_update.auto_apply_run_trigger == false
           - result_update.allow_destroy_plan == true

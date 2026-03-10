@@ -169,7 +169,7 @@ EXAMPLES = r"""
 # ------------
 # "result_create": {
 #     "changed": true,
-#     "id": "ws-ybMGvqhs6MWLa5S2",
+#     "id": "ws-abc123xyz",
 #     "name": "my-workspace",
 #     "organization": "my-organization",
 #     "execution_mode": "remote",

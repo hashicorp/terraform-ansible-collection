@@ -688,8 +688,8 @@ class TestIntegrationFlows:
             mock_module.params = params
             mock_module_class.return_value = mock_module
 
-            # Mock get_workspace to return valid workspace data (flat format)
-            mock_get_ws.return_value = {"id": "ws-from-name-123", "type": "workspaces"}
+            # Mock get_workspace to return valid workspace data
+            mock_get_ws.return_value = {"data": {"id": "ws-from-name-123", "type": "workspaces"}, "status": 200}
 
             mock_state.return_value = {"changed": True, "msg": "Created successfully"}
 

@@ -371,6 +371,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.common import 
     AnsibleTerraformModule,
     ArchivistClient,
     TerraformClient,
+    get_workspace,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     archive_config,
@@ -378,7 +379,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_
     get_config,
     upload_config,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import get_workspace
 
 
 def validate_and_prepare_tar(configuration_files_path: Path) -> str:

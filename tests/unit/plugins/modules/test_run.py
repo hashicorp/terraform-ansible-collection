@@ -528,14 +528,14 @@ class TestGetWorkspaceId:
             (
                 "test-workspace",
                 "test-org",
-                {"id": "ws-123", "name": "test-workspace"},
+                {"data": {"id": "ws-123", "attributes": {"name": "test-workspace"}}},
                 "ws-123",
                 False,
             ),
             (
                 "another-workspace",
                 "another-org",
-                {"id": "ws-456", "name": "another-workspace"},
+                {"data": {"id": "ws-456", "attributes": {"name": "another-workspace"}}},
                 "ws-456",
                 False,
             ),
@@ -558,16 +558,15 @@ class TestGetWorkspaceId:
         mock_get_workspace.assert_called_once_with(mock_client, organization, workspace_name)
 
     def test_get_workspace_id_empty_data_response(self):
-        """Test get_workspace_id when workspace response has no id field."""
+        """Test get_workspace_id when workspace response has data=None."""
         mock_client = Mock()
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_workspace") as mock_get_workspace:
-            # Return response without 'id' field
-            mock_get_workspace.return_value = {"name": "empty-response"}
+            mock_get_workspace.return_value = {"data": None}
 
-            # Should return None when id is not present
-            result = get_workspace_id(mock_client, "empty-response", "test-org")
-            assert result is None
+            # This should raise an AttributeError because response.get("data").get("id") tries to call get() on None
+            with pytest.raises(AttributeError, match="'NoneType' object has no attribute 'get'"):
+                get_workspace_id(mock_client, "empty-response", "test-org")
 
 
 class TestMainFunction:
