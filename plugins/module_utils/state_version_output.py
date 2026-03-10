@@ -10,9 +10,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Dict, List
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient, get_workspace
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
 def _handle_api_response(response: Dict) -> Dict:

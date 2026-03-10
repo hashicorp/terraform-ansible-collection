@@ -214,13 +214,11 @@ if TYPE_CHECKING:
 from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
     TerraformClient,
+    get_workspace,
+    get_workspace_by_id,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     get_config,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
-    get_workspace,
-    get_workspace_by_id,
 )
 
 

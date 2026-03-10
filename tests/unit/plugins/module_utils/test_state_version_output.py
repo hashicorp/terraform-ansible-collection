@@ -206,7 +206,7 @@ class TestResolveWorkspaceId:
     @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output.get_workspace")
     def test_resolve_workspace_not_found(self, mock_get_workspace, mock_client):
         """Test error when workspace is not found."""
-        mock_get_workspace.return_value = {}
+        mock_get_workspace.return_value = None
 
         with pytest.raises(ValueError, match="Workspace 'nonexistent' was not found in organization 'my-org'"):
             resolve_workspace_id(
