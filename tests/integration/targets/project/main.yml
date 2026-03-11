@@ -1,0 +1,9 @@
+---
+# Integration wrapper playbook for project target
+- name: Project integration wrapper
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+    - name: Include project target tasks
+      include_tasks: tasks/main.yml
