@@ -863,3 +863,58 @@ def test_state_applied_passes_timeout_parameters(mock_handle_polling):
             assert result["changed"] is True
             # Verify that poll_timeout and poll_interval are passed in kwargs
             mock_handle_polling.assert_called_once_with(mock_client, mock_apply.return_value, True, "run-123", poll_timeout=600, poll_interval=10)
+
+
+def test_project_update_idempotency_in_run_module(monkeypatch):
+    """Verify project update idempotency (migrated from standalone test)."""
+    # Import project module locally to avoid changing top-of-file imports
+    from plugins.modules import project as mod
+
+    # Define initial and updated project payloads
+    project_initial = {
+        "data": {
+            "id": "prj-test",
+            "attributes": {
+                "name": "proj",
+                "description": "test project",
+                "auto-destroy-activity-duration": "14d",
+                "default-execution-mode": "remote",
+            },
+            "relationships": {"default-agent-pool": {"data": None}},
+        }
+    }
+
+    project_updated = {
+        "data": {
+            "id": "prj-test",
+            "attributes": {
+                "name": "proj",
+                "description": "test project updated",
+                "auto-destroy-activity-duration": "15d",
+                "default-execution-mode": "local",
+            },
+            "relationships": {"default-agent-pool": {"data": None}},
+        }
+    }
+
+    params = {
+        "project": "proj",
+        "description": "test project updated",
+        "auto_destroy_activity_duration": "15d",
+        "execution_mode": "local",
+        "tag_bindings": [{"key": "env", "value": "production"}],
+    }
+
+    # Simulate tag bindings read returning development initially
+    monkeypatch.setattr(mod, "fetch_project_tag_bindings", lambda client, project_id: {"env": "development"})
+
+    # First invocation: expect an update is required (changed True)
+    res_first = mod.state_update(client=None, params=params, project=project_initial, check_mode=True)
+    assert res_first.get("changed") is True, f"Expected first update to be needed, got: {res_first}"
+
+    # Now simulate the remote state matching desired state
+    monkeypatch.setattr(mod, "fetch_project_tag_bindings", lambda client, project_id: {"env": "production"})
+
+    # Second invocation: no changes should be detected
+    res_second = mod.state_update(client=None, params=params, project=project_updated, check_mode=True)
+    assert res_second.get("changed") is False, f"Expected idempotent second update, got: {res_second}"
