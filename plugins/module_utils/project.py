@@ -1,21 +1,17 @@
 from typing import Any, Dict, Optional
 
-from ansible.module_utils.common.text.converters import to_text
+from pytfe.errors import NotFound
+from pytfe.models import (
+    ProjectAddTagBindingsOptions,
+    ProjectCreateOptions,
+    ProjectListOptions,
+    ProjectSettingOverwrites,
+    ProjectUpdateOptions,
+    TagBinding,
+)
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
-
-from .exceptions import TerraformError
-
-from pytfe.errors import NotFound
-from pytfe.models import (
-    ProjectListOptions, 
-    ProjectAddTagBindingsOptions, 
-    ProjectCreateOptions, 
-    ProjectUpdateOptions,
-    ProjectSettingOverwrites,
-    TagBinding,
-)
 
 
 def create_project(adapter: TerraformClient, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -83,7 +79,6 @@ def update_project(adapter: TerraformClient, project_id: str, data: dict[str, An
     options = ProjectUpdateOptions.model_validate(data)
     project_response = safe_api_call(adapter.client.projects.update, project_id, options)
     return format_response(project_response)
-    
 
 
 def delete_project(adapter: TerraformClient, project_id: str) -> None:
@@ -148,8 +143,8 @@ def list_projects(adapter: TerraformClient, organization: str, options: Optional
     except NotFound:
         # No projects found for the organization
         return {}
-    
-    
+
+
 def get_project_by_name(adapter: TerraformClient, organization: str, name: str) -> Dict[str, Any]:
     """
     Get a project by name.

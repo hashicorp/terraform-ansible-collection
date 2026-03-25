@@ -26,10 +26,12 @@ class TestProjectHelpers:
     """Test helper functions used by project module state logic."""
 
     def test_normalize_tag_bindings(self):
-        result = _normalize_tag_bindings([
-            {"key": "env", "value": "prod"},
-            {"key": "team", "value": "platform"},
-        ])
+        result = _normalize_tag_bindings(
+            [
+                {"key": "env", "value": "prod"},
+                {"key": "team", "value": "platform"},
+            ]
+        )
         assert result == {"env": "prod", "team": "platform"}
 
     def test_build_desired_state_maps_project_name(self):

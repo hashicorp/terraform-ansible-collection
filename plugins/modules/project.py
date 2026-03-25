@@ -370,9 +370,9 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.project import
     create_project,
     delete_project,
     get_project_by_id,
+    get_project_by_name,
     get_project_tag_bindings,
     update_project,
-    get_project_by_name,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
 
@@ -458,9 +458,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
         TerraformError: If the response does not return a 201/200 status code.
     """
     ignore_params = {"check_mode", "state", "organization", "project_id"}
-    project_params = {
-        key: value for key, value in params.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in ignore_params
-    }
+    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in ignore_params}
 
     # Map module argument names to SDK option field names.
     if "project" in project_params:
