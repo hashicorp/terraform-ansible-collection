@@ -93,35 +93,23 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "auto-destroy-activity-duration": "30d",
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "description": "Project for managing production infrastructure",
-#         "execution-mode": "remote",
-#         "name": "my-infrastructure-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T10:30:00.000Z"
-#     },
+#     "auto_destroy_activity_duration": "30d",
+#     "created_at": "2025-01-15T10:30:00.000Z",
+#     "default_execution_mode": "remote",
+#     "description": "Project for managing production infrastructure",
+#     "name": "my-infrastructure-project",
+#     "updated_at": "2025-01-15T10:30:00.000Z",
 #     "changed": true,
 #     "id": "prj-abc123def456",
-#     "links": {
-#         "self": "/api/v2/projects/prj-abc123def456"
+#     "name": "my-infrastructure-project",
+#     "organization": {
+#         "id": "org-xyz789abc123"
 #     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
+#     "setting_overwrites": {
+#         "agent_pool": true,
+#         "execution_mode": true
 #     },
-#     "type": "projects"
+#     "workspace_count": 0
 # }
 
 - name: Create a project with tag bindings
@@ -141,49 +129,15 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "created-at": "2025-01-15T11:00:00.000Z",
-#         "description": "Project with custom tags",
-#         "name": "tagged-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T11:00:00.000Z"
-#     },
-#     "changed": true,
+#     "created_at": "2025-01-15T11:00:00.000Z",
+#     "description": "Project with custom tags",
+#     "name": "tagged-project",
+#     "updated_at": "2025-01-15T11:00:00.000Z",
 #     "id": "prj-def456ghi789",
-#     "links": {
-#         "self": "/api/v2/projects/prj-def456ghi789"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         },
-#         "tag-bindings": {
-#             "data": [
-#                 {
-#                     "key": "Environment",
-#                     "value": "Production"
-#                 },
-#                 {
-#                     "key": "Team",
-#                     "value": "Infrastructure"
-#                 },
-#                 {
-#                     "key": "Cost-Center",
-#                     "value": "Engineering"
-#                 }
-#             ]
-#         }
-#     },
-#     "type": "projects"
+#     "organization": {
+#         "id": "org-xyz789abc123"
+#     }
+#     "changed": true,
 # }
 
 - name: Update an existing project
@@ -197,35 +151,17 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "auto-destroy-activity-duration": "60d",
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "description": "Updated project description",
-#         "execution-mode": "remote",
-#         "name": "updated-infrastructure-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T12:15:00.000Z"
-#     },
 #     "changed": true,
+#     "auto_destroy_activity_duration": "60d",
+#     "created_at": "2025-01-15T10:30:00.000Z",
+#     "default_execution_mode": "remote",
+#     "description": "Updated project description",
 #     "id": "prj-abc123def456",
-#     "links": {
-#         "self": "/api/v2/projects/prj-abc123def456"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
-#     },
-#     "type": "projects"
+#     "name": "updated-infrastructure-project"
+#     "updated_at": "2025-01-15T12:00:00.000Z",
+#     "organization": {
+#         "id": "org-xyz789abc123"
+#     }
 # }
 
 - name: Create a project with custom settings
@@ -242,38 +178,17 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "created-at": "2025-01-15T13:00:00.000Z",
-#         "description": "Project with custom workspace settings",
-#         "execution-mode": "local",
-#         "name": "custom-settings-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "setting-overwrites": {
-#             "auto_apply": true,
-#             "global_remote_state": false
-#         },
-#         "updated-at": "2025-01-15T13:00:00.000Z"
-#     },
 #     "changed": true,
+#     "created_at": "2025-01-15T13:00:00.000Z",
+#     "default_execution_mode": "local",
+#     "description": "Project with custom workspace settings",
 #     "id": "prj-ghi789jkl012",
-#     "links": {
-#         "self": "/api/v2/projects/prj-ghi789jkl012"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
-#     },
-#     "type": "projects"
+#     "name": "custom-settings-project",
+#     "setting_overwrites": {
+#         "auto_apply": true,
+#         "global_remote_state": false
+#     }
+#     "updated_at": "2025-01-15T13:00:00.000Z",
 # }
 
 - name: Delete a project
@@ -290,75 +205,76 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-data:
-    description: The main data object containing project information.
+changed:
+    description: Whether the module made a change.
+    returned: always
+    type: bool
+    sample: true
+id:
+    description: The unique identifier of the project.
     returned: when state is present
-    type: complex
-    contains:
-        id:
-            description: The unique identifier of the project.
-            returned: always
-            type: str
-            sample: "prj-7TwrwCoRQ3FXbFtP"
-        type:
-            description: The resource type, always 'projects'.
-            returned: always
-            type: str
-            sample: "projects"
-        attributes:
-            description: The project's attributes and configuration.
-            returned: always
-            type: dict
-            sample: {
-                "auto-destroy-activity-duration": "30d",
-                "created-at": "2025-07-03T08:10:20.479Z",
-                "description": "Production infrastructure project",
-                "execution-mode": "remote",
-                "name": "my-infrastructure-project",
-                "permissions": {
-                    "can-access": true,
-                    "can-create-team": true,
-                    "can-create-workspace": true,
-                    "can-destroy": true,
-                    "can-update": true
-                },
-                "setting-overwrites": {
-                    "auto_apply": false,
-                    "global_remote_state": true
-                },
-                "updated-at": "2025-07-03T08:10:20.651Z"
-            }
-        relationships:
-            description: Related resources linked to the project.
-            returned: always
-            type: dict
-            sample: {
-                "organization": {
-                    "data": {
-                        "id": "org-82Qk88p7boaHK2BT",
-                        "type": "organizations"
-                    }
-                },
-                "tag-bindings": {
-                    "data": [
-                        {
-                            "key": "Environment",
-                            "value": "Production"
-                        },
-                        {
-                            "key": "Team",
-                            "value": "Infrastructure"
-                        }
-                    ]
-                }
-            }
-        links:
-            description: API links for the project.
-            returned: always
-            type: dict
-            sample: {
-                "self": "/api/v2/projects/prj-7TwrwCoRQ3FXbFtP"
-            }
+    type: str
+    sample: "prj-7TwrwCoRQ3FXbFtP"
+name:
+    description: The project name.
+    returned: when state is present
+    type: str
+    sample: "my-infrastructure-project"
+description:
+    description: The project description.
+    returned: when set
+    type: str
+    sample: "Production infrastructure project"
+created_at:
+    description: The project creation timestamp.
+    returned: when state is present
+    type: str
+    sample: "2025-07-03T08:10:20.479Z"
+default_execution_mode:
+    description: Default execution mode for the project.
+    returned: when state is present
+    type: str
+    sample: "remote"
+auto_destroy_activity_duration:
+    description: Auto destroy activity duration.
+    returned: when provided by the API response
+    type: str
+    sample: "30d"
+default_agent_pool:
+    description: Default agent pool details for agent mode.
+    returned: when execution mode is C(agent)
+    type: dict
+    sample: {
+        "id": "apool-abc123",
+        "agent_count": 0,
+        "agents": [],
+        "workspaces": []
+    }
+organization:
+    description: Organization associated with the project.
+    returned: when state is present
+    type: dict
+    sample: {
+        "id": "my-org"
+    }
+setting_overwrites:
+    description: Project setting overwrite toggles.
+    returned: when state is present
+    type: dict
+    sample: {
+        "agent_pool": true,
+        "execution_mode": true
+    }
+workspace_count:
+    description: Number of workspaces currently assigned to the project.
+    returned: when state is present
+    type: int
+    sample: 2
+msg:
+    description: Informational message, primarily for delete and check mode operations.
+    returned: when relevant
+    type: str
+    sample: "Project prj-7TwrwCoRQ3FXbFtP has been deleted successfully"
 """
 from copy import deepcopy
 from typing import Any, Dict, Optional
