@@ -69,7 +69,7 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.attributes.status == "planned"
+          - run_result.status == "planned"
 
     - name: Apply the run to generate outputs
       hashicorp.terraform.run:
@@ -84,7 +84,7 @@
       ansible.builtin.assert:
         that:
           - run_apply_result.changed
-          - run_apply_result.attributes.status == "applied"
+          - run_apply_result.status == "applied"
 
     - name: Get all outputs by workspace_id
       hashicorp.terraform.output:
