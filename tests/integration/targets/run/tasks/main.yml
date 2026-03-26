@@ -70,7 +70,7 @@
       ansible.builtin.assert:
         that:
           - result_run.changed
-          - result_run.attributes.status in ["planned", "planned_and_finished"]
+          - result_run.status in ["planned", "planned_and_finished"]
 
     - name: Check mode for applying an existing run
       hashicorp.terraform.run:
@@ -130,7 +130,7 @@
       ansible.builtin.assert:
         that:
           - result_plan_only_variables.changed
-          - result_plan_only_variables.attributes.variables != []
+          - result_plan_only_variables.variables != []
 
     - name: Create a destroy run with auto_apply
       hashicorp.terraform.run:
