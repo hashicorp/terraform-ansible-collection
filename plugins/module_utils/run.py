@@ -1,11 +1,13 @@
 from typing import Any, Optional, Union
 
-from ansible.module_utils.common.text.converters import to_text
+from pytfe.errors import NotFound
+from pytfe.models import ConfigurationVersion, RunApplyOptions, RunCancelOptions, RunCreateOptions, RunDiscardOptions, RunVariable, Workspace
 
-from .exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 
-def create_run(client, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+def create_run(adapter: TerraformClient, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Create a new run with the given parameters.
     Args:
@@ -15,13 +17,19 @@ def create_run(client, data: dict[str, Any]) -> Optional[dict[str, Any]]:
     Raises:
         TerraformError: If the response does not return a 201 status code.
     """
-    response = client.post("/runs", data=data)
-    if response.get("status") != 201:
-        raise TerraformError(to_text(response))
-    return response.get("data")
+    if data.get("configuration_version"):
+        data["configuration_version"] = ConfigurationVersion.model_validate({"id": data.pop("configuration_version"), "type": "configuration-versions"})
+    if data.get("workspace_id"):
+        data["workspace"] = Workspace.model_validate({"id": data.pop("workspace_id"), "type": "workspaces"})
+    if data.get("variables"):
+        data["variables"] = [RunVariable(**variable) for variable in data.pop("variables")]
+    options = RunCreateOptions.model_validate(data)
+
+    run_response = safe_api_call(adapter.client.runs.create, options)
+    return format_response(run_response)
 
 
-def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
+def apply_run(adapter: TerraformClient, run_id: str, comment: str | None = None) -> Optional[dict[str, Any]]:
     """
     Apply a run with the given run_id.
     Args:
@@ -31,13 +39,12 @@ def apply_run(client, run_id: str) -> Optional[dict[str, Any]]:
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    response = client.post(f"/runs/{run_id}/actions/apply")
-    if response.get("status") != 202:
-        raise TerraformError(to_text(response))
-    return response
+    apply_options = RunApplyOptions(comment=comment)
+    safe_api_call(adapter.client.runs.apply, run_id, apply_options, error_context=f"Failed to apply run {run_id}")
+    return {"data": {"id": run_id}}
 
 
-def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
+def cancel_run(adapter: TerraformClient, run_id: str, comment: str | None = None) -> Optional[dict[str, Any]]:
     """
     Cancel a run with the given run_id.
     Args:
@@ -47,13 +54,12 @@ def cancel_run(client, run_id: str) -> Optional[dict[str, Any]]:
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    response = client.post(f"/runs/{run_id}/actions/cancel")
-    if response.get("status") != 202:
-        raise TerraformError(to_text(response))
-    return response
+    cancel_options = RunCancelOptions(comment=comment)
+    safe_api_call(adapter.client.runs.cancel, run_id, cancel_options, error_context=f"Failed to cancel run {run_id}")
+    return {"data": {"id": run_id}}
 
 
-def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
+def discard_run(adapter: TerraformClient, run_id: str, comment: str | None = None) -> Optional[dict[str, Any]]:
     """
     Discard a run with the given run_id.
     Args:
@@ -63,13 +69,12 @@ def discard_run(client, run_id: str) -> Optional[dict[str, Any]]:
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    response = client.post(f"/runs/{run_id}/actions/discard")
-    if response.get("status") != 202:
-        raise TerraformError(to_text(response))
-    return response
+    discard_options = RunDiscardOptions(comment=comment)
+    safe_api_call(adapter.client.runs.discard, run_id, discard_options, error_context=f"Failed to discard run {run_id}")
+    return {"data": {"id": run_id}}
 
 
-def get_run(client, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, str]]]:
+def get_run(adapter: TerraformClient, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, str]]]:
     """
     Get a run with the given run_id.
     Args:
@@ -79,16 +84,14 @@ def get_run(client, run_id: str) -> Optional[Union[dict[str, Any], tuple[int, st
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    response = client.get(f"/runs/{run_id}")
-    if response.get("status") == 200:
-        return response.get("data")
-    elif response.get("status") == 404:
+    try:
+        run = adapter.client.runs.read(run_id)
+        return format_response(run)
+    except NotFound:
         return {}
-    else:
-        raise TerraformError(to_text(response))
 
 
-def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
+def run_events(adapter: TerraformClient, run_id: str) -> Optional[dict[str, Any]]:
     """
     Get the events for a run.
     Args:
@@ -99,24 +102,5 @@ def run_events(client, run_id: str) -> Optional[dict[str, Any]]:
         TerraformError: If the events for the run does not return a 200
             status code.
     """
-    response = client.get(f"/runs/{run_id}/run-events")
-    if response.get("status") != 200:
-        raise TerraformError(to_text(response))
-    return response.get("data")
-
-
-def task_stages(client, run_id: str) -> Optional[dict[str, Any]]:
-    """
-    Get the tasks for a run.
-    Args:
-        run_id: The ID of the run to get the tasks for.
-    Returns:
-        The tasks for the run.
-    Raises:
-        TerraformError: If the tasks for the run does not return a 200
-            status code.
-    """
-    response = client.get(f"/runs/{run_id}/task-stages")
-    if response.get("status") != 200:
-        raise TerraformError(to_text(response))
-    return response.get("data")
+    events_response = list(adapter.client.run_events.list(run_id))
+    return [format_response(event) for event in events_response]
