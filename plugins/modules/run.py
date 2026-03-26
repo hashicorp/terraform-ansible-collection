@@ -126,45 +126,31 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": true,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "applied",
-#         "status-timestamps": {
-#             "applied-at": "2025-01-15T10:35:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z",
-#             "apply-queueable-at": "2025-01-15T10:32:05.000Z",
-#             "applying-at": "2025-01-15T10:33:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "auto_apply": true,
+#     "created_at": "2025-01-15T10:30:00.000Z",,
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "applied_at": "2025-01-15T10:35:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "apply_queueable_at": "2025-01-15T10:32:05.000Z",
+#         "applying_at": "2025-01-15T10:33:00.000Z"
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "type": "runs"
 # }
 
 - name: Create a plan-only run for review (with polling)
@@ -178,41 +164,28 @@ EXAMPLES = r"""
 # Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": true,
-#             "is-discardable": true,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T11:00:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Review infrastructure changes",
-#         "plan-only": true,
-#         "source": "tfe-api",
-#         "status": "planned",
-#         "status-timestamps": {
-#             "plan-queueable-at": "2025-01-15T11:00:05.000Z",
-#             "planning-at": "2025-01-15T11:00:10.000Z",
-#             "planned-at": "2025-01-15T11:02:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "id": "run-def456ghi789",
-#     "links": {
-#         "self": "/api/v2/runs/run-def456ghi789"
+#     "auto_apply": false,
+#     "created_at": "2025-02-20T14:00:00.000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Review infrastructure changes",
+#     "source": "tfe-api",
+#     "status": "planned",
+#     "plan_only": true,
+#     "status_timestamps": {
+#         "plan_queueable_at": "2025-01-15T11:00:05.000Z",
+#         "planning_at": "2025-01-15T11:00:10.000Z",
+#         "planned_at": "2025-01-15T11:02:00.000Z"
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-abc123def456",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": true,
+#         "is_discardable": true,
+#         "is_force_cancelable": false
 #     },
-#     "type": "runs"
+#     "variables": []
 # }
 
 - name: Create a plan-only run without polling
@@ -226,39 +199,25 @@ EXAMPLES = r"""
 # Task output (with poll: false):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T11:30:00.000Z",
-#         "has-changes": null,
-#         "is-destroy": false,
-#         "message": "Quick plan check",
-#         "plan-only": true,
-#         "source": "tfe-api",
-#         "status": "pending",
-#         "status-timestamps": {
-#             "queuing-at": "2025-01-15T11:30:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "id": "run-jkl012mno345",
-#     "links": {
-#         "self": "/api/v2/runs/run-jkl012mno345"
+#     "actions": {
+#         "is_cancelable": true,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-abc123def456",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2025-01-15T11:30:00.000Z",
+#     "has_changes": null,
+#     "is_destroy": false,
+#     "message": "Quick plan check",
+#     "plan_only": true,
+#     "source": "tfe-api",
+#     "status": "pending",
+#     "status_timestamps": {
+#         "queuing_at": "2025-01-15T11:30:00.000Z"
 #     },
-#     "type": "runs"
 # }
 
 - name: Create a destroy run to remove resources
@@ -273,41 +232,27 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": true,
-#             "is-discardable": true,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T12:00:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": true,
-#         "message": "Clean up staging environment",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "planned",
-#         "status-timestamps": {
-#             "plan-queueable-at": "2025-01-15T12:00:05.000Z",
-#             "planning-at": "2025-01-15T12:00:10.000Z",
-#             "planned-at": "2025-01-15T12:01:30.000Z"
-#         }
-#     },
 #     "changed": true,
-#     "id": "run-ghi789jkl012",
-#     "links": {
-#         "self": "/api/v2/runs/run-ghi789jkl012"
+#     "id": "run-ghi789jkl012hi",
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-staging123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": true,
+#     "created_at": "2026-03-26T10:15:05.813000Z",
+#     "has_changes": true,
+#     "is_destroy": true,
+#     "message": "Clean up staging environment",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "planned",
+#     "status_timestamps": {
+#         "plan_queueable_at": "2026-03-26T10:15:05Z",
+#         "planning_at": "2026-03-26T10:15:08Z",
+#         "planned_at": "2026-03-26T10:15:12Z",
 #     },
-#     "type": "runs"
 # }
 
 - name: Apply an existing run
@@ -321,45 +266,31 @@ EXAMPLES = r"""
 # Task output (with poll: true, poll_timeout: 300, poll_interval: 10):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "applied",
-#         "status-timestamps": {
-#             "applied-at": "2025-01-15T13:15:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z",
-#             "apply-queueable-at": "2025-01-15T13:10:00.000Z",
-#             "applying-at": "2025-01-15T13:12:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2026-03-26T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "applied_at": "2025-01-15T10:35:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "apply_queueable_at": "2025-01-15T10:32:05.000Z",
+#         "applying_at": "2025-01-15T10:33:00.000Z",
 #     },
-#     "type": "runs"
 # }
 #
 # Task output (with poll: false):
@@ -377,43 +308,30 @@ EXAMPLES = r"""
 # Task output (with poll: true - default):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "canceled",
-#         "status-timestamps": {
-#             "canceled-at": "2025-01-15T13:20:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": true,
+#     "created_at": "2025-01-15T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "canceled",
+#     "status_timestamps": {
+#         "canceled_at": "2025-01-15T10:20:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
 #     },
-#     "type": "runs"
+
 # }
 #
 # Task output (with poll: false):
@@ -431,43 +349,29 @@ EXAMPLES = r"""
 # Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "discarded",
-#         "status-timestamps": {
-#             "discarded-at": "2025-01-15T13:25:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2025-01-15T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "discarded",
+#     "status_timestamps": {
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "discarded_at": "2025-01-15T10:36:10.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
 #     },
-#     "type": "runs"
 # }
 #
 # Task output (with poll: false):
@@ -483,86 +387,71 @@ id:
     description: The unique identifier of the run.
     returned: always
     type: str
-    sample: "run-7TwrwCoRQ3FXbFtP"
-type:
-    description: The resource type, always 'runs'.
-    returned: always
+    sample: run-uYpZSm96CYWWk5gJ
+status:
+    description: Current status of the run.
+    returned: when run data is returned
     type: str
-    sample: "runs"
-attributes:
-    description: The run's attributes and configuration.
-    returned: always
+    sample: applied
+actions:
+    description: Action capability flags for the run.
+    returned: when run data is returned
     type: dict
-    sample: {
-        "actions": {
-            "is-cancelable": true,
-            "is-confirmable": false,
-            "is-discardable": false,
-            "is-force-cancelable": false
-        },
-        "allow-config-generation": false,
-        "allow-empty-apply": false,
-        "auto-apply": false,
-        "canceled-at": null,
-        "created-at": "2025-07-03T08:10:20.479Z",
-        "has-changes": false,
-        "is-destroy": false,
-        "message": "Custom message2",
-        "plan-only": true,
-        "status": "pending",
-        "terraform-version": "1.10.5",
-        "updated-at": "2025-07-03T08:10:20.651Z",
-        "permissions": {
-            "can-apply": true,
-            "can-cancel": true,
-            "can-discard": true,
-            "can-force-cancel": true
-        },
-        "variables": []
-    }
-relationships:
-    description: Related resources linked to the run.
-    returned: always
+    sample:
+        is_cancelable: false
+        is_confirmable: false
+        is_discardable: false
+        is_force_cancelable: false
+auto_apply:
+    description: Whether auto-apply is enabled for the run.
+    returned: when run data is returned
+    type: bool
+    sample: false
+created_at:
+    description: Run creation timestamp.
+    returned: when run data is returned
+    type: str
+    sample: "2026-03-26T10:14:34.631000Z"
+has_changes:
+    description: Whether the run contains infrastructure changes.
+    returned: when run data is returned
+    type: bool
+    sample: true
+is_destroy:
+    description: Whether the run is a destroy run.
+    returned: when run data is returned
+    type: bool
+    sample: false
+message:
+    description: Message associated with the run.
+    returned: when run data is returned
+    type: str
+    sample: Triggered via API
+plan_only:
+    description: Whether the run is plan-only.
+    returned: when run data is returned
+    type: bool
+    sample: false
+source:
+    description: Source of the run trigger.
+    returned: when run data is returned
+    type: str
+    sample: tfe-api
+status_timestamps:
+    description: Lifecycle timestamps keyed by event name.
+    returned: when run data is returned
     type: dict
-    sample: {
-        "workspace": {
-            "data": {
-                "id": "ws-82Qk88p7boaHK2BT",
-                "type": "workspaces"
-            }
-        },
-        "apply": {
-            "data": {
-                "id": "apply-qki4X5daDtNzNjpw",
-                "type": "applies"
-            }
-        },
-        "configuration-version": {
-            "data": {
-                "id": "cv-h2u3XnkPasTHbgyv",
-                "type": "configuration-versions"
-            }
-        },
-        "plan": {
-            "data": {
-                "id": "plan-YDyzmtnwadKwjVSn",
-                "type": "plans"
-            }
-        },
-        "created-by": {
-            "data": {
-                "id": "user-YYhuc7w4AJxv5RVp",
-                "type": "users"
-            }
-        }
-    }
-links:
-    description: API links for the run.
-    returned: always
-    type: dict
-    sample: {
-        "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
-    }
+    sample:
+        planned_at: "2026-03-26T10:14:40Z"
+        applied_at: "2026-03-26T10:14:55Z"
+variables:
+    description: Variables passed to the run.
+    returned: when run data is returned
+    type: list
+    elements: dict
+    sample:
+        - key: env
+          value: production
 """
 
 import time
@@ -740,7 +629,7 @@ def state_applied(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = apply_run(adapter, run_id, comment=kwargs.get("comment"))
+    response = apply_run(adapter, run_id, comment=kwargs.get("run_message"))
     return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
@@ -756,7 +645,7 @@ def state_discarded(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[st
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = discard_run(adapter, run_id, comment=kwargs.get("comment"))
+    response = discard_run(adapter, run_id, comment=kwargs.get("run_message"))
     return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
@@ -772,7 +661,7 @@ def state_canceled(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = cancel_run(adapter, run_id, comment=kwargs.get("comment"))
+    response = cancel_run(adapter, run_id, comment=kwargs.get("run_message"))
     return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
@@ -801,7 +690,7 @@ def main():
             "poll_interval": {"type": "int", "default": 5},
             "poll_timeout": {"type": "int", "default": 120},
             "configuration_version": {"type": "str"},
-            "run_message": {"type": "str"},
+            "run_message": {"type": "str", "default": None},
             "auto_apply": {"type": "bool"},
             "save_plan": {"type": "bool"},
             "variables": {"type": "list", "elements": "dict"},
@@ -810,7 +699,6 @@ def main():
             "target_addrs": {"type": "list", "elements": "str"},
             "state": {"type": "str", "choices": ["present", "applied", "discarded", "canceled"], "default": "present"},
             "run_id": {"type": "str"},
-            "comment": {"type": "str", "default": None},
         },
         required_together=[["workspace", "organization"]],
         required_if=[
