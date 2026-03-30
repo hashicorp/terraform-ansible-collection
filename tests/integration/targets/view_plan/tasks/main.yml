@@ -92,7 +92,7 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.attributes.status == "planned"
+          - run_result.status == "planned"
 
     - name: Get plan_id from run relationships
       ansible.builtin.set_fact:
