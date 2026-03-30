@@ -39,7 +39,7 @@ options:
           - Format should be a duration string like "14d" for 14 days or "720h" for 720 hours.
           - If not specified, workspaces will not be automatically destroyed.
         type: str
-    execution_mode:
+    default_execution_mode:
         description:
           - The execution mode for workspaces in this project.
           - Controls where Terraform operations are executed.
@@ -48,7 +48,7 @@ options:
     default_agent_pool_id:
         description:
           - The ID of the default agent pool for workspaces in this project.
-          - Only applicable when execution_mode is set to 'agent'.
+          - Only applicable when default_execution_mode is set to 'agent'.
         type: str
     setting_overwrites:
         description:
@@ -86,42 +86,30 @@ EXAMPLES = r"""
     name: "my-infrastructure-project"
     organization: "my-org"
     description: "Project for managing production infrastructure"
-    execution_mode: "remote"
+    default_execution_mode: "remote"
     auto_destroy_activity_duration: "30d"
     state: "present"
 
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "auto-destroy-activity-duration": "30d",
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "description": "Project for managing production infrastructure",
-#         "execution-mode": "remote",
-#         "name": "my-infrastructure-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T10:30:00.000Z"
-#     },
+#     "auto_destroy_activity_duration": "30d",
+#     "created_at": "2025-01-15T10:30:00.000Z",
+#     "default_execution_mode": "remote",
+#     "description": "Project for managing production infrastructure",
+#     "name": "my-infrastructure-project",
+#     "updated_at": "2025-01-15T10:30:00.000Z",
 #     "changed": true,
 #     "id": "prj-abc123def456",
-#     "links": {
-#         "self": "/api/v2/projects/prj-abc123def456"
+#     "name": "my-infrastructure-project",
+#     "organization": {
+#         "id": "org-xyz789abc123"
 #     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
+#     "setting_overwrites": {
+#         "agent_pool": true,
+#         "execution_mode": true
 #     },
-#     "type": "projects"
+#     "workspace_count": 0
 # }
 
 - name: Create a project with tag bindings
@@ -141,49 +129,15 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "created-at": "2025-01-15T11:00:00.000Z",
-#         "description": "Project with custom tags",
-#         "name": "tagged-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T11:00:00.000Z"
-#     },
-#     "changed": true,
+#     "created_at": "2025-01-15T11:00:00.000Z",
+#     "description": "Project with custom tags",
+#     "name": "tagged-project",
+#     "updated_at": "2025-01-15T11:00:00.000Z",
 #     "id": "prj-def456ghi789",
-#     "links": {
-#         "self": "/api/v2/projects/prj-def456ghi789"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         },
-#         "tag-bindings": {
-#             "data": [
-#                 {
-#                     "key": "Environment",
-#                     "value": "Production"
-#                 },
-#                 {
-#                     "key": "Team",
-#                     "value": "Infrastructure"
-#                 },
-#                 {
-#                     "key": "Cost-Center",
-#                     "value": "Engineering"
-#                 }
-#             ]
-#         }
-#     },
-#     "type": "projects"
+#     "organization": {
+#         "id": "org-xyz789abc123"
+#     }
+#     "changed": true,
 # }
 
 - name: Update an existing project
@@ -197,35 +151,17 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "auto-destroy-activity-duration": "60d",
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "description": "Updated project description",
-#         "execution-mode": "remote",
-#         "name": "updated-infrastructure-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "updated-at": "2025-01-15T12:15:00.000Z"
-#     },
 #     "changed": true,
+#     "auto_destroy_activity_duration": "60d",
+#     "created_at": "2025-01-15T10:30:00.000Z",
+#     "default_execution_mode": "remote",
+#     "description": "Updated project description",
 #     "id": "prj-abc123def456",
-#     "links": {
-#         "self": "/api/v2/projects/prj-abc123def456"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
-#     },
-#     "type": "projects"
+#     "name": "updated-infrastructure-project"
+#     "updated_at": "2025-01-15T12:00:00.000Z",
+#     "organization": {
+#         "id": "org-xyz789abc123"
+#     }
 # }
 
 - name: Create a project with custom settings
@@ -233,7 +169,7 @@ EXAMPLES = r"""
     name: "custom-settings-project"
     organization: "my-org"
     description: "Project with custom workspace settings"
-    execution_mode: "local"
+    default_execution_mode: "local"
     setting_overwrites:
       auto_apply: true
       global_remote_state: false
@@ -242,38 +178,17 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "created-at": "2025-01-15T13:00:00.000Z",
-#         "description": "Project with custom workspace settings",
-#         "execution-mode": "local",
-#         "name": "custom-settings-project",
-#         "permissions": {
-#             "can-access": true,
-#             "can-create-team": true,
-#             "can-create-workspace": true,
-#             "can-destroy": true,
-#             "can-update": true
-#         },
-#         "setting-overwrites": {
-#             "auto_apply": true,
-#             "global_remote_state": false
-#         },
-#         "updated-at": "2025-01-15T13:00:00.000Z"
-#     },
 #     "changed": true,
+#     "created_at": "2025-01-15T13:00:00.000Z",
+#     "default_execution_mode": "local",
+#     "description": "Project with custom workspace settings",
 #     "id": "prj-ghi789jkl012",
-#     "links": {
-#         "self": "/api/v2/projects/prj-ghi789jkl012"
-#     },
-#     "relationships": {
-#         "organization": {
-#             "data": {
-#                 "id": "org-xyz789abc123",
-#                 "type": "organizations"
-#             }
-#         }
-#     },
-#     "type": "projects"
+#     "name": "custom-settings-project",
+#     "setting_overwrites": {
+#         "auto_apply": true,
+#         "global_remote_state": false
+#     }
+#     "updated_at": "2025-01-15T13:00:00.000Z",
 # }
 
 - name: Delete a project
@@ -290,136 +205,95 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-data:
-    description: The main data object containing project information.
+changed:
+    description: Whether the module made a change.
+    returned: always
+    type: bool
+    sample: true
+id:
+    description: The unique identifier of the project.
     returned: when state is present
-    type: complex
-    contains:
-        id:
-            description: The unique identifier of the project.
-            returned: always
-            type: str
-            sample: "prj-7TwrwCoRQ3FXbFtP"
-        type:
-            description: The resource type, always 'projects'.
-            returned: always
-            type: str
-            sample: "projects"
-        attributes:
-            description: The project's attributes and configuration.
-            returned: always
-            type: dict
-            sample: {
-                "auto-destroy-activity-duration": "30d",
-                "created-at": "2025-07-03T08:10:20.479Z",
-                "description": "Production infrastructure project",
-                "execution-mode": "remote",
-                "name": "my-infrastructure-project",
-                "permissions": {
-                    "can-access": true,
-                    "can-create-team": true,
-                    "can-create-workspace": true,
-                    "can-destroy": true,
-                    "can-update": true
-                },
-                "setting-overwrites": {
-                    "auto_apply": false,
-                    "global_remote_state": true
-                },
-                "updated-at": "2025-07-03T08:10:20.651Z"
-            }
-        relationships:
-            description: Related resources linked to the project.
-            returned: always
-            type: dict
-            sample: {
-                "organization": {
-                    "data": {
-                        "id": "org-82Qk88p7boaHK2BT",
-                        "type": "organizations"
-                    }
-                },
-                "tag-bindings": {
-                    "data": [
-                        {
-                            "key": "Environment",
-                            "value": "Production"
-                        },
-                        {
-                            "key": "Team",
-                            "value": "Infrastructure"
-                        }
-                    ]
-                }
-            }
-        links:
-            description: API links for the project.
-            returned: always
-            type: dict
-            sample: {
-                "self": "/api/v2/projects/prj-7TwrwCoRQ3FXbFtP"
-            }
+    type: str
+    sample: "prj-7TwrwCoRQ3FXbFtP"
+name:
+    description: The project name.
+    returned: when state is present
+    type: str
+    sample: "my-infrastructure-project"
+description:
+    description: The project description.
+    returned: when set
+    type: str
+    sample: "Production infrastructure project"
+created_at:
+    description: The project creation timestamp.
+    returned: when state is present
+    type: str
+    sample: "2025-07-03T08:10:20.479Z"
+default_execution_mode:
+    description: Default execution mode for the project.
+    returned: when state is present
+    type: str
+    sample: "remote"
+auto_destroy_activity_duration:
+    description: Auto destroy activity duration.
+    returned: when provided by the API response
+    type: str
+    sample: "30d"
+default_agent_pool:
+    description: Default agent pool details for agent mode.
+    returned: when execution mode is C(agent)
+    type: dict
+    sample: {
+        "id": "apool-abc123",
+        "agent_count": 0,
+        "agents": [],
+        "workspaces": []
+    }
+organization:
+    description: Organization associated with the project.
+    returned: when state is present
+    type: dict
+    sample: {
+        "id": "my-org"
+    }
+setting_overwrites:
+    description: Project setting overwrite toggles.
+    returned: when state is present
+    type: dict
+    sample: {
+        "agent_pool": true,
+        "execution_mode": true
+    }
+workspace_count:
+    description: Number of workspaces currently assigned to the project.
+    returned: when state is present
+    type: int
+    sample: 2
+msg:
+    description: Informational message, primarily for delete and check mode operations.
+    returned: when relevant
+    type: str
+    sample: "Project prj-7TwrwCoRQ3FXbFtP has been deleted successfully"
 """
 from copy import deepcopy
 from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.project import ProjectRequest
+from ansible.module_utils._text import to_text
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     create_project,
     delete_project,
     get_project_by_id,
+    get_project_by_name,
     get_project_tag_bindings,
-    list_projects,
     update_project,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
 
 
-def get_project_by_name(client: TerraformClient, organization: str, name: str) -> Dict[str, Any]:
-    """
-    Get a project by name.
-    Args:
-        client: TerraformClient instance
-        organization: The name of the organization
-        name: The name of the project
-    Returns:
-        The project in the form of a dictionary, or empty dict if not found.
-    """
-    response = list_projects(client, organization, query_params={"filter[names]": name})
-    data = response.get("data", [])
-    return data[0] if data else {}
-
-
-def fetch_project_tag_bindings(client: TerraformClient, project_id: str) -> dict:
-    """
-    Fetch actual tag key-value pairs for a project's tag bindings.
-
-    Args:
-        client: An instance of TerraformClient.
-        project_id (str): The project ID.
-
-    Returns:
-        Dict[str, str]: A mapping of tag keys to values.
-    """
-    response = get_project_tag_bindings(client, project_id)
-
-    if not response or "data" not in response:
-        return {}
-
-    tag_values = {}
-    for item in response["data"]:
-        if item.get("type") == "tag-bindings":
-            attributes = item.get("attributes", {})
-            key = attributes.get("key")
-            value = attributes.get("value")
-            if key is not None:
-                tag_values[key] = value
-
-    return tag_values
-
-
-def normalize_project_response(response_data: dict, client: TerraformClient, project_id: str) -> dict:
+def normalize_project_response(response_data: dict, adapter: TerraformClient, project_id: str) -> dict:
     """
     Normalizes the raw project API response into a simplified, structured dictionary
     representing the current state of a project.
@@ -439,40 +313,34 @@ def normalize_project_response(response_data: dict, client: TerraformClient, pro
     """
 
     normalized = {
-        "name": response_data["data"].get("attributes", {}).get("name"),
-        "description": response_data["data"].get("attributes", {}).get("description"),
-        "auto_destroy_activity_duration": response_data["data"].get("attributes", {}).get("auto-destroy-activity-duration"),
-        "execution_mode": response_data["data"].get("attributes", {}).get("default-execution-mode"),
-        "setting_overwrites": response_data["data"].get("attributes", {}).get("setting-overwrites"),
+        "name": response_data.get("name"),
+        "description": response_data.get("description"),
+        "auto_destroy_activity_duration": response_data.get("auto_destroy_activity_duration"),
+        "default_execution_mode": response_data.get("default_execution_mode"),
+        "setting_overwrites": response_data.get("setting_overwrites"),
+        "default_agent_pool_id": None,
     }
 
-    # Extract default_agent_pool_id from attributes first, then relationships
-    default_agent_pool_id = response_data["data"].get("attributes", {}).get("default-agent-pool-id")
-    if default_agent_pool_id is None:
-        # If not in attributes or is None, try relationships
-        relationships = response_data["data"].get("relationships", {})
-        default_agent_pool = relationships.get("default-agent-pool", {})
-        agent_pool_data = default_agent_pool.get("data")
-        if agent_pool_data:
-            default_agent_pool_id = agent_pool_data.get("id")
-
-    # Include default_agent_pool_id if it was found in attributes (even if None)
-    # or if it was found in relationships
-    if "default-agent-pool-id" in response_data["data"].get("attributes", {}) or default_agent_pool_id:
-        normalized["default_agent_pool_id"] = default_agent_pool_id
+    # Extract default_agent_pool_id from response
+    default_agent_pool_rel = response_data.get("default_agent_pool")
+    if default_agent_pool_rel and "id" in default_agent_pool_rel:
+        normalized["default_agent_pool_id"] = default_agent_pool_rel.get("id")
 
     # Include tag bindings (keep even if empty to allow comparison)
-    tag_bindings = fetch_project_tag_bindings(client, project_id)
+    tag_bindings = get_project_tag_bindings(adapter, project_id)
     if tag_bindings:  # Only include if there are actual tag bindings
-        normalized["tag_bindings"] = tag_bindings
+        if isinstance(tag_bindings, list):
+            normalized["tag_bindings"] = _normalize_tag_bindings(tag_bindings)
+        else:
+            normalized["tag_bindings"] = tag_bindings
 
     return normalized
 
 
-def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+def fetch_project(adapter: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check if a project exists.
-    client: TerraformClient instance
+    adapter: TerraformClient instance
     params: Dictionary of parameters for the project
     Returns:
         True if the project exists, False otherwise.
@@ -482,20 +350,22 @@ def fetch_project(client: TerraformClient, params: Dict[str, Any]) -> Dict[str, 
     organization = params.get("organization")
 
     if project_id:
-        if project := get_project_by_id(client, project_id):
+        if project := get_project_by_id(adapter, project_id):
             return project
 
     if project_name and organization:
-        if project := get_project_by_name(client, organization, project_name):
-            return {"data": project}
+        if project := get_project_by_name(adapter, organization, project_name):
+            if project.get("id"):
+                project = get_project_by_id(adapter, project.get("id"))
+            return project
 
     return {}
 
 
-def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Optional[Dict[str, Any]]:
+def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Optional[Dict[str, Any]]:
     """
     Create/update a Terraform project.
-    client: TerraformClient instance
+    adapter: TerraformClient instance
     params: Dictionary of parameters for the project
     check_mode: If True, only report what would be changed without making changes
     Returns:
@@ -504,24 +374,25 @@ def state_present(client: TerraformClient, params: Dict[str, Any], check_mode: b
         TerraformError: If the response does not return a 201/200 status code.
     """
     ignore_params = {"check_mode", "state", "organization", "project_id"}
-    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
+    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in ignore_params}
 
-    if project := fetch_project(client, params):
+    # Map module argument names to SDK option field names.
+    if "project" in project_params:
+        project_params["name"] = project_params.pop("project")
+
+    if project := fetch_project(adapter, params):
         # Project exists, perform update logic with diff
-        return state_update(client, params, project, check_mode)
+        return state_update(adapter, params, project, check_mode)
     else:
         # Project doesn't exist, create it
-        project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
-            by_alias=True, exclude_unset=False, exclude_none=True
-        )
         if not check_mode:
-            response = create_project(client, organization=params.get("organization"), data=project_request)
-            return {"changed": True, **response.get("data")}
+            response = create_project(adapter, organization=params.get("organization"), data=project_params)
+            return {"changed": True, **response.get("data", response)}
         else:
             return {
                 "changed": True,
                 "msg": f"The project {params.get('project')} would be created with the given options. Skipped creation due to check mode.",
-                **project_request["data"],
+                **project_params,
             }
 
 
@@ -562,6 +433,8 @@ def _build_desired_state(project_params: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in project_params.items():
         if k == "project":
             want["name"] = v
+        elif k == "execution_mode":
+            want["default_execution_mode"] = v
         elif k == "tag_bindings" and isinstance(v, list):
             tag_bindings_dict = _normalize_tag_bindings(v)
             if tag_bindings_dict:  # Only add if not empty
@@ -623,13 +496,13 @@ def _filter_tag_binding_updates(updates: Dict[str, Any], have: Dict[str, Any]) -
 
 
 def _create_update_response(
-    client: TerraformClient, project_id: str, project_params: Dict[str, Any], params: Dict[str, Any], check_mode: bool
+    adapter: TerraformClient, project_id: str, project_params: Dict[str, Any], params: Dict[str, Any], check_mode: bool
 ) -> Dict[str, Any]:
     """
     Create and execute the update request or return check mode message.
 
     Args:
-        client: TerraformClient instance
+        adapter: TerraformClient instance
         project_id: ID of the project to update
         project_params: Dictionary of project parameters
         params: Full parameters dictionary including organization
@@ -638,22 +511,19 @@ def _create_update_response(
     Returns:
         Dictionary with update results or check mode message
     """
-    project_request = ProjectRequest.create(organization=params.get("organization"), **project_params).model_dump(
-        by_alias=True, exclude_unset=False, exclude_none=True
-    )
 
     if not check_mode:
-        response = update_project(client, project_id, project_request)
-        return {"changed": True, **response.get("data")}
+        response = update_project(adapter, project_id, data=project_params)
+        return {"changed": True, **response.get("data", response)}
     else:
         return {
             "changed": True,
             "msg": f"The project {project_id} would be updated with the given options. Skipped update due to check mode.",
-            **project_request.get("data"),
+            **project_params,
         }
 
 
-def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_update(adapter: TerraformClient, params: Dict[str, Any], project: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Update an existing Terraform project using the provided client and parameters.
 
@@ -661,7 +531,7 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     updates if there are differences.
 
     Args:
-        client: TerraformClient instance
+        adapter: TerraformClient instance
         params: Dictionary of parameters for the project
         project: Existing project data from API
         check_mode: If True, only report what would be changed without making changes
@@ -669,12 +539,15 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
         Dictionary indicating the result of the operation
     """
     ignore_params = {"check_mode", "state", "organization", "project_id"}
-    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "poll_")) and key not in ignore_params}
+    project_params = {key: value for key, value in params.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in ignore_params}
 
-    project_id = project["data"].get("id") or project.get("id")
+    if "project" in project_params:
+        project_params["name"] = project_params.pop("project")
+
+    project_id = project.get("id")
 
     # Get current state (what we have)
-    have = normalize_project_response(project, client, project_id)
+    have = normalize_project_response(project, adapter, project_id)
 
     # Get desired state (what we want) - handle field name mapping
     want = _build_desired_state(project_params)
@@ -691,13 +564,13 @@ def state_update(client: TerraformClient, params: Dict[str, Any], project: Dict[
     if not updates_response:
         return {"changed": False}
 
-    return _create_update_response(client, project_id, project_params, params, check_mode)
+    return _create_update_response(adapter, project_id, project_params, params, check_mode)
 
 
-def state_absent(client: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Delete a Terraform project.
-    client: TerraformClient instance
+    adapter: TerraformClient instance
     params: Dictionary of parameters for the project
     check_mode: If True, only report what would be changed without making changes
     Returns:
@@ -707,17 +580,15 @@ def state_absent(client: TerraformClient, params: Dict[str, Any], check_mode: bo
     """
     project_id = params.get("project_id")
     if not project_id:
-        project = fetch_project(client, params)
+        project = fetch_project(adapter, params)
         if project:
-            project_data = project.get("data")
-            if project_data:
-                project_id = project_data.get("id")
+            project_id = project.get("id")
 
     if not project_id:
         return {"changed": False, "msg": "Project not found"}
 
     if not check_mode:
-        delete_project(client, project_id)
+        delete_project(adapter, project_id)
         return {"changed": True, "msg": f"Project {project_id} has been deleted successfully"}
     else:
         return {"changed": True, "msg": f"The project {project_id} would be deleted. Skipped deletion due to check mode."}
@@ -731,7 +602,7 @@ def main():
             "organization": {"type": "str"},
             "description": {"type": "str"},
             "auto_destroy_activity_duration": {"type": "str"},
-            "execution_mode": {"type": "str", "choices": ["remote", "local", "agent"]},
+            "default_execution_mode": {"type": "str", "choices": ["remote", "local", "agent"]},
             "default_agent_pool_id": {"type": "str"},
             "setting_overwrites": {"type": "dict"},
             "tag_bindings": {"type": "list", "elements": "dict"},
@@ -752,21 +623,25 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+    adapter = None
 
     try:
-        tf_client = TerraformClient(**params)
+        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
 
         match params["state"]:
             case "present":
-                action_result = state_present(tf_client, params, params["check_mode"])
+                action_result = state_present(adapter, params, params["check_mode"])
             case "absent":
-                action_result = state_absent(tf_client, params, params["check_mode"])
+                action_result = state_absent(adapter, params, params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)
 
     except Exception as e:
-        module.fail_from_exception(e)
+        module.fail_json(msg=to_text(e))
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
