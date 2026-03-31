@@ -103,35 +103,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 #  "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:26:26+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": true,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:26:26+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Create a new configuration version (failed to transition to uploaded state even after end of polling)
@@ -145,32 +130,19 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # FAILED! => {
-#  "attributes": {
-#    "auto-queue-runs": true,
-#    "changed-files": [],
-#    "error": null,
-#    "error-message": null,
-#    "provisional": true,
-#    "source": "tfe-api",
-#    "speculative": false,
-#    "status": "pending",
-#    "status-timestamps": {}
-#  },
 #  "changed": false,
+#  "failed": true,
+#  "auto_queue_runs": true,
+#  "provisional": true,
+#  "source": "tfe-api",
+#  "speculative": false,
+#  "status": "pending",
+#  "status_timestamps": {},
 #  "id": "cv-ntv3HbhJqvFzamy7",
 #  "links": {
 #    "self": "api-link"
 #  },
 #  "msg": "Configuration version cv-ntv3HbhJqvFzamy7 was created but could not transition to uploaded state.",
-#  "relationships": {
-#    "ingress-attributes": {
-#      "data": null,
-#      "links": {
-#        "related": "api-link"
-#      }
-#    }
-#  },
-#  "type": "configuration-versions"
 # }
 
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded
@@ -184,35 +156,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": false,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:29:30+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": false,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:29:30+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Create a configuration version for speculative runs
@@ -225,37 +182,21 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": true,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:31:36+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": true,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": true,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:31:36+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
-#
 
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.configuration_version:
@@ -267,35 +208,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": true,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T09:28:12+00:00"
-#             }
-#         },
+#         "auto_queue_runs": true,
 #         "changed": true,
-#         "failed": false,
+#         "provisional": true,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T09:28:12+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Discard a configuration version
@@ -318,39 +244,54 @@ id:
     returned: when state is 'present'
     type: str
     sample: "cv-iNWfGWrsMBZK3AZ4"
-type:
-    description: The resource type, always 'configuration-versions'.
+auto_queue_runs:
+    description: Whether runs are queued automatically when upload completes.
+    returned: when state is 'present'
+    type: bool
+    sample: true
+speculative:
+    description: Whether the configuration version is speculative.
+    returned: when state is 'present'
+    type: bool
+    sample: false
+provisional:
+    description: Whether the configuration version is provisional.
+    returned: when state is 'present'
+    type: bool
+    sample: false
+source:
+    description: Source that created the configuration version.
     returned: when state is 'present'
     type: str
-    sample: "configuration-versions"
-attributes:
-    type: dict
+    sample: "tfe-api"
+status:
+    description: Current status of the configuration version.
     returned: when state is 'present'
-    description: The attributes of the configuration version created.
-relationships:
-    description: Related resources linked to the run.
+    type: str
+    sample: "uploaded"
+status_timestamps:
+    description: Timestamps related to status transitions.
     returned: when state is 'present'
     type: dict
     sample: {
-        "ingress-attributes": {
-            "data": null,
-            "links": {
-                "related": "/api/v2/configuration-versions/cv-id4/ingress-attributes"
-            }
-        }
+        "uploaded-at": "2025-07-25T05:26:26+00:00"
     }
 links:
-    description: API links for the run.
+    description: API links for the configuration version.
     returned: when state is 'present'
     type: dict
     sample: {
         "download": "/api/v2/configuration-versions/cv-id/download",
         "self": "/api/v2/configuration-versions/cv-id"
     }
+failed:
+    type: bool
+    returned: when state is 'present' and the configuration version does not reach uploaded state within polling timeout
+    description: Indicates that the operation failed after creation due to non-uploaded final status.
 msg:
     type: str
     returned: when state is 'archived'
-    description: The successfull completion of archive with the configuration version ID.
+    description: Result message for archive operations (success, already archived, or not found).
 """
 
 import gzip
