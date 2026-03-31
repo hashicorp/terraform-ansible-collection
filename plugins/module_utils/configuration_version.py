@@ -3,18 +3,18 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import re
+from pytfe.errors import NotFound
+from pytfe.models import (
+    ConfigurationVersionCreateOptions,
+)
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
-    ArchivistClient,
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     TerraformClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
-    TerraformError,
-)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 
-def create_config(client: TerraformClient, workspace_id: str, attributes: dict):
+def create_config(adapter: TerraformClient, workspace_id: str, attributes: dict):
     """
     Creates a new configuration version for a specified Terraform Cloud workspace.
 
@@ -37,26 +37,17 @@ def create_config(client: TerraformClient, workspace_id: str, attributes: dict):
     Raises:
         TerraformError: If the request fails (i.e., non-201 status code is returned).
     """
-    payload = {
-        "data": {
-            "type": "configuration-versions",
-            "attributes": attributes,
-        },
-    }
-    response = client.post(f"/workspaces/{workspace_id}/configuration-versions", data=payload)
-    response_data = response.get("data", {})
-    response_status = response["status"]
-    if response_status == 201:
-        # configuration version was created successfully
-        response_data.update({"status": response_status})
-        return response_data
-    else:
-        # A non-201 status code was received when attempting to create specified configuration version
-        # there can be several reasons for this so we raise an exception with the response
-        raise TerraformError(response)
+    create_options = ConfigurationVersionCreateOptions(**attributes)
+    config_version = safe_api_call(
+        adapter.client.configuration_versions.create,
+        workspace_id,
+        create_options,
+        error_context=f"Failed to create configuration version for workspace {workspace_id}",
+    )
+    return format_response(config_version)
 
 
-def archive_config(client: TerraformClient, config_version_id: str):
+def archive_config(adapter: TerraformClient, config_version_id: str):
     """
     Archives a specified configuration version in Terraform Cloud.
 
@@ -79,24 +70,20 @@ def archive_config(client: TerraformClient, config_version_id: str):
     Raises:
         TerraformError: If the archive request fails with a non-404 or non-202 status code.
     """
-    response = client.post(f"/configuration-versions/{config_version_id}/actions/archive")
-    response_status = response["status"]
-
-    if response["status"] == 404:
+    try:
+        safe_api_call(
+            adapter.client.configuration_versions.archive,
+            config_version_id,
+            error_context=f"Failed to archive configuration version {config_version_id}",
+        )
+        return {"status": 202}
+    except NotFound:
         # Configuration version was not found
         # This should not raise an exception
         return {}
-    elif response["status"] == 202:
-        # Archive process initiated successfully
-        # returns the response payload
-        return {"status": response_status}
-    else:
-        # Archive process was not initiated successfully
-        # there can be several reasons for this so we raise an exception with the response
-        raise TerraformError(response)
 
 
-def upload_config(client: ArchivistClient, upload_url: str, configuration_files_path: str):
+def upload_config(adapter: TerraformClient, upload_url: str, configuration_files_path: str):
     """
     Uploads a Terraform configuration `.tar.gz` archive to the specified upload URL.
 
@@ -109,25 +96,19 @@ def upload_config(client: ArchivistClient, upload_url: str, configuration_files_
         upload_url (str): The upload destination URL (absolute or relative).
         configuration_files_path (str): Path to the `.tar.gz` archive to upload.
 
-    Returns:
-        dict: The HTTP response returned from the PUT request.
-
     Raises:
         TerraformError: If the upload fails (non-200 HTTP status code).
     """
-    response = {}
-    with open(configuration_files_path, "rb") as f:
-        if re.match(r"^https?://", client.base_url) and "/object" in upload_url:
-            response = client.put(f"{upload_url}", f)
-        else:
-            response = client.put(f"/object/{upload_url}", f)
-
-    if response["status"] != 200:
-        raise TerraformError(response)
-    return response
+    with open(configuration_files_path, "rb") as archive:
+        safe_api_call(
+            adapter.client.configuration_versions.upload_tar_gzip,
+            upload_url,
+            archive,
+            error_context=f"Failed to upload configuration archive to {upload_url}",
+        )
 
 
-def get_config(client: TerraformClient, config_version_id: str):
+def get_config(adapter: TerraformClient, config_version_id: str):
     """
     Retrieves a specified configuration version from Terraform Cloud.
 
@@ -137,7 +118,7 @@ def get_config(client: TerraformClient, config_version_id: str):
     non-success status, raises an HTTPError with the response.
 
     Args:
-        client (TerraformClient): An authenticated client instance used to interact
+        adapter (TerraformClient): An authenticated client instance used to interact
             with the Terraform Cloud API.
         config_version_id (str): The ID of the configuration version to retrieve.
 
@@ -148,19 +129,10 @@ def get_config(client: TerraformClient, config_version_id: str):
     Raises:
         TerraformError: If the request fails with a non-404 or non-200 status code.
     """
-    response = client.get(f"/configuration-versions/{config_version_id}")
-    response_data = response.get("data", {})
-    response_status = response["status"]
-
-    if response_status == 404:
+    try:
+        config_version = adapter.client.configuration_versions.read(config_version_id)
+        return format_response(config_version)
+    except NotFound:
         # Configuration version was not found
         # This should not raise an exception
         return {}
-    elif response_status == 200:
-        # configuration version was fetched successfully
-        response_data.update({"status": response_status})
-        return response_data
-    else:
-        # A failure status code was received when attempting to fetch the specified configuration version
-        # there can be several reasons for this so we raise an exception with the response
-        raise TerraformError(response)
