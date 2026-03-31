@@ -20,7 +20,6 @@ from ansible_collections.hashicorp.terraform.plugins.modules.configuration_versi
     upload_configuration_version,
     validate_and_prepare_tar,
 )
-from tests.unit.constants import create_configuration_version_response
 
 
 @pytest.fixture
@@ -30,17 +29,6 @@ def mock_tf_client():
     Returns:
         Mock: A mock object simulating the Terraform client for API interactions
               without making actual HTTP requests.
-    """
-    return Mock()
-
-
-@pytest.fixture
-def mock_archivist_client():
-    """Fixture providing a mock Archivist client for file upload testing.
-
-    Returns:
-        Mock: A mock object simulating the Archivist client for configuration
-              file upload operations without actual file transfers.
     """
     return Mock()
 
@@ -226,19 +214,19 @@ class TestConfigurationVersionOperations:
         "response_data,expected_config_id,expected_upload_url,description",
         [
             (
-                {"data": {}},  # Missing 'id' and 'attributes'
+                {},  # Missing id and upload_url
                 None,
                 None,
                 "missing data gracefully handled with .get() method",
             ),
             (
-                {"data": {"id": "cv-456", "attributes": {"upload-url": "https://example.com/upload"}}},
+                {"id": "cv-456", "upload_url": "https://example.com/upload"},
                 "cv-456",
                 "https://example.com/upload",
                 "successful creation with all data",
             ),
             (
-                {"data": {"id": "cv-123"}},  # Missing attributes
+                {"id": "cv-123"},  # Missing upload_url
                 "cv-123",
                 None,
                 "missing attributes gracefully handled",
@@ -263,7 +251,7 @@ class TestConfigurationVersionOperations:
         mock_client = Mock()
         params = {"workspace_id": "ws-456", "auto_queue_runs": False, "speculative": True, "provisional": True}
 
-        mock_response = {"data": {"id": "cv-456", "attributes": {"upload-url": "https://example.com/upload"}}}
+        mock_response = {"id": "cv-456", "upload_url": "https://example.com/upload"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_config") as mock_create:
             mock_create.return_value = mock_response
@@ -276,19 +264,16 @@ class TestConfigurationVersionOperations:
             # Verify the attributes were passed correctly
             mock_create.assert_called_once_with(mock_client, "ws-456", {"auto-queue-runs": False, "speculative": True, "provisional": True})
 
-    @pytest.mark.parametrize("status_code", [200, 201, 204, 400, 403, 404, 500])
-    def test_upload_configuration_version_status_codes(self, status_code):
-        """Test upload with various HTTP status codes."""
+    def test_upload_configuration_version(self):
+        """Test upload_configuration_version delegates to upload_config."""
         mock_client = Mock()
         upload_url = "https://example.com/upload"
         config_path = "/fake/path.tar.gz"
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.upload_config") as mock_upload:
-            mock_upload.return_value = {"status": status_code}
-
             result = upload_configuration_version(mock_client, upload_url, config_path)
 
-            assert result == status_code
+            assert result is None
             mock_upload.assert_called_once_with(mock_client, upload_url=upload_url, configuration_files_path=config_path)
 
 
@@ -301,7 +286,7 @@ class TestConfigurationVersionPolling:
         params = {"poll_interval": 1, "poll_timeout": 5}
         config_id = "cv-123"
 
-        mock_response = create_configuration_version_response(status="uploaded")
+        mock_response = {"id": "cv-123", "status": "uploaded"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             mock_get.return_value = mock_response
@@ -317,7 +302,7 @@ class TestConfigurationVersionPolling:
         params = {"poll_interval": 0.1, "poll_timeout": 0.3}  # Very short timeout
         config_id = "cv-timeout"
 
-        mock_response = create_configuration_version_response(status="pending")  # Never reaches "uploaded"
+        mock_response = {"id": "cv-timeout", "status": "pending"}  # Never reaches "uploaded"
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             with patch("time.sleep"):  # Speed up the test
@@ -338,9 +323,9 @@ class TestConfigurationVersionPolling:
 
         # Mock progression from pending to uploaded
         responses = [
-            create_configuration_version_response(status="pending"),
-            create_configuration_version_response(status="pending"),
-            create_configuration_version_response(status="uploaded"),
+            {"id": "cv-eventual", "status": "pending"},
+            {"id": "cv-eventual", "status": "pending"},
+            {"id": "cv-eventual", "status": "uploaded"},
         ]
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
@@ -351,7 +336,7 @@ class TestConfigurationVersionPolling:
 
                 # Should return the final successful response
                 assert result == responses[-1]
-                assert result["data"]["attributes"]["status"] == "uploaded"
+                assert result["status"] == "uploaded"
 
 
 class TestStateOperations:
@@ -360,7 +345,6 @@ class TestStateOperations:
     def test_state_present_full_flow(self):
         """Test complete state_present flow with successful outcome."""
         mock_tf_client = Mock()
-        mock_archivist_client = Mock()
         params = {
             "configuration_files_path": "/fake/path",
             "workspace_id": "ws-123",
@@ -372,7 +356,7 @@ class TestStateOperations:
             "check_mode": False,
         }
 
-        final_response = {"data": {"id": "cv-123", "attributes": {"status": "uploaded"}}}
+        final_response = {"id": "cv-123", "status": "uploaded"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
@@ -384,19 +368,17 @@ class TestStateOperations:
 
             mock_validate.return_value = "/tmp/dummy-object-id"
             mock_create.return_value = ("cv-123", "https://upload.url")
-            mock_upload.return_value = 200
             mock_get.return_value = final_response
 
-            result = state_present(mock_tf_client, mock_archivist_client, params)
+            result = state_present(mock_tf_client, params)
 
             assert result["changed"] is True
             assert result["id"] == "cv-123"
-            assert "status" in result["attributes"]
+            assert result["status"] == "uploaded"
 
     def test_state_present_upload_failure(self):
         """Test state_present when upload fails."""
         mock_tf_client = Mock()
-        mock_archivist_client = Mock()
         params = {
             "configuration_files_path": "/fake/path",
             "workspace_id": "ws-123",
@@ -415,14 +397,13 @@ class TestStateOperations:
             mock_upload.side_effect = Exception("Upload failed")
 
             with pytest.raises(Exception) as exc_info:
-                state_present(mock_tf_client, mock_archivist_client, params)
+                state_present(mock_tf_client, params)
 
             assert "Upload failed" in str(exc_info.value)
 
     def test_state_present_final_status_not_uploaded(self):
         """Test when final status is not 'uploaded'."""
         mock_tf_client = Mock()
-        mock_archivist_client = Mock()
         params = {
             "configuration_files_path": "/fake/path",
             "workspace_id": "ws-123",
@@ -434,7 +415,7 @@ class TestStateOperations:
             "check_mode": False,
         }
 
-        final_response = {"data": {"id": "cv-123", "attributes": {"status": "errored"}}}
+        final_response = {"id": "cv-123", "status": "errored"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.create_configuration_version",
@@ -446,10 +427,9 @@ class TestStateOperations:
 
             mock_validate.return_value = "/tmp/dummy-object-id"
             mock_create.return_value = ("cv-123", "https://upload.url")
-            mock_upload.return_value = 200
             mock_get.return_value = final_response
 
-            result = state_present(mock_tf_client, mock_archivist_client, params)
+            result = state_present(mock_tf_client, params)
 
             assert result["failed"] is True
             assert "could not transition to uploaded state" in result["msg"]
@@ -459,7 +439,7 @@ class TestStateOperations:
         mock_client = Mock()
         config_id = "cv-archive-me"
 
-        mock_response = create_configuration_version_response(status="uploaded")
+        mock_response = {"id": "cv-archive-me", "status": "uploaded"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.archive_config",
@@ -479,7 +459,7 @@ class TestStateOperations:
         mock_client = Mock()
         config_id = "cv-already-archived"
 
-        mock_response = create_configuration_version_response(status="archived")
+        mock_response = {"id": "cv-already-archived", "status": "archived"}
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get:
             mock_get.return_value = mock_response
@@ -523,7 +503,7 @@ class TestMainFunctionBehavior:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws:
 
@@ -579,7 +559,7 @@ class TestMainFunctionBehavior:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"):
+        ):
 
             mock_module = Mock()
             mock_module.params = params.copy()
@@ -616,7 +596,7 @@ class TestIntegrationFlows:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
         ) as mock_state:
 
@@ -624,7 +604,7 @@ class TestIntegrationFlows:
             mock_module.params = params.copy()
             mock_module_class.return_value = mock_module
 
-            mock_state.return_value = {"changed": True, "id": "cv-123", "attributes": {"status": "uploaded"}}
+            mock_state.return_value = {"changed": True, "id": "cv-123", "status": "uploaded"}
 
             mock_module.exit_json.side_effect = SystemExit({"changed": True})
 
@@ -633,7 +613,7 @@ class TestIntegrationFlows:
 
             mock_state.assert_called_once()
             # Verify workspace_id was passed correctly
-            call_args = mock_state.call_args[0][2]  # params argument
+            call_args = mock_state.call_args[0][1]  # params argument
             assert call_args["workspace_id"] == "ws-direct-123"
 
     def test_full_integration_archived_state(self):
@@ -642,7 +622,7 @@ class TestIntegrationFlows:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived",
         ) as mock_state:
 
@@ -678,7 +658,7 @@ class TestIntegrationFlows:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
@@ -689,7 +669,7 @@ class TestIntegrationFlows:
             mock_module_class.return_value = mock_module
 
             # Mock get_workspace to return valid workspace data
-            mock_get_ws.return_value = {"data": {"id": "ws-from-name-123", "type": "workspaces"}, "status": 200}
+            mock_get_ws.return_value = {"id": "ws-from-name-123"}
 
             mock_state.return_value = {"changed": True, "msg": "Created successfully"}
 
@@ -704,7 +684,7 @@ class TestIntegrationFlows:
 
             # Verify state_present was called and workspace_id was set correctly
             mock_state.assert_called_once()
-            call_args = mock_state.call_args[0][2]  # params argument
+            call_args = mock_state.call_args[0][1]  # params argument
             assert call_args["workspace_id"] == "ws-from-name-123"
 
     def test_main_workspace_lookup_not_found_empty_dict(self):
@@ -724,7 +704,7 @@ class TestIntegrationFlows:
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.ArchivistClient"), patch(
+        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws:
 
@@ -754,7 +734,6 @@ class TestCheckMode:
     def setup_method(self):
         """Set up common test fixtures."""
         self.mock_tf_client = Mock()
-        self.mock_archivist_client = Mock()
 
     def test_state_present_check_mode(self):
         """Test return value structure when running in check mode."""
@@ -772,7 +751,7 @@ class TestCheckMode:
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.validate_and_prepare_tar") as mock_validate:
             mock_validate.return_value = "/tmp/check_mode_validated.tar.gz"
 
-            result = state_present(self.mock_tf_client, self.mock_archivist_client, params)
+            result = state_present(self.mock_tf_client, params)
 
             # Verify the exact structure and content of check mode return
             assert isinstance(result, dict)
@@ -812,17 +791,12 @@ class TestCheckMode:
         """Test return value when configuration version is already archived and check_mode=True."""
         test_config_version_id = "cv-test-12345"
         mock_config_response = {
-            "data": {
-                "id": test_config_version_id,
-                "type": "configuration-versions",
-                "attributes": {
-                    "status": "archived",
-                    "auto-queue-runs": True,
-                    "speculative": False,
-                    "provisional": False,
-                    "source": "tfe-api",
-                },
-            },
+            "id": test_config_version_id,
+            "status": "archived",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "source": "tfe-api",
         }
 
         with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_config") as mock_get_config:
@@ -844,23 +818,18 @@ class TestCheckMode:
         """Test return value when configuration version needs archiving and check_mode=True."""
         test_config_version_id = "cv-test-12345"
         mock_config_response = {
-            "data": {
-                "id": test_config_version_id,
-                "type": "configuration-versions",
-                "attributes": {
-                    "status": "uploaded",
-                    "auto-queue-runs": True,
-                    "speculative": False,
-                    "provisional": False,
-                    "source": "tfe-api",
-                    "status-timestamps": {
-                        "uploaded-at": "2025-01-15T10:30:00Z",
-                    },
-                },
-                "links": {
-                    "self": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}",
-                    "download": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}/download",
-                },
+            "id": test_config_version_id,
+            "status": "uploaded",
+            "auto_queue_runs": True,
+            "speculative": False,
+            "provisional": False,
+            "source": "tfe-api",
+            "status_timestamps": {
+                "uploaded-at": "2025-01-15T10:30:00Z",
+            },
+            "links": {
+                "self": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}",
+                "download": f"https://app.terraform.io/api/v2/configuration-versions/{test_config_version_id}/download",
             },
         }
 
