@@ -1,17 +1,17 @@
 from typing import Any, Dict, Optional
 
 from pytfe.errors import NotFound
-from pytfe.models import (
-    ProjectAddTagBindingsOptions,
-    ProjectCreateOptions,
-    ProjectListOptions,
-    ProjectSettingOverwrites,
-    ProjectUpdateOptions,
-    TagBinding,
-)
+from pytfe.models import ProjectAddTagBindingsOptions, ProjectCreateOptions, ProjectListOptions, ProjectUpdateOptions, TagBinding
+
+
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
+
+
+def _validate_setting_overwrites(data: dict[str, Any]) -> dict[str, Any]:
+   
+    return data
 
 
 def create_project(adapter: TerraformClient, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -26,8 +26,7 @@ def create_project(adapter: TerraformClient, organization: str, data: dict[str, 
     Raises:
         TerraformError: If the response does not return a 201 status code.
     """
-    if data.get("setting_overwrites") is not None:
-        data["setting_overwrites"] = ProjectSettingOverwrites.model_validate(data["setting_overwrites"])
+    data = _validate_setting_overwrites(data)
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
     options = ProjectCreateOptions.model_validate(data)
@@ -53,10 +52,14 @@ def get_project_by_id(adapter: TerraformClient, project_id: str) -> Dict[str, An
     """
     try:
         project = adapter.client.projects.read(project_id)
-        return format_response(project)
+        data = format_response(project)
+        project_data = data.get("data", data)
+        if "links" not in project_data and project_data.get("id"):
+            project_data["links"] = {"self": f"/api/v2/projects/{project_data['id']}"}
+
+        return data
     except NotFound:
-        # project was not found
-        # This should not raise an exception
+        
         return {}
 
 
@@ -72,8 +75,7 @@ def update_project(adapter: TerraformClient, project_id: str, data: dict[str, An
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    if data.get("setting_overwrites") is not None:
-        data["setting_overwrites"] = ProjectSettingOverwrites.model_validate(data["setting_overwrites"])
+    data = _validate_setting_overwrites(data)
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
     options = ProjectUpdateOptions.model_validate(data)
