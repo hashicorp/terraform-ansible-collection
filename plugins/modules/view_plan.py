@@ -192,7 +192,7 @@ from copy import deepcopy
 
 from ansible.module_utils._text import to_text
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
     TerraformClient,
 )
@@ -718,17 +718,18 @@ def main() -> None:
     output_format = params.get("output_format")
 
     result = {}
+    adapter = None
 
     try:
-        client = TerraformClient(**params)
+        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
 
         # Determine which ID is provided
         identifier = plan_id if plan_id else run_id
         use_plan_id = plan_id is not None
 
         # Get plan information
-        metadata_response = get_plan_data(client, identifier, use_plan_id, include_json_output=False)
-        json_output_response = get_plan_data(client, identifier, use_plan_id, include_json_output=True)
+        metadata_response = get_plan_data(adapter, identifier, use_plan_id, include_json_output=False)
+        json_output_response = get_plan_data(adapter, identifier, use_plan_id, include_json_output=True)
 
         # Check if plan was found
         if not metadata_response:
@@ -739,13 +740,13 @@ def main() -> None:
             # Return json format
             result.update(
                 {
-                    "metadata": metadata_response.get("data", {}),
-                    "json_output": json_output_response.get("data", {}),
+                    "metadata": metadata_response,
+                    "json_output": json_output_response,
                 },
             )
         else:
             # Return diff format
-            json_output_data = json_output_response.get("data", {})
+            json_output_data = json_output_response
             diff_sequences = _get_diff_sequences(json_output_data)
             result["diff"] = diff_sequences
 
@@ -758,6 +759,9 @@ def main() -> None:
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
