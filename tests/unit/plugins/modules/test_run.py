@@ -204,7 +204,7 @@ class TestStateHandlers:
         mock_apply_run.return_value = {"data": {"id": "run-1"}}
         mock_handle.return_value = {"changed": True, "id": "run-1"}
 
-        result = state_applied(Mock(), run_id="run-1", poll=True, comment="apply")
+        result = state_applied(Mock(), run_id="run-1", poll=True, run_message="apply")
 
         assert result["changed"] is True
         mock_apply_run.assert_called_once_with(ANY, "run-1", comment="apply")
@@ -215,7 +215,7 @@ class TestStateHandlers:
         mock_discard_run.return_value = {"data": {"id": "run-2"}}
         mock_handle.return_value = {"changed": True, "id": "run-2"}
 
-        result = state_discarded(Mock(), run_id="run-2", poll=False, comment="discard")
+        result = state_discarded(Mock(), run_id="run-2", poll=False, run_message="discard")
 
         assert result["changed"] is True
         mock_discard_run.assert_called_once_with(ANY, "run-2", comment="discard")
@@ -226,7 +226,7 @@ class TestStateHandlers:
         mock_cancel_run.return_value = {"data": {"id": "run-3"}}
         mock_handle.return_value = {"changed": True, "id": "run-3"}
 
-        result = state_canceled(Mock(), run_id="run-3", poll=True, comment="cancel")
+        result = state_canceled(Mock(), run_id="run-3", poll=True, run_message="cancel")
 
         assert result["changed"] is True
         mock_cancel_run.assert_called_once_with(ANY, "run-3", comment="cancel")
