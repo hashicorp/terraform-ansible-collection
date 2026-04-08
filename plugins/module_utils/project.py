@@ -24,7 +24,7 @@ def create_project(adapter: TerraformClient, organization: str, data: dict[str, 
     Raises:
         TerraformError: If the response does not return a 201 status code.
     """
-    data = _validate_setting_overwrites(data)
+    
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
     options = ProjectCreateOptions.model_validate(data)
@@ -52,9 +52,10 @@ def get_project_by_id(adapter: TerraformClient, project_id: str) -> Dict[str, An
         project = adapter.client.projects.read(project_id)
         data = format_response(project)
         project_data = data.get("data", data)
-        if "links" not in project_data and project_data.get("id"):
-            project_data["links"] = {"self": f"/api/v2/projects/{project_data['id']}"}
-
+        if project_data.get("id") and "links" not in project_data:
+            project_data["links"] = {
+                "self": f"/api/v2/projects/{project_data['id']}"
+            }
         return data
     except NotFound:
         
@@ -73,7 +74,7 @@ def update_project(adapter: TerraformClient, project_id: str, data: dict[str, An
     Raises:
         TerraformError: If the response does not return a 200 status code.
     """
-    data = _validate_setting_overwrites(data)
+     
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
     options = ProjectUpdateOptions.model_validate(data)
