@@ -251,13 +251,7 @@ def main() -> None:
       if "type" not in project_data:
         project_data["type"] = "projects"
 
-      result["project"] = {
-    "id": project_data.get("id"),
-    "type": project_data.get("type"),
-    "attributes": project_data,
-    "relationships": project_data.get("relationships", {}),
-    "links": project_data.get("links", {}),
-}
+      result.update(project_data)
 
       module.exit_json(**result)
 
