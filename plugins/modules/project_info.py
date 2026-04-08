@@ -202,11 +202,11 @@ from ansible.module_utils._text import to_text
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
-    AnsibleTerraformModule,
-)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+    AnsibleTerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
@@ -231,29 +231,29 @@ def main() -> None:
 
     try:
         # Adapter initialization (pytfe SDK)
-      adapter = TerraformClient(
-        tfe_token=params.get("tfe_token") or params.get("tf_token"),
-        tfe_address=params.get("tfe_address") or params.get("tf_hostname"),
-      )
+        adapter = TerraformClient(
+            tfe_token=params.get("tfe_token") or params.get("tf_token"),
+            tfe_address=params.get("tfe_address") or params.get("tf_hostname"),
+        )
 
-      project_data: Optional[Dict[str, Any]] = None
+        project_data: Optional[Dict[str, Any]] = None
 
-      if params["project_id"]:
-        project_data = get_project_by_id(adapter, params["project_id"])
+        if params["project_id"]:
+            project_data = get_project_by_id(adapter, params["project_id"])
 
-        if not project_data:
-          raise ValueError(f"Project '{params['project_id']}' was not found.")
-      else:
-        raise ValueError("Project ID is required.")
+            if not project_data:
+                raise ValueError(f"Project '{params['project_id']}' was not found.")
+        else:
+            raise ValueError("Project ID is required.")
 
-      project_data.pop("status", None)
+        project_data.pop("status", None)
 
-      if "type" not in project_data:
-        project_data["type"] = "projects"
+        if "type" not in project_data:
+            project_data["type"] = "projects"
 
-      result.update(project_data)
+        result.update(project_data)
 
-      module.exit_json(**result)
+        module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
