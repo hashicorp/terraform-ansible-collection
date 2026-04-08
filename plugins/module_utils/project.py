@@ -9,9 +9,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 
-def _validate_setting_overwrites(data: dict[str, Any]) -> dict[str, Any]:
-   
-    return data
+
 
 
 def create_project(adapter: TerraformClient, organization: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
