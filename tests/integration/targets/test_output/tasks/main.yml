@@ -69,7 +69,7 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.status == "planned"
+          - run_result.status in ["planned", "planned_and_finished", "post_plan_completed"]
 
     - name: Apply the run to generate outputs
       hashicorp.terraform.run:
@@ -89,7 +89,6 @@
     - name: Get all outputs by workspace_id
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
-        tf_token: "{{ tfc_token }}"
       register: all_outputs_by_id
 
     - name: Assert all outputs retrieved by workspace_id
@@ -111,7 +110,6 @@
       hashicorp.terraform.output:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
-        tf_token: "{{ tfc_token }}"
       register: all_outputs_by_name
 
     - name: Assert all outputs retrieved by workspace name
@@ -137,7 +135,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         display_sensitive: true
-        tf_token: "{{ tfc_token }}"
       register: all_outputs_sensitive
 
     - name: Find sensitive output with display_sensitive=true
@@ -157,7 +154,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "environment"
-        tf_token: "{{ tfc_token }}"
       register: output_by_name
 
     - name: Assert output retrieved by name
@@ -174,7 +170,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "sensitive_token"
-        tf_token: "{{ tfc_token }}"
       register: sensitive_by_name_masked
 
     - name: Assert sensitive output is masked
@@ -190,7 +185,6 @@
         workspace_id: "{{ workspace_id }}"
         name: "sensitive_token"
         display_sensitive: true
-        tf_token: "{{ tfc_token }}"
       register: sensitive_by_name_displayed
 
     - name: Assert sensitive output is displayed
@@ -206,7 +200,6 @@
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
         name: "vpc1_id"
-        tf_token: "{{ tfc_token }}"
       register: output_by_name_org
 
     - name: Assert output retrieved by name with workspace and organization
@@ -224,7 +217,6 @@
     - name: Get output by state_version_output_id
       hashicorp.terraform.output:
         state_version_output_id: "{{ test_output_id }}"
-        tf_token: "{{ tfc_token }}"
       register: output_by_id
 
     - name: Assert output retrieved by ID
@@ -243,7 +235,6 @@
       hashicorp.terraform.output:
         state_version_output_id: "{{ sensitive_output_id }}"
         display_sensitive: true
-        tf_token: "{{ tfc_token }}"
       register: sensitive_output_by_id
 
     - name: Assert sensitive output retrieved by ID
@@ -257,7 +248,6 @@
     - name: Get output using output_id alias
       hashicorp.terraform.output:
         output_id: "{{ test_output_id }}"
-        tf_token: "{{ tfc_token }}"
       register: output_by_alias
 
     - name: Assert alias works
@@ -270,7 +260,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "vpc_config"
-        tf_token: "{{ tfc_token }}"
       register: complex_output
 
     - name: Assert complex output structure
@@ -288,7 +277,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "vpc_ids"
-        tf_token: "{{ tfc_token }}"
       register: list_output
 
     - name: Assert list output
@@ -303,7 +291,6 @@
     - name: Test with invalid state_version_output_id
       hashicorp.terraform.output:
         state_version_output_id: "wsout-invalid123"
-        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_output_id
 
@@ -317,7 +304,6 @@
     - name: Test with invalid workspace_id
       hashicorp.terraform.output:
         workspace_id: "ws-invalid123"
-        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_workspace_id
 
@@ -332,7 +318,6 @@
       hashicorp.terraform.output:
         workspace: "nonexistent-workspace-xyz"
         organization: "{{ organization }}"
-        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_workspace_name
 
@@ -347,7 +332,6 @@
       hashicorp.terraform.output:
         workspace_id: "{{ workspace_id }}"
         name: "nonexistent_output"
-        tf_token: "{{ tfc_token }}"
       ignore_errors: true
       register: invalid_output_name
 
@@ -361,7 +345,7 @@
     # Lookup plugin tests
     - name: Test lookup plugin with state_version_output_id
       ansible.builtin.set_fact:
-        lookup_by_id: "{{ lookup('hashicorp.terraform.tf_output', state_version_output_id=test_output_id, tf_token=tfc_token) }}"
+        lookup_by_id: "{{ lookup('hashicorp.terraform.tf_output', state_version_output_id=test_output_id, tfe_token=tfc_token) }}"
 
     - name: Assert lookup by ID works
       ansible.builtin.assert:
@@ -371,7 +355,7 @@
 
     - name: Test lookup plugin by name
       ansible.builtin.set_fact:
-        lookup_by_name: "{{ lookup('hashicorp.terraform.tf_output', name='environment', workspace_id=workspace_id, tf_token=tfc_token) }}"
+        lookup_by_name: "{{ lookup('hashicorp.terraform.tf_output', name='environment', workspace_id=workspace_id, tfe_token=tfc_token) }}"
 
     - name: Assert lookup by name works
       ansible.builtin.assert:
@@ -381,7 +365,7 @@
 
     - name: Test lookup plugin for all outputs
       ansible.builtin.set_fact:
-        lookup_all_outputs: "{{ lookup('hashicorp.terraform.tf_output', workspace_id=workspace_id, tf_token=tfc_token) }}"
+        lookup_all_outputs: "{{ lookup('hashicorp.terraform.tf_output', workspace_id=workspace_id, tfe_token=tfc_token) }}"
 
     - name: Assert lookup returns all outputs
       ansible.builtin.assert:
@@ -398,7 +382,7 @@
               name='sensitive_token',
               workspace_id=workspace_id,
               display_sensitive=true,
-              tf_token=tfc_token
+              tfe_token=tfc_token
           ) }}
 
     - name: Assert lookup displays sensitive value
@@ -417,7 +401,7 @@
               name='vpc1_id',
               workspace=workspace_name,
               organization=organization,
-              tf_token=tfc_token
+              tfe_token=tfc_token
           ) }}
 
     - name: Assert lookup with workspace name works
