@@ -391,7 +391,7 @@ from copy import deepcopy
 
 from ansible.module_utils._text import to_text
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
     TerraformClient,
 )
@@ -435,20 +435,21 @@ def main() -> None:
     display_sensitive = params.get("display_sensitive", False)
 
     result: Dict[str, Any] = {"changed": False}
+    adapter = None
 
     try:
-        client = TerraformClient(**params)
+        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
 
         if state_version_output_id:
-            output_data = get_specific_output(client, state_version_output_id, display_sensitive=display_sensitive)
+            output_data = get_specific_output(adapter, state_version_output_id, display_sensitive=display_sensitive)
             result["output"] = output_data
         else:
-            workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
+            workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
             if name:
-                output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
+                output_data = get_output_by_name(adapter, workspace_id, name, display_sensitive=display_sensitive)
                 result["output"] = output_data
             else:
-                outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
+                outputs = get_workspace_outputs(adapter, workspace_id, display_sensitive=display_sensitive)
                 if outputs:
                     result["outputs"] = outputs
                     result["count"] = len(outputs)
@@ -461,6 +462,9 @@ def main() -> None:
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
