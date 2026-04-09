@@ -204,8 +204,6 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     TerraformClient,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
     AnsibleTerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
