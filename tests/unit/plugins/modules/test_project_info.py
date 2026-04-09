@@ -259,8 +259,8 @@ class TestProjectInfoModule:
         mock_module.check_mode = True
         mock_module.params = {
             "project_id": project_id,
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
+            "tfe_token": "test-token",
+            "tfe_address": "app.terraform.io",
         }
 
         mock_ansible_module.return_value = mock_module

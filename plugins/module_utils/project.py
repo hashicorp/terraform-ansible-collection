@@ -48,9 +48,7 @@ def get_project_by_id(adapter: TerraformClient, project_id: str) -> Dict[str, An
     try:
         project = adapter.client.projects.read(project_id)
         data = format_response(project)
-        project_data = data.get("data", data)
-        if project_data.get("id") and "links" not in project_data:
-            project_data["links"] = {"self": f"/api/v2/projects/{project_data['id']}"}
+        
         return data
     except NotFound:
 

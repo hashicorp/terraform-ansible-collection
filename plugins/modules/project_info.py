@@ -230,8 +230,8 @@ def main() -> None:
     try:
         # Adapter initialization (pytfe SDK)
         adapter = TerraformClient(
-            tfe_token=params.get("tfe_token") or params.get("tf_token"),
-            tfe_address=params.get("tfe_address") or params.get("tf_hostname"),
+            tfe_token=params.get("tfe_token"),
+            tfe_address=params.get("tfe_address"),
         )
 
         project_data: Optional[Dict[str, Any]] = None
