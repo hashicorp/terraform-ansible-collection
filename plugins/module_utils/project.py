@@ -22,6 +22,8 @@ def create_project(adapter: TerraformClient, organization: str, data: dict[str, 
 
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
+    if "setting_overwrites" in data:
+        data["setting_overwrites"] = data["setting_overwrites"]
     options = ProjectCreateOptions.model_validate(data)
     project_response = safe_api_call(adapter.client.projects.create, organization, options)
     return format_response(project_response)
@@ -70,6 +72,8 @@ def update_project(adapter: TerraformClient, project_id: str, data: dict[str, An
 
     if data.get("tag_bindings") is not None:
         data["tag_bindings"] = [TagBinding.model_validate(tag) for tag in data["tag_bindings"]]
+    if "setting_overwrites" in data:
+        data["setting_overwrites"] = data["setting_overwrites"]
     options = ProjectUpdateOptions.model_validate(data)
     project_response = safe_api_call(adapter.client.projects.update, project_id, options)
     return format_response(project_response)
