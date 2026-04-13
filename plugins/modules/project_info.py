@@ -225,7 +225,7 @@ def main() -> None:
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
-    adapter = None
+    
 
     try:
         # Adapter initialization (pytfe SDK)
@@ -246,10 +246,9 @@ def main() -> None:
 
         project_data.pop("status", None)
 
-        if "type" not in project_data:
-            project_data["type"] = "projects"
+        
 
-        result.update(project_data)
+        result["project"] = project_data.get("data", project_data)  
 
         module.exit_json(**result)
 
