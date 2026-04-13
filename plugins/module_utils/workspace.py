@@ -15,7 +15,8 @@ Example:
         workspace = get_workspace(adapter, 'my-org', 'my-workspace')
 """
 
-from typing import Any, Dict
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from pytfe.errors import NotFound
 from pytfe.models import (
@@ -85,6 +86,31 @@ def get_workspace(adapter: TerraformClient, organization: str, workspace_name: s
         return None
 
 
+def get_tag_bindings(adapter: TerraformClient, workspace_id: str) -> Optional[dict[str, Any]]:
+    """
+    Fetch tag bindings for a given Terraform workspace.
+
+    This function calls the Terraform API to retrieve tag bindings associated
+    with the specified workspace. It gracefully handles a 404 status (workspace not found),
+    returns the response
+
+    Args:
+        client (TerraformClient): The Terraform API client instance.
+        workspace_id (str): The ID of the workspace for which to fetch tag bindings.
+
+    Returns:
+        Dict[str, Any]: The tag bindings data, including the response status.
+                        Returns an empty dict if the workspace is not found (404).
+    """
+    try:
+        tag_bindings = list(adapter.client.workspaces.list_tag_bindings(workspace_id))
+        return [format_response(tag_binding) for tag_binding in tag_bindings]
+    except NotFound:
+        # workspace was not found
+        # This should not raise an exception
+        return {}
+
+
 def _build_workspace_payload(attributes: Dict[str, Any]) -> Dict[str, Any]:
     """Build workspace payload from attributes for create/update operations.
 
@@ -134,6 +160,13 @@ def _build_workspace_payload(attributes: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
+def _normalize_auto_destroy_at_for_request(options: WorkspaceCreateOptions | WorkspaceUpdateOptions) -> None:
+    """Ensure auto_destroy_at is JSON-serializable for SDK request payload building."""
+    auto_destroy_at = getattr(options, "auto_destroy_at", None)
+    if isinstance(auto_destroy_at, datetime):
+        options.auto_destroy_at = auto_destroy_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def create_workspace(adapter: TerraformClient, organization: str, **attributes) -> Dict[str, Any]:
     """
     Creates a new workspace for a specified Terraform Cloud workspace.
@@ -154,6 +187,7 @@ def create_workspace(adapter: TerraformClient, organization: str, **attributes) 
     create_kwargs = _build_workspace_payload(attributes)
 
     create_options = WorkspaceCreateOptions(**create_kwargs)
+    _normalize_auto_destroy_at_for_request(create_options)
 
     workspace = safe_api_call(
         adapter.client.workspaces.create,
@@ -185,6 +219,7 @@ def update_workspace(adapter: TerraformClient, workspace_id: str, **attributes) 
     update_kwargs = _build_workspace_payload(attributes)
 
     update_options = WorkspaceUpdateOptions(**update_kwargs)
+    _normalize_auto_destroy_at_for_request(update_options)
 
     workspace = safe_api_call(adapter.client.workspaces.update_by_id, workspace_id, update_options, error_context=f"Failed to update workspace {workspace_id}")
 

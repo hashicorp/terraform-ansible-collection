@@ -554,6 +554,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     create_workspace,
     force_delete_workspace,
     force_unlock_workspace,
+    get_tag_bindings,
     get_workspace,
     get_workspace_by_id,
     lock_workspace,
@@ -569,6 +570,31 @@ IGNORE_LIST = [
     "check_mode",
     "state",
 ]
+
+
+def fetch_workspace_tag_bindings(adapter: TerraformClient, workspace_id: str) -> dict:
+    """
+    Fetch actual tag key-value pairs for a workspace's tag bindings.
+
+    Args:
+        adapter: An instance of TerraformClient.
+        workspace_id (str): The workspace ID.
+
+    Returns:
+        Dict[str, str]: A mapping of tag keys to values.
+    """
+    response = get_tag_bindings(adapter, workspace_id)
+
+    if not response:
+        return {}
+
+    tag_values = {}
+    for item in response:
+        key = item.get("key") if isinstance(item, dict) else None
+        if key is not None:
+            tag_values[key] = item.get("value")
+
+    return tag_values
 
 
 def normalize_workspace_attributes(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -611,7 +637,7 @@ def normalize_workspace_attributes(params: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def extract_comparable_attributes(workspace_data: Dict[str, Any]) -> Dict[str, Any]:
+def extract_comparable_attributes(workspace_data: Dict[str, Any], adapter: TerraformClient, workspace_id: str) -> Dict[str, Any]:
     """
     Extract comparable attributes from workspace SDK response.
 
@@ -633,19 +659,16 @@ def extract_comparable_attributes(workspace_data: Dict[str, Any]) -> Dict[str, A
         "terraform_version": workspace_data.get("terraform_version"),
         "execution_mode": workspace_data.get("execution_mode"),
         "setting_overwrites": workspace_data.get("setting_overwrites", {}),
-        "tag_bindings": workspace_data.get("tag_bindings", []),
+        "project_id": workspace_data.get("project", {}).get("id"),
     }
+    tag_bindings = fetch_workspace_tag_bindings(adapter, workspace_id)
+    comparable["tag_bindings"] = tag_bindings
 
-    # Normalize auto_destroy_at timestamp for consistent comparison
-    auto_destroy_at = comparable.get("auto_destroy_at")
-    if auto_destroy_at:
-        try:
-            # Parse and reformat to remove milliseconds for comparison
-            dt = datetime.strptime(auto_destroy_at, "%Y-%m-%dT%H:%M:%S.%fZ")
-            comparable["auto_destroy_at"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            # If parsing fails, keep original value
-            pass
+    execution_mode = workspace_data.get("execution_mode")
+    agent_pool_id = None
+    if execution_mode == "agent":
+        agent_pool_id = workspace_data.get("agent_pool", {}).get("id", None)
+        comparable["agent_pool_id"] = agent_pool_id
 
     # Remove None values
     return {k: v for k, v in comparable.items() if v is not None}
@@ -740,7 +763,7 @@ def state_update(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
         workspace_params["name"] = workspace_response.get("name")
 
     # the keys and their corresponding values the workspace already has
-    have = extract_comparable_attributes(workspace_response.get("data", workspace_response))
+    have = extract_comparable_attributes(workspace_response.get("data", workspace_response), adapter, workspace_id)
     # the keys input by the user
     want = normalize_workspace_attributes(workspace_params)
     want = {k: v for k, v in want.items() if v is not None}
@@ -757,14 +780,19 @@ def state_update(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
         )
         return action_result
 
-    # Coupled fields that must be sent together to avoid mismatches
-    preserve_keys = {"name", "setting_overwrites", "execution_mode"}
+    project_id = workspace_params.pop("project_id", None)
+    tag_bindings = workspace_params.pop("tag_bindings", None)
+    # Since these keys are coupled, they need to be preserved to avoid running into scenarios where absence/removal (during diff)
+    # of either of the attributes causes a mismatch
+    preserve_keys = {"setting_overwrites", "execution_mode", "agent_pool_id"}
 
     # Remove keys from workspace_params that are not in updates (unless they're preserve_keys)
     for key in list(workspace_params.keys()):
         if key not in updates_response and key not in preserve_keys:
             workspace_params.pop(key)
 
+    workspace_params["project_id"] = project_id
+    workspace_params["tag_bindings"] = tag_bindings
     if not check_mode:
         updated_workspace = update_workspace(adapter, workspace_id, **workspace_params)
         action_result.update(
