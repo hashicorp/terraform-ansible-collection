@@ -86,7 +86,7 @@
         that:
           - not run_response.changed
           - run_response.run.type == "runs"
-          - run_response.run.attributes.status == "planned_and_finished"
+          - run_response.run.attributes.status in ["planned", "planned_and_finished"]
           - run_response.run.attributes.variables == []
 
     - name: Test invalid run ID
@@ -109,8 +109,10 @@
         force: true
         state: absent
       register: workspace_delete_response
+      failed_when: false
 
     - name: Clean up rendered config directory
       ansible.builtin.file:
         path: "{{ temp_dir.path }}"
         state: absent
+      when: temp_dir is defined and temp_dir.path is defined

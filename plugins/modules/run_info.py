@@ -226,9 +226,9 @@ from typing import TYPE_CHECKING
 from ansible.module_utils._text import to_text
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
     TerraformClient,
 )
@@ -247,13 +247,24 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+    adapter = None
 
     try:
-        client = TerraformClient(**module.params)
+        adapter = TerraformClient(
+            tfe_token=params.get("tfe_token"),
+            tfe_address=params.get("tfe_address"),
+        )
 
-        run_info_data = get_run(client=client, run_id=params["run_id"])
-        if not run_info_data:
-            raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
+        run_info_data: Optional[Dict[str, Any]] = None
+
+        if params["run_id"]:
+            run_info_data = get_run(adapter, params["run_id"])
+            if not run_info_data:
+                raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
+        else:
+            raise ValueError("Run ID is required.")
+
+        run_info_data.pop("status", None)
 
         result["run"] = run_info_data.get("data", run_info_data)
 
@@ -261,6 +272,10 @@ def main() -> None:
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
