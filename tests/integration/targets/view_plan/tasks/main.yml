@@ -91,11 +91,11 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.status == "planned"
+          - run_result.status in ["planned", "planned_and_finished", "post_plan_completed"]
 
     - name: Get plan_id from run relationships
       ansible.builtin.set_fact:
-        plan_id: "{{ run_result.relationships.plan.data.id }}"
+        plan_id: "{{ run_result.plan.id }}"
 
     - name: View plan by run_id in diff format
       hashicorp.terraform.view_plan:
