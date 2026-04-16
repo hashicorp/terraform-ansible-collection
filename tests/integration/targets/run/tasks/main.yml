@@ -42,7 +42,6 @@
         workspace_id: "{{ workspace_id }}"
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
-        tf_validate_certs: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
         state: present
@@ -52,7 +51,7 @@
       ansible.builtin.assert:
         that:
           - result.changed
-          - result.attributes.status == "uploaded"
+          - result.status == "uploaded"
 
     - name: Create a new run
       hashicorp.terraform.run:

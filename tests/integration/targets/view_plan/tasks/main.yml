@@ -65,7 +65,6 @@
         workspace_id: "{{ workspace_id }}"
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
-        tf_validate_certs: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
         state: present
@@ -75,7 +74,7 @@
       ansible.builtin.assert:
         that:
           - config_version_result.changed
-          - config_version_result.attributes.status == "uploaded"
+          - config_version_result.status == "uploaded"
 
     - name: Create a new run for plan viewing
       hashicorp.terraform.run:

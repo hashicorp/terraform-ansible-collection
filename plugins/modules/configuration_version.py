@@ -103,35 +103,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 #  "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:26:26+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": true,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:26:26+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Create a new configuration version (failed to transition to uploaded state even after end of polling)
@@ -145,32 +130,19 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # FAILED! => {
-#  "attributes": {
-#    "auto-queue-runs": true,
-#    "changed-files": [],
-#    "error": null,
-#    "error-message": null,
-#    "provisional": true,
-#    "source": "tfe-api",
-#    "speculative": false,
-#    "status": "pending",
-#    "status-timestamps": {}
-#  },
 #  "changed": false,
+#  "failed": true,
+#  "auto_queue_runs": true,
+#  "provisional": true,
+#  "source": "tfe-api",
+#  "speculative": false,
+#  "status": "pending",
+#  "status_timestamps": {},
 #  "id": "cv-ntv3HbhJqvFzamy7",
 #  "links": {
 #    "self": "api-link"
 #  },
 #  "msg": "Configuration version cv-ntv3HbhJqvFzamy7 was created but could not transition to uploaded state.",
-#  "relationships": {
-#    "ingress-attributes": {
-#      "data": null,
-#      "links": {
-#        "related": "api-link"
-#      }
-#    }
-#  },
-#  "type": "configuration-versions"
 # }
 
 - name: Create a configuration version but do not queue runs automatically when the configuration version is uploaded
@@ -184,35 +156,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": false,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:29:30+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": false,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:29:30+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Create a configuration version for speculative runs
@@ -225,37 +182,21 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": true,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T05:31:36+00:00"
-#             }
-#         },
 #         "changed": true,
-#         "failed": false,
+#         "auto_queue_runs": true,
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": true,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T05:31:36+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
-#
 
 - name: Create a configuration version that will not immediately become the workspace current configuration version
   hashicorp.terraform.configuration_version:
@@ -267,35 +208,20 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": true,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-07-25T09:28:12+00:00"
-#             }
-#         },
+#         "auto_queue_runs": true,
 #         "changed": true,
-#         "failed": false,
+#         "provisional": true,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2025-07-25T09:28:12+00:00"
+#         },
 #         "id": "cv-id",
 #         "links": {
 #             "download": "download-link",
 #             "self": "api-link"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         }
 #     }
 
 - name: Discard a configuration version
@@ -318,39 +244,54 @@ id:
     returned: when state is 'present'
     type: str
     sample: "cv-iNWfGWrsMBZK3AZ4"
-type:
-    description: The resource type, always 'configuration-versions'.
+auto_queue_runs:
+    description: Whether runs are queued automatically when upload completes.
+    returned: when state is 'present'
+    type: bool
+    sample: true
+speculative:
+    description: Whether the configuration version is speculative.
+    returned: when state is 'present'
+    type: bool
+    sample: false
+provisional:
+    description: Whether the configuration version is provisional.
+    returned: when state is 'present'
+    type: bool
+    sample: false
+source:
+    description: Source that created the configuration version.
     returned: when state is 'present'
     type: str
-    sample: "configuration-versions"
-attributes:
-    type: dict
+    sample: "tfe-api"
+status:
+    description: Current status of the configuration version.
     returned: when state is 'present'
-    description: The attributes of the configuration version created.
-relationships:
-    description: Related resources linked to the run.
+    type: str
+    sample: "uploaded"
+status_timestamps:
+    description: Timestamps related to status transitions.
     returned: when state is 'present'
     type: dict
     sample: {
-        "ingress-attributes": {
-            "data": null,
-            "links": {
-                "related": "/api/v2/configuration-versions/cv-id4/ingress-attributes"
-            }
-        }
+        "uploaded-at": "2025-07-25T05:26:26+00:00"
     }
 links:
-    description: API links for the run.
+    description: API links for the configuration version.
     returned: when state is 'present'
     type: dict
     sample: {
         "download": "/api/v2/configuration-versions/cv-id/download",
         "self": "/api/v2/configuration-versions/cv-id"
     }
+failed:
+    type: bool
+    returned: when state is 'present' and the configuration version does not reach uploaded state within polling timeout
+    description: Indicates that the operation failed after creation due to non-uploaded final status.
 msg:
     type: str
     returned: when state is 'archived'
-    description: The successfull completion of archive with the configuration version ID.
+    description: Result message for archive operations (success, already archived, or not found).
 """
 
 import gzip
@@ -367,11 +308,9 @@ from ansible.module_utils._text import to_text
 if TYPE_CHECKING:
     from typing import Any, Dict, Tuple
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    ArchivistClient,
     TerraformClient,
-    get_workspace,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     archive_config,
@@ -379,6 +318,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_
     get_config,
     upload_config,
 )
+from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
 
 def validate_and_prepare_tar(configuration_files_path: Path) -> str:
@@ -442,7 +382,7 @@ def validate_and_prepare_tar(configuration_files_path: Path) -> str:
     return final_upload_path
 
 
-def create_configuration_version(client_terraform: Any, params: Dict[str, Any]) -> Tuple[str, str]:
+def create_configuration_version(adapter: TerraformClient, params: Dict[str, Any]) -> Tuple[str, str]:
     """
     Creates a new Terraform configuration version using the given client and parameters.
 
@@ -451,7 +391,7 @@ def create_configuration_version(client_terraform: Any, params: Dict[str, Any]) 
     version ID and the upload URL for uploading the configuration tarball.
 
     Args:
-        client_terraform (Any): Authenticated Terraform API client.
+        adapter (TerraformClient): Authenticated Terraform API client.
         params (Dict[str, Any]): Dictionary containing configuration parameters such as:
             - workspace_id (str)
             - auto_queue_runs (bool)
@@ -469,54 +409,50 @@ def create_configuration_version(client_terraform: Any, params: Dict[str, Any]) 
     }
 
     # create a new configuration version
-    config_version = create_config(client_terraform, workspace_id, attributes)
+    config_version = create_config(adapter, workspace_id, attributes)
 
     # the newly created configuration version will always have an ID
-    config_version_id = config_version.get("data", {}).get("id")
+    config_version_id = config_version.get("id")
 
-    # the newly created configuration version will always have an upload-url
-    upload_url = config_version.get("data", {}).get("attributes", {}).get("upload-url")
+    # the newly created configuration version will always have an upload_url
+    upload_url = config_version.get("upload_url")
 
     return config_version_id, upload_url
 
 
 def upload_configuration_version(
-    client_archivist: Any,
+    adapter: TerraformClient,
     upload_url: str,
     configuration_files_path: str,
-) -> int:
+) -> None:
     """
     Uploads a Terraform configuration tarball to the specified upload URL.
 
     This function uses the provided file path to prepare a tar.gz archive (if necessary),
-    then uploads it using the provided client. It validates the response and returns
-    the HTTP status code on success.
+    then uploads it using the provided client.
 
     Args:
-        client_archivist (Any): Client instance used to perform the upload.
+        adapter (TerraformClient): Client instance used to perform the upload.
         params (dict): Dictionary containing parameters including:
             - configuration_files_path (str): Path to the file or directory to upload.
         module (Any): Ansible module object for error handling (fail_json).
         upload_url (str): Pre-signed upload URL for the configuration version.
 
-    Returns:
-        int: HTTP status code from the upload response.
     """
-    response = upload_config(
-        client_archivist,
+    upload_config(
+        adapter,
         upload_url=upload_url,
         configuration_files_path=configuration_files_path,
     )
-    return response["status"]
 
 
-def get_configuration_version(client_terraform: Any, params: Dict[str, Any], config_version_id: str) -> Dict[str, Any]:
+def get_configuration_version(adapter: TerraformClient, params: Dict[str, Any], config_version_id: str) -> Dict[str, Any]:
     """
     Polls the Terraform API for the status of a configuration version until it reaches 'uploaded'
     or the timeout is reached.
 
     Args:
-        client_terraform (Any): Terraform API client instance.
+        adapter (TerraformClient): Terraform API client instance.
         params (Dict[str, Any]): Dictionary containing polling parameters:
             - poll_interval (int): Time in seconds to wait between retries.
             - poll_timeout (int): Maximum timeout of polling.
@@ -532,8 +468,8 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
     start_time = time.time()
 
     while True:
-        config_response = get_config(client_terraform, config_version_id=config_version_id)
-        status = config_response.get("data")["attributes"]["status"]
+        config_response = get_config(adapter, config_version_id=config_version_id)
+        status = config_response.get("status")
 
         if status == "uploaded":
             break
@@ -545,7 +481,7 @@ def get_configuration_version(client_terraform: Any, params: Dict[str, Any], con
     return config_response
 
 
-def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+def state_present(adapter: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Ensures the Terraform configuration state is present and correctly uploaded.
 
@@ -559,8 +495,7 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     If any step fails, the function will call `module.fail_json()` with the error message.
 
     Args:
-        client_terraform (Any): Client object used to interact with Terraform.
-        client_archivist (Any): Client object used for uploading files to the archive service.
+        adapter (TerraformClient): Client object used to interact with Terraform.
         params (Dict[str, Any]): Dictionary of parameters including configuration paths and options.
 
     Returns:
@@ -573,20 +508,20 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
 
     # create a new configuration version and store the id and upload_url (if not running in check_mode)
     if not params["check_mode"]:
-        config_version_id, upload_url = create_configuration_version(client_terraform, params)
+        config_version_id, upload_url = create_configuration_version(adapter, params)
 
         # start configuration tarfile upload, if upload failed, this will raise an Exception
-        upload_configuration_version(client_archivist, upload_url, configuration_files_path)
+        upload_configuration_version(adapter, upload_url, configuration_files_path)
 
-        final_config_status = get_configuration_version(client_terraform, params, config_version_id)
+        final_config_status = get_configuration_version(adapter, params, config_version_id)
 
-        status = final_config_status.get("data")["attributes"]["status"]
+        status = final_config_status.get("status")
 
         if status == "uploaded":
             action_result.update(
                 {
                     "changed": True,
-                    **final_config_status["data"],
+                    **final_config_status,
                 },
             )
         else:
@@ -594,7 +529,7 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
                 {
                     "failed": True,
                     "msg": f"Configuration version {config_version_id} was created but could not transition to uploaded state.",
-                    **final_config_status["data"],
+                    **final_config_status,
                 },
             )
     else:
@@ -611,7 +546,7 @@ def state_present(client_terraform: Any, client_archivist: Any, params: Dict[str
     return action_result
 
 
-def state_archived(client_terraform: Any, configuration_version_id: str, check_mode: bool = False) -> Dict[str, Any]:
+def state_archived(adapter: TerraformClient, configuration_version_id: str, check_mode: bool = False) -> Dict[str, Any]:
     """
     Archives a specified Terraform configuration version if it is not already archived.
 
@@ -631,19 +566,19 @@ def state_archived(client_terraform: Any, configuration_version_id: str, check_m
         "changed": False,
     }
 
-    config_response = get_config(client_terraform, config_version_id=configuration_version_id)
+    config_response = get_config(adapter, config_version_id=configuration_version_id)
     if not config_response:
         msg = f"Configuration version '{configuration_version_id}' was not found."
 
     else:
-        current_status = config_response["data"]["attributes"]["status"]
+        current_status = config_response["status"]
         if current_status == "archived":
             msg = f"Configuration version '{configuration_version_id}' is already archived."
         else:
             archiving_result["changed"] = True
             # configuration version exists, but is not archived, attempt archiving (if not running in check_mode)
             if not check_mode:
-                archive_config(client_terraform, configuration_version_id)
+                archive_config(adapter, configuration_version_id)
                 msg = f"Configuration version {configuration_version_id} archived successfully."
             else:
                 msg = f"Configuration version {configuration_version_id} found and is not archived. " "Skipped archiving due to check mode."
@@ -683,10 +618,10 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+    adapter = None
 
     try:
-        client_archivist = ArchivistClient(**module.params)
-        client_terraform = TerraformClient(**module.params)
+        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
 
         if params["state"] == "present":
             # either workspace_id or workspace MUST be provided when state is present
@@ -694,24 +629,27 @@ def main():
             # we use both these to get the workspace_id which is required when creating configuration-versions
             if not params["workspace_id"]:
                 # get the workspace_id from the provided workspace name
-                workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
+                workspace_response = get_workspace(adapter, params["organization"], params["workspace"])
                 if not workspace_response:
                     raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
                 # retrieve the workspace ID
-                workspace_id = workspace_response.get("data")["id"]
+                workspace_id = workspace_response.get("id")
                 # update module params to have a workspace ID
                 params["workspace_id"] = workspace_id
 
-            action_result = state_present(client_terraform, client_archivist, params)
+            action_result = state_present(adapter, params)
 
         elif params["state"] == "archived":
             # when state is archived, configuration_version_id will always be available
-            action_result = state_archived(client_terraform, params["configuration_version_id"], params["check_mode"])
+            action_result = state_archived(adapter, params["configuration_version_id"], params["check_mode"])
 
         result.update(action_result)
         module.exit_json(**result)
     except Exception as e:
         module.fail_json(msg=to_text(e))
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
