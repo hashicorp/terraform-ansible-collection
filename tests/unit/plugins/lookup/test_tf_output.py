@@ -251,6 +251,16 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
+    def test_lookup_organization_without_workspace(self, lookup_plugin):
+        """Test error when organization provided without workspace."""
+        with pytest.raises(AnsibleError, match="workspace is required when organization is specified"):
+            lookup_plugin.run(
+                [],
+                None,
+                organization="my-org",
+                tf_validate_certs=True,
+            )
+
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     def test_lookup_workspace_not_found(self, mock_resolve, mock_client_class, lookup_plugin):
@@ -285,6 +295,8 @@ class TestTfOutputLookup:
                 state_version_output_id="wsout-notfound",
                 tf_validate_certs=True,
             )
+
+        mock_client.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
@@ -322,6 +334,8 @@ class TestTfOutputLookup:
                 state_version_output_id="wsout-123",
                 tf_validate_certs=True,
             )
+
+        mock_client.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
@@ -460,8 +474,8 @@ class TestTfOutputLookup:
         )
         assert result == []
 
-    def test_lookup_validate_certs_default(self, lookup_plugin):
-        """Test that tf_validate_certs defaults to True."""
+    def test_lookup_defaults_tfe_address(self, lookup_plugin):
+        """Test that tfe_address defaults to app.terraform.io endpoint."""
         with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient") as mock_client_class:
             with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output") as mock_get:
                 mock_get.return_value = {"id": "test", "name": "test", "value": "test", "sensitive": False}
@@ -472,7 +486,7 @@ class TestTfOutputLookup:
                     state_version_output_id="wsout-123",
                 )
                 call_kwargs = mock_client_class.call_args[1]
-                assert call_kwargs["tf_validate_certs"] is True
+                assert call_kwargs["tfe_address"] == "https://app.terraform.io"
 
 
 if __name__ == "__main__":

@@ -155,7 +155,7 @@ value:
 from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
     get_output_by_name,
     get_specific_output,
@@ -195,7 +195,7 @@ class LookupModule(LookupBase):
 
     def _get_output_value(
         self,
-        client,
+        adapter,
         state_version_output_id,
         workspace_id,
         workspace,
@@ -207,23 +207,23 @@ class LookupModule(LookupBase):
         """Retrieve output value based on the provided parameters."""
         if state_version_output_id:
             output_data = get_specific_output(
-                client,
+                adapter,
                 state_version_output_id,
                 display_sensitive=display_sensitive,
             )
             return output_data["value"]
 
-        workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
+        workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
 
         if allow_all_outputs:
             return get_workspace_outputs(
-                client,
+                adapter,
                 workspace_id,
                 display_sensitive=display_sensitive,
             )
 
         output_data = get_output_by_name(
-            client,
+            adapter,
             workspace_id,
             name,
             display_sensitive=display_sensitive,
@@ -238,8 +238,7 @@ class LookupModule(LookupBase):
         organization = kwargs.get("organization")
         name = kwargs.get("name")
         display_sensitive = kwargs.get("display_sensitive", False)
-        kwargs.setdefault("tf_validate_certs", True)
-        kwargs.setdefault("tf_hostname", "app.terraform.io")
+        kwargs.setdefault("tfe_address", "https://app.terraform.io")
 
         allow_all_outputs = self._validate_parameters(
             state_version_output_id,
@@ -248,12 +247,11 @@ class LookupModule(LookupBase):
             organization,
             name,
         )
-
-        client = TerraformClient(**kwargs)
-
+        adapter = None
         try:
+            adapter = TerraformClient(**kwargs)
             value = self._get_output_value(
-                client,
+                adapter,
                 state_version_output_id,
                 workspace_id,
                 workspace,
@@ -266,6 +264,9 @@ class LookupModule(LookupBase):
             raise AnsibleError(f"Output lookup failed - resource not found: {str(e)}")
         except Exception as e:
             raise AnsibleError(f"Output lookup failed - API error: {str(e)}")
+        finally:
+            if adapter:
+                adapter.cleanup()
 
         if allow_all_outputs is True:
             return value

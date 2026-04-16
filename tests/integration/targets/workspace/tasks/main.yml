@@ -51,6 +51,9 @@
       hashicorp.terraform.workspace:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
+        tag_bindings:
+          env: dev
+          owner: integration
         execution_mode: remote
         auto_apply: true
         auto_apply_run_trigger: true
