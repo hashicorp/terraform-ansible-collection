@@ -202,9 +202,9 @@ from ansible.module_utils._text import to_text
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
-    AnsibleTerraformModule,
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     TerraformClient,
+    AnsibleTerraformModule,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
@@ -221,14 +221,24 @@ def main() -> None:
 
     warnings: list[str] = []
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+
+    
+
     try:
-        client = TerraformClient(**params)
+        # Adapter initialization (pytfe SDK)
+        adapter = TerraformClient(
+            tfe_token=params.get("tfe_token"),
+            tfe_address=params.get("tfe_address"),
+        )
 
         project_data: Optional[Dict[str, Any]] = None
+
         if params["project_id"]:
-            project_data = get_project_by_id(client, params["project_id"])
+            project_data = get_project_by_id(adapter, params["project_id"])
+
             if not project_data:
                 raise ValueError(f"Project '{params['project_id']}' was not found.")
         else:
@@ -236,12 +246,18 @@ def main() -> None:
 
         project_data.pop("status", None)
 
-        result["project"] = project_data.get("data", project_data)
+        
+
+        result["project"] = project_data.get("data", project_data)  
 
         module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":
