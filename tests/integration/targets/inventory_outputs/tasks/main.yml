@@ -114,7 +114,7 @@
 
     - name: Parse inventory JSON (list object)
       ansible.builtin.set_fact:
-        inv_list: "{{ inv_list_obj.stdout | from_json }}"
+        inv_list: "{{ (inv_list_obj.stdout | string) | from_json }}"
 
     - name: Assert exactly 2 hosts from hosts_list output
       ansible.builtin.assert:
@@ -168,7 +168,7 @@
 
     - name: Parse inventory JSON (scalar)
       ansible.builtin.set_fact:
-        inv_scalar: "{{ inv_scalar_raw.stdout | from_json }}"
+        inv_scalar: "{{ (inv_scalar_raw.stdout | string) | from_json }}"
 
     - name: Assert exactly 1 host from scalar output
       ansible.builtin.assert:
@@ -212,7 +212,7 @@
 
     - name: Parse inventory JSON (auto-detection)
       ansible.builtin.set_fact:
-        inv_auto: "{{ inv_auto_raw.stdout | from_json }}"
+        inv_auto: "{{ (inv_auto_raw.stdout | string) | from_json }}"
 
     - name: Assert auto-detection finds 2 hosts from list(object) output
       ansible.builtin.assert:

@@ -115,7 +115,7 @@
 
     - name: Parse inventory JSON (with mapping)
       ansible.builtin.set_fact:
-        inv_data: "{{ inv_with_mapping.stdout | from_json }}"
+        inv_data: "{{ (inv_with_mapping.stdout | string) | from_json }}"
 
     - name: Assert 2 hosts discovered via provider_mapping
       ansible.builtin.assert:
@@ -166,7 +166,7 @@
 
     - name: Parse inventory JSON (no mapping)
       ansible.builtin.set_fact:
-        inv_no_map_data: "{{ inv_no_mapping.stdout | from_json }}"
+        inv_no_map_data: "{{ (inv_no_mapping.stdout | string) | from_json }}"
 
     - name: Assert 0 hosts without provider_mapping (null_resource is not in default whitelist)
       ansible.builtin.assert:
