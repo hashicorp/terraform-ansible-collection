@@ -15,7 +15,17 @@ from ansible.plugins.inventory import BaseInventoryPlugin
 from ansible_collections.hashicorp.terraform.plugins.inventory.inventory import InventoryModule
 from ansible_collections.hashicorp.terraform.plugins.inventory.sources.outputs import OutputsSource
 from ansible_collections.hashicorp.terraform.plugins.inventory.sources.search import SearchSource
-from ansible_collections.hashicorp.terraform.plugins.inventory.sources.statefile import StatefileSource, _download_statefile
+from ansible_collections.hashicorp.terraform.plugins.inventory.sources.statefile import (
+    PROVIDER_RESOURCE_TYPES,
+    StatefileSource,
+    _build_provider_configs,
+    _download_statefile,
+    _get_tag_value,
+    _parse_provider_name,
+    _resolve_resource_preference,
+    _should_include_resource,
+    get_resource_hostname,
+)
 from ansible_collections.hashicorp.terraform.plugins.inventory.utils.common import (
     _resolve_single_preference,
     get_preferred_hostname,
@@ -70,6 +80,8 @@ def _base_options(**overrides) -> dict:
         "workspace": "my-ws",
         "workspace_id": None,
         "source": "statefile",
+        "search_child_modules": False,
+        "provider_mapping": [],
         "hostnames": [],
         "include_filters": [],
         "exclude_filters": [],
@@ -82,9 +94,23 @@ def _base_options(**overrides) -> dict:
     return defaults
 
 
-def _make_state_json(outputs: dict) -> bytes:
-    """Build a minimal Terraform state JSON blob with the given outputs dict."""
-    return json.dumps({"version": 4, "outputs": outputs}).encode()
+def _make_resource_state(resources):
+    """Build a Terraform state dict with the given resources list."""
+    return {"version": 4, "resources": resources, "outputs": {}}
+
+
+def _aws_resource(name, instances, mode="managed", module=None):
+    """Build a minimal aws_instance resource dict."""
+    r = {
+        "mode": mode,
+        "type": "aws_instance",
+        "name": name,
+        "provider": 'provider["registry.terraform.io/hashicorp/aws"]',
+        "instances": instances,
+    }
+    if module:
+        r["module"] = module
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +302,206 @@ class TestPassesFilters:
 
 
 # ---------------------------------------------------------------------------
+# _parse_provider_name (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestParseProviderName:
+    def test_root_module_provider_string(self):
+        s = 'provider["registry.terraform.io/hashicorp/aws"]'
+        assert _parse_provider_name(s) == "registry.terraform.io/hashicorp/aws"
+
+    def test_child_module_provider_string(self):
+        s = 'module.networking.provider["registry.terraform.io/hashicorp/azurerm"]'
+        assert _parse_provider_name(s) == "registry.terraform.io/hashicorp/azurerm"
+
+    def test_unrecognised_format_returns_none(self):
+        assert _parse_provider_name("hashicorp/aws") is None
+
+    def test_empty_string_returns_none(self):
+        assert _parse_provider_name("") is None
+
+
+# ---------------------------------------------------------------------------
+# _build_provider_configs (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildProviderConfigs:
+    def test_defaults_include_aws_azure_gcp(self):
+        configs = _build_provider_configs([])
+        assert "registry.terraform.io/hashicorp/aws" in configs
+        assert "registry.terraform.io/hashicorp/azurerm" in configs
+        assert "registry.terraform.io/hashicorp/google" in configs
+
+    def test_custom_mapping_appended(self):
+        configs = _build_provider_configs([
+            {"provider_name": "registry.terraform.io/digitalocean/digitalocean",
+             "types": ["digitalocean_droplet"]},
+        ])
+        assert "digitalocean_droplet" in configs["registry.terraform.io/digitalocean/digitalocean"]
+
+    def test_custom_types_extend_existing_provider(self):
+        configs = _build_provider_configs([
+            {"provider_name": "registry.terraform.io/hashicorp/aws",
+             "types": ["aws_spot_instance_request"]},
+        ])
+        assert "aws_instance" in configs["registry.terraform.io/hashicorp/aws"]
+        assert "aws_spot_instance_request" in configs["registry.terraform.io/hashicorp/aws"]
+
+    def test_no_duplicate_types(self):
+        configs = _build_provider_configs([
+            {"provider_name": "registry.terraform.io/hashicorp/aws", "types": ["aws_instance"]},
+        ])
+        assert configs["registry.terraform.io/hashicorp/aws"].count("aws_instance") == 1
+
+
+# ---------------------------------------------------------------------------
+# _should_include_resource (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestShouldIncludeResource:
+    _PROVIDER_CONFIGS = {
+        "registry.terraform.io/hashicorp/aws": ["aws_instance"],
+    }
+
+    def _resource(self, mode="managed", rtype="aws_instance", provider="aws", module=None):
+        r = {
+            "mode": mode,
+            "type": rtype,
+            "provider": f'provider["registry.terraform.io/hashicorp/{provider}"]',
+        }
+        if module:
+            r["module"] = module
+        return r
+
+    def test_managed_resource_in_configs_is_included(self):
+        assert _should_include_resource(self._resource(), False, self._PROVIDER_CONFIGS) is True
+
+    def test_data_source_excluded(self):
+        assert _should_include_resource(self._resource(mode="data"), False, self._PROVIDER_CONFIGS) is False
+
+    def test_child_module_excluded_by_default(self):
+        r = self._resource(module="module.networking")
+        assert _should_include_resource(r, False, self._PROVIDER_CONFIGS) is False
+
+    def test_child_module_included_when_search_child_modules_true(self):
+        r = self._resource(module="module.networking")
+        assert _should_include_resource(r, True, self._PROVIDER_CONFIGS) is True
+
+    def test_unknown_provider_excluded(self):
+        r = self._resource(provider="unknown_vendor")
+        assert _should_include_resource(r, False, self._PROVIDER_CONFIGS) is False
+
+    def test_unknown_type_excluded(self):
+        r = self._resource(rtype="aws_s3_bucket")
+        assert _should_include_resource(r, False, self._PROVIDER_CONFIGS) is False
+
+
+# ---------------------------------------------------------------------------
+# _get_tag_value (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestGetTagValue:
+    def test_simple_tag_returns_value(self):
+        attrs = {"tags": {"Name": "web-1"}}
+        assert _get_tag_value(attrs, "Name") == "web-1"
+
+    def test_missing_tag_returns_none(self):
+        attrs = {"tags": {"Env": "prod"}}
+        assert _get_tag_value(attrs, "Name") is None
+
+    def test_tag_eq_spec_matching_returns_key_value(self):
+        attrs = {"tags": {"Name": "web-1"}}
+        assert _get_tag_value(attrs, "Name=web-1") == "Name_web-1"
+
+    def test_tag_eq_spec_mismatch_returns_none(self):
+        attrs = {"tags": {"Name": "web-2"}}
+        assert _get_tag_value(attrs, "Name=web-1") is None
+
+    def test_tags_not_dict_returns_none(self):
+        attrs = {"tags": "a-string"}
+        assert _get_tag_value(attrs, "Name") is None
+
+    def test_no_tags_key_returns_none(self):
+        assert _get_tag_value({}, "Name") is None
+
+
+# ---------------------------------------------------------------------------
+# _resolve_resource_preference (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveResourcePreference:
+    def test_tag_prefix_resolves_from_tags(self):
+        attrs = {"tags": {"Name": "web-1"}}
+        assert _resolve_resource_preference(attrs, "tag:Name") == "web-1"
+
+    def test_attribute_lookup_returns_value(self):
+        attrs = {"public_ip": "1.2.3.4"}
+        assert _resolve_resource_preference(attrs, "public_ip") == "1.2.3.4"
+
+    def test_attribute_not_present_returns_literal(self):
+        assert _resolve_resource_preference({}, "static-hostname") == "static-hostname"
+
+    def test_blank_attribute_value_returns_none(self):
+        assert _resolve_resource_preference({"public_dns": "  "}, "public_dns") is None
+
+    def test_blank_preference_returns_none(self):
+        assert _resolve_resource_preference({}, "   ") is None
+
+
+# ---------------------------------------------------------------------------
+# get_resource_hostname (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestGetResourceHostname:
+    def test_no_hostnames_default_fallback(self):
+        assert get_resource_hostname("aws_instance", "web", {}) == "aws_instance_web"
+
+    def test_no_hostnames_with_index_key(self):
+        assert get_resource_hostname("aws_instance", "servers", {}, index_key=0) == "aws_instance_servers_0"
+
+    def test_string_index_key(self):
+        assert get_resource_hostname("aws_instance", "servers", {}, index_key="us-east") == "aws_instance_servers_us-east"
+
+    def test_attribute_preference_resolved(self):
+        attrs = {"public_dns": "ec2.example.com"}
+        assert get_resource_hostname("aws_instance", "web", attrs, hostnames=["public_dns"]) == "ec2.example.com"
+
+    def test_tag_preference_resolved(self):
+        attrs = {"tags": {"Name": "web-1"}}
+        assert get_resource_hostname("aws_instance", "web", attrs, hostnames=["tag:Name"]) == "web-1"
+
+    def test_dict_preference_with_prefix(self):
+        attrs = {"tags": {"Name": "web-1", "Env": "prod"}}
+        result = get_resource_hostname(
+            "aws_instance", "web", attrs,
+            hostnames=[{"name": "tag:Name", "prefix": "tag:Env", "separator": "-"}],
+        )
+        assert result == "prod-web-1"
+
+    def test_dict_preference_missing_name_raises(self):
+        with pytest.raises(AnsibleParserError, match="'name' key must be defined"):
+            get_resource_hostname("aws_instance", "web", {}, hostnames=[{"prefix": "tag:Env"}])
+
+    def test_all_preferences_empty_falls_back(self):
+        # tag:Name misses, public_dns present but empty → both resolve to None → fallback
+        result = get_resource_hostname(
+            "aws_instance", "web", {"public_dns": ""}, hostnames=["tag:Name", "public_dns"]
+        )
+        assert result == "aws_instance_web"
+
+    def test_first_non_empty_preference_wins(self):
+        attrs = {"public_ip": "1.2.3.4", "name": "web-1"}
+        result = get_resource_hostname("aws_instance", "web", attrs, hostnames=["name", "public_ip"])
+        assert result == "web-1"
+
+
+# ---------------------------------------------------------------------------
 # StatefileSource — validate_options (sources/statefile)
 # ---------------------------------------------------------------------------
 
@@ -306,87 +532,177 @@ class TestStatefileSourceValidateOptions:
 
 
 class TestStatefileSourceCollectHosts:
-    def _make_source(self, workspace_id=None, organization="my-org", workspace="my-ws"):
-        options = {"workspace_id": workspace_id, "organization": organization, "workspace": workspace}
+    def _make_source(
+        self,
+        workspace_id=None,
+        organization="my-org",
+        workspace="my-ws",
+        search_child_modules=False,
+        provider_mapping=None,
+        hostnames=None,
+    ):
+        options = {
+            "workspace_id": workspace_id,
+            "organization": organization,
+            "workspace": workspace,
+            "search_child_modules": search_child_modules,
+            "provider_mapping": provider_mapping or [],
+            "hostnames": hostnames or [],
+        }
         return StatefileSource(Mock(), options)
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_dict_output_produces_one_record(self, mock_resolve, mock_download):
+    def test_single_aws_instance_produces_one_record(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "web_server": {"value": {"ip": "1.2.3.4", "env": "prod"}, "type": "object"},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("web_server", [{"attributes": {"public_ip": "1.2.3.4", "env": "prod"}}]),
+        ])
+
         records = self._make_source().collect_hosts()
 
         assert len(records) == 1
-        assert records[0] == {
-            "output_name": "web_server",
-            "workspace_name": "my-ws",
-            "host_vars": {"ip": "1.2.3.4", "env": "prod"},
-            "index": None,
-        }
+        assert records[0]["host_vars"] == {"public_ip": "1.2.3.4", "env": "prod"}
+        assert records[0]["workspace_name"] == "my-ws"
+        assert records[0]["output_name"] == "aws_instance_web_server"
+        assert "resolved_hostname" in records[0]
+        assert records[0]["resolved_hostname"] == "aws_instance_web_server"
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_list_output_produces_indexed_records(self, mock_resolve, mock_download):
+    def test_count_instances_produce_indexed_records(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "servers": {"value": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}]},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("servers", [
+                {"index_key": 0, "attributes": {"public_ip": "10.0.0.1"}},
+                {"index_key": 1, "attributes": {"public_ip": "10.0.0.2"}},
+            ]),
+        ])
+
         records = self._make_source().collect_hosts()
 
         assert len(records) == 2
         assert records[0]["index"] == 0
-        assert records[0]["host_vars"] == {"ip": "10.0.0.1"}
+        assert records[0]["resolved_hostname"] == "aws_instance_servers_0"
         assert records[1]["index"] == 1
-        assert records[1]["host_vars"] == {"ip": "10.0.0.2"}
+        assert records[1]["resolved_hostname"] == "aws_instance_servers_1"
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_scalar_and_mixed_list_outputs_skipped(self, mock_resolve, mock_download):
+    def test_for_each_instances_produce_string_indexed_records(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "str_val": {"value": "a-string"},
-                "num_val": {"value": 42},
-                "mixed_list": {"value": ["a", {"k": "v"}]},
-                "dict_val": {"value": {"ip": "1.2.3.4"}},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("servers", [
+                {"index_key": "us-east", "attributes": {"az": "us-east-1a"}},
+                {"index_key": "eu-west", "attributes": {"az": "eu-west-1a"}},
+            ]),
+        ])
+
         records = self._make_source().collect_hosts()
 
+        assert len(records) == 2
+        hostnames = {r["resolved_hostname"] for r in records}
+        assert hostnames == {"aws_instance_servers_us-east", "aws_instance_servers_eu-west"}
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_data_source_resource_skipped(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("lookup", [{"attributes": {"id": "i-abc"}}], mode="data"),
+        ])
+
+        records = self._make_source().collect_hosts()
+        assert records == []
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_child_module_resource_skipped_by_default(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("child_srv", [{"attributes": {"public_ip": "10.1.0.1"}}], module="module.networking"),
+        ])
+
+        records = self._make_source(search_child_modules=False).collect_hosts()
+        assert records == []
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_child_module_resource_included_when_search_child_modules(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("child_srv", [{"attributes": {"public_ip": "10.1.0.1"}}], module="module.networking"),
+        ])
+
+        records = self._make_source(search_child_modules=True).collect_hosts()
         assert len(records) == 1
-        assert records[0]["output_name"] == "dict_val"
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_empty_outputs_section_returns_no_records(self, mock_resolve, mock_download):
+    def test_unknown_provider_resource_skipped(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {"outputs": {}}
+        mock_download.return_value = _make_resource_state([
+            {
+                "mode": "managed",
+                "type": "custom_vm",
+                "name": "srv",
+                "provider": 'provider["registry.terraform.io/unknown/unknown"]',
+                "instances": [{"attributes": {"ip": "1.2.3.4"}}],
+            }
+        ])
+
+        records = self._make_source().collect_hosts()
+        assert records == []
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_empty_resources_returns_no_records(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([])
         assert self._make_source().collect_hosts() == []
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_missing_outputs_key_returns_no_records(self, mock_resolve, mock_download):
+    def test_tag_based_hostname_resolution(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {"version": 4}
-        assert self._make_source().collect_hosts() == []
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("web", [{"attributes": {"tags": {"Name": "web-1"}}}]),
+        ])
+
+        records = self._make_source(hostnames=["tag:Name"]).collect_hosts()
+        assert records[0]["resolved_hostname"] == "web-1"
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    def test_workspace_name_from_resolve_used_as_prefix(self, mock_resolve, mock_download):
+    def test_workspace_name_stored_on_record(self, mock_resolve, mock_download):
         mock_resolve.return_value = ("ws-xyz", "resolved-name")
-        mock_download.return_value = {
-            "outputs": {"host": {"value": {"ip": "1.2.3.4"}}}
-        }
-        records = self._make_source(workspace_id="ws-xyz").collect_hosts()
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("srv", [{"attributes": {"public_ip": "1.2.3.4"}}]),
+        ])
 
+        records = self._make_source(workspace_id="ws-xyz").collect_hosts()
         assert records[0]["workspace_name"] == "resolved-name"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_custom_provider_mapping_includes_resource(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            {
+                "mode": "managed",
+                "type": "digitalocean_droplet",
+                "name": "web",
+                "provider": 'provider["registry.terraform.io/digitalocean/digitalocean"]',
+                "instances": [{"attributes": {"name": "droplet-1"}}],
+            }
+        ])
+
+        source = self._make_source(provider_mapping=[
+            {"provider_name": "registry.terraform.io/digitalocean/digitalocean",
+             "types": ["digitalocean_droplet"]},
+        ])
+        records = source.collect_hosts()
+        assert len(records) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -517,11 +833,7 @@ class TestGetSourceBackend:
 
 
 class TestInventoryModuleParseStatefile:
-    """Integration tests for parse() with source=statefile.
-
-    Patches TerraformClient in the inventory module, resolve_workspace and
-    _download_statefile in the statefile source module to avoid real I/O.
-    """
+    """Integration tests for parse() with source=statefile (resource-based)."""
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
@@ -529,7 +841,7 @@ class TestInventoryModuleParseStatefile:
     def test_org_and_workspace_resolves_and_downloads(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {"outputs": {}}
+        mock_download.return_value = _make_resource_state([])
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):
@@ -541,34 +853,33 @@ class TestInventoryModuleParseStatefile:
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_dict_output_adds_one_host(self, mock_client_cls, mock_resolve, mock_download):
+    def test_aws_instance_adds_one_host(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "web_server": {"value": {"public_ip": "1.2.3.4", "env": "prod"}},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("web_server", [{"attributes": {"public_ip": "1.2.3.4", "env": "prod"}}]),
+        ])
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-        plugin.inventory.add_host.assert_called_once_with("my-ws_web_server")
-        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "public_ip", "1.2.3.4")
-        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "env", "prod")
+        plugin.inventory.add_host.assert_called_once_with("aws_instance_web_server")
+        plugin.inventory.set_variable.assert_any_call("aws_instance_web_server", "public_ip", "1.2.3.4")
+        plugin.inventory.set_variable.assert_any_call("aws_instance_web_server", "env", "prod")
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_list_output_adds_indexed_hosts(self, mock_client_cls, mock_resolve, mock_download):
+    def test_count_instances_adds_indexed_hosts(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "servers": {"value": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}]},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("servers", [
+                {"index_key": 0, "attributes": {"public_ip": "10.0.0.1"}},
+                {"index_key": 1, "attributes": {"public_ip": "10.0.0.2"}},
+            ]),
+        ])
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):
@@ -576,41 +887,130 @@ class TestInventoryModuleParseStatefile:
 
         assert plugin.inventory.add_host.call_count == 2
         hostnames = {c[0][0] for c in plugin.inventory.add_host.call_args_list}
-        assert hostnames == {"my-ws_servers_0", "my-ws_servers_1"}
+        assert hostnames == {"aws_instance_servers_0", "aws_instance_servers_1"}
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_scalar_outputs_skipped(self, mock_client_cls, mock_resolve, mock_download):
+    def test_data_source_skipped(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "str_val": {"value": "just-a-string"},
-                "num_val": {"value": 42},
-                "mixed": {"value": ["a", {"k": "v"}]},
-                "dict_val": {"value": {"ip": "1.2.3.4"}},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("lookup", [{"attributes": {"id": "ami-abc"}}], mode="data"),
+        ])
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-        assert plugin.inventory.add_host.call_count == 1
-        plugin.inventory.add_host.assert_called_once_with("my-ws_dict_val")
+        plugin.inventory.add_host.assert_not_called()
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_hostnames_field_preference(self, mock_client_cls, mock_resolve, mock_download):
+    def test_child_module_excluded_by_default(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {"web_server": {"value": {"public_ip": "1.2.3.4", "name": "web-1"}}}
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("child_srv", [{"attributes": {"public_ip": "10.1.0.1"}}],
+                          module="module.networking"),
+        ])
+
+        plugin = _make_plugin(_base_options(search_child_modules=False))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.add_host.assert_not_called()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_child_module_included_with_search_child_modules(self, mock_client_cls, mock_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("child_srv", [{"attributes": {"public_ip": "10.1.0.1"}}],
+                          module="module.networking"),
+        ])
+
+        plugin = _make_plugin(_base_options(search_child_modules=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.add_host.assert_called_once_with("aws_instance_child_srv")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_provider_mapping_enables_custom_resource(self, mock_client_cls, mock_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        do_resource = {
+            "mode": "managed",
+            "type": "digitalocean_droplet",
+            "name": "web",
+            "provider": 'provider["registry.terraform.io/digitalocean/digitalocean"]',
+            "instances": [{"attributes": {"name": "droplet-1"}}],
         }
+        mock_download.return_value = _make_resource_state([do_resource])
+
+        plugin = _make_plugin(_base_options(provider_mapping=[
+            {"provider_name": "registry.terraform.io/digitalocean/digitalocean",
+             "types": ["digitalocean_droplet"]},
+        ]))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.add_host.assert_called_once_with("digitalocean_droplet_web")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_provider_mapping_absent_custom_resource_skipped(self, mock_client_cls, mock_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        do_resource = {
+            "mode": "managed",
+            "type": "digitalocean_droplet",
+            "name": "web",
+            "provider": 'provider["registry.terraform.io/digitalocean/digitalocean"]',
+            "instances": [{"attributes": {"name": "droplet-1"}}],
+        }
+        mock_download.return_value = _make_resource_state([do_resource])
+
+        plugin = _make_plugin(_base_options())
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.add_host.assert_not_called()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_attribute_hostname_preference(self, mock_client_cls, mock_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("web_server", [{"attributes": {"public_ip": "1.2.3.4", "name": "web-1"}}]),
+        ])
 
         plugin = _make_plugin(_base_options(hostnames=["name"]))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.add_host.assert_called_once_with("web-1")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_tag_hostname_preference(self, mock_client_cls, mock_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("web_server", [{"attributes": {"tags": {"Name": "web-1"}}}]),
+        ])
+
+        plugin = _make_plugin(_base_options(hostnames=["tag:Name"]))
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
@@ -622,19 +1022,17 @@ class TestInventoryModuleParseStatefile:
     def test_exclude_filter_removes_host(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "staging_srv": {"value": {"env": "staging", "ip": "10.0.0.1"}},
-                "prod_srv": {"value": {"env": "prod", "ip": "10.0.0.2"}},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("staging_srv", [{"attributes": {"env": "staging", "ip": "10.0.0.1"}}]),
+            _aws_resource("prod_srv", [{"attributes": {"env": "prod", "ip": "10.0.0.2"}}]),
+        ])
 
         plugin = _make_plugin(_base_options(exclude_filters=[{"env": "staging"}]))
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
         assert plugin.inventory.add_host.call_count == 1
-        plugin.inventory.add_host.assert_called_once_with("my-ws_prod_srv")
+        plugin.inventory.add_host.assert_called_once_with("aws_instance_prod_srv")
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
@@ -642,19 +1040,17 @@ class TestInventoryModuleParseStatefile:
     def test_include_filter_restricts_hosts(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {
-                "staging_srv": {"value": {"env": "staging"}},
-                "prod_srv": {"value": {"env": "prod"}},
-            }
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("staging_srv", [{"attributes": {"env": "staging"}}]),
+            _aws_resource("prod_srv", [{"attributes": {"env": "prod"}}]),
+        ])
 
         plugin = _make_plugin(_base_options(include_filters=[{"env": "prod"}]))
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
         assert plugin.inventory.add_host.call_count == 1
-        plugin.inventory.add_host.assert_called_once_with("my-ws_prod_srv")
+        plugin.inventory.add_host.assert_called_once_with("aws_instance_prod_srv")
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
@@ -662,9 +1058,9 @@ class TestInventoryModuleParseStatefile:
     def test_compose_is_forwarded(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {"server": {"value": {"public_ip": "1.2.3.4"}}}
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("server", [{"attributes": {"public_ip": "1.2.3.4"}}]),
+        ])
 
         plugin = _make_plugin(_base_options(compose={"ansible_host": "public_ip"}))
         with _parse_ctx(plugin):
@@ -674,7 +1070,7 @@ class TestInventoryModuleParseStatefile:
         mock_set_composite.assert_called_once_with(
             {"ansible_host": "public_ip"},
             {"public_ip": "1.2.3.4"},
-            "my-ws_server",
+            "aws_instance_server",
             strict=False,
         )
 
@@ -684,17 +1080,19 @@ class TestInventoryModuleParseStatefile:
     def test_keyed_groups_is_forwarded(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {"server": {"value": {"env": "prod"}}}
-        }
-        keyed_groups = [{"key": "env", "prefix": "env"}]
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("server", [{"attributes": {"instance_state": "running"}}]),
+        ])
+        keyed_groups = [{"key": "instance_state", "prefix": "state"}]
 
         plugin = _make_plugin(_base_options(keyed_groups=keyed_groups))
         with _parse_ctx(plugin):
             with patch.object(plugin, "_add_host_to_keyed_groups") as mock_keyed:
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-        mock_keyed.assert_called_once_with(keyed_groups, {"env": "prod"}, "my-ws_server", strict=False)
+        mock_keyed.assert_called_once_with(
+            keyed_groups, {"instance_state": "running"}, "aws_instance_server", strict=False
+        )
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
@@ -702,9 +1100,9 @@ class TestInventoryModuleParseStatefile:
     def test_composed_groups_is_forwarded(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {
-            "outputs": {"server": {"value": {"env": "prod"}}}
-        }
+        mock_download.return_value = _make_resource_state([
+            _aws_resource("server", [{"attributes": {"env": "prod"}}]),
+        ])
         groups = {"production": "env == 'prod'"}
 
         plugin = _make_plugin(_base_options(groups=groups))
@@ -712,32 +1110,17 @@ class TestInventoryModuleParseStatefile:
             with patch.object(plugin, "_add_host_to_composed_groups") as mock_comp_groups:
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-        mock_comp_groups.assert_called_once_with(groups, {"env": "prod"}, "my-ws_server", strict=False)
+        mock_comp_groups.assert_called_once_with(
+            groups, {"env": "prod"}, "aws_instance_server", strict=False
+        )
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_workspace_name_from_attributes_nested(self, mock_client_cls, mock_resolve, mock_download):
-        """resolve_workspace returns nested attributes name → used as prefix."""
-        mock_client_cls.return_value = Mock()
-        mock_resolve.return_value = ("ws-abc", "nested-ws")
-        mock_download.return_value = {
-            "outputs": {"host": {"value": {"ip": "1.2.3.4"}}}
-        }
-
-        plugin = _make_plugin(_base_options(organization=None, workspace=None, workspace_id="ws-abc"))
-        with _parse_ctx(plugin):
-            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
-
-        plugin.inventory.add_host.assert_called_once_with("nested-ws_host")
-
-    @patch(f"{_STATEFILE_SRC}._download_statefile")
-    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
-    @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_empty_state_adds_no_hosts(self, mock_client_cls, mock_resolve, mock_download):
+    def test_empty_resources_adds_no_hosts(self, mock_client_cls, mock_resolve, mock_download):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
-        mock_download.return_value = {"outputs": {}}
+        mock_download.return_value = _make_resource_state([])
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):

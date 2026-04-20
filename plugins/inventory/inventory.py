@@ -13,23 +13,13 @@ description:
   - A single inventory plugin entry-point that supports multiple data sources
     from HCP Terraform or Terraform Enterprise via the pytfe SDK.
   - Select the data source with the O(source) option.
-  - V(statefile) (default) downloads the raw Terraform state file and reads
-    its C(outputs) section.
-  - V(outputs) queries the HCP Terraform state version outputs API endpoint,
-    the lighter-weight path when only named output values are needed.
-  - V(search) is reserved for a future release.
+  - Does not require the Terraform CLI or direct access to a Terraform backend
+    (S3, AzureRM, etc.).
+  - Authentication is via O(tfe_token) or the E(TFE_TOKEN) environment variable.
   - Uses a YAML configuration file whose name ends with C(inventory.yml),
     C(inventory.yaml), C(terraform_inventory.yml), or
     C(terraform_inventory.yaml).
-  - Does not require the Terraform CLI.
-  - For both V(statefile) and V(outputs):
-    - Each workspace output whose value is a mapping produces one host, with
-      the mapping's keys as host variables.
-    - Each workspace output whose value is a list of mappings produces one
-      host per list element, indexed as
-      V(<workspace>_<output>_0), V(<workspace>_<output>_1), etc.
-    - Outputs whose values are neither mappings nor lists of mappings are
-      silently skipped.
+  - Does not support caching.
 extends_documentation_fragment:
   - constructed
 version_added: "2.0.0"
@@ -44,13 +34,16 @@ options:
   source:
     description:
       - Data source backend to use.
-      - V(statefile) (default) downloads the raw Terraform state file
-        (C(.tfstate) JSON) from HCP Terraform and reads its C(outputs)
-        section directly.  Works even when the outputs API endpoint is
-        unavailable or when you need access to the full state structure.
+      - V(statefile) (default) downloads the latest Terraform state version
+        from HCP Terraform via the pytfe SDK, parses the C(resources[])
+        section, and produces one Ansible host per matching resource instance.
+        Requires no Terraform CLI, no backend credentials.  Inventory
+        candidates are selected by provider and resource type; see
+        O(provider_mapping) to extend the defaults.
       - V(outputs) queries the HCP Terraform state version outputs API
-        endpoint.  This is the faster, lighter-weight path when only
-        named output values are required.
+        endpoint and builds hosts from workspace outputs whose values are
+        mappings or lists of mappings.  Lighter weight when only named output
+        values are needed.
       - V(search) is reserved for future implementation and will raise an
         error if selected.
     type: str
@@ -75,8 +68,7 @@ options:
   organization:
     description:
       - Name of the Terraform organization.
-      - Required together with O(workspace) unless O(workspace_id) is
-        provided.
+      - Required together with O(workspace) unless O(workspace_id) is provided.
       - Used by V(source=statefile) and V(source=outputs).
     type: str
   workspace:
@@ -92,28 +84,56 @@ options:
       - Mutually exclusive with O(organization) and O(workspace).
       - Used by V(source=statefile) and V(source=outputs).
     type: str
+  search_child_modules:
+    description:
+      - When V(source=statefile), include resources defined inside Terraform
+        child modules in addition to root-module resources.
+      - Has no effect for other sources.
+    type: bool
+    default: false
+  provider_mapping:
+    description:
+      - Additional provider / resource-type mappings for V(source=statefile).
+      - Each entry extends the built-in set of supported providers
+        (AWS, AzureRM, Google) with a custom provider name and the resource
+        types that should produce inventory hosts.
+      - Has no effect for other sources.
+    type: list
+    elements: dict
+    default: []
+    suboptions:
+      provider_name:
+        description:
+          - Fully-qualified Terraform provider registry name, e.g.
+            V(registry.terraform.io/digitalocean/digitalocean).
+        type: str
+        required: true
+      types:
+        description:
+          - List of Terraform resource types from this provider that should
+            produce inventory hosts, e.g. V(digitalocean_droplet).
+        type: list
+        elements: str
+        required: true
   hostnames:
     description:
       - Ordered preference list for resolving the inventory hostname.
-      - Each element is either a plain string or a dict with sub-keys C(name),
-        C(prefix) (optional), and C(separator) (default V(_)).
-      - A plain string is matched against the host's variable dict; when the
-        key exists its value is used as the hostname.
-      - Use the literal value V(output_name) to use the Terraform output name.
-      - When a dict entry is used, C(name) and C(prefix) follow the same
-        resolution rules as a plain string, and the final hostname becomes
-        V(<prefix><separator><name>).
-      - If no preference resolves to a non-empty string the hostname defaults
-        to V(<workspace_name>_<output_name>) for mapping outputs or
-        V(<workspace_name>_<output_name>_<index>) for list outputs.
+      - Each element can be a plain string or a dict with keys C(name)
+        (required), C(prefix) (optional), and C(separator) (default V(_)).
+      - For V(source=statefile):
+        - A plain string is looked up in the resource instance attributes.
+          Use V(tag:Name) to read the value of the V(Name) tag, or
+          V(tag:Name=Value) to produce V(Name_Value) only when that exact
+          tag value matches.
+        - Fallback: V(<resource_type>_<resource_name>[_<index>]).
+      - For V(source=outputs):
+        - A plain string is matched against the output value mapping.
+          Use the special token V(output_name) to use the Terraform output
+          name itself.
+        - Fallback: V(<workspace_name>_<output_name>[_<index>]).
     type: list
     elements: raw
     default: []
-  search_child_modules:
-    description:
-      - Reserved for future use. Currently has no effect.
-    type: bool
-    default: false
   include_filters:
     description:
       - List of key-value dicts. A host is included only when its variables
@@ -133,49 +153,24 @@ options:
 """
 
 EXAMPLES = r"""
-# Minimal — statefile source, workspace by organization + name; token from TFE_TOKEN
-- name: Build inventory from downloaded state file
+# ── statefile source (default) ────────────────────────────────────────────────
+
+# Minimal: token from TFE_TOKEN, workspace by organization + name.
+# Produces one host per matching resource instance (aws_instance, etc.)
+# with all Terraform attributes as host vars.
+- name: Build inventory from latest HCP Terraform state
   plugin: hashicorp.terraform.inventory
   source: statefile
   organization: my-org
   workspace: my-workspace
 
-# Use the outputs API instead of downloading the state file
-- name: Build inventory from workspace outputs API
-  plugin: hashicorp.terraform.inventory
-  source: outputs
-  organization: my-org
-  workspace: my-workspace
-
-# Workspace identified by ID; explicit token
-- name: Build inventory from workspace ID (statefile)
+# Workspace by direct ID (avoids an extra org lookup)
+- name: Inventory from workspace ID
   plugin: hashicorp.terraform.inventory
   source: statefile
-  tfe_token: "{{ lookup('env', 'TFE_TOKEN') }}"
   workspace_id: ws-xxxxxxxxxxxxxxxx
 
-# Given a Terraform workspace that publishes:
-#
-#   output "web_server" {
-#     value = {
-#       name       = "web-1"
-#       public_ip  = "1.2.3.4"
-#       private_ip = "10.0.0.1"
-#       env        = "prod"
-#     }
-#   }
-#
-# Running: ansible-inventory -i inventory.yml --graph --vars
-#
-# @all:
-# |--@ungrouped:
-# |  |--my-workspace_web_server
-# |  |  |--{env = prod}
-# |  |  |--{name = web-1}
-# |  |  |--{private_ip = 10.0.0.1}
-# |  |  |--{public_ip = 1.2.3.4}
-
-# Use compose to derive ansible_host from an output field
+# Use the instance's public_ip as ansible_host
 - name: Set ansible_host from public_ip
   plugin: hashicorp.terraform.inventory
   source: statefile
@@ -184,99 +179,115 @@ EXAMPLES = r"""
   compose:
     ansible_host: public_ip
 
-# Use the 'name' field inside each output value as the inventory hostname
-- name: Hostname from output field
+# Hostname from the value of the 'Name' tag
+- name: Tag-based hostname
   plugin: hashicorp.terraform.inventory
   source: statefile
   organization: my-org
   workspace: my-workspace
   hostnames:
-    - name
+    - tag:Name       # e.g. tags = {Name = "web-1"} → host "web-1"
 
-# Use the Terraform output name itself as the hostname
-- name: Hostname is the output name
+# Hostname with environment prefix from tags
+- name: Prefixed hostname from tags
   plugin: hashicorp.terraform.inventory
   source: statefile
   organization: my-org
   workspace: my-workspace
   hostnames:
-    - output_name
-
-# Hostname with prefix and custom separator
-- name: Prefixed hostname
-  plugin: hashicorp.terraform.inventory
-  source: outputs
-  organization: my-org
-  workspace: my-workspace
-  hostnames:
-    - name: public_ip
-      prefix: env
+    - name: tag:Name
+      prefix: tag:Environment
       separator: "-"
-  # Produces: prod-1.2.3.4
+  # e.g. tags = {Name = "web-1", Environment = "prod"} → host "prod-web-1"
 
-# Group hosts dynamically by a variable value
-- name: Group by environment
+# Hostname from a plain attribute value, falling back to the resource name
+- name: Hostname from attribute
+  plugin: hashicorp.terraform.inventory
+  source: statefile
+  organization: my-org
+  workspace: my-workspace
+  hostnames:
+    - public_dns     # e.g. "ec2-1-2-3-4.compute-1.amazonaws.com"
+    - public_ip      # fallback to public_ip if DNS is empty
+
+# Group by instance_state attribute (running / stopped / terminated)
+- name: Group by instance state
   plugin: hashicorp.terraform.inventory
   source: statefile
   organization: my-org
   workspace: my-workspace
   keyed_groups:
-    - key: env
-      prefix: env
-  # Produces groups: env_prod, env_staging, etc.
+    - key: instance_state
+      prefix: state
+  # Produces groups: state_running, state_stopped, etc.
 
-# Group using a Jinja2 conditional expression
-- name: Group production hosts
-  plugin: hashicorp.terraform.inventory
-  source: outputs
-  organization: my-org
-  workspace: my-workspace
-  groups:
-    production: env == 'prod'
-
-# Include only production hosts
-- name: Filter to production
+# Include only running instances
+- name: Filter to running instances
   plugin: hashicorp.terraform.inventory
   source: statefile
   organization: my-org
   workspace: my-workspace
   include_filters:
-    - env: prod
+    - instance_state: running
 
-# Exclude staging hosts
-- name: Exclude staging
+# Also include child-module resources
+- name: Include resources from child modules
+  plugin: hashicorp.terraform.inventory
+  source: statefile
+  organization: my-org
+  workspace: my-workspace
+  search_child_modules: true
+
+# Add DigitalOcean droplets (custom provider mapping)
+- name: DigitalOcean inventory
+  plugin: hashicorp.terraform.inventory
+  source: statefile
+  organization: my-org
+  workspace: my-workspace
+  provider_mapping:
+    - provider_name: registry.terraform.io/digitalocean/digitalocean
+      types:
+        - digitalocean_droplet
+  hostnames:
+    - tag:Name
+    - name
+
+# Target a self-hosted Terraform Enterprise instance
+- name: TFE on-prem inventory
+  plugin: hashicorp.terraform.inventory
+  source: statefile
+  tfe_address: https://terraform.example.com
+  organization: my-org
+  workspace: my-workspace
+
+# ── outputs source ────────────────────────────────────────────────────────────
+
+# Build inventory from workspace outputs (dict/list-of-dict values only)
+- name: Inventory from workspace outputs API
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  compose:
+    ansible_host: public_ip
+
+# Hostname from the output name itself
+- name: Use Terraform output name as hostname
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hostnames:
+    - output_name
+
+# Exclude staging hosts from outputs inventory
+- name: Exclude staging from outputs
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
   workspace: my-workspace
   exclude_filters:
     - env: staging
-
-# A list-typed Terraform output expands to one host per element:
-#
-#   output "web_servers" {
-#     value = [
-#       { name = "web-1", public_ip = "1.2.3.4" },
-#       { name = "web-2", public_ip = "1.2.3.5" },
-#     ]
-#   }
-#
-# Produces: my-workspace_web_servers_0, my-workspace_web_servers_1
-- name: List output to multiple hosts
-  plugin: hashicorp.terraform.inventory
-  source: statefile
-  organization: my-org
-  workspace: my-workspace
-  hostnames:
-    - name   # resolves to web-1 and web-2 respectively
-
-# Target a self-hosted Terraform Enterprise instance
-- name: TFE instance
-  plugin: hashicorp.terraform.inventory
-  source: outputs
-  tfe_address: https://terraform.example.com
-  organization: my-org
-  workspace: my-workspace
 """
 
 from typing import Any, Dict, Iterable, List, Optional
@@ -353,18 +364,29 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         include_filters: List[Dict],
         exclude_filters: List[Dict],
     ) -> None:
+        """Apply filtering and register each record as an Ansible host.
+
+        Sources that perform their own hostname resolution (e.g.
+        ``StatefileSource``) pre-populate ``resolved_hostname`` on each record.
+        When that key is present it is used directly; otherwise the
+        outputs-style ``get_preferred_hostname`` fallback applies.
+        """
         for record in records:
-            output_name: str = record["output_name"]
-            workspace_name: str = record["workspace_name"]
             host_vars: Dict[str, Any] = record["host_vars"]
-            index: Optional[int] = record.get("index")
 
             if not passes_filters(host_vars, include_filters, exclude_filters):
                 continue
 
-            hostname = get_preferred_hostname(
-                output_name, workspace_name, host_vars, hostnames, index
-            )
+            if "resolved_hostname" in record:
+                hostname: Optional[str] = record["resolved_hostname"]
+            else:
+                output_name: str = record["output_name"]
+                workspace_name: str = record["workspace_name"]
+                index = record.get("index")
+                hostname = get_preferred_hostname(
+                    output_name, workspace_name, host_vars, hostnames, index
+                )
+
             if hostname:
                 self._add_host(hostname, host_vars, compose, keyed_groups, groups, strict)
 
@@ -391,6 +413,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             "workspace_id": self.get_option("workspace_id"),
             "organization": self.get_option("organization"),
             "workspace": self.get_option("workspace"),
+            # Passed through to StatefileSource; ignored by OutputsSource.
+            "search_child_modules": self.get_option("search_child_modules"),
+            "provider_mapping": self.get_option("provider_mapping") or [],
+            # StatefileSource resolves hostnames internally; passing here
+            # avoids reading options a second time inside collect_hosts.
+            "hostnames": hostnames,
         }
 
         if not tfe_token:
