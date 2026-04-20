@@ -203,8 +203,8 @@ if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
-    TerraformClient,
     AnsibleTerraformModule,
+    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
@@ -225,8 +225,6 @@ def main() -> None:
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
-    
-
     try:
         # Adapter initialization (pytfe SDK)
         adapter = TerraformClient(
@@ -246,9 +244,7 @@ def main() -> None:
 
         project_data.pop("status", None)
 
-        
-
-        result["project"] = project_data.get("data", project_data)  
+        result["project"] = project_data.get("data", project_data)
 
         module.exit_json(**result)
 

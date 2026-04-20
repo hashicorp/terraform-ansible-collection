@@ -14,30 +14,12 @@ author: "Kaushiki Singh (@kausingh)"
 description:
   - This module retrieves information about a given configuration version in Terraform Enterprise/Cloud.
   - If I(configuration_version_id) is specified, this module will retrieve and return information about it.
-  - If either I(workspace) (and I(organization)) or I(workspace_id) is specified, this module will retrieve the current
-    configuration version of the workspace and return information about it.
-  - If the workspace does not exist, the module will fail with an error message.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
-  organization:
-    description:
-      - Name of the organization that the workspace belongs to.
-      - This is required when I(workspace) key is set.
-    type: str
-  workspace:
-    description:
-      - Name of the workspace.
-      - When this key is set, I(organization) must be specified.
-    type: str
-  workspace_id:
-    description:
-      - ID of the workspace.
-    type: str
   configuration_version_id:
     description:
       - The ID of the configuration version.
-      - Either a combination of I(workspace) (and I(organization)), or one of I(workspace_id) or I(configuration_version_id)
-        must be specified.
+      - I(configuration_version_id) must be specified.
     type: str
 """
 
@@ -51,117 +33,22 @@ EXAMPLES = r"""
 # "result_get": {
 #     "changed": false,
 #     "configuration": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-09-19T05:05:04+00:00"
-#             }
-#         },
-#         "id": "cv-id",
+#         "auto_queue_runs": true,
+#         "id": "cv-rp6DujcQxCsgr7QE",
 #         "links": {
-#             "download": "/api/v2/configuration-versions/cv-id/download",
-#             "self": "/api/v2/configuration-versions/cv-id"
+#             "download": "/api/v2/configuration-versions/cv-rp6DujcQxCsgr7QE/download",
+#             "self": "/api/v2/configuration-versions/cv-rp6DujcQxCsgr7QE"
 #         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
+#         "provisional": false,
+#         "source": "tfe-api",
+#         "speculative": false,
+#         "status": "uploaded",
+#         "status_timestamps": {
+#             "uploaded-at": "2026-04-20T06:43:23+00:00"
+#         }
 #     },
 #     "failed": false
 #     }
-
-- name: Show the current configuration using workspace ID
-  hashicorp.terraform.configuration_version_info:
-    workspace_id: ws-6jrRyVDv1J8zQMB5
-
-# Task output:
-# ------------
-# "result_get": {
-#     "changed": false,
-#     "configuration": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-09-21T13:57:51+00:00"
-#             }
-#         },
-#         "id": "cv-id",
-#         "links": {
-#             "download": "/api/v2/configuration-versions/cv-id/download",
-#             "self": "/api/v2/configuration-versions/cv-id"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
-#     },
-#     "failed": false
-#     }
-
-- name: Show the current configuration using workspace and organization name
-  hashicorp.terraform.configuration_version_info:
-    workspace: workspace-name
-    organization: org-name
-
-# Task output:
-# ------------
-# "result_get": {
-#     "changed": false,
-#     "configuration": {
-#         "attributes": {
-#             "auto-queue-runs": true,
-#             "changed-files": [],
-#             "error": null,
-#             "error-message": null,
-#             "provisional": false,
-#             "source": "tfe-api",
-#             "speculative": false,
-#             "status": "uploaded",
-#             "status-timestamps": {
-#                 "uploaded-at": "2025-09-21T13:57:51+00:00"
-#             }
-#         },
-#         "id": "cv-7ecoepBLNBJSohax",
-#         "links": {
-#             "download": "/api/v2/configuration-versions/cv-id/download",
-#             "self": "/api/v2/configuration-versions/cv-id"
-#         },
-#         "relationships": {
-#             "ingress-attributes": {
-#                 "data": null,
-#                 "links": {
-#                     "related": "/api/v2/configuration-versions/cv-id/ingress-attributes"
-#                 }
-#             }
-#         },
-#         "type": "configuration-versions"
-#     },
-#     "failed": false
-# }
 """
 
 RETURN = r"""
@@ -170,24 +57,15 @@ configuration:
   description: A dictionary containing the configuration version information.
   returned: on success
   contains:
+    auto_queue_runs:
+      type: bool
+      returned: when set
+      description: Whether runs are automatically queued for this configuration version.
     id:
       type: str
       returned: always
       description: The unique identifier of the configuration version.
       sample: "cv-sample1234567890"
-    type:
-      type: str
-      returned: always
-      description: The type of the resource (always "configuration-versions").
-      sample: "configuration-versions"
-    attributes:
-      type: dict
-      returned: always
-      description: The attributes of the configuration version.
-    relationships:
-      type: dict
-      returned: always
-      description: Relationships to other resources.
     links:
       type: dict
       returned: always
@@ -201,6 +79,26 @@ configuration:
           type: str
           returned: always
           description: Download link for this configuration version.
+    provisional:
+      type: bool
+      returned: when set
+      description: Whether this is a provisional configuration version.
+    source:
+      type: str
+      returned: when set
+      description: Source of the configuration version.
+    speculative:
+      type: bool
+      returned: when set
+      description: Whether the configuration version is speculative.
+    status:
+      type: str
+      returned: when set
+      description: Current processing state of the configuration version.
+    status_timestamps:
+      type: dict
+      returned: when set
+      description: Timestamps for configuration version state transitions.
 """
 
 from copy import deepcopy
@@ -211,11 +109,9 @@ from ansible.module_utils._text import to_text
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
     TerraformClient,
-    get_workspace,
-    get_workspace_by_id,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     get_config,
@@ -233,54 +129,39 @@ def fetch_current_config_version_id(workspace_response: Dict[str, Any], workspac
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "configuration_version_id": {"type": "str"},
-            "workspace_id": {"type": "str"},
-            "workspace": {"type": "str"},
-            "organization": {"type": "str"},
+            "configuration_version_id": {"type": "str", "required": True},
         },
         supports_check_mode=True,
-        required_together=[["workspace", "organization"]],
-        required_one_of=[
-            ["workspace_id", "workspace", "configuration_version_id"],
-        ],
-        mutually_exclusive=[
-            ("workspace", "workspace_id", "configuration_version_id"),
-        ],
     )
 
     warnings: list[str] = []
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+    adapter = None
     try:
-        client = TerraformClient(**module.params)
+        adapter = TerraformClient(
+            tfe_token=params.get("tfe_token"),
+            tfe_address=params.get("tfe_address"),
+        )
 
         configuration_data: Optional[Dict[str, Any]] = None
-        workspace_data: Optional[Dict[str, Any]] = None
-        if params.get("workspace_id"):
-            # Retrieve workspace by ID
-            workspace_data = get_workspace_by_id(client, params["workspace_id"])
-            if not workspace_data:
-                raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
-            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data, params.get("workspace_id"))
-        elif params.get("workspace") and params.get("organization"):
-            # Retrieve workspace by name and organization
-            workspace_data = get_workspace(client, params["organization"], params["workspace"])
-            if not workspace_data:
-                raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-            params["configuration_version_id"] = fetch_current_config_version_id(workspace_data, params.get("workspace"))
         if params.get("configuration_version_id"):
-            configuration_data = get_config(client, params["configuration_version_id"])
+            configuration_data = get_config(adapter, params["configuration_version_id"])
             if not configuration_data:
                 raise ValueError(f"Configuration version '{params['configuration_version_id']}' was not found.")
 
         # Extract the data field to flatten the structure
-        result["configuration"] = configuration_data.get("data", workspace_data)
+        result["configuration"] = configuration_data
 
         module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
+
+    finally:
+        if adapter:
+            adapter.cleanup()
 
 
 if __name__ == "__main__":

@@ -1,167 +1,177 @@
-import sys
-import types
+# -*- coding: utf-8 -*-
+
 from unittest.mock import Mock, patch
 
 import pytest
-from ansible.module_utils import _text
-from ansible.module_utils.common.text.converters import to_text as converters_to_text
-
-if "pytfe" not in sys.modules:
-    pytfe = types.ModuleType("pytfe")
-
-    class _DummyPytfeObject:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        @classmethod
-        def model_validate(cls, data):
-            return data
-
-    pytfe.TFEClient = _DummyPytfeObject
-    pytfe.TFEConfig = _DummyPytfeObject
-
-    pytfe_errors = types.ModuleType("pytfe.errors")
-
-    class NotFound(Exception):
-        pass
-
-    class AuthError(Exception):
-        pass
-
-    class ServerError(Exception):
-        pass
-
-    class TFEError(Exception):
-        pass
-
-    pytfe_errors.AuthError = AuthError
-    pytfe_errors.NotFound = NotFound
-    pytfe_errors.ServerError = ServerError
-    pytfe_errors.TFEError = TFEError
-
-    pytfe_models = types.ModuleType("pytfe.models")
-    for _name in [
-        "ConfigurationVersion",
-        "ExecutionMode",
-        "RunApplyOptions",
-        "RunCancelOptions",
-        "RunCreateOptions",
-        "RunDiscardOptions",
-        "RunVariable",
-        "TagBindings",
-        "WorkspaceCreateOptions",
-        "WorkspaceUpdateOptions",
-        "Workspace",
-    ]:
-        setattr(pytfe_models, _name, _DummyPytfeObject)
-
-    def _models_getattr(_name):
-        return _DummyPytfeObject
-
-    pytfe_models.__getattr__ = _models_getattr
-
-    sys.modules["pytfe"] = pytfe
-    sys.modules["pytfe.errors"] = pytfe_errors
-    sys.modules["pytfe.models"] = pytfe_models
-
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-
-if not hasattr(_text, "to_text"):
-    _text.to_text = converters_to_text
 
 
-def create_run_response(run_id: str, status: str) -> dict:
-    return {
-        "data": {
-            "id": run_id,
-            "type": "runs",
-            "attributes": {
-                "status": status,
-            },
+class TestRunInfoModule:
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
+    def test_module_argument_specification(self, mock_ansible_module, enhanced_dummy_module):
+        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
+
+        mock_module = enhanced_dummy_module
+        mock_module.params = {"run_id": "run-arg-spec"}
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient",
+            return_value=Mock(),
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run",
+            side_effect=Exception("test"),
+        ):
+            with pytest.raises(AssertionError):
+                main()
+
+        call_args = mock_ansible_module.call_args[1]
+        assert call_args["argument_spec"] == {
+            "run_id": {"type": "str", "required": True},
         }
-    }
-
-
-class TestRunInfo:
-
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_run_not_found(self, mock_get_run, mock_ansible_module, mock_terraform_client):
-        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
-
-        # Create fake module object
-        mock_module = Mock()
-        mock_module.check_mode = False
-        mock_module.params = {"run_id": "run-gXm1C5TmRo4CX"}
-        mock_client = Mock()
-
-        # Configure mocks
-        mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_run.side_effect = TerraformError({"status": 404, "data": {"errors": [{"status": "404", "title": "not found"}]}})
-
-        # Run the module
-        main()
-        # Assert behavior
-        mock_get_run.assert_called_once_with(mock_client, "run-gXm1C5TmRo4CX")
-        mock_module.fail_json.assert_called_once_with(msg=str({"status": 404, "data": {"errors": [{"status": "404", "title": "not found"}]}}))
-        mock_module.exit_json.assert_not_called()
-
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_run_not_found_by_id(self, mock_get_run, mock_ansible_module, mock_terraform_client):
-        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
-
-        # Create fake module object
-        run_id = "non-existent"
-        mock_module = Mock()
-        mock_module.check_mode = False
-        mock_module.params = {"run_id": run_id}
-        mock_client = Mock()
-
-        # Configure mocks
-        mock_terraform_client.return_value = mock_client
-        mock_ansible_module.return_value = mock_module
-        mock_get_run.return_value = {}
-
-        # Run the module
-        main()
-        # Assert behavior
-        mock_get_run.assert_called_once_with(mock_client, run_id)
-        mock_module.fail_json.assert_called_once_with(msg=f"The run with ID '{run_id}' was not found.")
+        assert call_args["supports_check_mode"] is True
 
     @pytest.mark.parametrize(
-        "run_info_data,expected_result",
+        "run_id,run_info_data",
         [
             (
-                create_run_response(run_id="run-12ab345cde78", status="succeeded")["data"],
-                create_run_response(run_id="run-12ab345cde78", status="succeeded")["data"],
+                "run-12ab345cde78",
+                {
+                    "id": "run-12ab345cde78",
+                    "status": "planned_and_finished",
+                    "message": "Triggered via API",
+                    "plan_only": True,
+                    "source": "tfe-api",
+                    "variables": [],
+                    "workspace": {"id": "ws-123"},
+                    "status_timestamps": {"planned_and_finished_at": "2026-04-20T07:47:33Z"},
+                },
+            ),
+            (
+                "run-minimal-001",
+                {
+                    "id": "run-minimal-001",
+                    "status": "planned",
+                    "message": "minimal-run",
+                    "plan_only": False,
+                    "variables": [],
+                },
             ),
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_run_found(self, mock_get_run, mock_terraform_client, mock_ansible_module, run_info_data, expected_result):
+    def test_run_found(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module, run_id, run_info_data):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
-        run_id = "run-12ab345cde78"
-        mock_module = Mock()
+        expected_run = dict(run_info_data)
+
+        mock_module = enhanced_dummy_module
+        mock_module.check_mode = False
+        mock_module.params = {
+            "run_id": run_id,
+            "tfe_token": "token",
+            "tfe_address": "https://app.terraform.io",
+        }
+
+        adapter = Mock()
+        mock_ansible_module.return_value = mock_module
+        mock_terraform_client.return_value = adapter
+        mock_get_run.return_value = dict(run_info_data)
+
+        with pytest.raises(SystemExit):
+            main()
+
+        mock_terraform_client.assert_called_once_with(
+            tfe_token="token",
+            tfe_address="https://app.terraform.io",
+        )
+        mock_get_run.assert_called_once_with(adapter, run_id)
+        assert mock_module.exit_args["changed"] is False
+        assert mock_module.exit_args["warnings"] == []
+        assert mock_module.exit_args["run"] == expected_run
+        assert mock_module.exit_args["run"]["id"] == run_id
+        assert mock_module.exit_args["run"]["status"] == run_info_data["status"]
+        adapter.cleanup.assert_called_once_with()
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
+    def test_run_not_found_by_id(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
+
+        run_id = "non-existent"
+        mock_module = enhanced_dummy_module
         mock_module.check_mode = False
         mock_module.params = {"run_id": run_id}
-        mock_client = Mock()
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_run.return_value = run_info_data
+        mock_terraform_client.return_value = adapter
+        mock_get_run.return_value = {}
 
-        main()
+        with pytest.raises(AssertionError):
+            main()
 
-        mock_get_run.assert_called_once_with(mock_client, run_id)
+        mock_get_run.assert_called_once_with(adapter, run_id)
+        assert mock_module.failed is True
+        assert mock_module.fail_args["msg"] == f"The run with ID '{run_id}' was not found."
+        adapter.cleanup.assert_called_once_with()
 
-        mock_module.exit_json.assert_called_once()
-        call_args = mock_module.exit_json.call_args[1]
-        assert call_args["run"] == expected_result
-        assert call_args["changed"] is False
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
+    def test_get_run_exception(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
+
+        run_id = "run-boom"
+        mock_module = enhanced_dummy_module
+        mock_module.check_mode = False
+        mock_module.params = {"run_id": run_id}
+
+        adapter = Mock()
+        mock_ansible_module.return_value = mock_module
+        mock_terraform_client.return_value = adapter
+        mock_get_run.side_effect = RuntimeError("boom")
+
+        with pytest.raises(AssertionError):
+            main()
+
+        assert mock_module.failed is True
+        assert mock_module.fail_args["msg"] == "boom"
+        adapter.cleanup.assert_called_once_with()
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
+    def test_client_parameters_passed_correctly(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+        from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
+
+        run_id = "run-params123"
+
+        mock_module = enhanced_dummy_module
+        mock_module.check_mode = True
+        mock_module.params = {
+            "run_id": run_id,
+            "tfe_token": "test-token",
+            "tfe_address": "app.terraform.io",
+        }
+
+        adapter = Mock()
+        mock_ansible_module.return_value = mock_module
+        mock_terraform_client.return_value = adapter
+        mock_get_run.return_value = {
+            "id": run_id,
+            "status": "planned",
+            "message": "Triggered via API",
+        }
+
+        with pytest.raises(SystemExit):
+            main()
+
+        mock_terraform_client.assert_called_once_with(
+            tfe_token="test-token",
+            tfe_address="app.terraform.io",
+        )
+        adapter.cleanup.assert_called_once_with()
