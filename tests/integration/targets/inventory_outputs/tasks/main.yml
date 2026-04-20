@@ -1,0 +1,272 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    # ── Setup ──────────────────────────────────────────────────────────────────
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Set workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-inv-outputs"
+
+    - name: Create test workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: workspace_result
+
+    - name: Set workspace_id fact
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_result.id }}"
+
+    - name: Create temporary directory for Terraform config
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Render Terraform configuration
+      ansible.builtin.template:
+        src: main.tf.j2
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Upload configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: config_version_result
+
+    - name: Assert upload succeeded
+      ansible.builtin.assert:
+        that:
+          - config_version_result.changed
+          - config_version_result.status == "uploaded"
+
+    - name: Create and plan run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "Integration test run for inventory_outputs"
+        state: present
+        configuration_version: "{{ config_version_result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: plan_result
+
+    - name: Apply run
+      hashicorp.terraform.run:
+        run_id: "{{ plan_result.id }}"
+        state: applied
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: apply_result
+
+    - name: Assert apply succeeded
+      ansible.builtin.assert:
+        that:
+          - apply_result.changed
+          - apply_result.status == "applied"
+
+    # ── Inventory test: list(object) output via hosts_from ────────────────────
+
+    - name: Write inventory config for list(object) output
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_list_object.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: hosts_list
+            kind: list
+            element_type: object
+          hostnames:
+            - name
+          compose:
+            ansible_host: server_ip
+
+    - name: Run ansible-inventory for list(object) output
+      ansible.builtin.command:
+        argv:
+          - ansible-inventory
+          - -i
+          - "{{ temp_dir.path }}/inventory_list_object.terraform_inventory.yml"
+          - --list
+      register: inv_list_obj
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+
+    - name: Parse inventory JSON (list object)
+      ansible.builtin.set_fact:
+        inv_list: "{{ inv_list_obj.stdout | from_json }}"
+
+    - name: Assert exactly 2 hosts from hosts_list output
+      ansible.builtin.assert:
+        that:
+          - inv_list._meta.hostvars | length == 2
+        fail_msg: >-
+          Expected 2 hosts from hosts_list (list of objects).
+          Got {{ inv_list._meta.hostvars | length }}: {{ inv_list._meta.hostvars.keys() | list }}
+
+    - name: Assert hostnames start with 'host-' (from hostnames preference 'name')
+      ansible.builtin.assert:
+        that:
+          - item.key is match('^host-')
+        fail_msg: "Hostname '{{ item.key }}' does not start with 'host-' — expected name field used as hostname"
+      loop: "{{ inv_list._meta.hostvars | dict2items }}"
+
+    - name: Assert each host has server_ip and host_index vars
+      ansible.builtin.assert:
+        that:
+          - item.value.server_ip is defined
+          - item.value.server_ip is match('10\\.0\\.0\\.[0-9]+')
+          - item.value.host_index is defined
+        fail_msg: "Host {{ item.key }} missing expected variables — got: {{ item.value.keys() | list }}"
+      loop: "{{ inv_list._meta.hostvars | dict2items }}"
+
+    # ── Inventory test: scalar output via hosts_from ───────────────────────────
+
+    - name: Write inventory config for scalar output
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_scalar.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: host_count
+            kind: scalar
+
+    - name: Run ansible-inventory for scalar output
+      ansible.builtin.command:
+        argv:
+          - ansible-inventory
+          - -i
+          - "{{ temp_dir.path }}/inventory_scalar.terraform_inventory.yml"
+          - --list
+      register: inv_scalar_raw
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+
+    - name: Parse inventory JSON (scalar)
+      ansible.builtin.set_fact:
+        inv_scalar: "{{ inv_scalar_raw.stdout | from_json }}"
+
+    - name: Assert exactly 1 host from scalar output
+      ansible.builtin.assert:
+        that:
+          - inv_scalar._meta.hostvars | length == 1
+        fail_msg: >-
+          Expected 1 host from scalar output host_count.
+          Got {{ inv_scalar._meta.hostvars | length }}: {{ inv_scalar._meta.hostvars.keys() | list }}
+
+    - name: Assert scalar host has 'value' var equal to 2 (number of random_string resources)
+      ansible.builtin.assert:
+        that:
+          - (inv_scalar._meta.hostvars.values() | first).value | int == 2
+        fail_msg: >-
+          Expected scalar host to have value=2.
+          Got: {{ inv_scalar._meta.hostvars.values() | first }}
+
+    # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
+    # hosts_list is a list(object) — auto-detection should discover these hosts.
+
+    - name: Write inventory config using auto-detection (no hosts_from)
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+
+    - name: Run ansible-inventory with auto-detection
+      ansible.builtin.command:
+        argv:
+          - ansible-inventory
+          - -i
+          - "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
+          - --list
+      register: inv_auto_raw
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+
+    - name: Parse inventory JSON (auto-detection)
+      ansible.builtin.set_fact:
+        inv_auto: "{{ inv_auto_raw.stdout | from_json }}"
+
+    - name: Assert auto-detection finds 2 hosts from list(object) output
+      ansible.builtin.assert:
+        that:
+          - inv_auto._meta.hostvars | length == 2
+        fail_msg: >-
+          Expected 2 hosts via auto-detection (list of objects).
+          Got {{ inv_auto._meta.hostvars | length }}: {{ inv_auto._meta.hostvars.keys() | list }}
+
+  always:
+    # ── Cleanup ────────────────────────────────────────────────────────────────
+
+    - name: Create destroy run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "Destroy run — inventory_outputs cleanup"
+        state: present
+        is_destroy: true
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      when: workspace_id is defined
+      register: destroy_run
+      failed_when: false
+
+    - name: Apply destroy run
+      hashicorp.terraform.run:
+        run_id: "{{ destroy_run.id }}"
+        state: applied
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      when: destroy_run.id is defined
+      failed_when: false
+
+    - name: Force unlock workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: unlocked
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Delete test workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: absent
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Remove temporary directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined
+      failed_when: false

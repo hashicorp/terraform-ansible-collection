@@ -1,0 +1,40 @@
+terraform {
+  required_providers {
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+  }
+  required_version = ">= 1.2.0"
+  cloud {
+    organization = "{{ organization }}"
+    workspaces {
+      name = "{{ workspace_name }}"
+    }
+  }
+}
+
+resource "random_string" "host_id" {
+  count   = 2
+  length  = 8
+  special = false
+  upper   = false
+}
+
+# null_resource instances appear in the state as mode=managed resources.
+# The statefile inventory source filters by provider+type; null_resource is
+# not in the default whitelist, so provider_mapping must be used to include it.
+resource "null_resource" "server" {
+  count = 2
+
+  triggers = {
+    host_id    = random_string.host_id[count.index].result
+    server_ip  = "10.0.0.${count.index + 1}"
+    env        = "test"
+    host_index = tostring(count.index)
+  }
+}

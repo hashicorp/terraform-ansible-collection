@@ -1,0 +1,38 @@
+terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+  }
+  required_version = ">= 1.2.0"
+  cloud {
+    organization = "{{ organization }}"
+    workspaces {
+      name = "{{ workspace_name }}"
+    }
+  }
+}
+
+resource "random_string" "host_id" {
+  count   = 2
+  length  = 8
+  special = false
+  upper   = false
+}
+
+# Structured list output — used by hosts_from with kind=list, element_type=object.
+output "hosts_list" {
+  description = "List of host objects for outputs-based inventory testing"
+  value = [for i, r in random_string.host_id : {
+    name       = "host-${r.result}"
+    server_ip  = "10.0.0.${i + 1}"
+    host_index = i
+  }]
+}
+
+# Scalar output — used to test hosts_from with kind=scalar.
+output "host_count" {
+  description = "Total number of hosts (scalar)"
+  value       = length(random_string.host_id)
+}
