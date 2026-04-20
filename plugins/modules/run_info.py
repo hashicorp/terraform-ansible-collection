@@ -264,7 +264,6 @@ def main() -> None:
         else:
             raise ValueError("Run ID is required.")
 
-
         result["run"] = run_info_data.get("data", run_info_data)
 
         module.exit_json(**result)
