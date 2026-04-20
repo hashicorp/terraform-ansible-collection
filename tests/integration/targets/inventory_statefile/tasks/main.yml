@@ -103,19 +103,17 @@
             env: triggers.env
 
     - name: Run ansible-inventory with provider_mapping
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_with_mapping.terraform_inventory.yml"
-          - --list
-      register: inv_with_mapping
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_with_mapping.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_with_mapping.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
     - name: Parse inventory JSON (with mapping)
       ansible.builtin.set_fact:
-        inv_data: "{{ (inv_with_mapping.stdout | string) | from_json }}"
+        inv_data: "{{ lookup('file', temp_dir.path + '/inv_with_mapping.json') | from_json }}"
 
     - name: Assert 2 hosts discovered via provider_mapping
       ansible.builtin.assert:
@@ -154,19 +152,17 @@
           tfe_token: {{ tfc_token }}
 
     - name: Run ansible-inventory without provider_mapping
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_no_mapping.terraform_inventory.yml"
-          - --list
-      register: inv_no_mapping
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_no_mapping.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_no_mapping.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
     - name: Parse inventory JSON (no mapping)
       ansible.builtin.set_fact:
-        inv_no_map_data: "{{ (inv_no_mapping.stdout | string) | from_json }}"
+        inv_no_map_data: "{{ lookup('file', temp_dir.path + '/inv_no_mapping.json') | from_json }}"
 
     - name: Assert 0 hosts without provider_mapping (null_resource is not in default whitelist)
       ansible.builtin.assert:

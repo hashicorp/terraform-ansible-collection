@@ -102,19 +102,17 @@
             ansible_host: server_ip
 
     - name: Run ansible-inventory for list(object) output
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_list_object.terraform_inventory.yml"
-          - --list
-      register: inv_list_obj
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_list_object.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_list_object.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
     - name: Parse inventory JSON (list object)
       ansible.builtin.set_fact:
-        inv_list: "{{ (inv_list_obj.stdout | string) | from_json }}"
+        inv_list: "{{ lookup('file', temp_dir.path + '/inv_list_object.json') | from_json }}"
 
     - name: Assert exactly 2 hosts from hosts_list output
       ansible.builtin.assert:
@@ -156,19 +154,17 @@
             kind: scalar
 
     - name: Run ansible-inventory for scalar output
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_scalar.terraform_inventory.yml"
-          - --list
-      register: inv_scalar_raw
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_scalar.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_scalar.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
     - name: Parse inventory JSON (scalar)
       ansible.builtin.set_fact:
-        inv_scalar: "{{ (inv_scalar_raw.stdout | string) | from_json }}"
+        inv_scalar: "{{ lookup('file', temp_dir.path + '/inv_scalar.json') | from_json }}"
 
     - name: Assert exactly 1 host from scalar output
       ansible.builtin.assert:
@@ -200,19 +196,17 @@
           tfe_token: {{ tfc_token }}
 
     - name: Run ansible-inventory with auto-detection
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
-          - --list
-      register: inv_auto_raw
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_auto.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
     - name: Parse inventory JSON (auto-detection)
       ansible.builtin.set_fact:
-        inv_auto: "{{ (inv_auto_raw.stdout | string) | from_json }}"
+        inv_auto: "{{ lookup('file', temp_dir.path + '/inv_auto.json') | from_json }}"
 
     - name: Assert auto-detection finds 2 hosts from list(object) output
       ansible.builtin.assert:
