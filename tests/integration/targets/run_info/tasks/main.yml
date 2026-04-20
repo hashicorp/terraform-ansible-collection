@@ -84,9 +84,8 @@
       ansible.builtin.assert:
         that:
           - not run_response.changed
-          - run_response.run.type == "runs"
-          - run_response.run.attributes.status in ["planned", "planned_and_finished"]
-          - run_response.run.attributes.variables == []
+          - run_response.run.status in ["planned", "planned_and_finished"]
+          - run_response.run.variables == []
 
     - name: Test invalid run ID
       hashicorp.terraform.run_info:

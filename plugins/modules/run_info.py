@@ -264,7 +264,6 @@ def main() -> None:
         else:
             raise ValueError("Run ID is required.")
 
-        run_info_data.pop("status", None)
 
         result["run"] = run_info_data.get("data", run_info_data)
 
