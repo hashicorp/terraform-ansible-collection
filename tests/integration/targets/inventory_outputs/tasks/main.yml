@@ -108,11 +108,18 @@
         --list
         > "{{ temp_dir.path }}/inv_list_object.json"
       environment:
+        PATH: "{{ lookup('env', 'PATH') }}"
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+        TFE_TOKEN: "{{ tfc_token }}"
 
-    - name: Parse inventory JSON (list object)
-      ansible.builtin.set_fact:
-        inv_list: "{{ lookup('file', temp_dir.path + '/inv_list_object.json') | from_json }}"
+    - name: Debug raw inventory output (list object)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_list_object.json') }}"
+
+    - name: Load inventory JSON (list object)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_list_object.json"
+        name: inv_list
 
     - name: Assert exactly 2 hosts from hosts_list output
       ansible.builtin.assert:
@@ -162,9 +169,14 @@
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
-    - name: Parse inventory JSON (scalar)
-      ansible.builtin.set_fact:
-        inv_scalar: "{{ lookup('file', temp_dir.path + '/inv_scalar.json') | from_json }}"
+    - name: Debug raw inventory output (scalar)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_scalar.json') }}"
+
+    - name: Load inventory JSON (scalar)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_scalar.json"
+        name: inv_scalar
 
     - name: Assert exactly 1 host from scalar output
       ansible.builtin.assert:
@@ -204,9 +216,14 @@
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
-    - name: Parse inventory JSON (auto-detection)
-      ansible.builtin.set_fact:
-        inv_auto: "{{ lookup('file', temp_dir.path + '/inv_auto.json') | from_json }}"
+    - name: Debug raw inventory output (auto-detection)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_auto.json') }}"
+
+    - name: Load inventory JSON (auto-detection)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_auto.json"
+        name: inv_auto
 
     - name: Assert auto-detection finds 2 hosts from list(object) output
       ansible.builtin.assert:

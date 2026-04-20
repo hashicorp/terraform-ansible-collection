@@ -111,9 +111,14 @@
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
-    - name: Parse inventory JSON (with mapping)
-      ansible.builtin.set_fact:
-        inv_data: "{{ lookup('file', temp_dir.path + '/inv_with_mapping.json') | from_json }}"
+    - name: Debug raw inventory output (with mapping)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_with_mapping.json') }}"
+
+    - name: Load inventory JSON (with mapping)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_with_mapping.json"
+        name: inv_data
 
     - name: Assert 2 hosts discovered via provider_mapping
       ansible.builtin.assert:
@@ -160,9 +165,14 @@
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
 
-    - name: Parse inventory JSON (no mapping)
-      ansible.builtin.set_fact:
-        inv_no_map_data: "{{ lookup('file', temp_dir.path + '/inv_no_mapping.json') | from_json }}"
+    - name: Debug raw inventory output (no mapping)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_no_mapping.json') }}"
+
+    - name: Load inventory JSON (no mapping)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_no_mapping.json"
+        name: inv_no_map_data
 
     - name: Assert 0 hosts without provider_mapping (null_resource is not in default whitelist)
       ansible.builtin.assert:
