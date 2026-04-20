@@ -41,9 +41,10 @@ options:
         candidates are selected by provider and resource type; see
         O(provider_mapping) to extend the defaults.
       - V(outputs) queries the HCP Terraform state version outputs API
-        endpoint and builds hosts from workspace outputs whose values are
-        mappings or lists of mappings.  Lighter weight when only named output
-        values are needed.
+        endpoint and builds hosts from workspace output values.  Lighter weight
+        when only named output values are needed.  By default only dict and
+        list-of-dict outputs produce hosts.  Use O(hosts_from) to handle
+        primitive shapes such as scalars, list(string), and map(string).
       - V(search) is reserved for future implementation and will raise an
         error if selected.
     type: str
@@ -115,6 +116,24 @@ options:
         type: list
         elements: str
         required: true
+  hosts_from:
+    description:
+      - Explicit output-to-host mapping for V(source=outputs).
+      - When set, auto-detection is disabled; only the listed outputs are
+        processed according to their declared V(kind) and V(element_type).
+      - Accepts a single mapping or a list of mappings.  Each entry requires
+        V(output) (the output name), V(kind) (top-level structure — one of
+        V(scalar), V(list), V(map), V(object)), and V(element_type) (per-element
+        type — one of V(string), V(number), V(bool), V(object), V(map)).
+      - For primitive element types, V(use_as) assigns each element value
+        directly to the named Ansible host variable (e.g. V(ansible_host)).
+      - For V(kind=map) the map key becomes the resolved hostname; the
+        V(hostnames) preference list has no further effect for those records.
+        The special variable V(key) is always set to the map key.
+      - V(kind=scalar) produces one host; the raw value is stored as V(value).
+      - Has no effect for V(source=statefile).
+    type: raw
+    default: null
   hostnames:
     description:
       - Ordered preference list for resolving the inventory hostname.
@@ -288,6 +307,78 @@ EXAMPLES = r"""
   workspace: my-workspace
   exclude_filters:
     - env: staging
+
+# ── hosts_from: handle primitive and map-keyed output shapes ─────────────────
+
+# list(string) output → one auto-named host per IP; IP assigned to ansible_host
+# Terraform: output "instance_ips" { value = aws_instance.ec2[*].public_ip }
+# Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, …
+- name: Inventory from list-of-string IPs
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: instance_ips
+    kind: list
+    element_type: string
+    use_as: ansible_host
+
+# Use the IP value itself as the hostname
+- name: IP-as-hostname from list(string)
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: instance_ips
+    kind: list
+    element_type: string
+    use_as: ansible_host
+  hostnames:
+    - ansible_host    # e.g. "52.10.0.1" becomes the Ansible hostname
+
+# map(string) → key = hostname, string value → ansible_host
+# Terraform: output "host_map" { value = { "web-1" = "1.2.3.4", "web-2" = "5.6.7.8" } }
+- name: Map-keyed IP inventory
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: host_map
+    kind: map
+    element_type: string
+    use_as: ansible_host
+
+# map(object) → key = hostname, object value = host variables (best structured format)
+# Terraform: output "ec2_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
+- name: Structured map-keyed inventory
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: ec2_hosts
+    kind: map
+    element_type: object
+  compose:
+    ansible_host: public_ip
+
+# Multiple outputs combined — hosts_from accepts a list of specs
+- name: Multi-output inventory
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    - output: web_hosts
+      kind: map
+      element_type: object
+    - output: db_ips
+      kind: list
+      element_type: string
+      use_as: ansible_host
 """
 
 from typing import Any, Dict, Iterable, List, Optional
@@ -396,7 +487,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
 
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
         super().parse(inventory, loader, path, cache=cache)
-        self._read_config_data(path)
+        raw = self._read_config_data(path)
 
         tfe_token: str = self.get_option("tfe_token") or ""
         tfe_address: str = self.get_option("tfe_address")
@@ -419,6 +510,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             # StatefileSource resolves hostnames internally; passing here
             # avoids reading options a second time inside collect_hosts.
             "hostnames": hostnames,
+            # OutputsSource explicit output-shape mapping; ignored by StatefileSource.
+            # Read directly from raw config: type: raw option parsing is unreliable
+            # across Ansible versions and may return None even when the key is set.
+            "hosts_from": (raw or {}).get("hosts_from") if isinstance(raw, dict) else self.get_option("hosts_from"),
         }
 
         if not tfe_token:

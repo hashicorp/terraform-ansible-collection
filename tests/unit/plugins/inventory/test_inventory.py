@@ -13,7 +13,7 @@ from ansible.errors import AnsibleError, AnsibleParserError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
 from ansible_collections.hashicorp.terraform.plugins.inventory.inventory import InventoryModule
-from ansible_collections.hashicorp.terraform.plugins.inventory.sources.outputs import OutputsSource
+from ansible_collections.hashicorp.terraform.plugins.inventory.sources.outputs import OutputsSource, _collect_hosts_from_spec
 from ansible_collections.hashicorp.terraform.plugins.inventory.sources.search import SearchSource
 from ansible_collections.hashicorp.terraform.plugins.inventory.sources.statefile import (
     PROVIDER_RESOURCE_TYPES,
@@ -82,6 +82,7 @@ def _base_options(**overrides) -> dict:
         "source": "statefile",
         "search_child_modules": False,
         "provider_mapping": [],
+        "hosts_from": None,
         "hostnames": [],
         "include_filters": [],
         "exclude_filters": [],
@@ -787,6 +788,271 @@ class TestOutputsSourceCollectHosts:
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = []
         assert self._make_source().collect_hosts() == []
+
+
+# ---------------------------------------------------------------------------
+# _collect_hosts_from_spec — unit tests (sources/outputs)
+# ---------------------------------------------------------------------------
+
+
+class TestCollectHostsFromSpec:
+    """Unit tests for _collect_hosts_from_spec covering all kind×element_type combos."""
+
+    _WS = "my-ws"
+
+    def _spec(self, **kwargs):
+        return kwargs
+
+    # ── scalar ────────────────────────────────────────────────────────────────
+
+    def test_scalar_produces_one_record_with_value_var(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ip", kind="scalar", element_type="string"),
+            {"ip": "1.2.3.4"},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["index"] is None
+
+    def test_scalar_with_use_as_sets_named_var(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ip", kind="scalar", element_type="string", use_as="ansible_host"),
+            {"ip": "1.2.3.4"},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+
+    # ── list × primitive ──────────────────────────────────────────────────────
+
+    def test_list_string_produces_indexed_records(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", kind="list", element_type="string"),
+            {"ips": ["1.2.3.4", "5.6.7.8"]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["index"] == 0
+        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[1]["index"] == 1
+        assert records[1]["host_vars"]["value"] == "5.6.7.8"
+
+    def test_list_string_with_use_as_sets_named_var(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", kind="list", element_type="string", use_as="ansible_host"),
+            {"ips": ["1.2.3.4", "5.6.7.8"]},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+        assert records[1]["host_vars"]["ansible_host"] == "5.6.7.8"
+
+    def test_list_string_no_resolved_hostname_uses_index(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", kind="list", element_type="string"),
+            {"ips": ["1.2.3.4"]},
+            self._WS,
+        )
+        assert "resolved_hostname" not in records[0]
+
+    # ── list × object ─────────────────────────────────────────────────────────
+
+    def test_list_object_produces_indexed_records_with_dict_host_vars(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", kind="list", element_type="object"),
+            {"hosts": [{"ip": "1.2.3.4"}, {"ip": "5.6.7.8"}]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["host_vars"] == {"ip": "1.2.3.4"}
+        assert records[0]["index"] == 0
+
+    def test_list_object_skips_non_dict_elements(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", kind="list", element_type="object"),
+            {"hosts": [{"ip": "1.2.3.4"}, "not-a-dict"]},
+            self._WS,
+        )
+        assert len(records) == 1
+
+    # ── map × primitive ───────────────────────────────────────────────────────
+
+    def test_map_string_key_becomes_resolved_hostname(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="host_map", kind="map", element_type="string"),
+            {"host_map": {"web-1": "1.2.3.4", "web-2": "5.6.7.8"}},
+            self._WS,
+        )
+        assert len(records) == 2
+        hostnames = {r["resolved_hostname"] for r in records}
+        assert hostnames == {"web-1", "web-2"}
+
+    def test_map_string_key_stored_as_key_var(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="host_map", kind="map", element_type="string"),
+            {"host_map": {"web-1": "1.2.3.4"}},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["key"] == "web-1"
+        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+
+    def test_map_string_with_use_as_sets_named_var(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="host_map", kind="map", element_type="string", use_as="ansible_host"),
+            {"host_map": {"web-1": "1.2.3.4"}},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+
+    # ── map × object ──────────────────────────────────────────────────────────
+
+    def test_map_object_key_becomes_resolved_hostname(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", kind="map", element_type="object"),
+            {"ec2": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
+            self._WS,
+        )
+        assert len(records) == 2
+        hostnames = {r["resolved_hostname"] for r in records}
+        assert hostnames == {"web-1", "web-2"}
+
+    def test_map_object_host_vars_include_key_variable(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", kind="map", element_type="object"),
+            {"ec2": {"web-1": {"ip": "1.2.3.4"}}},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["key"] == "web-1"
+        assert records[0]["host_vars"]["ip"] == "1.2.3.4"
+
+    def test_map_object_skips_non_dict_values(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", kind="map", element_type="object"),
+            {"ec2": {"web-1": {"ip": "1.2.3.4"}, "bad": "not-a-dict"}},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["resolved_hostname"] == "web-1"
+
+    # ── object × object ───────────────────────────────────────────────────────
+
+    def test_object_produces_single_record_with_dict_as_host_vars(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="single", kind="object", element_type="object"),
+            {"single": {"ip": "1.2.3.4", "env": "prod"}},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {"ip": "1.2.3.4", "env": "prod"}
+        assert records[0]["index"] is None
+
+    # ── edge cases ────────────────────────────────────────────────────────────
+
+    def test_missing_output_name_returns_empty(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="nonexistent", kind="list", element_type="string"),
+            {"other_output": ["1.2.3.4"]},
+            self._WS,
+        )
+        assert records == []
+
+    def test_list_kind_wrong_value_type_returns_empty(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", kind="list", element_type="string"),
+            {"ips": "not-a-list"},
+            self._WS,
+        )
+        assert records == []
+
+    def test_map_kind_wrong_value_type_returns_empty(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", kind="map", element_type="object"),
+            {"hosts": ["not", "a", "dict"]},
+            self._WS,
+        )
+        assert records == []
+
+    def test_workspace_name_set_on_all_records(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", kind="list", element_type="string"),
+            {"ips": ["1.2.3.4", "5.6.7.8"]},
+            "custom-ws",
+        )
+        assert all(r["workspace_name"] == "custom-ws" for r in records)
+
+
+# ---------------------------------------------------------------------------
+# OutputsSource — hosts_from mode via collect_hosts (sources/outputs)
+# ---------------------------------------------------------------------------
+
+
+class TestOutputsSourceHostsFromMode:
+    def _make_source(self, hosts_from):
+        options = {
+            "workspace_id": None,
+            "organization": "my-org",
+            "workspace": "my-ws",
+            "hosts_from": hosts_from,
+        }
+        return OutputsSource(Mock(), options)
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_hosts_from_dict_normalized_to_list(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "instance_ips", "value": ["1.2.3.4", "5.6.7.8"]},
+        ]
+        records = self._make_source(
+            hosts_from={"output": "instance_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"}
+        ).collect_hosts()
+        assert len(records) == 2
+        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_hosts_from_list_of_specs_combined(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "web_ips", "value": ["1.2.3.4"]},
+            {"name": "db_ips", "value": ["10.0.0.1"]},
+        ]
+        records = self._make_source(
+            hosts_from=[
+                {"output": "web_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"},
+                {"output": "db_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"},
+            ]
+        ).collect_hosts()
+        assert len(records) == 2
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_hosts_from_disables_auto_detection(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "structured", "value": {"ip": "1.2.3.4"}},  # would be auto-detected
+            {"name": "ips", "value": ["5.6.7.8"]},               # hosts_from target
+        ]
+        records = self._make_source(
+            hosts_from={"output": "ips", "kind": "list", "element_type": "string"}
+        ).collect_hosts()
+        output_names = {r["output_name"] for r in records}
+        assert output_names == {"ips"}
+        assert "structured" not in output_names
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_map_object_resolved_hostname_set_directly(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
+        ]
+        records = self._make_source(
+            hosts_from={"output": "ec2", "kind": "map", "element_type": "object"}
+        ).collect_hosts()
+        assert len(records) == 2
+        hostnames = {r["resolved_hostname"] for r in records}
+        assert hostnames == {"web-1", "web-2"}
 
 
 # ---------------------------------------------------------------------------
