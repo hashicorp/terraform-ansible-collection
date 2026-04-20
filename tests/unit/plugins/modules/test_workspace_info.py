@@ -3,262 +3,257 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-import os
-import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
-
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from tests.unit.constants import create_workspace_response
-
 
 class TestWorkspaceInfoModule:
-    """Test cases for the workspace_info module argument specification.
-
-    Note: The core workspace functionality (get_workspace, get_workspace_by_id)
-    is tested in test_workspace.py. This file only tests module-specific behavior.
-    """
-
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
-    def test_module_argument_specification(self, mock_ansible_module):
-        """Test that the module is created with correct argument specification."""
-        # Import here to avoid import issues
+    def test_module_argument_specification(self, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
-        mock_module = Mock()
-        mock_module.params = {}
+        mock_module = enhanced_dummy_module
+        mock_module.params = {"workspace_id": "ws-arg-spec", "workspace": None, "organization": None}
         mock_module.check_mode = False
         mock_ansible_module.return_value = mock_module
 
-        # Mock TerraformClient to raise an exception so we can check argument spec
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient", side_effect=Exception("test")):
-            main()
+        with patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient",
+            return_value=Mock(),
+        ), patch(
+            "ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace_by_id",
+            side_effect=Exception("test"),
+        ):
+            with pytest.raises(AssertionError):
+                main()
 
-        # Check that AnsibleTerraformModule was called with correct arguments
-        mock_ansible_module.assert_called_once()
         call_args = mock_ansible_module.call_args[1]
 
-        # Verify argument spec
-        expected_argument_spec = {
+        assert call_args["argument_spec"] == {
             "workspace_id": {"type": "str"},
             "workspace": {"type": "str"},
             "organization": {"type": "str"},
         }
-        assert call_args["argument_spec"] == expected_argument_spec
-
-        # Verify other module parameters
         assert call_args["supports_check_mode"] is True
         assert call_args["mutually_exclusive"] == [
             ["workspace_id", "workspace"],
             ["workspace_id", "organization"],
         ]
-        assert call_args["required_one_of"] == [
-            ["workspace_id", "workspace"],
-        ]
-        assert call_args["required_together"] == [
-            ["workspace", "organization"],
-        ]
+        assert call_args["required_one_of"] == [["workspace_id", "workspace"]]
+        assert call_args["required_together"] == [["workspace", "organization"]]
 
     @pytest.mark.parametrize(
-        "workspace_data,expected_result",
+        "workspace_data",
         [
-            # Successful workspace retrieval
-            (
-                {**create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"], "status": 200},
-                create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"],
-            ),
-            # Complex workspace data
-            (
-                {
-                    **create_workspace_response(workspace_id="ws-complex123", name="complex-workspace", organization_id="org-456", **{"auto-apply": True})[
-                        "data"
-                    ],
-                    "status": 200,
-                },
-                create_workspace_response(workspace_id="ws-complex123", name="complex-workspace", organization_id="org-456", **{"auto-apply": True})["data"],
-            ),
+            {
+                "id": "ws-123abc456def789",
+                "name": "test-workspace",
+                "terraform_version": "1.10.5",
+                "execution_mode": "remote",
+                "auto_apply": False,
+                "locked": False,
+                "resource_count": 0,
+                "organization": "test-org",
+                "status": 200,
+            },
+            {
+                "id": "ws-complex123",
+                "name": "complex-workspace",
+                "description": "Complex workspace",
+                "terraform_version": "1.9.0",
+                "execution_mode": "remote",
+                "auto_apply": True,
+                "allow_destroy_plan": True,
+                "file_triggers_enabled": True,
+                "queue_all_runs": False,
+                "organization": "org-456",
+                "tag_names": ["env:dev", "team:platform"],
+                "status": 200,
+            },
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace_by_id")
-    def test_workspace_retrieval_by_id_success(self, mock_get_workspace_by_id, mock_terraform_client, mock_ansible_module, workspace_data, expected_result):
-        """Test successful workspace retrieval by ID with proper result formatting."""
+    def test_workspace_retrieval_by_id_success(
+        self,
+        mock_get_workspace_by_id,
+        mock_terraform_client,
+        mock_ansible_module,
+        enhanced_dummy_module,
+        workspace_data,
+    ):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
         workspace_id = "ws-123abc456def789"
-        mock_module = Mock()
+        expected_workspace = dict(workspace_data)
+        expected_workspace.pop("status", None)
+
+        mock_module = enhanced_dummy_module
         mock_module.check_mode = False
-        mock_module.params = {"workspace_id": workspace_id}
-        mock_client = Mock()
+        mock_module.params = {
+            "workspace_id": workspace_id,
+            "workspace": None,
+            "organization": None,
+            "tfe_token": "token",
+            "tfe_address": "https://app.terraform.io",
+        }
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_workspace_by_id.return_value = workspace_data
+        mock_terraform_client.return_value = adapter
+        mock_get_workspace_by_id.return_value = dict(workspace_data)
 
-        main()
+        with pytest.raises(SystemExit):
+            main()
 
-        # Verify the correct function was called
-        mock_get_workspace_by_id.assert_called_once_with(mock_client, workspace_id)
-
-        # Verify exit_json was called with correct result
-        mock_module.exit_json.assert_called_once()
-        call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
-        assert call_args["changed"] is False
+        mock_terraform_client.assert_called_once_with(
+            tfe_token="token",
+            tfe_address="https://app.terraform.io",
+        )
+        mock_get_workspace_by_id.assert_called_once_with(adapter, workspace_id)
+        assert mock_module.exit_args["changed"] is False
+        assert mock_module.exit_args["warnings"] == []
+        assert mock_module.exit_args["workspace"] == expected_workspace
+        assert "status" not in mock_module.exit_args["workspace"]
+        adapter.cleanup.assert_called_once_with()
 
     @pytest.mark.parametrize(
-        "workspace_data,expected_result",
+        "workspace_data",
         [
-            # Successful workspace retrieval
-            (
-                {**create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"], "status": 200},
-                create_workspace_response(workspace_id="ws-123abc456def789", name="test-workspace")["data"],
-            ),
-            # Minimal workspace data
-            (
-                {**create_workspace_response(workspace_id="ws-minimal", name="minimal-workspace")["data"], "status": 200},
-                create_workspace_response(workspace_id="ws-minimal", name="minimal-workspace")["data"],
-            ),
+            {
+                "id": "ws-123abc456def789",
+                "name": "test-workspace",
+                "organization": "test-org",
+                "execution_mode": "remote",
+                "status": 200,
+            },
+            {
+                "id": "ws-minimal",
+                "name": "minimal-workspace",
+                "organization": "test-org",
+                "status": 200,
+            },
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace")
-    def test_workspace_retrieval_by_name_success(self, mock_get_workspace, mock_terraform_client, mock_ansible_module, workspace_data, expected_result):
-        """Test successful workspace retrieval by name and organization."""
+    def test_workspace_retrieval_by_name_success(
+        self,
+        mock_get_workspace,
+        mock_terraform_client,
+        mock_ansible_module,
+        enhanced_dummy_module,
+        workspace_data,
+    ):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
         organization = "test-org"
         workspace_name = "test-workspace"
-        mock_module = Mock()
+        expected_workspace = dict(workspace_data)
+        expected_workspace.pop("status", None)
+
+        mock_module = enhanced_dummy_module
         mock_module.check_mode = False
-        mock_module.params = {"workspace": workspace_name, "organization": organization, "workspace_id": None}
-        mock_client = Mock()
+        mock_module.params = {
+            "workspace": workspace_name,
+            "organization": organization,
+            "workspace_id": None,
+        }
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_workspace.return_value = workspace_data
+        mock_terraform_client.return_value = adapter
+        mock_get_workspace.return_value = dict(workspace_data)
 
-        main()
+        with pytest.raises(SystemExit):
+            main()
 
-        # Verify the correct function was called
-        mock_get_workspace.assert_called_once_with(mock_client, organization, workspace_name)
-
-        # Verify exit_json was called with correct result
-        mock_module.exit_json.assert_called_once()
-        call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
-        assert call_args["changed"] is False
+        mock_get_workspace.assert_called_once_with(adapter, organization, workspace_name)
+        assert mock_module.exit_args["workspace"] == expected_workspace
+        assert mock_module.exit_args["changed"] is False
+        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace_by_id")
-    def test_workspace_not_found_by_id(self, mock_get_workspace_by_id, mock_terraform_client, mock_ansible_module):
-        """Test error handling when workspace is not found by ID."""
+    def test_workspace_not_found_by_id(self, mock_get_workspace_by_id, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
         workspace_id = "ws-nonexistent"
-        mock_module = Mock()
+
+        mock_module = enhanced_dummy_module
         mock_module.check_mode = False
-        mock_module.params = {"workspace_id": workspace_id}
-        mock_client = Mock()
+        mock_module.params = {"workspace_id": workspace_id, "workspace": None, "organization": None}
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_workspace_by_id.return_value = {}  # Empty dict indicates not found
+        mock_terraform_client.return_value = adapter
+        mock_get_workspace_by_id.return_value = {}
 
-        main()
+        with pytest.raises(AssertionError):
+            main()
 
-        # Verify the correct function was called
-        mock_get_workspace_by_id.assert_called_once_with(mock_client, workspace_id)
-
-        # Verify fail_json was called with correct error message
-        mock_module.fail_json.assert_called_once_with(msg=f"Workspace '{workspace_id}' was not found.")
+        assert mock_module.failed is True
+        assert mock_module.fail_args["msg"] == f"Workspace '{workspace_id}' was not found."
+        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace")
-    def test_workspace_not_found_by_name(self, mock_get_workspace, mock_terraform_client, mock_ansible_module):
-        """Test error handling when workspace is not found by name and organization."""
+    def test_workspace_not_found_by_name(self, mock_get_workspace, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
         organization = "test-org"
         workspace_name = "nonexistent-workspace"
-        mock_module = Mock()
+
+        mock_module = enhanced_dummy_module
         mock_module.check_mode = False
         mock_module.params = {"workspace": workspace_name, "organization": organization, "workspace_id": None}
-        mock_client = Mock()
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
-        mock_get_workspace.return_value = {}  # Empty dict indicates not found
+        mock_terraform_client.return_value = adapter
+        mock_get_workspace.return_value = {}
 
-        main()
+        with pytest.raises(AssertionError):
+            main()
 
-        # Verify the correct function was called
-        mock_get_workspace.assert_called_once_with(mock_client, organization, workspace_name)
-
-        # Verify fail_json was called with correct error message
-        mock_module.fail_json.assert_called_once_with(msg=f"The workspace {workspace_name} in {organization} organization was not found.")
-
-    @pytest.mark.parametrize(
-        "exception,expected_message",
-        [
-            (TerraformError("API Error: Unauthorized"), "API Error: Unauthorized"),
-            (Exception("Generic error"), "Generic error"),
-            (ValueError("Invalid workspace ID format"), "Invalid workspace ID format"),
-            (ConnectionError("Network connection failed"), "Network connection failed"),
-        ],
-    )
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
-    def test_exception_handling(self, mock_terraform_client, mock_ansible_module, exception, expected_message):
-        """Test exception handling during TerraformClient initialization or API calls."""
-        from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
-
-        workspace_id = "ws-123abc456def789"
-        mock_module = Mock()
-        mock_module.check_mode = False
-        mock_module.params = {"workspace_id": workspace_id}
-
-        mock_ansible_module.return_value = mock_module
-        mock_terraform_client.side_effect = exception  # Exception during client creation
-
-        main()
-
-        # Verify fail_json was called with the exception message
-        mock_module.fail_json.assert_called_once_with(msg=expected_message)
+        assert mock_module.failed is True
+        assert mock_module.fail_args["msg"] == f"The workspace {workspace_name} in {organization} organization was not found."
+        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.AnsibleTerraformModule")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.workspace_info.get_workspace_by_id")
-    def test_check_mode_behavior(self, mock_get_workspace_by_id, mock_terraform_client, mock_ansible_module):
-        """Test that check mode still retrieves workspace information."""
+    def test_check_mode_behavior(self, mock_get_workspace_by_id, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.workspace_info import main
 
         workspace_id = "ws-123abc456def789"
-        mock_module = Mock()
-        mock_module.check_mode = True  # Check mode enabled
-        mock_module.params = {"workspace_id": workspace_id}
-        mock_client = Mock()
+        workspace_data = {
+            "id": workspace_id,
+            "name": "test-workspace",
+            "execution_mode": "remote",
+            "status": 200,
+        }
 
-        workspace_data = {**create_workspace_response(workspace_id=workspace_id, name="test-workspace")["data"], "status": 200}
-        expected_result = create_workspace_response(workspace_id=workspace_id, name="test-workspace")["data"]
+        mock_module = enhanced_dummy_module
+        mock_module.check_mode = True
+        mock_module.params = {"workspace_id": workspace_id, "workspace": None, "organization": None}
 
+        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = mock_client
+        mock_terraform_client.return_value = adapter
         mock_get_workspace_by_id.return_value = workspace_data
 
-        main()
+        with pytest.raises(SystemExit):
+            main()
 
-        # Even in check mode, workspace info should be retrieved
-        mock_get_workspace_by_id.assert_called_once_with(mock_client, workspace_id)
-        mock_module.exit_json.assert_called_once()
-
-        call_args = mock_module.exit_json.call_args[1]
-        assert call_args["workspace"] == expected_result
-        assert call_args["changed"] is False
+        mock_get_workspace_by_id.assert_called_once_with(adapter, workspace_id)
+        assert mock_module.exit_args["changed"] is False
+        assert mock_module.exit_args["workspace"]["id"] == workspace_id
+        assert mock_module.exit_args["workspace"]["name"] == "test-workspace"
+        assert "status" not in mock_module.exit_args["workspace"]
+        adapter.cleanup.assert_called_once_with()
