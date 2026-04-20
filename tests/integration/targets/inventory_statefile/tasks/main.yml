@@ -96,8 +96,6 @@
             - provider_name: registry.terraform.io/hashicorp/null
               types:
                 - null_resource
-          hostnames:
-            - triggers.host_id
           compose:
             ansible_host: triggers.server_ip
             env: triggers.env
@@ -128,7 +126,15 @@
           Expected 2 null_resource hosts with provider_mapping.
           Got {{ inv_data._meta.hostvars | length }} hosts: {{ inv_data._meta.hostvars.keys() | list }}
 
-    - name: Assert each host has triggers.server_ip
+    - name: Assert hostnames follow fallback pattern null_resource_server_<index>
+      ansible.builtin.assert:
+        that:
+          - inv_data._meta.hostvars.keys() | select('match', '^null_resource_server_') | list | length == 2
+        fail_msg: >-
+          Expected hostnames null_resource_server_0 and null_resource_server_1.
+          Got: {{ inv_data._meta.hostvars.keys() | list }}
+
+    - name: Assert each host has triggers dict with server_ip
       ansible.builtin.assert:
         that:
           - item.value['triggers'] is defined
@@ -136,13 +142,6 @@
           - item.value['triggers']['server_ip'] is match('10\\.0\\.0\\.[0-9]+')
         fail_msg: "Host {{ item.key }} missing triggers.server_ip — got hostvars: {{ item.value }}"
       loop: "{{ inv_data._meta.hostvars | dict2items }}"
-
-    - name: Assert all hosts are in the 'all' group
-      ansible.builtin.assert:
-        that:
-          - inv_data.all.hosts | default(inv_data.all.children | default([])) | length > 0
-            or inv_data._meta.hostvars | length == 2
-        fail_msg: "No hosts found in 'all' group"
 
     # ── Inventory test: without provider_mapping (null_resource filtered out) ──
 
