@@ -82,7 +82,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_not_found(self):
         """Test handle_error wraps NotFound exceptions."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = NotFound("Workspace not found")
 
         with pytest.raises(TerraformError) as excinfo:
@@ -93,7 +93,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_auth_error(self):
         """Test handle_error wraps AuthError exceptions."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = AuthError("Invalid credentials")
 
         with pytest.raises(TerraformError) as excinfo:
@@ -104,7 +104,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_server_error(self):
         """Test handle_error wraps ServerError exceptions."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = ServerError("Internal server error")
 
         with pytest.raises(TerraformError) as excinfo:
@@ -115,7 +115,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_generic_tfe_error(self):
         """Test handle_error wraps generic TFEError exceptions."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = TFEError("Generic TFE error")
 
         with pytest.raises(TerraformError) as excinfo:
@@ -125,7 +125,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_context(self):
         """Test handle_error includes context in error message."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = NotFound("Workspace not found")
 
         with pytest.raises(TerraformError) as excinfo:
@@ -136,7 +136,7 @@ class TestTerraformClientErrorHandling:
 
     def test_handle_error_with_details_attribute(self):
         """Test handle_error extracts details from TFEError if available."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         error = TFEError("Error occurred")
         error.details = {"field": "invalid value"}
 
@@ -151,7 +151,7 @@ class TestTerraformClientSafeApiCall:
 
     def test_safe_api_call_success(self):
         """Test safe_api_call executes operation successfully."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         mock_operation = Mock(return_value={"id": "ws-123", "name": "test"})
 
         result = safe_api_call(mock_operation, "arg1", kwarg1="value1")
@@ -161,7 +161,7 @@ class TestTerraformClientSafeApiCall:
 
     def test_safe_api_call_with_tfe_error(self):
         """Test safe_api_call handles TFEError."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         mock_operation = Mock(side_effect=NotFound("Resource not found"))
 
         with pytest.raises(TerraformError) as excinfo:
@@ -172,7 +172,7 @@ class TestTerraformClientSafeApiCall:
 
     def test_safe_api_call_with_generic_exception(self):
         """Test safe_api_call handles generic exceptions."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         mock_operation = Mock(side_effect=ValueError("Invalid input"))
 
         with pytest.raises(TerraformError) as excinfo:
@@ -183,7 +183,7 @@ class TestTerraformClientSafeApiCall:
 
     def test_safe_api_call_extracts_error_context_from_kwargs(self):
         """Test safe_api_call extracts and removes error_context from kwargs."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
         mock_operation = Mock(return_value="success")
 
         result = safe_api_call(mock_operation, "arg1", kwarg1="value1", error_context="Custom context")
@@ -198,7 +198,7 @@ class TestTerraformClientFormatResponse:
 
     def test_format_response_converts_to_dict(self):
         """Test format_response converts SDK response to dictionary."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
 
         # Mock SDK response object with model_dump method
         mock_response = Mock()
@@ -217,7 +217,7 @@ class TestTerraformClientFormatResponse:
 
     def test_format_response_excludes_none_values(self):
         """Test format_response excludes None values."""
-        client = TerraformClient(tfe_token="test-token")
+        client = TerraformClient(token="test-token")
 
         mock_response = Mock()
         mock_response.model_dump.return_value = {

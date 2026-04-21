@@ -623,25 +623,20 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
 
     try:
-        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
+        with module.client() as adapter:
+            match params["state"]:
+                case "present":
+                    action_result = state_present(adapter, params, params["check_mode"])
+                case "absent":
+                    action_result = state_absent(adapter, params, params["check_mode"])
 
-        match params["state"]:
-            case "present":
-                action_result = state_present(adapter, params, params["check_mode"])
-            case "absent":
-                action_result = state_absent(adapter, params, params["check_mode"])
-
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

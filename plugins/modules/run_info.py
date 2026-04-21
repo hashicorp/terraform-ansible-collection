@@ -230,7 +230,6 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
 
@@ -247,33 +246,24 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
 
     try:
-        adapter = TerraformClient(
-            tfe_token=params.get("tfe_token"),
-            tfe_address=params.get("tfe_address"),
-        )
+        with module.client() as adapter:
+            run_info_data: Optional[Dict[str, Any]] = None
 
-        run_info_data: Optional[Dict[str, Any]] = None
+            if params["run_id"]:
+                run_info_data = get_run(adapter, params["run_id"])
+                if not run_info_data:
+                    raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
+            else:
+                raise ValueError("Run ID is required.")
 
-        if params["run_id"]:
-            run_info_data = get_run(adapter, params["run_id"])
-            if not run_info_data:
-                raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
-        else:
-            raise ValueError("Run ID is required.")
+            result["run"] = run_info_data.get("data", run_info_data)
 
-        result["run"] = run_info_data.get("data", run_info_data)
-
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

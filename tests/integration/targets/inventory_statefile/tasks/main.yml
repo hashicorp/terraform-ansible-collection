@@ -1,0 +1,233 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    # ── Setup ──────────────────────────────────────────────────────────────────
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Set workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-inv-statefile"
+
+    - name: Create test workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: workspace_result
+
+    - name: Set workspace_id fact
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_result.id }}"
+
+    - name: Create temporary directory for Terraform config
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Render Terraform configuration
+      ansible.builtin.template:
+        src: main.tf.j2
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Upload configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: config_version_result
+
+    - name: Assert upload succeeded
+      ansible.builtin.assert:
+        that:
+          - config_version_result.changed
+          - config_version_result.status == "uploaded"
+
+    - name: Create and plan run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "Integration test run for inventory_statefile"
+        state: present
+        configuration_version: "{{ config_version_result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: plan_result
+
+    - name: Apply run
+      hashicorp.terraform.run:
+        run_id: "{{ plan_result.id }}"
+        state: applied
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: apply_result
+
+    - name: Assert apply succeeded
+      ansible.builtin.assert:
+        that:
+          - apply_result.changed
+          - apply_result.status == "applied"
+
+    # ── Inventory test: with provider_mapping (null_resource included) ─────────
+
+    - name: Write inventory config with provider_mapping
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_with_mapping.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: statefile
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          provider_mapping:
+            - provider_name: registry.terraform.io/hashicorp/null
+              types:
+                - null_resource
+          compose:
+            ansible_host: triggers.server_ip
+            env: triggers.env
+
+    - name: Run ansible-inventory with provider_mapping
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_with_mapping.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_with_mapping.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
+
+    - name: Debug raw inventory output (with mapping)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_with_mapping.json') }}"
+
+    - name: Load inventory JSON (with mapping)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_with_mapping.json"
+        name: inv_data
+
+    - name: Assert 2 hosts discovered via provider_mapping
+      ansible.builtin.assert:
+        that:
+          - inv_data._meta.hostvars | length == 2
+        fail_msg: >-
+          Expected 2 null_resource hosts with provider_mapping.
+          Got {{ inv_data._meta.hostvars | length }} hosts: {{ inv_data._meta.hostvars.keys() | list }}
+
+    - name: Assert hostnames follow fallback pattern null_resource_server_<index>
+      ansible.builtin.assert:
+        that:
+          - inv_data._meta.hostvars.keys() | select('match', '^null_resource_server_') | list | length == 2
+        fail_msg: >-
+          Expected hostnames null_resource_server_0 and null_resource_server_1.
+          Got: {{ inv_data._meta.hostvars.keys() | list }}
+
+    - name: Assert each host has triggers dict with server_ip
+      ansible.builtin.assert:
+        that:
+          - item.value['triggers'] is defined
+          - item.value['triggers']['server_ip'] is defined
+          - item.value['triggers']['server_ip'] is match('10\\.0\\.0\\.[0-9]+')
+        fail_msg: "Host {{ item.key }} missing triggers.server_ip — got hostvars: {{ item.value }}"
+      loop: "{{ inv_data._meta.hostvars | dict2items }}"
+
+    # ── Inventory test: without provider_mapping (null_resource filtered out) ──
+
+    - name: Write inventory config without provider_mapping
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_no_mapping.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: statefile
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+
+    - name: Run ansible-inventory without provider_mapping
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_no_mapping.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_no_mapping.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
+
+    - name: Debug raw inventory output (no mapping)
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', temp_dir.path + '/inv_no_mapping.json') }}"
+
+    - name: Load inventory JSON (no mapping)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_no_mapping.json"
+        name: inv_no_map_data
+
+    - name: Assert 0 hosts without provider_mapping (null_resource is not in default whitelist)
+      ansible.builtin.assert:
+        that:
+          - inv_no_map_data._meta.hostvars | length == 0
+        fail_msg: >-
+          Expected 0 hosts without provider_mapping (null_resource is filtered by default).
+          Got {{ inv_no_map_data._meta.hostvars | length }} host(s): {{ inv_no_map_data._meta.hostvars.keys() | list }}
+
+  always:
+    # ── Cleanup ────────────────────────────────────────────────────────────────
+
+    - name: Create destroy run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "Destroy run — inventory_statefile cleanup"
+        state: present
+        is_destroy: true
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      when: workspace_id is defined
+      register: destroy_run
+      failed_when: false
+
+    - name: Apply destroy run
+      hashicorp.terraform.run:
+        run_id: "{{ destroy_run.id }}"
+        state: applied
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      when: destroy_run.id is defined
+      failed_when: false
+
+    - name: Force unlock workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: unlocked
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Delete test workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: absent
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Remove temporary directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined
+      failed_when: false

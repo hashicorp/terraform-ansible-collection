@@ -618,38 +618,33 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
 
     try:
-        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
+        with module.client() as adapter:
+            if params["state"] == "present":
+                # either workspace_id or workspace MUST be provided when state is present
+                # when a workspace is provided, organization must be given
+                # we use both these to get the workspace_id which is required when creating configuration-versions
+                if not params["workspace_id"]:
+                    # get the workspace_id from the provided workspace name
+                    workspace_response = get_workspace(adapter, params["organization"], params["workspace"])
+                    if not workspace_response:
+                        raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+                    # retrieve the workspace ID
+                    workspace_id = workspace_response.get("id")
+                    # update module params to have a workspace ID
+                    params["workspace_id"] = workspace_id
 
-        if params["state"] == "present":
-            # either workspace_id or workspace MUST be provided when state is present
-            # when a workspace is provided, organization must be given
-            # we use both these to get the workspace_id which is required when creating configuration-versions
-            if not params["workspace_id"]:
-                # get the workspace_id from the provided workspace name
-                workspace_response = get_workspace(adapter, params["organization"], params["workspace"])
-                if not workspace_response:
-                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-                # retrieve the workspace ID
-                workspace_id = workspace_response.get("id")
-                # update module params to have a workspace ID
-                params["workspace_id"] = workspace_id
+                action_result = state_present(adapter, params)
 
-            action_result = state_present(adapter, params)
+            elif params["state"] == "archived":
+                # when state is archived, configuration_version_id will always be available
+                action_result = state_archived(adapter, params["configuration_version_id"], params["check_mode"])
 
-        elif params["state"] == "archived":
-            # when state is archived, configuration_version_id will always be available
-            action_result = state_archived(adapter, params["configuration_version_id"], params["check_mode"])
-
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
     except Exception as e:
         module.fail_json(msg=to_text(e))
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

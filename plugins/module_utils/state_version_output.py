@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any, Dict, List
 
-from pytfe.errors import NotFound
+try:
+    from pytfe.errors import NotFound
+except ImportError:
+
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response

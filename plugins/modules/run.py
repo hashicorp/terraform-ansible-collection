@@ -720,33 +720,28 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
 
     try:
-        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
+        with module.client() as adapter:
+            # Get workspace_id if not provided and state is present
+            if not params.get("workspace_id") and params.get("state") == "present":
+                params["workspace_id"] = get_workspace_id(adapter, params["workspace"], params["organization"])
 
-        # Get workspace_id if not provided and state is present
-        if not params.get("workspace_id") and params.get("state") == "present":
-            params["workspace_id"] = get_workspace_id(adapter, params["workspace"], params["organization"])
+            match params.get("state"):
+                case "present":
+                    action_result = state_present(adapter, **params)
+                case "applied":
+                    action_result = state_applied(adapter, **params)
+                case "discarded":
+                    action_result = state_discarded(adapter, **params)
+                case "canceled":
+                    action_result = state_canceled(adapter, **params)
 
-        match params.get("state"):
-            case "present":
-                action_result = state_present(adapter, **params)
-            case "applied":
-                action_result = state_applied(adapter, **params)
-            case "discarded":
-                action_result = state_discarded(adapter, **params)
-            case "canceled":
-                action_result = state_canceled(adapter, **params)
-
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

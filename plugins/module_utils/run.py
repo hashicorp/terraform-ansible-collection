@@ -1,7 +1,36 @@
+from __future__ import annotations
+
 from typing import Any, Optional, Union
 
-from pytfe.errors import NotFound
-from pytfe.models import ConfigurationVersion, RunApplyOptions, RunCancelOptions, RunCreateOptions, RunDiscardOptions, RunVariable, Workspace
+try:
+    from pytfe.errors import NotFound
+    from pytfe.models import ConfigurationVersion, RunApplyOptions, RunCancelOptions, RunCreateOptions, RunDiscardOptions, RunVariable, Workspace
+except ImportError:
+
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ConfigurationVersion:  # type: ignore[no-redef]
+        pass
+
+    class RunApplyOptions:  # type: ignore[no-redef]
+        pass
+
+    class RunCancelOptions:  # type: ignore[no-redef]
+        pass
+
+    class RunCreateOptions:  # type: ignore[no-redef]
+        pass
+
+    class RunDiscardOptions:  # type: ignore[no-redef]
+        pass
+
+    class RunVariable:  # type: ignore[no-redef]
+        pass
+
+    class Workspace:  # type: ignore[no-redef]
+        pass
+
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call

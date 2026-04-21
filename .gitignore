@@ -167,3 +167,7 @@ cython_debug/
 .ansible/
 
 .vscode/settings.json
+
+
+.nopush
+collections/

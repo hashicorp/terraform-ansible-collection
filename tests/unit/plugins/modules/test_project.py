@@ -320,9 +320,8 @@ class TestProjectMainFunction:
             assert test_module.exit_args["msg"] == "deleted"
 
     def test_main_exception(self, test_module):
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.AnsibleTerraformModule", return_value=test_module), patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project.TerraformClient", side_effect=Exception("boom")
-        ):
+        test_module.client = lambda: (i for i in ()).throw(Exception("boom"))
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.project.AnsibleTerraformModule", return_value=test_module):
             with pytest.raises(AssertionError) as exc_info:
                 main()
 

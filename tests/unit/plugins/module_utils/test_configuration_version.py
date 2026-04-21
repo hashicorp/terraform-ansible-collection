@@ -57,7 +57,7 @@ class TestCreateConfigFunction:
         result = create_config(mock_clients["adapter"], mock_clients["workspace_id"], mock_clients["attributes"])
 
         assert result == {"id": "cv-123abc456def789", "status": "pending"}
-        args, _ = mock_clients["adapter"].client.configuration_versions.create.call_args
+        args, _kwargs = mock_clients["adapter"].client.configuration_versions.create.call_args
         assert args[0] == mock_clients["workspace_id"]
         assert isinstance(args[1], ConfigurationVersionCreateOptions)
 

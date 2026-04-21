@@ -393,7 +393,6 @@ from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
     get_output_by_name,
@@ -435,36 +434,31 @@ def main() -> None:
     display_sensitive = params.get("display_sensitive", False)
 
     result: Dict[str, Any] = {"changed": False}
-    adapter = None
 
     try:
-        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
-
-        if state_version_output_id:
-            output_data = get_specific_output(adapter, state_version_output_id, display_sensitive=display_sensitive)
-            result["output"] = output_data
-        else:
-            workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
-            if name:
-                output_data = get_output_by_name(adapter, workspace_id, name, display_sensitive=display_sensitive)
+        with module.client() as adapter:
+            if state_version_output_id:
+                output_data = get_specific_output(adapter, state_version_output_id, display_sensitive=display_sensitive)
                 result["output"] = output_data
             else:
-                outputs = get_workspace_outputs(adapter, workspace_id, display_sensitive=display_sensitive)
-                if outputs:
-                    result["outputs"] = outputs
-                    result["count"] = len(outputs)
+                workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
+                if name:
+                    output_data = get_output_by_name(adapter, workspace_id, name, display_sensitive=display_sensitive)
+                    result["output"] = output_data
                 else:
-                    result["outputs"] = []
-                    result["count"] = 0
-                    result["msg"] = "No outputs found for workspace."
+                    outputs = get_workspace_outputs(adapter, workspace_id, display_sensitive=display_sensitive)
+                    if outputs:
+                        result["outputs"] = outputs
+                        result["count"] = len(outputs)
+                    else:
+                        result["outputs"] = []
+                        result["count"] = 0
+                        result["msg"] = "No outputs found for workspace."
 
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

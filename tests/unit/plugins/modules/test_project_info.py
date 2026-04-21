@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,9 +16,6 @@ class TestProjectInfoModule:
         mock_ansible_module.return_value = mock_module
 
         with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.project_info.TerraformClient",
-            return_value=Mock(),
-        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.project_info.get_project_by_id",
             side_effect=Exception("test"),
         ):
@@ -71,12 +68,10 @@ class TestProjectInfoModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.get_project_by_id")
     def test_project_retrieval_success(
         self,
         mock_get_project_by_id,
-        mock_terraform_client,
         mock_ansible_module,
         enhanced_dummy_module,
         project_data,
@@ -95,30 +90,22 @@ class TestProjectInfoModule:
             "tfe_address": "https://app.terraform.io",
         }
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_project_by_id.return_value = dict(project_data)
 
         with pytest.raises(SystemExit):
             main()
 
-        mock_terraform_client.assert_called_once_with(
-            tfe_token="token",
-            tfe_address="https://app.terraform.io",
-        )
-        mock_get_project_by_id.assert_called_once_with(adapter, project_id)
+        mock_get_project_by_id.assert_called_once_with(mock_module.adapter, project_id)
         assert mock_module.exit_args["changed"] is False
         assert mock_module.exit_args["warnings"] == []
         assert mock_module.exit_args["project"] == expected_project
         assert "status" not in mock_module.exit_args["project"]
         assert mock_module.failed is False
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.get_project_by_id")
-    def test_project_not_found(self, mock_get_project_by_id, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+    def test_project_not_found(self, mock_get_project_by_id, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.project_info import main
 
         project_id = "prj-nonexistent"
@@ -127,9 +114,7 @@ class TestProjectInfoModule:
         mock_module.check_mode = False
         mock_module.params = {"project_id": project_id}
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_project_by_id.return_value = {}
 
         with pytest.raises(AssertionError):
@@ -137,12 +122,10 @@ class TestProjectInfoModule:
 
         assert mock_module.failed is True
         assert mock_module.fail_args["msg"] == f"Project '{project_id}' was not found."
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.get_project_by_id")
-    def test_flat_project_payload_supported(self, mock_get_project_by_id, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+    def test_flat_project_payload_supported(self, mock_get_project_by_id, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.project_info import main
 
         project_id = "prj-flat"
@@ -157,9 +140,7 @@ class TestProjectInfoModule:
         mock_module.check_mode = True
         mock_module.params = {"project_id": project_id}
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_project_by_id.return_value = dict(project_payload)
 
         with pytest.raises(SystemExit):
@@ -169,15 +150,12 @@ class TestProjectInfoModule:
         assert mock_module.exit_args["project"]["id"] == project_id
         assert mock_module.exit_args["project"]["name"] == "flat-project"
         assert "status" not in mock_module.exit_args["project"]
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.project_info.get_project_by_id")
     def test_client_parameters_passed_correctly(
         self,
         mock_get_project_by_id,
-        mock_terraform_client,
         mock_ansible_module,
         enhanced_dummy_module,
     ):
@@ -193,9 +171,7 @@ class TestProjectInfoModule:
             "tfe_address": "app.terraform.io",
         }
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_project_by_id.return_value = {
             "id": project_id,
             "name": "test",
@@ -204,9 +180,3 @@ class TestProjectInfoModule:
 
         with pytest.raises(SystemExit):
             main()
-
-        mock_terraform_client.assert_called_once_with(
-            tfe_token="test-token",
-            tfe_address="app.terraform.io",
-        )
-        adapter.cleanup.assert_called_once_with()

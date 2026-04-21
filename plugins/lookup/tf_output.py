@@ -247,26 +247,22 @@ class LookupModule(LookupBase):
             organization,
             name,
         )
-        adapter = None
         try:
-            adapter = TerraformClient(**kwargs)
-            value = self._get_output_value(
-                adapter,
-                state_version_output_id,
-                workspace_id,
-                workspace,
-                organization,
-                name,
-                allow_all_outputs,
-                display_sensitive,
-            )
+            with TerraformClient.from_mapping(kwargs) as adapter:
+                value = self._get_output_value(
+                    adapter,
+                    state_version_output_id,
+                    workspace_id,
+                    workspace,
+                    organization,
+                    name,
+                    allow_all_outputs,
+                    display_sensitive,
+                )
         except ValueError as e:
             raise AnsibleError(f"Output lookup failed - resource not found: {str(e)}")
         except Exception as e:
             raise AnsibleError(f"Output lookup failed - API error: {str(e)}")
-        finally:
-            if adapter:
-                adapter.cleanup()
 
         if allow_all_outputs is True:
             return value

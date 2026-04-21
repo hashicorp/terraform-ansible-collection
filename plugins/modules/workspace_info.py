@@ -285,7 +285,7 @@ from ansible.module_utils._text import to_text
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     get_workspace,
     get_workspace_by_id,
@@ -316,38 +316,31 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
+
     try:
-        adapter = TerraformClient(
-            tfe_token=params.get("tfe_token"),
-            tfe_address=params.get("tfe_address"),
-        )
-        workspace_data: Optional[Dict[str, Any]] = None
-        if params["workspace_id"]:
-            # Retrieve workspace by ID
-            workspace_data = get_workspace_by_id(adapter, params["workspace_id"])
-            if not workspace_data:
-                raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
-        else:
-            # Retrieve workspace by name and organization
-            workspace_data = get_workspace(adapter, params["organization"], params["workspace"])
-            if not workspace_data:
-                raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+        with module.client() as adapter:
+            workspace_data: Optional[Dict[str, Any]] = None
+            if params["workspace_id"]:
+                # Retrieve workspace by ID
+                workspace_data = get_workspace_by_id(adapter, params["workspace_id"])
+                if not workspace_data:
+                    raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
+            else:
+                # Retrieve workspace by name and organization
+                workspace_data = get_workspace(adapter, params["organization"], params["workspace"])
+                if not workspace_data:
+                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
 
-        # Remove the status field from the response as it's internal
-        workspace_data.pop("status", None)
+            # Remove the status field from the response as it's internal
+            workspace_data.pop("status", None)
 
-        # Update result with workspace information
-        result["workspace"] = workspace_data
+            # Update result with workspace information
+            result["workspace"] = workspace_data
 
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

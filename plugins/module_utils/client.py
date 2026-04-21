@@ -11,26 +11,89 @@ common functionality for TFE/TFC modules. It also provides TerraformClient
 for interfacing with the pytfe SDK.
 """
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-from pytfe import TFEClient, TFEConfig
+import traceback
+from typing import Any, Mapping
+
+from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
+
+try:
+    from pytfe import TFEClient, TFEConfig
+
+    HAS_PYTFE = True
+    PYTFE_IMPORT_ERROR = None
+except ImportError:
+    HAS_PYTFE = False
+    PYTFE_IMPORT_ERROR = traceback.format_exc()
+    TFEClient = None  # type: ignore[assignment,misc]
+    TFEConfig = None  # type: ignore[assignment,misc]
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformTokenNotFoundError,
 )
 
-# Authentication argument specification injected into all modules
+# Authentication argument specification injected into all modules.
+# This is the single source of truth for every auth/transport option the
+# collection exposes to users. Each key must also appear in _ARGSPEC_TO_SDK
+# below to be forwarded to pytfe.TFEConfig.
 AUTH_ARGSPEC = {
     "tfe_token": {
+        "type": "str",
         "required": False,
         "aliases": ["tf_token"],
         "fallback": (env_fallback, ["TFE_TOKEN"]),
         "no_log": True,
     },
     "tfe_address": {
+        "type": "str",
         "required": False,
         "default": "https://app.terraform.io",
         "fallback": (env_fallback, ["TFE_ADDRESS"]),
     },
+    "tfe_timeout": {
+        "type": "float",
+        "required": False,
+        "default": 30.0,
+        "fallback": (env_fallback, ["TFE_TIMEOUT"]),
+    },
+    "tfe_verify_tls": {
+        "type": "bool",
+        "required": False,
+        "default": True,
+        "fallback": (env_fallback, ["TFE_VERIFY_TLS"]),
+    },
+    "tfe_max_retries": {
+        "type": "int",
+        "required": False,
+        "default": 5,
+        "fallback": (env_fallback, ["TFE_MAX_RETRIES"]),
+    },
+    "tfe_ca_bundle": {
+        "type": "path",
+        "required": False,
+        "fallback": (env_fallback, ["SSL_CERT_FILE"]),
+    },
+    "tfe_proxies": {
+        "type": "str",
+        "required": False,
+    },
+}
+
+# Ordered tuple of every allowlisted auth key. Anything outside this set
+# is rejected by from_mapping() to prevent argspec collisions from silently
+# leaking into TFEConfig.
+AUTH_KEYS = tuple(AUTH_ARGSPEC.keys())
+
+# Translation between the collection's Ansible-facing argspec names and
+# pytfe.TFEConfig field names. Keeping the two namespaces separate lets
+# Ansible keep its tfe_* convention while the SDK evolves independently.
+_ARGSPEC_TO_SDK = {
+    "tfe_token": "token",
+    "tfe_address": "address",
+    "tfe_timeout": "timeout",
+    "tfe_verify_tls": "verify_tls",
+    "tfe_max_retries": "max_retries",
+    "tfe_ca_bundle": "ca_bundle",
+    "tfe_proxies": "proxies",
 }
 
 
@@ -51,98 +114,105 @@ class AnsibleTerraformModule:
             argument_spec: Module-specific argument specification
             **kwargs: Additional arguments passed to AnsibleModule
         """
-        # Merge authentication parameters with module-specific parameters
         merged_spec = dict(AUTH_ARGSPEC)
         merged_spec.update(argument_spec)
-
-        # Initialize the underlying AnsibleModule
         self.module = AnsibleModule(argument_spec=merged_spec, **kwargs)
 
-    def __getattr__(self, name):
-        """Delegate attribute access to underlying AnsibleModule.
+    def client(self) -> "TerraformClient":
+        """Build a TerraformClient bound to this module's authenticated params.
 
-        All attribute access (params, check_mode, fail_json, exit_json, warn, debug, etc.)
-        is automatically delegated to the underlying AnsibleModule instance.
-
-        Args:
-            name: Attribute name
-
-        Returns:
-            Attribute from the underlying module
+        Intended use:
+            with module.client() as adapter:
+                ...
         """
+        return TerraformClient.from_module(self)
+
+    def __getattr__(self, name):
+        """Delegate attribute access to underlying AnsibleModule."""
         return getattr(self.module, name)
 
 
 class TerraformClient:
-    """Client for interfacing between Ansible modules and pytfe SDK.
+    """Adapter between Ansible modules and the pytfe SDK.
 
-    This client:
-    - Manages SDK client lifecycle (initialization, configuration, cleanup)
-    - Provides authentication handling
+    Responsibilities:
+    - Own the pytfe client lifecycle (lazy init, cleanup).
+    - Normalize construction across entry points (modules, lookup, inventory)
+      via the classmethod constructors below.
 
-    Attributes:
-        client: TFEClient instance for API operations
-        config: TFEConfig instance for SDK configuration
+    The constructor takes only pytfe-SDK kwargs (token, address, timeout, ...).
+    Callers holding Ansible-style argspec dicts should use
+    :meth:`from_mapping` or :meth:`from_module`, which apply the allowlist.
     """
 
-    def __init__(self, **kwargs):
-        """Initialize the TFE client.
+    def __init__(self, **sdk_kwargs: Any) -> None:
+        """Initialize with pytfe SDK kwargs.
 
         Args:
-            kwargs: Dictionary containing authentication parameters (tfe_token, tfe_address)
+            **sdk_kwargs: Keyword arguments forwarded to pytfe.TFEConfig.
+                Only SDK-native names are accepted (e.g. ``token``, not
+                ``tfe_token``). Use :meth:`from_mapping` or :meth:`from_module`
+                to translate from Ansible argspec names.
         """
+        self._sdk_kwargs: dict = sdk_kwargs
         self._client: TFEClient = None
         self._config: TFEConfig = None
-        self.token = kwargs.get("tfe_token")
-        self.address = kwargs.get("tfe_address", "https://app.terraform.io")
+        self._prechecks()
 
-        self.prechecks()
+    @classmethod
+    def from_mapping(cls, params: Mapping[str, Any]) -> "TerraformClient":
+        """Build a client from an Ansible-style params mapping.
 
-    def prechecks(self):
-        """Perform pre-checks to validate authentication parameters.
+        Only keys in :data:`AUTH_KEYS` are read; every other key is ignored.
+        Values equal to ``None`` are dropped so pytfe's defaults apply.
+
+        Args:
+            params: Any mapping whose keys may include Ansible argspec names
+                such as ``tfe_token``. Non-auth keys are silently ignored.
+        """
+        mapped = {_ARGSPEC_TO_SDK[key]: params[key] for key in AUTH_KEYS if key in _ARGSPEC_TO_SDK and params.get(key) is not None}
+        return cls(**mapped)
+
+    @classmethod
+    def from_module(cls, module: "AnsibleTerraformModule") -> "TerraformClient":
+        """Build a client from an :class:`AnsibleTerraformModule`."""
+        return cls.from_mapping(module.params)
+
+    def _prechecks(self) -> None:
+        """Validate runtime prerequisites before any SDK construction.
 
         Raises:
-            TerraformTokenNotFoundError: If authentication token is missing
+            ImportError: If pytfe is not installed.
+            TerraformTokenNotFoundError: If authentication token is missing.
         """
-        if not self.token:
+        if not HAS_PYTFE:
+            raise ImportError(missing_required_lib("pytfe", url="https://pypi.org/project/pytfe/"))
+        if not self._sdk_kwargs.get("token"):
             raise TerraformTokenNotFoundError("Authentication token is required")
 
     @property
     def client(self) -> TFEClient:
-        """Lazy-loaded TFE client instance.
-
-        Returns:
-            Configured TFEClient instance
-
-        Raises:
-            Exception: If client initialization fails
-        """
+        """Lazy-loaded TFE client instance."""
         if self._client is None:
             self._client = TFEClient(config=self.config)
         return self._client
 
     @property
     def config(self) -> TFEConfig:
-        """Lazy-loaded TFE config instance.
-
-        Returns:
-            Configured TFEConfig instance
-        """
+        """Lazy-loaded TFE config instance."""
         if self._config is None:
-            self._config = TFEConfig(
-                address=self.address,
-                token=self.token,
-            )
+            self._config = TFEConfig(**self._sdk_kwargs)
         return self._config
 
     def cleanup(self) -> None:
-        """Cleanup resources (if needed).
-
-        This method can be called explicitly or used in a context manager.
-        """
-        # Close any open connections or resources
+        """Release the underlying transport. Safe to call multiple times."""
         if self._client:
             self._client.close()
             self._client = None
-
         self._config = None
+
+    def __enter__(self) -> "TerraformClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.cleanup()

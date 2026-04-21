@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Red Hat, Inc.
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -27,18 +27,14 @@ class TestOutputModule:
         }
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_specific_output")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_get_specific_output_by_id(self, mock_module_class, mock_client_class, mock_get_specific, enhanced_dummy_module, base_params):
+    def test_main_get_specific_output_by_id(self, mock_module_class, mock_get_specific, enhanced_dummy_module, base_params):
         params = dict(base_params)
         params.update({"state_version_output_id": "wsout-123"})
 
         module = enhanced_dummy_module
         module.params = params
         mock_module_class.return_value = module
-
-        adapter = Mock()
-        mock_client_class.return_value = adapter
 
         mock_get_specific.return_value = {
             "id": "wsout-123",
@@ -52,17 +48,14 @@ class TestOutputModule:
         with pytest.raises(SystemExit):
             main()
 
-        mock_client_class.assert_called_once_with(tfe_token="test-token", tfe_address="https://app.terraform.io")
-        mock_get_specific.assert_called_once_with(adapter, "wsout-123", display_sensitive=False)
+        mock_get_specific.assert_called_once_with(module.adapter, "wsout-123", display_sensitive=False)
         assert module.exit_args["changed"] is False
         assert module.exit_args["output"]["id"] == "wsout-123"
-        adapter.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_output_by_name")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.resolve_workspace_id")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_get_output_by_name(self, mock_module_class, mock_client_class, mock_resolve_workspace, mock_get_by_name, enhanced_dummy_module, base_params):
+    def test_main_get_output_by_name(self, mock_module_class, mock_resolve_workspace, mock_get_by_name, enhanced_dummy_module, base_params):
         params = dict(base_params)
         params.update(
             {
@@ -77,9 +70,6 @@ class TestOutputModule:
         module.params = params
         mock_module_class.return_value = module
 
-        adapter = Mock()
-        mock_client_class.return_value = adapter
-
         mock_resolve_workspace.return_value = "ws-123"
         mock_get_by_name.return_value = {
             "id": "wsout-55",
@@ -93,27 +83,20 @@ class TestOutputModule:
         with pytest.raises(SystemExit):
             main()
 
-        mock_resolve_workspace.assert_called_once_with(adapter, None, "demo-workspace", "demo-org")
-        mock_get_by_name.assert_called_once_with(adapter, "ws-123", "database_url", display_sensitive=True)
+        mock_resolve_workspace.assert_called_once_with(module.adapter, None, "demo-workspace", "demo-org")
+        mock_get_by_name.assert_called_once_with(module.adapter, "ws-123", "database_url", display_sensitive=True)
         assert module.exit_args["output"]["name"] == "database_url"
-        adapter.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_workspace_outputs")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.resolve_workspace_id")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_get_all_outputs(
-        self, mock_module_class, mock_client_class, mock_resolve_workspace, mock_get_workspace_outputs, enhanced_dummy_module, base_params
-    ):
+    def test_main_get_all_outputs(self, mock_module_class, mock_resolve_workspace, mock_get_workspace_outputs, enhanced_dummy_module, base_params):
         params = dict(base_params)
         params.update({"workspace_id": "ws-456"})
 
         module = enhanced_dummy_module
         module.params = params
         mock_module_class.return_value = module
-
-        adapter = Mock()
-        mock_client_class.return_value = adapter
 
         mock_resolve_workspace.return_value = "ws-456"
         mock_get_workspace_outputs.return_value = [
@@ -124,28 +107,21 @@ class TestOutputModule:
         with pytest.raises(SystemExit):
             main()
 
-        mock_resolve_workspace.assert_called_once_with(adapter, "ws-456", None, None)
-        mock_get_workspace_outputs.assert_called_once_with(adapter, "ws-456", display_sensitive=False)
+        mock_resolve_workspace.assert_called_once_with(module.adapter, "ws-456", None, None)
+        mock_get_workspace_outputs.assert_called_once_with(module.adapter, "ws-456", display_sensitive=False)
         assert module.exit_args["count"] == 2
         assert len(module.exit_args["outputs"]) == 2
-        adapter.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_workspace_outputs")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.resolve_workspace_id")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_get_all_outputs_empty(
-        self, mock_module_class, mock_client_class, mock_resolve_workspace, mock_get_workspace_outputs, enhanced_dummy_module, base_params
-    ):
+    def test_main_get_all_outputs_empty(self, mock_module_class, mock_resolve_workspace, mock_get_workspace_outputs, enhanced_dummy_module, base_params):
         params = dict(base_params)
         params.update({"workspace_id": "ws-empty"})
 
         module = enhanced_dummy_module
         module.params = params
         mock_module_class.return_value = module
-
-        adapter = Mock()
-        mock_client_class.return_value = adapter
 
         mock_resolve_workspace.return_value = "ws-empty"
         mock_get_workspace_outputs.return_value = []
@@ -156,21 +132,16 @@ class TestOutputModule:
         assert module.exit_args["outputs"] == []
         assert module.exit_args["count"] == 0
         assert module.exit_args["msg"] == "No outputs found for workspace."
-        adapter.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_specific_output")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_helper_error_uses_fail_json_and_cleanup(self, mock_module_class, mock_client_class, mock_get_specific, enhanced_dummy_module, base_params):
+    def test_main_helper_error_uses_fail_json_and_cleanup(self, mock_module_class, mock_get_specific, enhanced_dummy_module, base_params):
         params = dict(base_params)
         params.update({"state_version_output_id": "wsout-missing"})
 
         module = enhanced_dummy_module
         module.params = params
         mock_module_class.return_value = module
-
-        adapter = Mock()
-        mock_client_class.return_value = adapter
 
         mock_get_specific.side_effect = ValueError("State version output with ID 'wsout-missing' was not found.")
 
@@ -179,17 +150,14 @@ class TestOutputModule:
 
         assert module.failed is True
         assert "wsout-missing" in module.fail_args["msg"]
-        adapter.cleanup.assert_called_once()
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.output.AnsibleTerraformModule")
-    def test_main_client_creation_error_uses_fail_json(self, mock_module_class, mock_client_class, enhanced_dummy_module, base_params):
+    def test_main_client_creation_error_uses_fail_json(self, mock_module_class, enhanced_dummy_module, base_params):
         module = enhanced_dummy_module
         module.params = dict(base_params)
         module.params.update({"state_version_output_id": "wsout-1"})
+        module.client = lambda: (i for i in ()).throw(RuntimeError("client init failed"))
         mock_module_class.return_value = module
-
-        mock_client_class.side_effect = RuntimeError("client init failed")
 
         with pytest.raises(AssertionError):
             main()
@@ -212,10 +180,7 @@ class TestOutputModule:
         }
         mock_module_class.return_value = module
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.output.TerraformClient") as mock_client, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.output.get_specific_output"
-        ) as mock_get_specific:
-            mock_client.return_value = Mock()
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.output.get_specific_output") as mock_get_specific:
             mock_get_specific.return_value = {"id": "wsout-1"}
 
             with pytest.raises(SystemExit):
