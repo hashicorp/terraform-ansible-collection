@@ -13,3 +13,4 @@ action_groups:
     - output
     - organizations
     - variable
+    - variable_sets
