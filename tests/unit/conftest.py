@@ -10,7 +10,7 @@ This file provides common fixtures and configuration that can be used
 across all unit tests in the collection.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -36,6 +36,19 @@ class DummyModule:
         self.fail_args = None
         self.check_mode = check_mode
         self.changed = False
+        # The adapter tests can configure and assert against.
+        self.adapter = MagicMock(name="dummy_terraform_client")
+        self._client_cm = MagicMock(name="dummy_terraform_client_ctx")
+        self._client_cm.__enter__.return_value = self.adapter
+        self._client_cm.__exit__.return_value = None
+
+    def client(self):
+        """Mimics AnsibleTerraformModule.client() — returns a context manager.
+
+        The yielded adapter is ``self.adapter`` so tests can configure or
+        assert behavior via ``dummy_module.adapter``.
+        """
+        return self._client_cm
 
     def fail_json(self, **kwargs):
         self.failed = True

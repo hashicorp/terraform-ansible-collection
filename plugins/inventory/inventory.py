@@ -409,9 +409,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # Private utilities
     # ------------------------------------------------------------------
 
-    def _build_client(self, tfe_token: str, tfe_address: str) -> TerraformClient:
+    def _build_client(self, options: Dict[str, Any]) -> TerraformClient:
         try:
-            return TerraformClient(tfe_token=tfe_token, tfe_address=tfe_address)
+            return TerraformClient.from_mapping(options)
         except TerraformTokenNotFoundError as exc:
             raise AnsibleParserError(f"Authentication error: {exc}") from exc
 
@@ -515,19 +515,19 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             source_cls = get_source_backend(source)
             source_cls.validate_options(source_options)
 
-            client = self._build_client(tfe_token, tfe_address)
-            records = source_cls(client, source_options).collect_hosts()
+            with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+                records = source_cls(client, source_options).collect_hosts()
 
-            self._populate_from_host_records(
-                records,
-                hostnames,
-                compose,
-                keyed_groups,
-                groups,
-                strict,
-                include_filters,
-                exclude_filters,
-            )
+                self._populate_from_host_records(
+                    records,
+                    hostnames,
+                    compose,
+                    keyed_groups,
+                    groups,
+                    strict,
+                    include_filters,
+                    exclude_filters,
+                )
         except TerraformError as exc:
             raise AnsibleParserError(str(exc)) from exc
         except TerraformTokenNotFoundError as exc:

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,9 +16,6 @@ class TestRunInfoModule:
         mock_ansible_module.return_value = mock_module
 
         with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient",
-            return_value=Mock(),
-        ), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run",
             side_effect=Exception("test"),
         ):
@@ -60,9 +57,8 @@ class TestRunInfoModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_run_found(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module, run_id, run_info_data):
+    def test_run_found(self, mock_get_run, mock_ansible_module, enhanced_dummy_module, run_id, run_info_data):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
         expected_run = dict(run_info_data)
@@ -75,30 +71,22 @@ class TestRunInfoModule:
             "tfe_address": "https://app.terraform.io",
         }
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_run.return_value = dict(run_info_data)
 
         with pytest.raises(SystemExit):
             main()
 
-        mock_terraform_client.assert_called_once_with(
-            tfe_token="token",
-            tfe_address="https://app.terraform.io",
-        )
-        mock_get_run.assert_called_once_with(adapter, run_id)
+        mock_get_run.assert_called_once_with(mock_module.adapter, run_id)
         assert mock_module.exit_args["changed"] is False
         assert mock_module.exit_args["warnings"] == []
         assert mock_module.exit_args["run"] == expected_run
         assert mock_module.exit_args["run"]["id"] == run_id
         assert mock_module.exit_args["run"]["status"] == run_info_data["status"]
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_run_not_found_by_id(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+    def test_run_not_found_by_id(self, mock_get_run, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
         run_id = "non-existent"
@@ -106,23 +94,19 @@ class TestRunInfoModule:
         mock_module.check_mode = False
         mock_module.params = {"run_id": run_id}
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_run.return_value = {}
 
         with pytest.raises(AssertionError):
             main()
 
-        mock_get_run.assert_called_once_with(adapter, run_id)
+        mock_get_run.assert_called_once_with(mock_module.adapter, run_id)
         assert mock_module.failed is True
         assert mock_module.fail_args["msg"] == f"The run with ID '{run_id}' was not found."
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_get_run_exception(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+    def test_get_run_exception(self, mock_get_run, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
         run_id = "run-boom"
@@ -130,9 +114,7 @@ class TestRunInfoModule:
         mock_module.check_mode = False
         mock_module.params = {"run_id": run_id}
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_run.side_effect = RuntimeError("boom")
 
         with pytest.raises(AssertionError):
@@ -140,12 +122,10 @@ class TestRunInfoModule:
 
         assert mock_module.failed is True
         assert mock_module.fail_args["msg"] == "boom"
-        adapter.cleanup.assert_called_once_with()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.AnsibleTerraformModule")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run_info.get_run")
-    def test_client_parameters_passed_correctly(self, mock_get_run, mock_terraform_client, mock_ansible_module, enhanced_dummy_module):
+    def test_client_parameters_passed_correctly(self, mock_get_run, mock_ansible_module, enhanced_dummy_module):
         from ansible_collections.hashicorp.terraform.plugins.modules.run_info import main
 
         run_id = "run-params123"
@@ -158,9 +138,7 @@ class TestRunInfoModule:
             "tfe_address": "app.terraform.io",
         }
 
-        adapter = Mock()
         mock_ansible_module.return_value = mock_module
-        mock_terraform_client.return_value = adapter
         mock_get_run.return_value = {
             "id": run_id,
             "status": "planned",
@@ -169,9 +147,3 @@ class TestRunInfoModule:
 
         with pytest.raises(SystemExit):
             main()
-
-        mock_terraform_client.assert_called_once_with(
-            tfe_token="test-token",
-            tfe_address="app.terraform.io",
-        )
-        adapter.cleanup.assert_called_once_with()

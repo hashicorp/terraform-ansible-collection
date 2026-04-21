@@ -204,7 +204,6 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
@@ -226,34 +225,25 @@ def main() -> None:
     params["check_mode"] = module.check_mode
 
     try:
-        # Adapter initialization (pytfe SDK)
-        adapter = TerraformClient(
-            tfe_token=params.get("tfe_token"),
-            tfe_address=params.get("tfe_address"),
-        )
+        with module.client() as adapter:
+            project_data: Optional[Dict[str, Any]] = None
 
-        project_data: Optional[Dict[str, Any]] = None
+            if params["project_id"]:
+                project_data = get_project_by_id(adapter, params["project_id"])
 
-        if params["project_id"]:
-            project_data = get_project_by_id(adapter, params["project_id"])
+                if not project_data:
+                    raise ValueError(f"Project '{params['project_id']}' was not found.")
+            else:
+                raise ValueError("Project ID is required.")
 
-            if not project_data:
-                raise ValueError(f"Project '{params['project_id']}' was not found.")
-        else:
-            raise ValueError("Project ID is required.")
+            project_data.pop("status", None)
 
-        project_data.pop("status", None)
+            result["project"] = project_data.get("data", project_data)
 
-        result["project"] = project_data.get("data", project_data)
-
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

@@ -1542,7 +1542,7 @@ class TestInventoryModuleParseErrors:
 
     @patch(f"{_INV_MODULE}.TerraformClient")
     def test_token_not_found_error_wraps_as_parser_error(self, mock_client_cls):
-        mock_client_cls.side_effect = TerraformTokenNotFoundError("no token")
+        mock_client_cls.from_mapping.side_effect = TerraformTokenNotFoundError("no token")
 
         plugin = _make_plugin(_base_options())
         with _parse_ctx(plugin):

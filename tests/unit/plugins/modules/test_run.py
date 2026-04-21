@@ -256,9 +256,8 @@ class TestMain:
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.state_present")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_workspace_id")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.AnsibleTerraformModule")
-    def test_main_present_with_workspace_lookup(self, mock_module_class, mock_tf_client, mock_get_workspace_id, mock_state_present, enhanced_dummy_module):
+    def test_main_present_with_workspace_lookup(self, mock_module_class, mock_get_workspace_id, mock_state_present, enhanced_dummy_module):
         mock_module = enhanced_dummy_module
         mock_module.params = {
             "workspace": "ws-name",
@@ -275,23 +274,19 @@ class TestMain:
         mock_module.check_mode = False
         mock_module_class.return_value = mock_module
 
-        mock_adapter = Mock()
-        mock_tf_client.return_value = mock_adapter
         mock_get_workspace_id.return_value = "ws-123"
         mock_state_present.return_value = {"changed": True, "id": "run-1"}
 
         with pytest.raises(SystemExit):
             main()
 
-        mock_get_workspace_id.assert_called_once_with(mock_adapter, "ws-name", "org-a")
+        mock_get_workspace_id.assert_called_once_with(mock_module.adapter, "ws-name", "org-a")
         assert mock_module.exit_args["changed"] is True
         assert mock_module.exit_args["id"] == "run-1"
-        mock_adapter.cleanup.assert_called_once()
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.state_applied")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.AnsibleTerraformModule")
-    def test_main_applied_state(self, mock_module_class, mock_tf_client, mock_state_applied, enhanced_dummy_module):
+    def test_main_applied_state(self, mock_module_class, mock_state_applied, enhanced_dummy_module):
         mock_module = enhanced_dummy_module
         mock_module.params = {
             "state": "applied",
@@ -309,8 +304,6 @@ class TestMain:
         mock_module.check_mode = False
         mock_module_class.return_value = mock_module
 
-        mock_adapter = Mock()
-        mock_tf_client.return_value = mock_adapter
         mock_state_applied.return_value = {"changed": True, "status": "applied"}
 
         with pytest.raises(SystemExit):
@@ -318,11 +311,9 @@ class TestMain:
 
         assert mock_module.exit_args["changed"] is True
         assert mock_module.exit_args["status"] == "applied"
-        mock_adapter.cleanup.assert_called_once()
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.AnsibleTerraformModule")
-    def test_main_exception_uses_fail_json(self, mock_module_class, mock_tf_client, enhanced_dummy_module):
+    def test_main_exception_uses_fail_json(self, mock_module_class, enhanced_dummy_module):
         mock_module = enhanced_dummy_module
         mock_module.params = {
             "state": "present",
@@ -337,9 +328,8 @@ class TestMain:
             "tfe_address": "https://app.terraform.io",
         }
         mock_module.check_mode = False
+        mock_module.client = lambda: (i for i in ()).throw(Exception("client init failed"))
         mock_module_class.return_value = mock_module
-
-        mock_tf_client.side_effect = Exception("client init failed")
 
         with pytest.raises(AssertionError):
             main()

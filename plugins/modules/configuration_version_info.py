@@ -112,7 +112,6 @@ if TYPE_CHECKING:
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.configuration_version import (
     get_config,
@@ -139,30 +138,22 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
-    adapter = None
+
     try:
-        adapter = TerraformClient(
-            tfe_token=params.get("tfe_token"),
-            tfe_address=params.get("tfe_address"),
-        )
+        with module.client() as adapter:
+            configuration_data: Optional[Dict[str, Any]] = None
+            if params.get("configuration_version_id"):
+                configuration_data = get_config(adapter, params["configuration_version_id"])
+                if not configuration_data:
+                    raise ValueError(f"Configuration version '{params['configuration_version_id']}' was not found.")
 
-        configuration_data: Optional[Dict[str, Any]] = None
-        if params.get("configuration_version_id"):
-            configuration_data = get_config(adapter, params["configuration_version_id"])
-            if not configuration_data:
-                raise ValueError(f"Configuration version '{params['configuration_version_id']}' was not found.")
+            # Extract the data field to flatten the structure
+            result["configuration"] = configuration_data
 
-        # Extract the data field to flatten the structure
-        result["configuration"] = configuration_data
-
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

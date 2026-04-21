@@ -90,12 +90,10 @@ class TestViewPlanModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_success_scenarios(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         params,
         metadata_response,
@@ -139,12 +137,10 @@ class TestViewPlanModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_plan_not_found(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         plan_id,
         run_id,
@@ -176,17 +172,15 @@ class TestViewPlanModule:
         identifier = plan_id if use_plan_id else run_id
         mock_get_data.assert_any_call(ANY, identifier, use_plan_id, include_json_output=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
-    def test_main_exception_handling(self, mock_module_class, mock_client_class, enhanced_dummy_module):
+    def test_main_exception_handling(self, mock_module_class, enhanced_dummy_module):
         """Test main function exception handling."""
         params = {"plan_id": "plan-exception123", "run_id": None, "tfe_token": "test-token"}
 
         mock_module = enhanced_dummy_module
         mock_module.params = params
+        mock_module.client = lambda: (i for i in ()).throw(Exception("Connection failed"))
         mock_module_class.return_value = mock_module
-
-        mock_client_class.side_effect = Exception("Connection failed")
 
         with pytest.raises(AssertionError) as exc_info:
             main()
@@ -304,12 +298,10 @@ class TestViewPlanModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_complex_scenarios(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         scenario,
         json_data,
@@ -367,7 +359,7 @@ class TestViewPlanModule:
         }
         mock_module_class.return_value = mock_module
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient"), patch(
+        with patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data",
         ) as mock_get_data:
 

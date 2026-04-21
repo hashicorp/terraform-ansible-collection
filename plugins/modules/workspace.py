@@ -978,59 +978,53 @@ def main():
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
     state = params["state"]
-    adapter = None
 
     try:
-        # Create adapter with params dict
-        adapter = TerraformClient(tfe_token=params.get("tfe_token"), tfe_address=params.get("tfe_address"))
-
-        if state == "present":
-            # validate the format of the timestamp
-            if params.get("auto_destroy_at"):
-                datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
-            # either workspace_id or workspace MUST be provided when state is present
-            # when a workspace is provided, organization must be given
-            if not params.get("workspace_id"):
-                # get the workspace_id from the provided workspace name
-                workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
-                if not workspace_response:
-                    action_result = state_create(adapter, params, params["check_mode"])
+        with module.client() as adapter:
+            if state == "present":
+                # validate the format of the timestamp
+                if params.get("auto_destroy_at"):
+                    datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
+                # either workspace_id or workspace MUST be provided when state is present
+                # when a workspace is provided, organization must be given
+                if not params.get("workspace_id"):
+                    # get the workspace_id from the provided workspace name
+                    workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
+                    if not workspace_response:
+                        action_result = state_create(adapter, params, params["check_mode"])
+                    else:
+                        # retrieve the workspace ID
+                        workspace_id = workspace_response.get("id")
+                        # update module params to have a workspace ID
+                        params["workspace_id"] = workspace_id
+                        action_result = state_update(adapter, params, params["check_mode"])
                 else:
-                    # retrieve the workspace ID
-                    workspace_id = workspace_response.get("id")
-                    # update module params to have a workspace ID
-                    params["workspace_id"] = workspace_id
+                    # if workspace_id is provided then update is triggered
                     action_result = state_update(adapter, params, params["check_mode"])
-            else:
-                # if workspace_id is provided then update is triggered
-                action_result = state_update(adapter, params, params["check_mode"])
-        elif state in ("absent", "locked", "unlocked"):
-            # get the workspace response
-            if not params.get("workspace_id"):
-                workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
-                if not workspace_response:
-                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-                params["workspace_id"] = workspace_response["id"]
-            else:
-                workspace_response = get_workspace_by_id(adapter, params["workspace_id"])
+            elif state in ("absent", "locked", "unlocked"):
+                # get the workspace response
+                if not params.get("workspace_id"):
+                    workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
+                    if not workspace_response:
+                        raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+                    params["workspace_id"] = workspace_response["id"]
+                else:
+                    workspace_response = get_workspace_by_id(adapter, params["workspace_id"])
 
-            if state == "absent":
-                action_result = state_absent(adapter, params, workspace_response, params["check_mode"])
+                if state == "absent":
+                    action_result = state_absent(adapter, params, workspace_response, params["check_mode"])
 
-            elif state == "locked":
-                action_result = state_locked(adapter, params, workspace_response, params["check_mode"])
+                elif state == "locked":
+                    action_result = state_locked(adapter, params, workspace_response, params["check_mode"])
 
-            elif state == "unlocked":
-                action_result = state_unlocked(adapter, params, workspace_response, params["check_mode"])
+                elif state == "unlocked":
+                    action_result = state_unlocked(adapter, params, workspace_response, params["check_mode"])
 
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))
-    finally:
-        if adapter:
-            adapter.cleanup()
 
 
 if __name__ == "__main__":

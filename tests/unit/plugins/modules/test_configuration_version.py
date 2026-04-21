@@ -486,62 +486,48 @@ class TestStateOperations:
 class TestMainFunctionBehavior:
     """Tests for main function edge cases and error handling."""
 
-    def test_main_workspace_not_found(self):
+    def test_main_workspace_not_found(self, enhanced_dummy_module):
         """Test main when workspace lookup fails."""
         params = {
             "state": "present",
             "workspace": "nonexistent-workspace",
             "organization": "test-org",
-            "workspace_id": None,  # Explicitly set to None to trigger workspace lookup
+            "workspace_id": None,
             "configuration_files_path": "/fake/path",
             "auto_queue_runs": True,
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
-            "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch(
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
-        ) as mock_get_ws:
+            return_value={},
+        ):
+            with pytest.raises(AssertionError):
+                main()
 
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module_class.return_value = mock_module
-            # Fixed: Use empty dict {} instead of None to match actual get_workspace behavior
-            mock_get_ws.return_value = {}
+            assert mock_module.failed is True
+            assert "was not found" in mock_module.fail_args["msg"]
 
-            main()
-
-            # The ValueError should be caught and fail_json should be called
-            mock_module.fail_json.assert_called_once()
-            call_args = mock_module.fail_json.call_args[1]  # kwargs
-            assert "was not found" in call_args["msg"]
-
-    def test_main_exception_handling(self):
+    def test_main_exception_handling(self, enhanced_dummy_module):
         """Test that main properly handles and reports exceptions."""
-        params = {"state": "present", "workspace_id": "ws-123", "configuration_files_path": "/fake/path", "poll_timeout": 5, "check_mode": False}
+        params = {"state": "present", "workspace_id": "ws-123", "configuration_files_path": "/fake/path", "poll_timeout": 5}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ) as mock_client_class:
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
+        mock_module.client = lambda: (i for i in ()).throw(Exception("Connection failed"))
 
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module_class.return_value = mock_module
-            mock_client_class.side_effect = Exception("Connection failed")
-
-            # Mock fail_json to raise AssertionError with the exception message
-            mock_module.fail_json.side_effect = AssertionError("Connection failed")
-
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module):
             with pytest.raises(AssertionError) as exc_info:
                 main()
 
             assert "Connection failed" in str(exc_info.value)
 
-    def test_main_workspace_id_keyerror(self):
+    def test_main_workspace_id_keyerror(self, enhanced_dummy_module):
         """Test that main raises KeyError when workspace_id is missing from params."""
         params = {
             "state": "present",
@@ -553,35 +539,22 @@ class TestMainFunctionBehavior:
             "provisional": False,
             "poll_interval": 1,
             "poll_timeout": 5,
-            "check_mode": False,
-            # Note: No workspace_id key at all
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ):
+        mock_module = enhanced_dummy_module
+        mock_module.params = params.copy()
 
-            mock_module = Mock()
-            mock_module.params = params.copy()
-            mock_module_class.return_value = mock_module
-
-            # Mock fail_json to capture the KeyError
-            def capture_fail(**kwargs):
-                raise AssertionError(kwargs.get("msg", "Unknown error"))
-
-            mock_module.fail_json.side_effect = capture_fail
-
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module):
             with pytest.raises(AssertionError) as exc_info:
                 main()
 
-            # Should fail due to KeyError when accessing params["workspace_id"]
             assert "'workspace_id'" in str(exc_info.value)
 
 
 class TestIntegrationFlows:
     """End-to-end integration-style tests."""
 
-    def test_full_integration_present_with_workspace_id(self):
+    def test_full_integration_present_with_workspace_id(self, enhanced_dummy_module):
         """Test full integration of present state with workspace_id provided."""
         params = {
             "state": "present",
@@ -594,100 +567,76 @@ class TestIntegrationFlows:
             "poll_timeout": 5,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch(
+        mock_module = enhanced_dummy_module
+        mock_module.params = params.copy()
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
         ) as mock_state:
 
-            mock_module = Mock()
-            mock_module.params = params.copy()
-            mock_module_class.return_value = mock_module
-
             mock_state.return_value = {"changed": True, "id": "cv-123", "status": "uploaded"}
-
-            mock_module.exit_json.side_effect = SystemExit({"changed": True})
 
             with pytest.raises(SystemExit):
                 main()
 
             mock_state.assert_called_once()
-            # Verify workspace_id was passed correctly
-            call_args = mock_state.call_args[0][1]  # params argument
+            call_args = mock_state.call_args[0][1]
             assert call_args["workspace_id"] == "ws-direct-123"
 
-    def test_full_integration_archived_state(self):
+    def test_full_integration_archived_state(self, enhanced_dummy_module):
         """Test full integration of archived state."""
-        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5, "check_mode": False}
+        params = {"state": "archived", "configuration_version_id": "cv-to-archive", "poll_timeout": 5}
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch(
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
+        mock_module.check_mode = False
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_archived",
         ) as mock_state:
 
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module.check_mode = False
-            mock_module_class.return_value = mock_module
-
             mock_state.return_value = {"changed": True, "msg": "Archived successfully"}
-
-            # Mock exit_json to raise SystemExit to simulate module exit
-            mock_module.exit_json.side_effect = SystemExit({"changed": True})
 
             with pytest.raises(SystemExit):
                 main()
 
-            mock_state.assert_called_once_with(ANY, "cv-to-archive", params["check_mode"])
+            mock_state.assert_called_once_with(ANY, "cv-to-archive", mock_module.check_mode)
 
-    def test_main_workspace_lookup_successful(self):
+    def test_main_workspace_lookup_successful(self, enhanced_dummy_module):
         """Test main when workspace lookup succeeds and workspace_id is set."""
         params = {
             "state": "present",
             "workspace": "test-workspace",
             "organization": "test-org",
-            "workspace_id": None,  # Explicitly set to None to trigger workspace lookup
+            "workspace_id": None,
             "configuration_files_path": "/fake/path",
             "auto_queue_runs": True,
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
-            "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch(
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws, patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.state_present",
         ) as mock_state:
 
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module_class.return_value = mock_module
-
-            # Mock get_workspace to return valid workspace data
             mock_get_ws.return_value = {"id": "ws-from-name-123"}
-
             mock_state.return_value = {"changed": True, "msg": "Created successfully"}
-
-            # Mock exit_json to raise SystemExit to simulate module exit
-            mock_module.exit_json.side_effect = SystemExit({"changed": True})
 
             with pytest.raises(SystemExit):
                 main()
 
-            # Verify get_workspace was called with correct parameters
             mock_get_ws.assert_called_once_with(ANY, "test-org", "test-workspace")
-
-            # Verify state_present was called and workspace_id was set correctly
             mock_state.assert_called_once()
-            call_args = mock_state.call_args[0][1]  # params argument
+            call_args = mock_state.call_args[0][1]
             assert call_args["workspace_id"] == "ws-from-name-123"
 
-    def test_main_workspace_lookup_not_found_empty_dict(self):
+    def test_main_workspace_lookup_not_found_empty_dict(self, enhanced_dummy_module):
         """Test main when workspace lookup returns empty dict (404 case)."""
         params = {
             "state": "present",
@@ -699,30 +648,22 @@ class TestIntegrationFlows:
             "speculative": False,
             "provisional": False,
             "poll_timeout": 5,
-            "check_mode": False,
         }
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule") as mock_module_class, patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.TerraformClient",
-        ), patch(
+        mock_module = enhanced_dummy_module
+        mock_module.params = params
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.AnsibleTerraformModule", return_value=mock_module), patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.configuration_version.get_workspace",
         ) as mock_get_ws:
 
-            mock_module = Mock()
-            mock_module.params = params
-            mock_module_class.return_value = mock_module
-
-            # Mock get_workspace to return empty dict (actual 404 behavior)
             mock_get_ws.return_value = {}
 
-            main()
+            with pytest.raises(AssertionError):
+                main()
 
-            # The ValueError should be caught and fail_json should be called
-            mock_module.fail_json.assert_called_once()
-            call_args = mock_module.fail_json.call_args[1]  # kwargs
-            assert "The workspace nonexistent-workspace in test-org organization was not found." in call_args["msg"]
-
-            # Verify get_workspace was called with correct parameters
+            assert mock_module.failed is True
+            assert "The workspace nonexistent-workspace in test-org organization was not found." in mock_module.fail_args["msg"]
             mock_get_ws.assert_called_once_with(ANY, "test-org", "nonexistent-workspace")
 
 
