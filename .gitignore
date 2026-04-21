@@ -170,3 +170,4 @@ cython_debug/
 
 
 .nopush
+collections/

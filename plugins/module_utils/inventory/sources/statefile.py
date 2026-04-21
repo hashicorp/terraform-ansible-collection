@@ -42,12 +42,17 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Union
 
-from ansible.errors import AnsibleParserError
-from pytfe.errors import NotFound
+try:
+    from pytfe.errors import NotFound
+except ImportError:
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.base import BaseInventorySource, HostRecord
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.common import resolve_workspace
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import BaseInventorySource, HostRecord
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import resolve_workspace
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -84,25 +89,18 @@ def _download_statefile(client: Any, workspace_id: str) -> Dict[str, Any]:
     ``hosted-state-download-url`` signed link returned by HCP Terraform —
     no CLI, no direct backend access.
 
-    Raises ``AnsibleParserError`` when the state version is absent, the
+    Raises ``TerraformError`` when the state version is absent, the
     download fails, or the payload cannot be parsed as JSON.
     """
     try:
         raw: bytes = client.client.state_versions.download_current(workspace_id)
         return json.loads(raw)
     except NotFound:
-        raise AnsibleParserError(
-            f"No current state version found for workspace '{workspace_id}'. "
-            "The workspace may have no applied runs yet."
-        )
+        raise TerraformError(f"No current state version found for workspace '{workspace_id}'. " "The workspace may have no applied runs yet.")
     except (json.JSONDecodeError, ValueError) as exc:
-        raise AnsibleParserError(
-            f"Failed to parse state file for workspace '{workspace_id}': {exc}"
-        ) from exc
+        raise TerraformError(f"Failed to parse state file for workspace '{workspace_id}': {exc}") from exc
     except TerraformError as exc:
-        raise AnsibleParserError(
-            f"Failed to download state file for workspace '{workspace_id}': {exc}"
-        ) from exc
+        raise TerraformError(f"Failed to download state file for workspace '{workspace_id}': {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +239,7 @@ def get_resource_hostname(
     - A dict with ``name`` (required), ``prefix`` (optional), and
       ``separator`` (default ``_``).
 
-    Raises ``AnsibleParserError`` when a dict entry is missing ``name``.
+    Raises ``TerraformError`` when a dict entry is missing ``name``.
     """
     if index_key is not None:
         fallback = f"{resource_type}_{resource_name}_{index_key}"
@@ -256,9 +254,7 @@ def get_resource_hostname(
 
         if isinstance(preference, dict):
             if "name" not in preference:
-                raise AnsibleParserError(
-                    "A 'name' key must be defined in a hostnames dictionary."
-                )
+                raise TerraformError("A 'name' key must be defined in a hostnames dictionary.")
             hostname = _resolve_resource_preference(attributes, preference["name"])
             if hostname and "prefix" in preference:
                 prefix = _resolve_resource_preference(attributes, preference["prefix"])
@@ -295,10 +291,7 @@ class StatefileSource(BaseInventorySource):
         organization = options.get("organization")
         workspace = options.get("workspace")
         if not workspace_id and not (organization and workspace):
-            raise AnsibleParserError(
-                "source 'statefile' requires either 'workspace_id' or both "
-                "'organization' and 'workspace'."
-            )
+            raise TerraformError("source 'statefile' requires either 'workspace_id' or both 'organization' and 'workspace'.")
 
     def collect_hosts(self) -> List[HostRecord]:
         workspace_id_opt = self.options.get("workspace_id")
@@ -308,9 +301,7 @@ class StatefileSource(BaseInventorySource):
         provider_mapping: List[Dict[str, Any]] = self.options.get("provider_mapping") or []
         hostnames: List[Any] = self.options.get("hostnames") or []
 
-        resolved_id, workspace_name = resolve_workspace(
-            self.client, workspace_id_opt, organization, workspace
-        )
+        resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
 
         state_data = _download_statefile(self.client, resolved_id)
         provider_configs = _build_provider_configs(provider_mapping)
@@ -326,9 +317,7 @@ class StatefileSource(BaseInventorySource):
 
             # When any instance carries an index_key (count / for_each),
             # include the key in the fallback hostname to avoid collisions.
-            multi_instance = len(instances) > 1 or any(
-                "index_key" in inst for inst in instances
-            )
+            multi_instance = len(instances) > 1 or any("index_key" in inst for inst in instances)
 
             for instance in instances:
                 attributes: Dict[str, Any] = instance.get("attributes") or {}

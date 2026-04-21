@@ -1,14 +1,38 @@
 from typing import Any, Dict, Optional
 
-from pytfe.errors import NotFound
-from pytfe.models import (
-    ProjectAddTagBindingsOptions,
-    ProjectCreateOptions,
-    ProjectListOptions,
-    ProjectSettingOverwrites,
-    ProjectUpdateOptions,
-    TagBinding,
-)
+try:
+    from pytfe.errors import NotFound
+    from pytfe.models import (
+        ProjectAddTagBindingsOptions,
+        ProjectCreateOptions,
+        ProjectListOptions,
+        ProjectSettingOverwrites,
+        ProjectUpdateOptions,
+        TagBinding,
+    )
+except ImportError:
+
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ProjectAddTagBindingsOptions:  # type: ignore[no-redef]
+        pass
+
+    class ProjectCreateOptions:  # type: ignore[no-redef]
+        pass
+
+    class ProjectListOptions:  # type: ignore[no-redef]
+        pass
+
+    class ProjectSettingOverwrites:  # type: ignore[no-redef]
+        pass
+
+    class ProjectUpdateOptions:  # type: ignore[no-redef]
+        pass
+
+    class TagBinding:  # type: ignore[no-redef]
+        pass
+
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call

@@ -7,11 +7,10 @@
 
 from typing import Dict
 
-from ansible.errors import AnsibleParserError
-
-from ansible_collections.hashicorp.terraform.plugins.inventory.sources.outputs import OutputsSource
-from ansible_collections.hashicorp.terraform.plugins.inventory.sources.search import SearchSource
-from ansible_collections.hashicorp.terraform.plugins.inventory.sources.statefile import StatefileSource
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.search import SearchSource
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile import StatefileSource
 
 #: Registry mapping source name → backend class.
 SOURCES: Dict[str, type] = {
@@ -29,7 +28,4 @@ def get_source_backend(source_name: str) -> type:
     try:
         return SOURCES[source_name]
     except KeyError:
-        raise AnsibleParserError(
-            f"Unknown source '{source_name}'. "
-            f"Valid choices are: {', '.join(sorted(SOURCES))}."
-        )
+        raise TerraformError(f"Unknown source '{source_name}'. Valid choices are: {', '.join(sorted(SOURCES))}.")

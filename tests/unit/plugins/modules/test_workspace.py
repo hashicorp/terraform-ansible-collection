@@ -35,6 +35,7 @@ class TestWorkspaceLockAndUnlock:
         adapter = Mock()
         adapter.token = "test-token"
         adapter.address = "https://app.terraform.io"
+        adapter.client.workspaces.list_tag_bindings.return_value = []
         return adapter
 
     @pytest.fixture
@@ -162,6 +163,7 @@ class TestWorkspaceDelete:
         adapter = Mock()
         adapter.token = "test-token"
         adapter.address = "https://app.terraform.io"
+        adapter.client.workspaces.list_tag_bindings.return_value = []
         return adapter
 
     @pytest.fixture
@@ -231,6 +233,7 @@ class TestWorkspaceUpdate:
         adapter = Mock()
         adapter.token = "test-token"
         adapter.address = "https://app.terraform.io"
+        adapter.client.workspaces.list_tag_bindings.return_value = []
         return adapter
 
     @pytest.fixture
@@ -346,6 +349,7 @@ class TestWorkspaceCreate:
         adapter = Mock()
         adapter.token = "test-token"
         adapter.address = "https://app.terraform.io"
+        adapter.client.workspaces.list_tag_bindings.return_value = []
         return adapter
 
     def test_workspace_create_success(self, mock_adapter, params):

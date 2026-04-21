@@ -5,7 +5,6 @@
 
 DOCUMENTATION = r"""
 name: inventory
-plugin_type: inventory
 author:
   - Prabuddha Chakraborty (@iam404)
 short_description: Unified dynamic inventory plugin for HCP Terraform / Terraform Enterprise.
@@ -55,7 +54,6 @@ options:
       - HCP Terraform or Terraform Enterprise API token.
       - Falls back to the E(TFE_TOKEN) environment variable when not set.
     type: str
-    no_log: true
     env:
       - name: TFE_TOKEN
   tfe_address:
@@ -139,17 +137,13 @@ options:
       - Ordered preference list for resolving the inventory hostname.
       - Each element can be a plain string or a dict with keys C(name)
         (required), C(prefix) (optional), and C(separator) (default V(_)).
-      - For V(source=statefile):
-        - A plain string is looked up in the resource instance attributes.
-          Use V(tag:Name) to read the value of the V(Name) tag, or
-          V(tag:Name=Value) to produce V(Name_Value) only when that exact
-          tag value matches.
-        - Fallback: V(<resource_type>_<resource_name>[_<index>]).
-      - For V(source=outputs):
-        - A plain string is matched against the output value mapping.
-          Use the special token V(output_name) to use the Terraform output
-          name itself.
-        - Fallback: V(<workspace_name>_<output_name>[_<index>]).
+      - "For V(source=statefile): a plain string is looked up in the resource
+        instance attributes. Use V(tag:Name) to read the value of the V(Name)
+        tag, or V(tag:Name=Value) to produce V(Name_Value) only when that exact
+        tag value matches. Fallback: V(<resource_type>_<resource_name>[_<index>])."
+      - "For V(source=outputs): a plain string is matched against the output
+        value mapping. Use the special token V(output_name) to use the Terraform
+        output name itself. Fallback: V(<workspace_name>_<output_name>[_<index>])."
     type: list
     elements: raw
     default: []
@@ -383,15 +377,15 @@ EXAMPLES = r"""
 
 from typing import Any, Dict, Iterable, List, Optional
 
-from ansible.errors import AnsibleError, AnsibleParserError
+from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.base import HostRecord
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.common import get_preferred_hostname, passes_filters
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.factory import get_source_backend
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformTokenNotFoundError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
@@ -474,9 +468,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                 output_name: str = record["output_name"]
                 workspace_name: str = record["workspace_name"]
                 index = record.get("index")
-                hostname = get_preferred_hostname(
-                    output_name, workspace_name, host_vars, hostnames, index
-                )
+                hostname = get_preferred_hostname(output_name, workspace_name, host_vars, hostnames, index)
 
             if hostname:
                 self._add_host(hostname, host_vars, compose, keyed_groups, groups, strict)
@@ -517,10 +509,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         }
 
         if not tfe_token:
-            raise AnsibleParserError(
-                "A Terraform API token is required. "
-                "Set 'tfe_token' in the inventory config or the TFE_TOKEN environment variable."
-            )
+            raise AnsibleParserError("A Terraform API token is required. Set 'tfe_token' in the inventory config or the TFE_TOKEN environment variable.")
 
         try:
             source_cls = get_source_backend(source)
@@ -539,11 +528,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                 include_filters,
                 exclude_filters,
             )
-        except (AnsibleParserError, AnsibleError):
-            raise
+        except TerraformError as exc:
+            raise AnsibleParserError(str(exc)) from exc
         except TerraformTokenNotFoundError as exc:
             raise AnsibleParserError(f"Authentication error: {exc}") from exc
         except Exception as exc:
-            raise AnsibleParserError(
-                f"Failed to build inventory from HCP Terraform: {exc}"
-            ) from exc
+            raise AnsibleParserError(f"Failed to build inventory from HCP Terraform: {exc}") from exc

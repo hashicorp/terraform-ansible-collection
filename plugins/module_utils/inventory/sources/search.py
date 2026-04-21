@@ -7,14 +7,10 @@
 
 from typing import Any, Dict, List
 
-from ansible.errors import AnsibleParserError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import BaseInventorySource, HostRecord
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.base import BaseInventorySource, HostRecord
-
-_NOT_IMPLEMENTED = (
-    "source 'search' is not yet implemented. "
-    "Use source 'statefile' or 'outputs' for the current release."
-)
+_NOT_IMPLEMENTED = "source 'search' is not yet implemented. Use source 'statefile' or 'outputs' for the current release."
 
 
 class SearchSource(BaseInventorySource):
@@ -24,7 +20,7 @@ class SearchSource(BaseInventorySource):
 
     @classmethod
     def validate_options(cls, options: Dict[str, Any]) -> None:
-        raise AnsibleParserError(_NOT_IMPLEMENTED)
+        raise TerraformError(_NOT_IMPLEMENTED)
 
     def collect_hosts(self) -> List[HostRecord]:
-        raise AnsibleParserError(_NOT_IMPLEMENTED)
+        raise TerraformError(_NOT_IMPLEMENTED)

@@ -4,7 +4,22 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from typing import Any, Dict
 
-from pytfe.errors import AuthError, NotFound, ServerError, TFEError
+try:
+    from pytfe.errors import AuthError, NotFound, ServerError, TFEError
+except ImportError:
+
+    class AuthError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ServerError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class TFEError(Exception):  # type: ignore[no-redef]
+        pass
+
 
 from .exceptions import (
     TerraformError,

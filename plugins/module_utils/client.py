@@ -11,8 +11,20 @@ common functionality for TFE/TFC modules. It also provides TerraformClient
 for interfacing with the pytfe SDK.
 """
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-from pytfe import TFEClient, TFEConfig
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
+
+try:
+    from pytfe import TFEClient, TFEConfig
+
+    HAS_PYTFE = True
+    PYTFE_IMPORT_ERROR = None
+except ImportError:
+    HAS_PYTFE = False
+    PYTFE_IMPORT_ERROR = traceback.format_exc()
+    TFEClient = None  # type: ignore[assignment,misc]
+    TFEConfig = None  # type: ignore[assignment,misc]
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformTokenNotFoundError,
@@ -102,8 +114,11 @@ class TerraformClient:
         """Perform pre-checks to validate authentication parameters.
 
         Raises:
-            TerraformTokenNotFoundError: If authentication token is missing
+            SystemExit: If pytfe is not installed (via fail_json).
+            TerraformTokenNotFoundError: If authentication token is missing.
         """
+        if not HAS_PYTFE:
+            raise ImportError(missing_required_lib("pytfe", url="https://pypi.org/project/pytfe/"))
         if not self.token:
             raise TerraformTokenNotFoundError("Authentication token is required")
 

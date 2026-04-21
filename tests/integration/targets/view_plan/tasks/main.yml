@@ -42,8 +42,6 @@
         src: "expected_diff.json.j2"
         dest: "{{ temp_dir.path }}/expected_diff.json"
         mode: "0644"
-      vars:
-        unique_id: "{{ unique_id }}"
       register: expected_diff_file
 
     - name: Generate expected JSON structure from template
@@ -51,8 +49,6 @@
         src: "expected_json_structure.json.j2"
         dest: "{{ temp_dir.path }}/expected_json_structure.json"
         mode: "0644"
-      vars:
-        unique_id: "{{ unique_id }}"
       register: expected_json_file
 
     - name: Load expected diff and JSON structure

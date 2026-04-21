@@ -108,6 +108,7 @@
         > "{{ temp_dir.path }}/inv_with_mapping.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
 
     - name: Debug raw inventory output (with mapping)
       ansible.builtin.debug:
@@ -163,6 +164,7 @@
         > "{{ temp_dir.path }}/inv_no_mapping.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
 
     - name: Debug raw inventory output (no mapping)
       ansible.builtin.debug:

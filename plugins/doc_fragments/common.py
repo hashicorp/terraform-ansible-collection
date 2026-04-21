@@ -18,6 +18,8 @@ options:
       - If the environment variable is also unset, an exception will be raised and the task will fail.
       - The user should ensure that token being used has the correct permissions to perform the operations requested through the Ansible task.
     type: str
+    aliases:
+      - tf_token
   tfe_address:
     description:
       - The Terraform Enterprise/Cloud API address.

@@ -21,6 +21,7 @@ options:
       - The ID of the configuration version.
       - I(configuration_version_id) must be specified.
     type: str
+    required: true
 """
 
 EXAMPLES = r"""

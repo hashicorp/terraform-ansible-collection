@@ -111,6 +111,7 @@
         PATH: "{{ lookup('env', 'PATH') }}"
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
         TFE_TOKEN: "{{ tfc_token }}"
+      changed_when: false
 
     - name: Debug raw inventory output (list object)
       ansible.builtin.debug:
@@ -168,6 +169,7 @@
         > "{{ temp_dir.path }}/inv_scalar.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
 
     - name: Debug raw inventory output (scalar)
       ansible.builtin.debug:
@@ -215,6 +217,7 @@
         > "{{ temp_dir.path }}/inv_auto.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
 
     - name: Debug raw inventory output (auto-detection)
       ansible.builtin.debug:

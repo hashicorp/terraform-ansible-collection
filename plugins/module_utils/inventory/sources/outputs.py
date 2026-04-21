@@ -34,11 +34,9 @@ For ``map`` kinds the map key is exposed as the special variable ``key``.
 
 from typing import Any, Dict, List, Optional
 
-from ansible.errors import AnsibleParserError
-
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.base import BaseInventorySource, HostRecord
-from ansible_collections.hashicorp.terraform.plugins.inventory.utils.common import fetch_outputs, resolve_workspace
-
+from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import BaseInventorySource, HostRecord
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import fetch_outputs, resolve_workspace
 
 # ---------------------------------------------------------------------------
 # hosts_from spec processor
@@ -174,10 +172,7 @@ class OutputsSource(BaseInventorySource):
         organization = options.get("organization")
         workspace = options.get("workspace")
         if not workspace_id and not (organization and workspace):
-            raise AnsibleParserError(
-                "source 'outputs' requires either 'workspace_id' or both "
-                "'organization' and 'workspace'."
-            )
+            raise TerraformError("source 'outputs' requires either 'workspace_id' or both 'organization' and 'workspace'.")
 
     def collect_hosts(self) -> List[HostRecord]:
         workspace_id_opt = self.options.get("workspace_id")
@@ -188,18 +183,12 @@ class OutputsSource(BaseInventorySource):
         if isinstance(hosts_from_opt, dict):
             hosts_from_opt = [hosts_from_opt]
 
-        resolved_id, workspace_name = resolve_workspace(
-            self.client, workspace_id_opt, organization, workspace
-        )
+        resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
         outputs = fetch_outputs(self.client, resolved_id)
 
         if hosts_from_opt:
             # Explicit mode: process only the declared outputs per their spec.
-            outputs_map: Dict[str, Any] = {
-                o.get("name", ""): o.get("value")
-                for o in outputs
-                if isinstance(o, dict)
-            }
+            outputs_map: Dict[str, Any] = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}
             records: List[HostRecord] = []
             for spec in hosts_from_opt:
                 records.extend(_collect_hosts_from_spec(spec, outputs_map, workspace_name))
