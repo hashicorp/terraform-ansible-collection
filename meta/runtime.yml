@@ -12,3 +12,4 @@ action_groups:
     - project
     - output
     - organizations
+    - variable
