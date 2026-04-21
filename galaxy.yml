@@ -5,7 +5,7 @@
 
 namespace: "hashicorp"
 name: "terraform"
-version: 1.0.0
+version: 1.2.0
 readme: README.md
 authors:
   - Ansible (https://github.com/ansible)
@@ -13,7 +13,6 @@ authors:
 description: An Ansible Collection for managing Terraform Cloud/Enterprise.
 license_file: LICENSE
 
-# TO-DO: update the tags based on your content type
 tags: ["hashicorp", "terraform", "infrastructure", "cloud"]
 
 repository: https://github.com/ansible

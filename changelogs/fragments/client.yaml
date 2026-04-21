@@ -1,3 +1,0 @@
----
-trivial:
-  - Ensure module_utils can handle error responses. Switch release workflow to an Automation Hub one.
