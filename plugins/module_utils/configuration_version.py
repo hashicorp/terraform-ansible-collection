@@ -99,7 +99,7 @@ def upload_config(adapter: TerraformClient, upload_url: str, configuration_files
     uploads directly to it. Otherwise, it assumes a relative path and prefixes it with `/object/`.
 
     Args:
-        client (ArchivistClient): An API client capable of issuing PUT requests.
+        adapter (TerraformClient): Authenticated adapter used to issue the upload.
         upload_url (str): The upload destination URL (absolute or relative).
         configuration_files_path (str): Path to the `.tar.gz` archive to upload.
 
