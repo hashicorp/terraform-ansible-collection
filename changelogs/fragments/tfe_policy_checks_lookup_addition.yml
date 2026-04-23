@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new lookup plugin hashicorp.terraform.tfe_policy_checks to retrieve Sentinel policy check outcomes for a TFE/C run, with optional filtering to hard/soft failures for gating logic.

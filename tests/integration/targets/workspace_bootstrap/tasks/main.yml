@@ -1,0 +1,131 @@
+---
+- name: workspace_bootstrap integration tests
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Unique id
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Names
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-bootstrap-ws"
+        source_workspace_name: "{{ unique_id }}-bootstrap-src"
+
+    - name: Pre-create source workspace for run_triggers
+      hashicorp.terraform.workspace:
+        workspace: "{{ source_workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: src_ws
+
+    - name: First bootstrap - creates workspace + variables + trigger + notification
+      hashicorp.terraform.workspace_bootstrap:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        settings:
+          description: "bootstrap integration test"
+          execution_mode: "remote"
+          auto_apply: false
+        variables:
+          - key: "env"
+            value: "test"
+            category: "terraform"
+          - key: "TF_LOG"
+            value: "DEBUG"
+            category: "env"
+        run_triggers:
+          - "{{ src_ws.id }}"
+        notifications:
+          - name: "bootstrap-generic"
+            destination_type: "generic"
+            url: "https://example.com/hook"
+            enabled: true
+            triggers:
+              - "run:needs_attention"
+        reconcile: true
+      register: bs1
+
+    - name: Assert initial bootstrap changed
+      ansible.builtin.assert:
+        that:
+          - bs1.changed
+          - bs1.workspace_id is defined
+          - bs1.components.workspace.action == "created"
+          - bs1.components.variables.created | length == 2
+          - bs1.components.run_triggers.created | length == 1
+          - bs1.components.notifications.created | length == 1
+
+    - name: Second bootstrap with identical desired state is a no-op
+      hashicorp.terraform.workspace_bootstrap:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        settings:
+          description: "bootstrap integration test"
+          execution_mode: "remote"
+          auto_apply: false
+        variables:
+          - key: "env"
+            value: "test"
+            category: "terraform"
+          - key: "TF_LOG"
+            value: "DEBUG"
+            category: "env"
+        run_triggers:
+          - "{{ src_ws.id }}"
+        notifications:
+          - name: "bootstrap-generic"
+            destination_type: "generic"
+            url: "https://example.com/hook"
+            enabled: true
+            triggers:
+              - "run:needs_attention"
+        reconcile: true
+      register: bs2
+
+    - name: Assert second bootstrap is no-op
+      ansible.builtin.assert:
+        that:
+          - not bs2.changed
+          - bs2.components.workspace.action == "none"
+          - bs2.components.variables.created == []
+          - bs2.components.variables.updated == []
+
+    - name: Third bootstrap - drift a variable, drop another, expect reconciliation
+      hashicorp.terraform.workspace_bootstrap:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        settings:
+          description: "bootstrap integration test"
+        variables:
+          - key: "env"
+            value: "staging"
+            category: "terraform"
+        reconcile: true
+      register: bs3
+
+    - name: Assert drift was reconciled
+      ansible.builtin.assert:
+        that:
+          - bs3.changed
+          - "'env' in bs3.components.variables.updated"
+          - "'TF_LOG' in bs3.components.variables.deleted"
+
+  always:
+    - name: Delete workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ bs1.workspace_id | default('') }}"
+        state: absent
+        force: true
+      when: bs1.workspace_id is defined
+      failed_when: false
+
+    - name: Delete source workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ src_ws.id | default('') }}"
+        state: absent
+        force: true
+      when: src_ws.id is defined
+      failed_when: false

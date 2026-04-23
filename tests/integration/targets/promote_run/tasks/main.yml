@@ -1,0 +1,117 @@
+---
+- name: promote_run integration tests
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-promote-run-ws"
+
+    - name: Create workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: ws
+
+    - name: Temp dir
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Render config
+      ansible.builtin.template:
+        src: main.tf.j2
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ ws.id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: cv
+
+    - name: Create a run and wait for plan
+      hashicorp.terraform.run:
+        workspace_id: "{{ ws.id }}"
+        run_message: "promote_run test"
+        state: present
+        configuration_version: "{{ cv.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_res
+
+    - name: Promote run (apply gated on policy pass)
+      hashicorp.terraform.promote_run:
+        run_id: "{{ run_res.id }}"
+        require_policy_pass: true
+        allow_advisory_failures: true
+        auto_apply_when_eligible: true
+        comment: "promoted by integration test"
+        wait: true
+        timeout: "{{ poll_timeout }}"
+      register: promote_res
+
+    - name: Assert promote applied the run
+      ansible.builtin.assert:
+        that:
+          - promote_res.changed or (promote_res.gates.run_status_before in ['applied', 'planned_and_finished'])
+          - promote_res.gates is defined
+          - promote_res.gates.policy_summary is defined
+
+    - name: Re-running promote is a no-op (idempotent)
+      hashicorp.terraform.promote_run:
+        run_id: "{{ run_res.id }}"
+      register: promote_again
+
+    - name: Assert no change on re-run
+      ansible.builtin.assert:
+        that:
+          - not promote_again.changed
+          - promote_again.gates.skipped_reason is defined
+
+    - name: Promote with invalid run id fails
+      hashicorp.terraform.promote_run:
+        run_id: "run-invalid123"
+      ignore_errors: true
+      register: bad_run
+
+    - name: Assert invalid run_id surfaces error
+      ansible.builtin.assert:
+        that:
+          - bad_run is failed
+
+  always:
+    - name: Cancel run
+      hashicorp.terraform.run:
+        run_id: "{{ run_res.id | default('') }}"
+        state: canceled
+      when: run_res.id is defined
+      failed_when: false
+
+    - name: Delete workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ ws.id | default('') }}"
+        state: absent
+        force: true
+      when: ws.id is defined
+      failed_when: false
+
+    - name: Clean temp dir
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined

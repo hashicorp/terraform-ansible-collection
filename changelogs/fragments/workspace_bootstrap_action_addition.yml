@@ -1,0 +1,2 @@
+minor_changes:
+  - Adds a new action plugin hashicorp.terraform.workspace_bootstrap that converges a TFE/C workspace (settings, variables, variable-set attachments, run triggers, notifications) in a single idempotent task.
