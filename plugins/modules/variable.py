@@ -9,7 +9,7 @@ DOCUMENTATION = r"""
 module: variable
 version_added: "2.0.0"
 short_description: Manage Terraform Cloud/Enterprise workspace variables (create, update, delete).
-author: "Prabuddha Chakraborty (@prab-ch)"
+author: "Prabuddha Chakraborty (@iam404)"
 description:
   - Manages workspace-scoped variables on Terraform Cloud and Terraform Enterprise.
   - Supports both Terraform input variables (C(category=terraform)) and environment variables (C(category=env)).
@@ -287,10 +287,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
 
     # Category cannot be mutated in place; flag it rather than silently drifting.
     if want.get("category") and current.get("category") and want["category"] != current["category"]:
-        raise ValueError(
-            f"Cannot change variable category from {current['category']!r} to {want['category']!r}; "
-            "delete and recreate the variable instead."
-        )
+        raise ValueError(f"Cannot change variable category from {current['category']!r} to {want['category']!r}; " "delete and recreate the variable instead.")
 
     have = _filter_current_state(current, want)
     _strip_unverifiable_sensitive_value(have, want)

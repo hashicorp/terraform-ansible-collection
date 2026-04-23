@@ -9,7 +9,7 @@ DOCUMENTATION = r"""
 module: variable_sets
 version_added: "2.0.0"
 short_description: Manage Terraform Cloud/Enterprise variable sets (create, update, delete, attach).
-author: "Prabuddha Chakraborty (@prab-ch)"
+author: "Prabuddha Chakraborty (@iam404)"
 description:
   - Manages variable sets on Terraform Cloud and Terraform Enterprise.
   - Supports creating, updating, and deleting the variable set itself and reconciling its
@@ -265,8 +265,7 @@ def _validate_attachment_scope(params: Dict[str, Any], current_global: Optional[
         return
     if params.get("workspace_ids") is not None or params.get("project_ids") is not None:
         raise ValueError(
-            "A global variable set cannot be attached to specific workspaces or projects. "
-            "Set 'global: false' or omit 'workspace_ids'/'project_ids'."
+            "A global variable set cannot be attached to specific workspaces or projects. " "Set 'global: false' or omit 'workspace_ids'/'project_ids'."
         )
 
 

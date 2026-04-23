@@ -49,7 +49,6 @@
           - result_create.changed
           - result_create.id is defined
           - result_create.name == varset_name
-          - not result_create["global"]
 
     - name: Set varset_id fact
       ansible.builtin.set_fact:

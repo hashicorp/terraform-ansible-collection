@@ -80,9 +80,7 @@ def get_variable_set(
     try:
         options = None
         if include_relations:
-            options = VariableSetReadOptions(
-                include=[VariableSetIncludeOpt.WORKSPACES, VariableSetIncludeOpt.PROJECTS]
-            )
+            options = VariableSetReadOptions(include=[VariableSetIncludeOpt.WORKSPACES, VariableSetIncludeOpt.PROJECTS])
         variable_set = adapter.client.variable_sets.read(variable_set_id, options=options)
         return format_response(variable_set)
     except NotFound:

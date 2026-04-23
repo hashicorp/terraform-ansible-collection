@@ -19,7 +19,6 @@ from ansible_collections.hashicorp.terraform.plugins.modules.variable import (
     state_present,
 )
 
-
 MODULE_PATH = "ansible_collections.hashicorp.terraform.plugins.modules.variable"
 
 
@@ -149,9 +148,7 @@ class TestStatePresent:
             "state": "present",
             "check_mode": True,
         }
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=None), patch(
-            f"{MODULE_PATH}.create_variable"
-        ) as mock_create:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=None), patch(f"{MODULE_PATH}.create_variable") as mock_create:
             result = state_present(adapter, params, check_mode=True)
 
         mock_create.assert_not_called()
@@ -175,9 +172,7 @@ class TestStatePresent:
             "state": "present",
             "check_mode": False,
         }
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(
-            f"{MODULE_PATH}.update_variable"
-        ) as mock_update:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(f"{MODULE_PATH}.update_variable") as mock_update:
             result = state_present(adapter, params, check_mode=False)
 
         mock_update.assert_not_called()
@@ -219,9 +214,7 @@ class TestStatePresent:
             "state": "present",
             "check_mode": True,
         }
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(
-            f"{MODULE_PATH}.update_variable"
-        ) as mock_update:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(f"{MODULE_PATH}.update_variable") as mock_update:
             result = state_present(adapter, params, check_mode=True)
 
         mock_update.assert_not_called()
@@ -240,9 +233,7 @@ class TestStatePresent:
             "state": "present",
             "check_mode": False,
         }
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(
-            f"{MODULE_PATH}.update_variable"
-        ) as mock_update:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=current), patch(f"{MODULE_PATH}.update_variable") as mock_update:
             result = state_present(adapter, params, check_mode=False)
 
         mock_update.assert_not_called()
@@ -271,9 +262,7 @@ class TestStatePresent:
             "state": "present",
             "check_mode": False,
         }
-        with patch(f"{MODULE_PATH}.get_variable", return_value=current) as mock_get, patch(
-            f"{MODULE_PATH}.update_variable"
-        ) as mock_update:
+        with patch(f"{MODULE_PATH}.get_variable", return_value=current) as mock_get, patch(f"{MODULE_PATH}.update_variable") as mock_update:
             result = state_present(adapter, params, check_mode=False)
 
         mock_get.assert_called_once_with(adapter, "ws-abc", "var-1")
@@ -288,9 +277,7 @@ class TestStateAbsent:
 
     def test_delete_existing(self, adapter):
         params = {"workspace_id": "ws-abc", "key": "region", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value={"id": "var-1"}), patch(
-            f"{MODULE_PATH}.delete_variable"
-        ) as mock_delete:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value={"id": "var-1"}), patch(f"{MODULE_PATH}.delete_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
 
         mock_delete.assert_called_once_with(adapter, "ws-abc", "var-1")
@@ -299,9 +286,7 @@ class TestStateAbsent:
 
     def test_delete_absent_is_noop(self, adapter):
         params = {"workspace_id": "ws-abc", "key": "ghost", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=None), patch(
-            f"{MODULE_PATH}.delete_variable"
-        ) as mock_delete:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value=None), patch(f"{MODULE_PATH}.delete_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
 
         mock_delete.assert_not_called()
@@ -310,9 +295,7 @@ class TestStateAbsent:
 
     def test_delete_check_mode(self, adapter):
         params = {"workspace_id": "ws-abc", "key": "region", "state": "absent", "check_mode": True}
-        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value={"id": "var-1"}), patch(
-            f"{MODULE_PATH}.delete_variable"
-        ) as mock_delete:
+        with patch(f"{MODULE_PATH}.get_variable_by_key", return_value={"id": "var-1"}), patch(f"{MODULE_PATH}.delete_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=True)
 
         mock_delete.assert_not_called()

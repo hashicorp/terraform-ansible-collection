@@ -9,7 +9,7 @@ DOCUMENTATION = r"""
 module: organizations
 version_added: "2.0.0"
 short_description: Manage Terraform Cloud/Enterprise organizations (create, update, delete).
-author: "Prabuddha Chakraborty (@prab-ch)"
+author: "Prabuddha Chakraborty (@iam404)"
 description:
   - Manages Terraform Cloud and Terraform Enterprise organizations with create, update, and delete operations.
   - The C(present) state creates a new organization or updates an existing one with the specified parameters.
@@ -208,13 +208,7 @@ def _build_desired_state(params: Dict[str, Any]) -> Dict[str, Any]:
     ``None`` values are dropped so that unset module params don't register as
     drift against server defaults.
     """
-    return {
-        key: value
-        for key, value in params.items()
-        if not key.startswith(("tf_", "tfe_"))
-        and key not in _NON_SDK_KEYS
-        and value is not None
-    }
+    return {key: value for key, value in params.items() if not key.startswith(("tf_", "tfe_")) and key not in _NON_SDK_KEYS and value is not None}
 
 
 def _filter_current_state(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[str, Any]:

@@ -62,9 +62,7 @@ class TestGetVariableSet:
 
     def test_success_with_relations_passes_read_options(self):
         adapter = Mock()
-        adapter.client.variable_sets.read.return_value = _make_model(
-            {"id": "varset-1", "workspaces": [{"id": "ws-1"}], "projects": []}
-        )
+        adapter.client.variable_sets.read.return_value = _make_model({"id": "varset-1", "workspaces": [{"id": "ws-1"}], "projects": []})
         result = get_variable_set(adapter, "varset-1", include_relations=True)
         assert result["workspaces"][0]["id"] == "ws-1"
         _, kwargs = adapter.client.variable_sets.read.call_args

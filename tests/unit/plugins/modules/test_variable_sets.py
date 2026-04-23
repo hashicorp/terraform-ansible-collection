@@ -152,9 +152,7 @@ class TestStatePresent:
 
     def test_create_check_mode(self, adapter):
         params = self._base_params()
-        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(
-            f"{MODULE}.create_variable_set"
-        ) as mock_create:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(f"{MODULE}.create_variable_set") as mock_create:
             result = state_present(adapter, params, check_mode=True)
         mock_create.assert_not_called()
         assert result["changed"] is True
@@ -171,9 +169,7 @@ class TestStatePresent:
             "projects": [],
         }
         params = self._base_params()
-        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(
-            f"{MODULE}.update_variable_set"
-        ) as mock_update:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(f"{MODULE}.update_variable_set") as mock_update:
             result = state_present(adapter, params, check_mode=False)
         mock_update.assert_not_called()
         assert result["changed"] is False
@@ -212,11 +208,9 @@ class TestStatePresent:
             "projects": [],
         }
         params = self._base_params(workspace_ids=["ws-b", "ws-c"])
-        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(
-            f"{MODULE}.update_variable_set"
-        ) as mock_update, patch(f"{MODULE}.apply_to_workspaces") as mock_apply, patch(
-            f"{MODULE}.remove_from_workspaces"
-        ) as mock_remove:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(f"{MODULE}.update_variable_set") as mock_update, patch(
+            f"{MODULE}.apply_to_workspaces"
+        ) as mock_apply, patch(f"{MODULE}.remove_from_workspaces") as mock_remove:
             result = state_present(adapter, params, check_mode=False)
 
         # No attribute drift → no update call.
@@ -237,11 +231,9 @@ class TestStatePresent:
             "projects": [{"id": "prj-a"}],
         }
         params = self._base_params(workspace_ids=[], project_ids=[])
-        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(
-            f"{MODULE}.remove_from_workspaces"
-        ) as mock_rm_ws, patch(f"{MODULE}.remove_from_projects") as mock_rm_pr, patch(
-            f"{MODULE}.apply_to_workspaces"
-        ) as mock_app_ws, patch(f"{MODULE}.apply_to_projects") as mock_app_pr:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(f"{MODULE}.remove_from_workspaces") as mock_rm_ws, patch(
+            f"{MODULE}.remove_from_projects"
+        ) as mock_rm_pr, patch(f"{MODULE}.apply_to_workspaces") as mock_app_ws, patch(f"{MODULE}.apply_to_projects") as mock_app_pr:
             result = state_present(adapter, params, check_mode=False)
 
         mock_rm_ws.assert_called_once_with(adapter, "varset-1", ["ws-a"])
@@ -263,9 +255,9 @@ class TestStatePresent:
             "projects": [],
         }
         params = self._base_params(workspace_ids=["ws-b", "ws-a"])
-        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(
-            f"{MODULE}.apply_to_workspaces"
-        ) as mock_apply, patch(f"{MODULE}.remove_from_workspaces") as mock_remove:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(f"{MODULE}.apply_to_workspaces") as mock_apply, patch(
+            f"{MODULE}.remove_from_workspaces"
+        ) as mock_remove:
             result = state_present(adapter, params, check_mode=False)
 
         mock_apply.assert_not_called()
@@ -297,9 +289,7 @@ class TestStatePresent:
             "projects": [],
         }
         params = self._base_params(description="new")
-        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(
-            f"{MODULE}.update_variable_set"
-        ) as mock_update:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=current), patch(f"{MODULE}.update_variable_set") as mock_update:
             result = state_present(adapter, params, check_mode=True)
         mock_update.assert_not_called()
         assert result["changed"] is True
@@ -313,9 +303,7 @@ class TestStateAbsent:
 
     def test_delete_existing(self, adapter):
         params = {"variable_set_id": "varset-1", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE}._resolve_variable_set", return_value={"id": "varset-1"}), patch(
-            f"{MODULE}.delete_variable_set"
-        ) as mock_delete:
+        with patch(f"{MODULE}._resolve_variable_set", return_value={"id": "varset-1"}), patch(f"{MODULE}.delete_variable_set") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
         mock_delete.assert_called_once_with(adapter, "varset-1")
         assert result["changed"] is True
@@ -323,9 +311,7 @@ class TestStateAbsent:
 
     def test_delete_absent_is_noop(self, adapter):
         params = {"variable_set_id": "varset-ghost", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(
-            f"{MODULE}.delete_variable_set"
-        ) as mock_delete:
+        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(f"{MODULE}.delete_variable_set") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
         mock_delete.assert_not_called()
         assert result["changed"] is False
@@ -333,9 +319,7 @@ class TestStateAbsent:
 
     def test_delete_check_mode(self, adapter):
         params = {"variable_set_id": "varset-1", "state": "absent", "check_mode": True}
-        with patch(f"{MODULE}._resolve_variable_set", return_value={"id": "varset-1"}), patch(
-            f"{MODULE}.delete_variable_set"
-        ) as mock_delete:
+        with patch(f"{MODULE}._resolve_variable_set", return_value={"id": "varset-1"}), patch(f"{MODULE}.delete_variable_set") as mock_delete:
             result = state_absent(adapter, params, check_mode=True)
         mock_delete.assert_not_called()
         assert result["changed"] is True
