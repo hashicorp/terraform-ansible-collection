@@ -79,7 +79,15 @@ class TestPromoteRun:
             {"id": "run-1", "status": "applied"},
         ]
         mock_list.return_value = []
-        mock_summarize.return_value = {"total": 0, "passed": 0, "soft_failed": 0, "hard_failed": 0, "mandatory_failed": False, "advisory_failed": False, "all_passed": True}
+        mock_summarize.return_value = {
+            "total": 0,
+            "passed": 0,
+            "soft_failed": 0,
+            "hard_failed": 0,
+            "mandatory_failed": False,
+            "advisory_failed": False,
+            "all_passed": True,
+        }
         action = _make_action({"run_id": "run-1", "comment": "go"})
         result = action.run()
         assert result["changed"] is True

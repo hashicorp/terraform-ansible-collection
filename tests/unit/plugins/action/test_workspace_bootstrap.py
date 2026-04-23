@@ -52,10 +52,13 @@ class TestWorkspaceReconcile:
     @patch(f"{MOD}.get_workspace")
     def test_no_change_when_matching(self, mock_get, patched_client):
         mock_get.return_value = {"id": "ws-1", "description": "x", "auto_apply": False}
-        action = _make_action({
-            "organization": "acme", "workspace": "web",
-            "settings": {"description": "x", "auto_apply": False},
-        })
+        action = _make_action(
+            {
+                "organization": "acme",
+                "workspace": "web",
+                "settings": {"description": "x", "auto_apply": False},
+            }
+        )
         result = action.run()
         assert result["components"]["workspace"]["action"] == "none"
         assert result["changed"] is False
@@ -64,10 +67,13 @@ class TestWorkspaceReconcile:
     @patch(f"{MOD}.get_workspace")
     def test_updates_on_drift(self, mock_get, mock_update, patched_client):
         mock_get.return_value = {"id": "ws-1", "description": "old"}
-        action = _make_action({
-            "organization": "acme", "workspace": "web",
-            "settings": {"description": "new"},
-        })
+        action = _make_action(
+            {
+                "organization": "acme",
+                "workspace": "web",
+                "settings": {"description": "new"},
+            }
+        )
         result = action.run()
         assert result["components"]["workspace"]["action"] == "updated"
         assert result["changed"] is True
@@ -82,9 +88,7 @@ class TestVariablesReconcile:
     @patch(f"{MOD}.create_variable")
     @patch(f"{MOD}.get_variable_by_key")
     @patch(f"{MOD}.get_workspace_by_id")
-    def test_create_update_delete(
-        self, mock_get_ws, mock_get_var, mock_create, mock_update, mock_delete, mock_list, patched_client
-    ):
+    def test_create_update_delete(self, mock_get_ws, mock_get_var, mock_create, mock_update, mock_delete, mock_list, patched_client):
         mock_get_ws.return_value = {"id": "ws-1"}
         # var "a" missing -> create ; var "b" drift -> update
         mock_get_var.side_effect = lambda adapter, ws, key, category="terraform": (
@@ -146,9 +150,7 @@ class TestRunTriggersReconcile:
     @patch(f"{MOD}.create_run_trigger")
     @patch(f"{MOD}.find_run_trigger")
     @patch(f"{MOD}.get_workspace_by_id")
-    def test_create_and_reconcile_extras(
-        self, mock_get_ws, mock_find, mock_create, mock_delete, mock_list, patched_client
-    ):
+    def test_create_and_reconcile_extras(self, mock_get_ws, mock_find, mock_create, mock_delete, mock_list, patched_client):
         mock_get_ws.return_value = {"id": "ws-1"}
         mock_find.return_value = None
         mock_list.return_value = [
@@ -171,9 +173,7 @@ class TestNotificationsReconcile:
     @patch(f"{MOD}.create_notification_configuration")
     @patch(f"{MOD}.get_notification_configuration_by_name")
     @patch(f"{MOD}.get_workspace_by_id")
-    def test_create_update_delete_flow(
-        self, mock_get_ws, mock_get_name, mock_create, mock_update, mock_delete, mock_list, patched_client
-    ):
+    def test_create_update_delete_flow(self, mock_get_ws, mock_get_name, mock_create, mock_update, mock_delete, mock_list, patched_client):
         mock_get_ws.return_value = {"id": "ws-1"}
         mock_get_name.side_effect = lambda adapter, ws, name: (
             None if name == "slack-new" else {"id": "nc-email", "name": "email", "destination_type": "email", "url": "x"}

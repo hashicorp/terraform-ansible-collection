@@ -40,7 +40,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_sets 
     apply_to_workspaces,
     get_variable_set,
     get_variable_set_by_name,
-    remove_from_workspaces,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     create_workspace,
@@ -255,18 +254,10 @@ class ActionModule(ActionBase):
                 ws_summary, workspace_id = self._reconcile_workspace(adapter, args)
                 components["workspace"] = ws_summary
 
-                components["variables"] = self._reconcile_variables(
-                    adapter, workspace_id, args.get("variables"), reconcile
-                )
-                components["variable_sets"] = self._reconcile_variable_sets(
-                    adapter, workspace_id, args.get("organization"), args.get("variable_sets")
-                )
-                components["run_triggers"] = self._reconcile_run_triggers(
-                    adapter, workspace_id, args.get("run_triggers"), reconcile
-                )
-                components["notifications"] = self._reconcile_notifications(
-                    adapter, workspace_id, args.get("notifications"), reconcile
-                )
+                components["variables"] = self._reconcile_variables(adapter, workspace_id, args.get("variables"), reconcile)
+                components["variable_sets"] = self._reconcile_variable_sets(adapter, workspace_id, args.get("organization"), args.get("variable_sets"))
+                components["run_triggers"] = self._reconcile_run_triggers(adapter, workspace_id, args.get("run_triggers"), reconcile)
+                components["notifications"] = self._reconcile_notifications(adapter, workspace_id, args.get("notifications"), reconcile)
 
             changed = any(c.get("changed") for c in components.values())
             result.update({"changed": changed, "workspace_id": workspace_id, "components": components})

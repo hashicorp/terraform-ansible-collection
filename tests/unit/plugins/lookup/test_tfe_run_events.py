@@ -54,9 +54,7 @@ class TestTfeRunEventsLookup:
     @patch(f"{MOD}.list_run_events")
     def test_filter_by_since_until(self, mock_list, patched_client, lookup_plugin):
         mock_list.return_value = list(EVENTS)
-        result = lookup_plugin.run(
-            [], None, run_id="run-1", since="2026-01-02T00:00:00Z", until="2026-01-02T23:59:59Z"
-        )
+        result = lookup_plugin.run([], None, run_id="run-1", since="2026-01-02T00:00:00Z", until="2026-01-02T23:59:59Z")
         assert [e["id"] for e in result] == ["ev-2"]
 
     def test_missing_run_id(self, patched_client, lookup_plugin):
