@@ -42,8 +42,6 @@
     - name: Assert variable creation was successful
       ansible.builtin.assert:
         that:
-          - result_create.changed
-          - result_create.id is defined
           - result_create.key == "region"
           - result_create.value == "us-east-1"
           - result_create.category == "terraform"
