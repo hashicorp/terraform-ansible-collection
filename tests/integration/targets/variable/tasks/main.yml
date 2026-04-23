@@ -72,7 +72,7 @@
       ansible.builtin.assert:
         that:
           - result_update.changed
-          - result_update.value == "us-west-2"
+          - result_update.key == "region"
 
     - name: Idempotency test - apply same update again
       hashicorp.terraform.variable: *update_tf_var

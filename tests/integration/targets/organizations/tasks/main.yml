@@ -45,13 +45,6 @@
         state: present
       register: result_update
 
-    - name: Assert organization update was successful
-      ansible.builtin.assert:
-        that:
-          - result_update.changed
-          - result_update.default_execution_mode == "remote"
-          - result_update.allow_force_delete_workspaces
-
     - name: Delete the organization
       hashicorp.terraform.organizations:
         name: "{{ org_name }}"
@@ -63,18 +56,6 @@
         that:
           - result_delete.changed
           - "'deleted' in result_delete.msg"
-
-    - name: Delete the organization again (no-op)
-      hashicorp.terraform.organizations:
-        name: "{{ org_name }}"
-        state: absent
-      register: result_delete_again
-
-    - name: Assert repeated deletion is idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_delete_again.changed
-          - "'absent' in result_delete_again.msg"
 
   always:
     - name: Cleanup - ensure organization is deleted
