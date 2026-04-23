@@ -94,9 +94,7 @@ class TestStatePresent:
 
     def test_create_propagates_sdk_error(self, adapter):
         params = {"workspace_id": "ws-target", "sourceable_id": "ws-src", "check_mode": False}
-        with patch(f"{MODULE_PATH}.find_run_trigger", return_value=None), patch(
-            f"{MODULE_PATH}.create_run_trigger", side_effect=RuntimeError("api failure")
-        ):
+        with patch(f"{MODULE_PATH}.find_run_trigger", return_value=None), patch(f"{MODULE_PATH}.create_run_trigger", side_effect=RuntimeError("api failure")):
             with pytest.raises(RuntimeError, match="api failure"):
                 state_present(adapter, params, check_mode=False)
 

@@ -29,9 +29,7 @@ def _make_model(payload):
 class TestListSSHKeys:
     def test_success(self):
         adapter = Mock()
-        adapter.client.ssh_keys.list.return_value = iter(
-            [_make_model({"id": "sshkey-1", "name": "a"}), _make_model({"id": "sshkey-2", "name": "b"})]
-        )
+        adapter.client.ssh_keys.list.return_value = iter([_make_model({"id": "sshkey-1", "name": "a"}), _make_model({"id": "sshkey-2", "name": "b"})])
         assert list_ssh_keys(adapter, "my-org") == [
             {"id": "sshkey-1", "name": "a"},
             {"id": "sshkey-2", "name": "b"},
@@ -60,9 +58,7 @@ class TestGetSSHKey:
 class TestGetSSHKeyByName:
     def test_match(self):
         adapter = Mock()
-        adapter.client.ssh_keys.list.return_value = iter(
-            [_make_model({"id": "sshkey-1", "name": "a"}), _make_model({"id": "sshkey-2", "name": "b"})]
-        )
+        adapter.client.ssh_keys.list.return_value = iter([_make_model({"id": "sshkey-1", "name": "a"}), _make_model({"id": "sshkey-2", "name": "b"})])
         assert get_ssh_key_by_name(adapter, "org", "b") == {"id": "sshkey-2", "name": "b"}
 
     def test_no_match(self):
