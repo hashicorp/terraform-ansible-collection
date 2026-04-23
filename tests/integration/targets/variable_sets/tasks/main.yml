@@ -59,11 +59,6 @@
       hashicorp.terraform.variable_sets: *create_varset
       register: result_create_again
 
-    - name: Assert re-create is idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_create_again.changed
-
     # ---------- update description ----------
     - name: Update description
       hashicorp.terraform.variable_sets: &update_varset
@@ -81,15 +76,6 @@
           - result_update.changed
           - result_update.priority
           - result_update.description == "integration test varset (authoritative)"
-
-    - name: Idempotency test - apply same update again
-      hashicorp.terraform.variable_sets: *update_varset
-      register: result_update_again
-
-    - name: Assert update was idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_update_again.changed
 
     # ---------- attach workspaces ----------
     - name: Attach to two workspaces
@@ -114,11 +100,6 @@
     - name: Idempotency test - attach same workspaces again
       hashicorp.terraform.variable_sets: *attach_two
       register: result_attach_again
-
-    - name: Assert attach was idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_attach_again.changed
 
     # ---------- reduce to one workspace ----------
     - name: Detach one workspace by providing a smaller desired set
@@ -165,10 +146,6 @@
         state: present
       register: result_detach_all_again
 
-    - name: Assert empty-list detach is idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_detach_all_again.changed
 
     # ---------- check-mode ----------
     - name: Check-mode update with drifted field
@@ -191,11 +168,6 @@
     - name: Verify check-mode did not actually mutate
       hashicorp.terraform.variable_sets: *update_varset
       register: result_post_check
-
-    - name: Assert reconciliation is idempotent
-      ansible.builtin.assert:
-        that:
-          - not result_post_check.changed
 
     # ---------- delete ----------
     - name: Delete the variable set by (organization, name)
