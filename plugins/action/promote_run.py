@@ -25,7 +25,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.policy_check i
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, get_run
 
 # Run states in which `apply` is a valid operation.
-APPLIABLE_STATUSES = {"planned", "cost_estimated", "policy_checked", "confirmed"}
+APPLIABLE_STATUSES = {"planned", "cost_estimated", "policy_checked", "post_plan_completed", "confirmed"}
 # Run states that are already final.
 FINAL_STATUSES = {"applied", "errored", "canceled", "discarded", "planned_and_finished"}
 
