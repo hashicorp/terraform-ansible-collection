@@ -1,8 +1,8 @@
 ---
 - name: Set required Core CI variables
   ansible.builtin.set_fact:
-    terraform_cloud_token: "{{ lookup('env', 'TFC_CI_TOKEN') }}"
-    terraform_cloud_organization: "{{ lookup('env', 'TFC_CI_ORGANIZATION') | default('ANSIBLE-ENGINEERING-CI', true) }}"
+    terraform_cloud_token: "{{ lookup('env', 'HCP_CI_TOKEN') }}"
+    terraform_cloud_organization: "{{ lookup('env', 'HCP_CI_ORGANIZATION') }}"
     destination_path: "~/.ansible/collections/ansible_collections/hashicorp/terraform/tests/integration/integration_config.yml"
   no_log: true
 
