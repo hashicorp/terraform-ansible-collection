@@ -261,11 +261,10 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            match params["state"]:
-                case "present":
-                    action_result = state_present(adapter, params, params["check_mode"])
-                case "absent":
-                    action_result = state_absent(adapter, params, params["check_mode"])
+            if params["state"] == "present":
+                action_result = state_present(adapter, params, params["check_mode"])
+            elif params["state"] == "absent":
+                action_result = state_absent(adapter, params, params["check_mode"])
 
             if action_result:
                 result.update(action_result)
