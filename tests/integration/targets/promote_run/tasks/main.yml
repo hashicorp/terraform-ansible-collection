@@ -55,12 +55,16 @@
       register: run_res
 
     - name: Promote run (apply gated on policy pass)
+      # Intentionally no `comment:` — passing one would create a TFC comment
+      # on the run, which then trips a pytfe SDK bug in the post-apply
+      # get_run (Comment.body is a required pydantic field but sparse
+      # JSON:API relationship refs carry only {id, type}). Tracked upstream;
+      # once fixed we can restore the comment here.
       hashicorp.terraform.promote_run:
         run_id: "{{ run_res.id }}"
         require_policy_pass: true
         allow_advisory_failures: true
         auto_apply_when_eligible: true
-        comment: "promoted by integration test"
         wait: true
         timeout: "{{ poll_timeout }}"
       register: promote_res
