@@ -52,8 +52,8 @@ jobs:
         run: >-
           ansible-playbook tools/ci/playbooks/render_integration_config.yml
         env:
-          TFC_CI_TOKEN: "${{ secrets.TFC_CI_TOKEN }}"
-          TFC_CI_ORGANIZATION: "${{ secrets.TFC_CI_ORGANIZATION }}"
+          HCP_CI_TOKEN: "${{ secrets.HCP_CI_TOKEN }}"
+          HCP_CI_ORGANIZATION: "${{ secrets.HCP_CI_ORGANIZATION }}"
 
       - name: List all integration test targets
         run: >-
