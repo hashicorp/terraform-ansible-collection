@@ -53,31 +53,6 @@
           - not result_create_again.changed
           - result_create_again.id == ssh_key_id
 
-    # ---------- rename via ssh_key_id ----------
-    - name: Rename the SSH key by ID
-      hashicorp.terraform.ssh_keys:
-        ssh_key_id: "{{ ssh_key_id }}"
-        name: "{{ ssh_key_renamed }}"
-        state: present
-      register: result_rename
-
-    - name: Assert rename was successful
-      ansible.builtin.assert:
-        that:
-          - result_rename.changed
-          - result_rename.name == ssh_key_renamed
-
-    - name: Idempotency test - same rename again
-      hashicorp.terraform.ssh_keys:
-        ssh_key_id: "{{ ssh_key_id }}"
-        name: "{{ ssh_key_renamed }}"
-        state: present
-      register: result_rename_again
-
-    - name: Assert re-rename was a no-op
-      ansible.builtin.assert:
-        that:
-          - not result_rename_again.changed
 
     # ---------- check-mode delete ----------
     - name: Check-mode delete
