@@ -1,6 +1,6 @@
 ---
 - name: Set values
   ansible.builtin.set_fact:
-    tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'TFC_CI_TOKEN')) }}"
-    organization: "{{ organization | default(lookup('ansible.builtin.env', 'TFC_CI_ORGANIZATION') | default('ANSIBLE-ENGINEERING-CI', true)) }}"
+    tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'HCP_CI_TOKEN')) }}"
+    organization: "{{ organization | default(lookup('ansible.builtin.env', 'HCP_CI_ORGANIZATION')) }}"
   no_log: true

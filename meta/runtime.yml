@@ -11,3 +11,6 @@ action_groups:
     - configuration_version_info
     - project
     - output
+    - organizations
+    - variable
+    - variable_sets
