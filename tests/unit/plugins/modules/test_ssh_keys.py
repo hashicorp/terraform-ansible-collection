@@ -162,7 +162,7 @@ class TestMain:
         assert argument_spec["state"]["choices"] == ["present", "absent"]
         assert argument_spec["value"]["no_log"] is True
         assert call_kwargs["supports_check_mode"] is True
-        assert ("ssh_key_id", "name") in call_kwargs["mutually_exclusive"]
+        assert "mutually_exclusive" not in call_kwargs
         assert ("ssh_key_id", "name") in call_kwargs["required_one_of"]
 
     @patch(f"{MODULE_PATH}.AnsibleTerraformModule")

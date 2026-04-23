@@ -27,7 +27,7 @@ options:
     description:
       - The unique identifier of the SSH key (e.g. C(sshkey-...)).
       - Provide for unambiguous update or delete operations.
-      - Mutually exclusive with C(name).
+      - When given together with C(name), the key is looked up by ID and C(name) is treated as the desired (possibly new) name.
     type: str
   organization:
     description:
@@ -197,7 +197,6 @@ def main() -> None:
             "value": {"type": "str", "no_log": True},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
-        mutually_exclusive=[("ssh_key_id", "name")],
         required_one_of=[("ssh_key_id", "name")],
         supports_check_mode=True,
     )
