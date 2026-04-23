@@ -170,7 +170,18 @@ class TerraformClient:
             params: Any mapping whose keys may include Ansible argspec names
                 such as ``tfe_token``. Non-auth keys are silently ignored.
         """
-        mapped = {_ARGSPEC_TO_SDK[key]: params[key] for key in AUTH_KEYS if key in _ARGSPEC_TO_SDK and params.get(key) is not None}
+        mapped = {}
+        for key in AUTH_KEYS:
+            if key not in _ARGSPEC_TO_SDK:
+                continue
+            value = params.get(key)
+            if value is None:
+                for alias in AUTH_ARGSPEC.get(key, {}).get("aliases", []) or []:
+                    if params.get(alias) is not None:
+                        value = params[alias]
+                        break
+            if value is not None:
+                mapped[_ARGSPEC_TO_SDK[key]] = value
         return cls(**mapped)
 
     @classmethod
