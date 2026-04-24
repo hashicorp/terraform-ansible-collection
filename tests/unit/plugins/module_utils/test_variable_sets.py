@@ -57,7 +57,7 @@ class TestGetVariableSet:
         adapter.client.variable_sets.read.return_value = _make_model({"id": "varset-1", "name": "a"})
         assert get_variable_set(adapter, "varset-1") == {"id": "varset-1", "name": "a"}
         # options=None when include_relations is False
-        _, kwargs = adapter.client.variable_sets.read.call_args
+        kwargs = adapter.client.variable_sets.read.call_args.kwargs
         assert kwargs.get("options") is None
 
     def test_success_with_relations_passes_read_options(self):
@@ -65,7 +65,7 @@ class TestGetVariableSet:
         adapter.client.variable_sets.read.return_value = _make_model({"id": "varset-1", "workspaces": [{"id": "ws-1"}], "projects": []})
         result = get_variable_set(adapter, "varset-1", include_relations=True)
         assert result["workspaces"][0]["id"] == "ws-1"
-        _, kwargs = adapter.client.variable_sets.read.call_args
+        kwargs = adapter.client.variable_sets.read.call_args.kwargs
         assert kwargs["options"] is not None
 
     def test_not_found_returns_none(self):
@@ -124,7 +124,7 @@ class TestUpdateVariableSet:
         result = update_variable_set(adapter, "varset-1", {"description": "new"})
 
         mock_options_cls.model_validate.assert_called_once_with({"description": "new"})
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.update
         assert args[1] == "varset-1"
         assert args[2] is options
@@ -147,7 +147,7 @@ class TestAttachments:
     def test_apply_to_workspaces(self, mock_safe_call):
         adapter = Mock()
         apply_to_workspaces(adapter, "varset-1", ["ws-a", "ws-b"])
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.apply_to_workspaces
         assert args[1] == "varset-1"
 
@@ -161,7 +161,7 @@ class TestAttachments:
     def test_remove_from_workspaces(self, mock_safe_call):
         adapter = Mock()
         remove_from_workspaces(adapter, "varset-1", ["ws-a"])
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.remove_from_workspaces
 
     @patch(f"{ADAPTER_PATH}.safe_api_call")
@@ -174,12 +174,12 @@ class TestAttachments:
     def test_apply_to_projects(self, mock_safe_call):
         adapter = Mock()
         apply_to_projects(adapter, "varset-1", ["prj-a"])
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.apply_to_projects
 
     @patch(f"{ADAPTER_PATH}.safe_api_call")
     def test_remove_from_projects(self, mock_safe_call):
         adapter = Mock()
         remove_from_projects(adapter, "varset-1", ["prj-a"])
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.remove_from_projects

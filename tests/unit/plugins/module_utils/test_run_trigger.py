@@ -40,7 +40,7 @@ class TestListRunTriggers:
             {"id": "rt-2", "sourceable": {"id": "ws-src2"}},
         ]
         # Must pass RunTriggerListOptions (positional second arg)
-        args, _ = adapter.client.run_triggers.list.call_args
+        args = adapter.client.run_triggers.list.call_args.args
         assert args[0] == "ws-target"
 
     def test_not_found_returns_empty(self):

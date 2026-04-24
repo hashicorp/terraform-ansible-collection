@@ -100,7 +100,7 @@ class TestUpdateSSHKey:
         result = update_ssh_key(adapter, "sshkey-1", {"name": "renamed"})
 
         mock_opts_cls.model_validate.assert_called_once_with({"name": "renamed"})
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.ssh_keys.update
         assert args[1] == "sshkey-1"
         assert args[2] is opts

@@ -61,8 +61,8 @@ options:
   token:
     description:
       - Optional HMAC signing secret forwarded to C(generic) webhooks as the C(X-TFE-Notification-Signature) header.
+      - This argument is treated as secret; its value is never logged.
     type: str
-    no_log: true
   enabled:
     description:
       - Whether the notification is active. Disabled notifications are retained but not delivered.

@@ -127,7 +127,7 @@ class TestUpdateVariable:
         result = update_variable(adapter, "ws-abc", "var-1", {"value": "us-west-2"})
 
         mock_options_cls.model_validate.assert_called_once_with({"value": "us-west-2"})
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variables.update
         assert args[1] == "ws-abc"
         assert args[2] == "var-1"

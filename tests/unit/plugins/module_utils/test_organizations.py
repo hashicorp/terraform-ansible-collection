@@ -98,7 +98,7 @@ class TestUpdateOrganization:
         result = update_organization(adapter, "demo", {"email": "new@example.com"})
 
         mock_options_cls.model_validate.assert_called_once_with({"email": "new@example.com"})
-        args, _ = mock_safe_call.call_args
+        args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.organizations.update
         assert args[1] == "demo"
         assert args[2] is options

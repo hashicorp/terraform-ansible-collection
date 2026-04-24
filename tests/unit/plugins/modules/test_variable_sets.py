@@ -131,7 +131,7 @@ class TestStatePresent:
             result = state_present(adapter, params, check_mode=False)
 
         mock_create.assert_called_once()
-        args, _ = mock_create.call_args
+        args = mock_create.call_args.args
         assert args[1] == "my-org"
         assert args[2]["name"] == "shared-aws"
         assert args[2]["global"] is False
@@ -192,7 +192,7 @@ class TestStatePresent:
         ) as mock_update:
             result = state_present(adapter, params, check_mode=False)
         mock_update.assert_called_once()
-        args, _ = mock_update.call_args
+        args = mock_update.call_args.args
         assert args[1] == "varset-1"
         assert args[2]["description"] == "new"
         assert result["changed"] is True

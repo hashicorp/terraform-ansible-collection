@@ -330,7 +330,7 @@ def main() -> None:
             "workspace_id": {"type": "str"},
             "workspace": {"type": "str"},
             "organization": {"type": "str"},
-            "key": {"type": "str"},
+            "key": {"type": "str", "no_log": False},
             "value": {"type": "str", "no_log": True},
             "description": {"type": "str"},
             "category": {"type": "str", "choices": ["terraform", "env"]},

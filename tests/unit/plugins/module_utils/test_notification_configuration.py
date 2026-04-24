@@ -212,7 +212,7 @@ class TestCreateUpdateDelete:
         result = update_notification_configuration(adapter, "nc-1", data)
 
         mock_build.assert_called_once_with(data)
-        args, _ = mock_safe.call_args
+        args = mock_safe.call_args.args
         assert args[0] is adapter.client.notification_configurations.update
         assert args[1] == "nc-1"
         assert args[2] is opts
