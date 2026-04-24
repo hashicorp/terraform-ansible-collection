@@ -1,0 +1,276 @@
+---
+- name: Notification_configuration integration tests
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Names
+      ansible.builtin.set_fact:
+        workspace_name: "nc-ws-{{ unique_id[:8] }}"
+        notif_name: "nc-webhook-{{ unique_id[:8] }}"
+        notif_alt_name: "nc-webhook-alt-{{ unique_id[:8] }}"
+
+    - name: Create workspace for notification tests
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        execution_mode: remote
+        description: integration test workspace for notification_configuration
+        state: present
+      register: ws
+
+    - name: Save workspace id
+      ansible.builtin.set_fact:
+        workspace_id: "{{ ws.id }}"
+
+    # ---------- create ----------
+    # GENERIC destinations auto-verify on create: TFC POSTs a payload to the URL
+    # and requires a 2xx response. httpbin's /status/200 is what pytfe's own example
+    # uses for this scenario.
+    - name: Create a generic webhook notification
+      hashicorp.terraform.notification_configuration: &create_nc
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        enabled: true
+        triggers:
+          - "run:needs_attention"
+          - "run:errored"
+        state: present
+      register: result_create
+
+    - name: Assert create succeeded
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.destination_type == "generic"
+          - result_create.enabled
+          - "'run:needs_attention' in result_create.triggers"
+          - "'run:errored' in result_create.triggers"
+
+    - name: Save notification id
+      ansible.builtin.set_fact:
+        notification_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-apply ----------
+    - name: Re-apply identical notification
+      hashicorp.terraform.notification_configuration: *create_nc
+      register: result_create_again
+
+    - name: Assert re-apply is a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == notification_id
+
+    # ---------- name-based lookup ----------
+    - name: Idempotent identification by (workspace, name)
+      hashicorp.terraform.notification_configuration:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name }}"
+        name: "{{ notif_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        enabled: true
+        triggers:
+          - "run:needs_attention"
+          - "run:errored"
+        state: present
+      register: result_by_name
+
+    - name: Assert name-based lookup matched existing
+      ansible.builtin.assert:
+        that:
+          - not result_by_name.changed
+          - result_by_name.id == notification_id
+
+    # ---------- drift: disable + change triggers ----------
+    - name: Disable the notification and change triggers
+      hashicorp.terraform.notification_configuration:
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        enabled: false
+        triggers:
+          - "run:errored"
+        state: present
+      register: result_drift
+
+    - name: Assert drift was reconciled
+      ansible.builtin.assert:
+        that:
+          - result_drift.changed
+          - result_drift.id == notification_id
+          - not result_drift.enabled
+          - result_drift.triggers == ["run:errored"]
+
+    - name: Re-apply the drifted state
+      hashicorp.terraform.notification_configuration:
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        enabled: false
+        triggers:
+          - "run:errored"
+        state: present
+      register: result_drift_stable
+
+    - name: Assert drift reconciliation is stable
+      ansible.builtin.assert:
+        that:
+          - not result_drift_stable.changed
+
+    # ---------- destination_type is immutable ----------
+    - name: Attempt to change destination_type (expected to fail)
+      hashicorp.terraform.notification_configuration:
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_name }}"
+        destination_type: slack
+        url: "https://hooks.slack.com/services/fake"
+        state: present
+      register: result_immutable
+      ignore_errors: true
+
+    - name: Assert destination_type change was rejected
+      ansible.builtin.assert:
+        that:
+          - result_immutable.failed
+          - "'destination_type' in (result_immutable.msg | default(''))"
+
+    # ---------- check mode: create ----------
+    - name: Check-mode create of a second notification
+      hashicorp.terraform.notification_configuration:
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_alt_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        triggers:
+          - "run:completed"
+        state: present
+      check_mode: true
+      register: result_check_create
+
+    - name: Assert check-mode create reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_create.changed
+          - "'check mode' in result_check_create.msg"
+
+    - name: Verify the check-mode notification was NOT actually created
+      hashicorp.terraform.notification_configuration:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name }}"
+        name: "{{ notif_alt_name }}"
+        state: absent
+      register: result_check_absent
+
+    - name: Assert the check-mode notification did not persist
+      ansible.builtin.assert:
+        that:
+          - not result_check_absent.changed
+          - "'absent' in result_check_absent.msg"
+
+    # ---------- create a second, real notification for the pair-delete test ----------
+    - name: Create a second notification for deletion-by-name coverage
+      hashicorp.terraform.notification_configuration:
+        workspace_id: "{{ workspace_id }}"
+        name: "{{ notif_alt_name }}"
+        destination_type: generic
+        url: "https://httpbin.org/status/200"
+        triggers:
+          - "run:completed"
+        state: present
+      register: result_create_alt
+
+    - name: Assert second create succeeded
+      ansible.builtin.assert:
+        that:
+          - result_create_alt.changed
+          - result_create_alt.id is defined
+
+    - name: Save second notification id
+      ansible.builtin.set_fact:
+        alt_notification_id: "{{ result_create_alt.id }}"
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete
+      hashicorp.terraform.notification_configuration:
+        notification_configuration_id: "{{ notification_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_delete
+
+    - name: Assert check-mode delete reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_delete.changed
+          - "'check mode' in result_check_delete.msg"
+
+    # ---------- delete by id ----------
+    - name: Delete notification by id
+      hashicorp.terraform.notification_configuration:
+        notification_configuration_id: "{{ notification_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same id again (no-op)
+      hashicorp.terraform.notification_configuration:
+        notification_configuration_id: "{{ notification_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+    # ---------- delete by (workspace, name) ----------
+    - name: Delete second notification by (workspace, name)
+      hashicorp.terraform.notification_configuration:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name }}"
+        name: "{{ notif_alt_name }}"
+        state: absent
+      register: result_delete_by_name
+
+    - name: Assert name-based delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete_by_name.changed
+          - "'deleted' in result_delete_by_name.msg"
+
+  always:
+    - name: Cleanup - delete any leftover notifications by id
+      hashicorp.terraform.notification_configuration:
+        notification_configuration_id: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ notification_id | default(omit) }}"
+        - "{{ alt_notification_id | default(omit) }}"
+      when: item is defined and item != omit
+      failed_when: false
+
+    - name: Cleanup - delete the test workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name | default('') }}"
+        organization: "{{ organization }}"
+        state: absent
+        force: true
+      when: workspace_name is defined
+      failed_when: false
