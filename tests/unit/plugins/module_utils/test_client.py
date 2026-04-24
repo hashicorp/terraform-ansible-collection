@@ -11,6 +11,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
     _ARGSPEC_TO_SDK,
     AUTH_ARGSPEC,
     AUTH_KEYS,
+    COLLECTION_USER_AGENT_SUFFIX,
     AnsibleTerraformModule,
     TerraformClient,
 )
@@ -104,6 +105,7 @@ class TestAnsibleTerraformModule:
             "token": "token-xyz",
             "address": "https://tfe.example.com",
             "timeout": 60.0,
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
         }
 
 
@@ -130,7 +132,10 @@ class TestTerraformClientInitialization:
 
     def test_client_initialization_with_token(self):
         client = TerraformClient(token="test-token")
-        assert client._sdk_kwargs == {"token": "test-token"}
+        assert client._sdk_kwargs == {
+            "token": "test-token",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
 
     def test_client_initialization_without_token_raises_error(self):
         with pytest.raises(TerraformTokenNotFoundError) as excinfo:
@@ -140,6 +145,11 @@ class TestTerraformClientInitialization:
     def test_client_initialization_with_empty_token_raises_error(self):
         with pytest.raises(TerraformTokenNotFoundError):
             TerraformClient(token="")
+
+    def test_caller_supplied_user_agent_suffix_is_preserved(self):
+        """Explicit caller override must win over the collection default."""
+        client = TerraformClient(token="t", user_agent_suffix="custom/1.0")
+        assert client._sdk_kwargs["user_agent_suffix"] == "custom/1.0"
 
 
 class TestFromMapping:
@@ -159,6 +169,7 @@ class TestFromMapping:
             "address": "https://tfe.example.com",
             "timeout": 10.0,
             "verify_tls": False,
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
         }
 
     def test_ignores_non_auth_keys(self):
@@ -171,12 +182,18 @@ class TestFromMapping:
                 "force": True,
             }
         )
-        assert client._sdk_kwargs == {"token": "t"}
+        assert client._sdk_kwargs == {
+            "token": "t",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
 
     def test_drops_none_values_so_sdk_defaults_apply(self):
         """None values must not be forwarded — they'd override pytfe's defaults."""
         client = TerraformClient.from_mapping({"tfe_token": "t", "tfe_proxies": None, "tfe_ca_bundle": None})
-        assert client._sdk_kwargs == {"token": "t"}
+        assert client._sdk_kwargs == {
+            "token": "t",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
 
     def test_raises_when_token_missing(self):
         with pytest.raises(TerraformTokenNotFoundError):
@@ -199,6 +216,7 @@ class TestFromModule:
             "token": "t",
             "address": "https://tfe",
             "max_retries": 7,
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
         }
 
 

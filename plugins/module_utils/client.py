@@ -96,6 +96,11 @@ _ARGSPEC_TO_SDK = {
     "tfe_proxies": "proxies",
 }
 
+# Identifier attached to every HCP API request originating from this collection,
+# forwarded to pytfe via TFEConfig.user_agent_suffix. Enables attribution and
+# support triage for collection-sourced traffic.
+COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.0 pytfe/0.1"
+
 
 class AnsibleTerraformModule:
     """Wrapper for AnsibleModule with TFE-specific enhancements.
@@ -154,7 +159,8 @@ class TerraformClient:
                 ``tfe_token``). Use :meth:`from_mapping` or :meth:`from_module`
                 to translate from Ansible argspec names.
         """
-        self._sdk_kwargs: dict = sdk_kwargs
+        self._sdk_kwargs: dict = dict(sdk_kwargs)
+        self._sdk_kwargs.setdefault("user_agent_suffix", COLLECTION_USER_AGENT_SUFFIX)
         self._client: TFEClient = None
         self._config: TFEConfig = None
         self._prechecks()
