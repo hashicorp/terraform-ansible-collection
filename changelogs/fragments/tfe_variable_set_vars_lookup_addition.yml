@@ -1,2 +1,3 @@
 minor_changes:
-  - Adds a new lookup plugin hashicorp.terraform.tfe_variable_set_vars to retrieve variables owned by a TFE/C variable set, with sensitive values masked by default.
+  - Adds a new lookup plugin hashicorp.terraform.tfe_variable_set_vars to retrieve variables
+    owned by a TFE/C variable set, with sensitive values masked by default.

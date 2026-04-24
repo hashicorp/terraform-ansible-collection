@@ -57,7 +57,7 @@ options:
   workspace_ids:
     description:
       - List of workspace IDs the variable set should be attached to.
-      - When provided, the module converges attachments to exactly this list: any workspaces
+      - When provided, the module converges attachments to exactly this list. Any workspaces
         currently attached but not listed will be detached, and any listed but not attached
         will be attached.
       - Pass an empty list C([]) to detach from all workspaces. Omit to leave attachments untouched.

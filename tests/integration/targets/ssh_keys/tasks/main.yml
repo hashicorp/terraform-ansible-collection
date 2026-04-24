@@ -103,4 +103,4 @@
         - "{{ ssh_key_name | default('') }}"
         - "{{ ssh_key_renamed | default('') }}"
       when: item | length > 0
-      ignore_errors: true
+      failed_when: false

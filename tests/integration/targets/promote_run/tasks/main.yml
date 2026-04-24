@@ -1,5 +1,5 @@
 ---
-- name: promote_run integration tests
+- name: Promote_run integration tests
   module_defaults:
     group/hashicorp.terraform.terraform:
       tf_token: "{{ tfc_token }}"

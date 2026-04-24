@@ -187,7 +187,7 @@
         - region
         - API_TOKEN
       when: workspace_id is defined
-      ignore_errors: true
+      failed_when: false
 
     - name: Cleanup - delete the test workspace
       hashicorp.terraform.workspace:
@@ -195,4 +195,4 @@
         organization: "{{ organization }}"
         state: absent
       when: workspace_name is defined
-      ignore_errors: true
+      failed_when: false

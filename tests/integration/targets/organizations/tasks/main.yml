@@ -63,4 +63,4 @@
         name: "{{ org_name }}"
         state: absent
       when: org_name is defined
-      ignore_errors: true
+      failed_when: false

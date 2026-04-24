@@ -1,5 +1,5 @@
 ---
-- name: workspace_bootstrap integration tests
+- name: Workspace_bootstrap integration tests
   module_defaults:
     group/hashicorp.terraform.terraform:
       tf_token: "{{ tfc_token }}"
