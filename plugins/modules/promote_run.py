@@ -16,7 +16,7 @@ description:
     does not issue its own HTTP calls.
   - Returns a structured C(gates) dictionary describing the decision taken so callers can
     inspect why the run was or was not applied.
-  - Idempotent: runs already in a final state (applied, errored, canceled, discarded,
+  - Idempotent. Runs already in a final state (applied, errored, canceled, discarded,
     planned_and_finished) are reported as a no-op.
 extends_documentation_fragment: hashicorp.terraform.common
 options:

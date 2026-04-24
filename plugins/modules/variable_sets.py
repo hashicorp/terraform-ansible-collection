@@ -265,7 +265,7 @@ def _validate_attachment_scope(params: Dict[str, Any], current_global: Optional[
         return
     if params.get("workspace_ids") is not None or params.get("project_ids") is not None:
         raise ValueError(
-            "A global variable set cannot be attached to specific workspaces or projects. " "Set 'global: false' or omit 'workspace_ids'/'project_ids'."
+            "A global variable set cannot be attached to specific workspaces or projects. " + "Set 'global: false' or omit 'workspace_ids'/'project_ids'."
         )
 
 

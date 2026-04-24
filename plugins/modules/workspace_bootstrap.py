@@ -11,7 +11,7 @@ version_added: "2.0.0"
 short_description: Converge a Terraform Cloud/Enterprise workspace baseline in a single task.
 author: "Prabuddha Chakraborty (@iam404)"
 description:
-  - Orchestrates the day-0 setup of a Terraform Cloud/Enterprise workspace: creates or updates
+  - Orchestrates the day-0 setup of a Terraform Cloud/Enterprise workspace. It creates or updates
     the workspace itself and reconciles its variables, variable-set attachments, run triggers,
     and notification configurations against a declarative desired state.
   - Implemented as an action plugin that wraps the collection's pytfe-backed helpers; it does
