@@ -41,7 +41,10 @@
         notifications:
           - name: "bootstrap-generic"
             destination_type: "generic"
-            url: "https://example.com/hook"
+            # TFC auto-verifies GENERIC webhook URLs on create by POSTing a
+            # verification payload; the URL must return 2xx. httpbin's /status/200
+            # endpoint is what the pytfe example itself recommends for tests.
+            url: "https://httpbin.org/status/200"
             enabled: true
             triggers:
               - "run:needs_attention"
@@ -78,7 +81,10 @@
         notifications:
           - name: "bootstrap-generic"
             destination_type: "generic"
-            url: "https://example.com/hook"
+            # TFC auto-verifies GENERIC webhook URLs on create by POSTing a
+            # verification payload; the URL must return 2xx. httpbin's /status/200
+            # endpoint is what the pytfe example itself recommends for tests.
+            url: "https://httpbin.org/status/200"
             enabled: true
             triggers:
               - "run:needs_attention"
