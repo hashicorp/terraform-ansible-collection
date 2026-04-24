@@ -203,7 +203,7 @@
         name: "{{ varset_name }}"
         state: absent
       when: varset_name is defined
-      ignore_errors: true
+      failed_when: false
 
     - name: Cleanup - delete supporting workspaces
       hashicorp.terraform.workspace:
@@ -214,4 +214,4 @@
         - "{{ workspace_a }}"
         - "{{ workspace_b }}"
       when: workspace_a is defined
-      ignore_errors: true
+      failed_when: false

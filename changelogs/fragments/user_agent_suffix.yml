@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - client - Every HCP API request originating from the collection now carries a dedicated ``User-Agent`` suffix
+    (``hashicorp.terraform-ansible-collection/<version>``) so collection-sourced traffic is attributable in HCP logs and support telemetry.
+    Callers can override via the ``user_agent_suffix`` kwarg on ``TerraformClient``.

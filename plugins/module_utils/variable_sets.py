@@ -8,7 +8,6 @@ try:
         VariableSetApplyToWorkspacesOptions,
         VariableSetCreateOptions,
         VariableSetIncludeOpt,
-        VariableSetListOptions,
         VariableSetReadOptions,
         VariableSetRemoveFromProjectsOptions,
         VariableSetRemoveFromWorkspacesOptions,

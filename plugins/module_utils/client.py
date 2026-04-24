@@ -96,6 +96,11 @@ _ARGSPEC_TO_SDK = {
     "tfe_proxies": "proxies",
 }
 
+# Identifier attached to every HCP API request originating from this collection,
+# forwarded to pytfe via TFEConfig.user_agent_suffix. Enables attribution and
+# support triage for collection-sourced traffic.
+COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.0 pytfe/0.1"
+
 
 class AnsibleTerraformModule:
     """Wrapper for AnsibleModule with TFE-specific enhancements.
@@ -154,7 +159,8 @@ class TerraformClient:
                 ``tfe_token``). Use :meth:`from_mapping` or :meth:`from_module`
                 to translate from Ansible argspec names.
         """
-        self._sdk_kwargs: dict = sdk_kwargs
+        self._sdk_kwargs: dict = dict(sdk_kwargs)
+        self._sdk_kwargs.setdefault("user_agent_suffix", COLLECTION_USER_AGENT_SUFFIX)
         self._client: TFEClient = None
         self._config: TFEConfig = None
         self._prechecks()
@@ -170,7 +176,18 @@ class TerraformClient:
             params: Any mapping whose keys may include Ansible argspec names
                 such as ``tfe_token``. Non-auth keys are silently ignored.
         """
-        mapped = {_ARGSPEC_TO_SDK[key]: params[key] for key in AUTH_KEYS if key in _ARGSPEC_TO_SDK and params.get(key) is not None}
+        mapped = {}
+        for key in AUTH_KEYS:
+            if key not in _ARGSPEC_TO_SDK:
+                continue
+            value = params.get(key)
+            if value is None:
+                for alias in AUTH_ARGSPEC.get(key, {}).get("aliases", []) or []:
+                    if params.get(alias) is not None:
+                        value = params[alias]
+                        break
+            if value is not None:
+                mapped[_ARGSPEC_TO_SDK[key]] = value
         return cls(**mapped)
 
     @classmethod

@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - Adds a new module ``hashicorp.terraform.notification_configuration`` for managing workspace
+    notification configurations (``generic`` / ``slack`` / ``microsoft-teams`` / ``email`` destinations)
+    on Terraform Cloud/Enterprise with the standard ``state=present``/``absent`` surface.
+bugfixes:
+  - workspace_bootstrap - Notification reconciliation no longer fails with
+    ``'NotificationConfiguration' object has no attribute 'model_dump'``.
+    The ``module_utils/notification_configuration`` helper now serializes pytfe's non-pydantic
+    ``NotificationConfiguration`` response object manually and constructs create/update
+    options directly instead of via ``model_validate``.
