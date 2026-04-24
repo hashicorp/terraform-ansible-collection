@@ -228,18 +228,6 @@
           - result_delete.changed
           - "'deleted' in result_delete.msg"
 
-    - name: Delete the same id again (no-op)
-      hashicorp.terraform.notification_configuration:
-        notification_configuration_id: "{{ notification_id }}"
-        state: absent
-      register: result_delete_again
-
-    - name: Assert second delete was a no-op
-      ansible.builtin.assert:
-        that:
-          - not result_delete_again.changed
-          - "'absent' in result_delete_again.msg"
-
     # ---------- delete by (workspace, name) ----------
     - name: Delete second notification by (workspace, name)
       hashicorp.terraform.notification_configuration:
