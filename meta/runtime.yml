@@ -19,3 +19,4 @@ action_groups:
     - project_info
     - promote_run
     - workspace_bootstrap
+    - notification_configuration
