@@ -15,7 +15,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
     TerraformError,
     TerraformTokenNotFoundError,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource, _collect_hosts_from_spec
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource, _collect_hosts_from_spec, parse_type
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.search import SearchSource
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile import (
     StatefileSource,
@@ -829,23 +829,105 @@ class TestOutputsSourceCollectHosts:
 
 
 # ---------------------------------------------------------------------------
+# parse_type — type expression parser (sources/outputs)
+# ---------------------------------------------------------------------------
+
+
+class TestParseType:
+    """Verify each supported HCL-style type expression maps to the right shape."""
+
+    @pytest.mark.parametrize(
+        "expr,shape",
+        [
+            ("auto", "auto"),
+            ("string", "primitive"),
+            ("number", "primitive"),
+            ("bool", "primitive"),
+            ("object", "object"),
+            ("list(string)", "seq_primitive"),
+            ("list(number)", "seq_primitive"),
+            ("list(bool)", "seq_primitive"),
+            ("list(object)", "seq_object"),
+            ("set(string)", "seq_primitive"),
+            ("set(number)", "seq_primitive"),
+            ("set(bool)", "seq_primitive"),
+            ("set(object)", "seq_object"),
+            ("map(string)", "map_primitive"),
+            ("map(number)", "map_primitive"),
+            ("map(bool)", "map_primitive"),
+            ("map(object)", "map_object"),
+        ],
+    )
+    def test_supported_expressions_parse(self, expr, shape):
+        assert parse_type(expr) == shape
+
+    def test_set_and_list_produce_identical_shape(self):
+        assert parse_type("set(string)") == parse_type("list(string)")
+        assert parse_type("set(object)") == parse_type("list(object)")
+
+    @pytest.mark.parametrize("expr", [" string ", "  list(object) ", "list( string )", "MAP(STRING)"])
+    def test_whitespace_tolerated_but_case_required(self, expr):
+        # whitespace is fine; an UPPERCASE form should fail since HCL uses lowercase types.
+        if expr.lower() == expr:
+            assert parse_type(expr)
+        else:
+            with pytest.raises(TerraformError):
+                parse_type(expr)
+
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            "tuple",
+            "tuple([string])",
+            "list",  # must declare element type
+            "set",
+            "map",
+            "list(list(string))",  # nested
+            "map(list(string))",
+            "object({name=string})",
+            "any",
+            "null",
+            "string()",
+            "string(string)",
+            "",
+            "   ",
+        ],
+    )
+    def test_unsupported_expressions_raise_with_helpful_message(self, expr):
+        with pytest.raises(TerraformError) as exc:
+            parse_type(expr)
+        # Message should list valid forms or mention reshaping in Terraform.
+        msg = str(exc.value).lower()
+        assert "supported forms" in msg or "non-empty" in msg
+
+    def test_nested_collection_message_mentions_flatten(self):
+        with pytest.raises(TerraformError, match=r"flatten\(\)|for expression"):
+            parse_type("map(list(string))")
+
+    @pytest.mark.parametrize("expr", [None, 123, [], {}])
+    def test_non_string_input_raises(self, expr):
+        with pytest.raises(TerraformError):
+            parse_type(expr)
+
+
+# ---------------------------------------------------------------------------
 # _collect_hosts_from_spec — unit tests (sources/outputs)
 # ---------------------------------------------------------------------------
 
 
 class TestCollectHostsFromSpec:
-    """Unit tests for _collect_hosts_from_spec covering all kind×element_type combos."""
+    """Unit tests for ``_collect_hosts_from_spec`` covering each shape."""
 
     _WS = "my-ws"
 
     def _spec(self, **kwargs):
         return kwargs
 
-    # ── scalar ────────────────────────────────────────────────────────────────
+    # ── primitive (string / number / bool) ────────────────────────────────────
 
-    def test_scalar_produces_one_record_with_value_var(self):
+    def test_string_produces_one_record_with_value_var(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ip", kind="scalar", element_type="string"),
+            self._spec(output="ip", type="string"),
             {"ip": "1.2.3.4"},
             self._WS,
         )
@@ -853,20 +935,36 @@ class TestCollectHostsFromSpec:
         assert records[0]["host_vars"]["value"] == "1.2.3.4"
         assert records[0]["index"] is None
 
-    def test_scalar_with_use_as_sets_named_var(self):
+    def test_string_with_use_as_sets_named_var(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ip", kind="scalar", element_type="string", use_as="ansible_host"),
+            self._spec(output="ip", type="string", use_as="ansible_host"),
             {"ip": "1.2.3.4"},
             self._WS,
         )
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
         assert records[0]["host_vars"]["value"] == "1.2.3.4"
 
-    # ── list × primitive ──────────────────────────────────────────────────────
+    def test_number_primitive_records_value(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="count", type="number"),
+            {"count": 42},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["value"] == 42
+
+    def test_bool_primitive_records_value(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="enabled", type="bool"),
+            {"enabled": True},
+            self._WS,
+        )
+        assert records[0]["host_vars"]["value"] is True
+
+    # ── list(primitive) and set(primitive) ────────────────────────────────────
 
     def test_list_string_produces_indexed_records(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", kind="list", element_type="string"),
+            self._spec(output="ips", type="list(string)"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             self._WS,
         )
@@ -878,7 +976,7 @@ class TestCollectHostsFromSpec:
 
     def test_list_string_with_use_as_sets_named_var(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", kind="list", element_type="string", use_as="ansible_host"),
+            self._spec(output="ips", type="list(string)", use_as="ansible_host"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             self._WS,
         )
@@ -887,17 +985,23 @@ class TestCollectHostsFromSpec:
 
     def test_list_string_no_resolved_hostname_uses_index(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", kind="list", element_type="string"),
+            self._spec(output="ips", type="list(string)"),
             {"ips": ["1.2.3.4"]},
             self._WS,
         )
         assert "resolved_hostname" not in records[0]
 
-    # ── list × object ─────────────────────────────────────────────────────────
+    def test_set_string_matches_list_string(self):
+        value = ["1.2.3.4", "5.6.7.8"]
+        list_recs = _collect_hosts_from_spec(self._spec(output="ips", type="list(string)"), {"ips": value}, self._WS)
+        set_recs = _collect_hosts_from_spec(self._spec(output="ips", type="set(string)"), {"ips": value}, self._WS)
+        assert list_recs == set_recs
+
+    # ── list(object) and set(object) ──────────────────────────────────────────
 
     def test_list_object_produces_indexed_records_with_dict_host_vars(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="hosts", kind="list", element_type="object"),
+            self._spec(output="hosts", type="list(object)"),
             {"hosts": [{"ip": "1.2.3.4"}, {"ip": "5.6.7.8"}]},
             self._WS,
         )
@@ -907,17 +1011,23 @@ class TestCollectHostsFromSpec:
 
     def test_list_object_skips_non_dict_elements(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="hosts", kind="list", element_type="object"),
+            self._spec(output="hosts", type="list(object)"),
             {"hosts": [{"ip": "1.2.3.4"}, "not-a-dict"]},
             self._WS,
         )
         assert len(records) == 1
 
-    # ── map × primitive ───────────────────────────────────────────────────────
+    def test_set_object_matches_list_object(self):
+        value = [{"ip": "1.2.3.4"}, {"ip": "5.6.7.8"}]
+        list_recs = _collect_hosts_from_spec(self._spec(output="hosts", type="list(object)"), {"hosts": value}, self._WS)
+        set_recs = _collect_hosts_from_spec(self._spec(output="hosts", type="set(object)"), {"hosts": value}, self._WS)
+        assert list_recs == set_recs
+
+    # ── map(primitive) ────────────────────────────────────────────────────────
 
     def test_map_string_key_becomes_resolved_hostname(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="host_map", kind="map", element_type="string"),
+            self._spec(output="host_map", type="map(string)"),
             {"host_map": {"web-1": "1.2.3.4", "web-2": "5.6.7.8"}},
             self._WS,
         )
@@ -927,7 +1037,7 @@ class TestCollectHostsFromSpec:
 
     def test_map_string_key_stored_as_key_var(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="host_map", kind="map", element_type="string"),
+            self._spec(output="host_map", type="map(string)"),
             {"host_map": {"web-1": "1.2.3.4"}},
             self._WS,
         )
@@ -936,17 +1046,17 @@ class TestCollectHostsFromSpec:
 
     def test_map_string_with_use_as_sets_named_var(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="host_map", kind="map", element_type="string", use_as="ansible_host"),
+            self._spec(output="host_map", type="map(string)", use_as="ansible_host"),
             {"host_map": {"web-1": "1.2.3.4"}},
             self._WS,
         )
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
 
-    # ── map × object ──────────────────────────────────────────────────────────
+    # ── map(object) ───────────────────────────────────────────────────────────
 
     def test_map_object_key_becomes_resolved_hostname(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ec2", kind="map", element_type="object"),
+            self._spec(output="ec2", type="map(object)"),
             {"ec2": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
             self._WS,
         )
@@ -956,7 +1066,7 @@ class TestCollectHostsFromSpec:
 
     def test_map_object_host_vars_include_key_variable(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ec2", kind="map", element_type="object"),
+            self._spec(output="ec2", type="map(object)"),
             {"ec2": {"web-1": {"ip": "1.2.3.4"}}},
             self._WS,
         )
@@ -965,18 +1075,18 @@ class TestCollectHostsFromSpec:
 
     def test_map_object_skips_non_dict_values(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ec2", kind="map", element_type="object"),
+            self._spec(output="ec2", type="map(object)"),
             {"ec2": {"web-1": {"ip": "1.2.3.4"}, "bad": "not-a-dict"}},
             self._WS,
         )
         assert len(records) == 1
         assert records[0]["resolved_hostname"] == "web-1"
 
-    # ── object × object ───────────────────────────────────────────────────────
+    # ── object ────────────────────────────────────────────────────────────────
 
     def test_object_produces_single_record_with_dict_as_host_vars(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="single", kind="object", element_type="object"),
+            self._spec(output="single", type="object"),
             {"single": {"ip": "1.2.3.4", "env": "prod"}},
             self._WS,
         )
@@ -984,11 +1094,116 @@ class TestCollectHostsFromSpec:
         assert records[0]["host_vars"] == {"ip": "1.2.3.4", "env": "prod"}
         assert records[0]["index"] is None
 
+    # ── auto-detection ────────────────────────────────────────────────────────
+
+    def test_auto_dict_of_dicts_treated_as_map_object(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", type="auto"),
+            {"ec2": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert {r["resolved_hostname"] for r in records} == {"web-1", "web-2"}
+
+    def test_auto_dict_of_primitives_treated_as_object(self):
+        # The ambiguous case: auto picks `object`, not `map(string)`.
+        records = _collect_hosts_from_spec(
+            self._spec(output="cfg", type="auto"),
+            {"cfg": {"region": "us-east-1", "env": "prod"}},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {"region": "us-east-1", "env": "prod"}
+        assert "resolved_hostname" not in records[0]
+
+    def test_auto_list_of_dicts_treated_as_list_object(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", type="auto"),
+            {"hosts": [{"ip": "1.2.3.4"}, {"ip": "5.6.7.8"}]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["index"] == 0
+        assert records[0]["host_vars"] == {"ip": "1.2.3.4"}
+
+    def test_auto_list_of_primitives_treated_as_seq_primitive(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", type="auto", use_as="ansible_host"),
+            {"ips": ["1.2.3.4", "5.6.7.8"]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+
+    @pytest.mark.parametrize("value", ["a-string", 42, 3.14, True])
+    def test_auto_primitives_treated_as_primitive(self, value):
+        records = _collect_hosts_from_spec(
+            self._spec(output="x", type="auto"),
+            {"x": value},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"]["value"] == value
+
+    def test_auto_omitted_type_defaults_to_auto(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ip"),
+            {"ip": "1.2.3.4"},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+
+    def test_auto_empty_list_skipped_silently(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", type="auto"),
+            {"ips": []},
+            self._WS,
+        )
+        assert records == []
+
+    def test_auto_empty_dict_skipped_silently(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="cfg", type="auto"),
+            {"cfg": {}},
+            self._WS,
+        )
+        assert records == []
+
+    def test_auto_none_skipped_silently(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="x", type="auto"),
+            {"x": None},
+            self._WS,
+        )
+        assert records == []
+
+    def test_auto_mixed_list_emits_warning_and_skips(self):
+        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
+            records = _collect_hosts_from_spec(
+                self._spec(output="mixed", type="auto"),
+                {"mixed": ["a", {"k": "v"}]},
+                self._WS,
+            )
+            assert records == []
+            mock_warn.assert_called_once()
+            assert "mixed" in mock_warn.call_args.args[0]
+
+    def test_auto_unsupported_value_emits_warning_and_skips(self):
+        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
+            records = _collect_hosts_from_spec(
+                self._spec(output="weird", type="auto"),
+                {"weird": object()},
+                self._WS,
+            )
+            assert records == []
+            mock_warn.assert_called_once()
+
     # ── edge cases ────────────────────────────────────────────────────────────
 
     def test_missing_output_name_returns_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="nonexistent", kind="list", element_type="string"),
+            self._spec(output="nonexistent", type="list(string)"),
             {"other_output": ["1.2.3.4"]},
             self._WS,
         )
@@ -996,7 +1211,7 @@ class TestCollectHostsFromSpec:
 
     def test_list_kind_wrong_value_type_returns_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", kind="list", element_type="string"),
+            self._spec(output="ips", type="list(string)"),
             {"ips": "not-a-list"},
             self._WS,
         )
@@ -1004,7 +1219,7 @@ class TestCollectHostsFromSpec:
 
     def test_map_kind_wrong_value_type_returns_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="hosts", kind="map", element_type="object"),
+            self._spec(output="hosts", type="map(object)"),
             {"hosts": ["not", "a", "dict"]},
             self._WS,
         )
@@ -1012,11 +1227,86 @@ class TestCollectHostsFromSpec:
 
     def test_workspace_name_set_on_all_records(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", kind="list", element_type="string"),
+            self._spec(output="ips", type="list(string)"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             "custom-ws",
         )
         assert all(r["workspace_name"] == "custom-ws" for r in records)
+
+
+# ---------------------------------------------------------------------------
+# OutputsSource — hosts_from validation (sources/outputs)
+# ---------------------------------------------------------------------------
+
+
+class TestOutputsSourceHostsFromValidation:
+    """validate_options should reject malformed hosts_from before any I/O."""
+
+    _WS_OPTS = {"workspace_id": "ws-abc", "organization": None, "workspace": None}
+
+    def _validate(self, hosts_from):
+        OutputsSource.validate_options({**self._WS_OPTS, "hosts_from": hosts_from})
+
+    def test_none_is_accepted(self):
+        self._validate(None)
+
+    def test_dict_spec_accepted(self):
+        self._validate({"output": "ips", "type": "list(string)"})
+
+    def test_list_of_specs_accepted(self):
+        self._validate([{"output": "ips", "type": "list(string)"}, {"output": "ec2", "type": "map(object)"}])
+
+    def test_top_level_wrong_type_raises(self):
+        with pytest.raises(TerraformError, match="hosts_from must be"):
+            self._validate("not-a-mapping-or-list")
+
+    def test_spec_must_be_mapping(self):
+        with pytest.raises(TerraformError, match=r"hosts_from\[0\] must be a mapping"):
+            self._validate(["not-a-mapping"])
+
+    def test_missing_output_raises(self):
+        with pytest.raises(TerraformError, match="non-empty 'output' string"):
+            self._validate({"type": "string"})
+
+    def test_empty_output_raises(self):
+        with pytest.raises(TerraformError, match="non-empty 'output' string"):
+            self._validate({"output": "", "type": "string"})
+
+    @pytest.mark.parametrize(
+        "bad_type",
+        [
+            "tuple",
+            "list(list(string))",
+            "map(list(string))",
+            "object({name=string})",
+            "any",
+            "string()",
+            "",
+        ],
+    )
+    def test_invalid_type_expression_raises(self, bad_type):
+        with pytest.raises(TerraformError):
+            self._validate({"output": "x", "type": bad_type})
+
+    def test_nested_collection_error_mentions_flatten(self):
+        with pytest.raises(TerraformError, match=r"flatten\(\)|for expression"):
+            self._validate({"output": "x", "type": "map(list(string))"})
+
+    def test_use_as_must_be_string(self):
+        with pytest.raises(TerraformError, match="'use_as' must be a string"):
+            self._validate({"output": "x", "type": "list(string)", "use_as": 123})
+
+    def test_use_as_on_object_shape_warns_but_passes(self):
+        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
+            self._validate({"output": "ec2", "type": "map(object)", "use_as": "ansible_host"})
+            mock_warn.assert_called_once()
+            assert "use_as" in mock_warn.call_args.args[0]
+
+    def test_use_as_on_auto_does_not_warn(self):
+        # auto resolves at runtime; we don't know object-ness at validation time.
+        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
+            self._validate({"output": "ec2", "type": "auto", "use_as": "ansible_host"})
+            mock_warn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1041,7 +1331,7 @@ class TestOutputsSourceHostsFromMode:
         mock_fetch.return_value = [
             {"name": "instance_ips", "value": ["1.2.3.4", "5.6.7.8"]},
         ]
-        records = self._make_source(hosts_from={"output": "instance_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"}).collect_hosts()
+        records = self._make_source(hosts_from={"output": "instance_ips", "type": "list(string)", "use_as": "ansible_host"}).collect_hosts()
         assert len(records) == 2
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
 
@@ -1055,8 +1345,8 @@ class TestOutputsSourceHostsFromMode:
         ]
         records = self._make_source(
             hosts_from=[
-                {"output": "web_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"},
-                {"output": "db_ips", "kind": "list", "element_type": "string", "use_as": "ansible_host"},
+                {"output": "web_ips", "type": "list(string)", "use_as": "ansible_host"},
+                {"output": "db_ips", "type": "list(string)", "use_as": "ansible_host"},
             ]
         ).collect_hosts()
         assert len(records) == 2
@@ -1069,7 +1359,7 @@ class TestOutputsSourceHostsFromMode:
             {"name": "structured", "value": {"ip": "1.2.3.4"}},  # would be auto-detected
             {"name": "ips", "value": ["5.6.7.8"]},  # hosts_from target
         ]
-        records = self._make_source(hosts_from={"output": "ips", "kind": "list", "element_type": "string"}).collect_hosts()
+        records = self._make_source(hosts_from={"output": "ips", "type": "list(string)"}).collect_hosts()
         output_names = {r["output_name"] for r in records}
         assert output_names == {"ips"}
         assert "structured" not in output_names
@@ -1081,10 +1371,21 @@ class TestOutputsSourceHostsFromMode:
         mock_fetch.return_value = [
             {"name": "ec2", "value": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
         ]
-        records = self._make_source(hosts_from={"output": "ec2", "kind": "map", "element_type": "object"}).collect_hosts()
+        records = self._make_source(hosts_from={"output": "ec2", "type": "map(object)"}).collect_hosts()
         assert len(records) == 2
         hostnames = {r["resolved_hostname"] for r in records}
         assert hostnames == {"web-1", "web-2"}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_hosts_from_auto_dispatches_at_runtime(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
+        ]
+        records = self._make_source(hosts_from={"output": "ec2", "type": "auto"}).collect_hosts()
+        assert len(records) == 2
+        assert {r["resolved_hostname"] for r in records} == {"web-1", "web-2"}
 
 
 # ---------------------------------------------------------------------------

@@ -94,8 +94,7 @@
           tfe_token: {{ tfc_token }}
           hosts_from:
             output: hosts_list
-            kind: list
-            element_type: object
+            type: list(object)
           hostnames:
             - name
           compose:
@@ -159,7 +158,7 @@
           tfe_token: {{ tfc_token }}
           hosts_from:
             output: host_count
-            kind: scalar
+            type: number
 
     - name: Run ansible-inventory for scalar output
       ansible.builtin.shell: >-

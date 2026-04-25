@@ -117,18 +117,50 @@ options:
   hosts_from:
     description:
       - Explicit output-to-host mapping for V(source=outputs).
-      - When set, auto-detection is disabled; only the listed outputs are
-        processed according to their declared V(kind) and V(element_type).
+      - When set, plugin-level auto-detection is disabled; only the listed
+        outputs are processed, each according to its declared V(type).
       - Accepts a single mapping or a list of mappings.  Each entry requires
-        V(output) (the output name), V(kind) (top-level structure — one of
-        V(scalar), V(list), V(map), V(object)), and V(element_type) (per-element
-        type — one of V(string), V(number), V(bool), V(object), V(map)).
-      - For primitive element types, V(use_as) assigns each element value
-        directly to the named Ansible host variable (e.g. V(ansible_host)).
-      - For V(kind=map) the map key becomes the resolved hostname; the
+        V(output) (the Terraform output name) and accepts V(type) (an
+        HCL-style type expression, default V(auto)) and V(use_as) (an Ansible
+        variable name to mirror the raw element value into, e.g.
+        V(ansible_host)).
+      - "Supported V(type) expressions:
+        V(string), V(number), V(bool) → one host, raw value stored as V(value);
+        V(object) → one host, dict becomes host variables;
+        V(list(string)), V(list(number)), V(list(bool)) → N indexed hosts,
+        primitive stored as V(value);
+        V(list(object)) → N indexed hosts, each element dict becomes host
+        variables;
+        V(set(...)) → synonym for V(list(...)) — the API serializes both
+        as JSON arrays, so they are indistinguishable on the wire;
+        V(map(string)), V(map(number)), V(map(bool)) → one host per key, key
+        becomes the resolved hostname and is stored in the V(key) host var,
+        primitive stored as V(value);
+        V(map(object)) → one host per key, key becomes the resolved hostname
+        and is stored in V(key), element dict becomes host variables;
+        V(auto) (default when V(type) is omitted) → shape inferred at runtime
+        from the value (experimental)."
+      - "V(type=auto) detection rules: a B(dict) of dicts is treated as
+        V(map(object)); any other dict (including a dict of primitives) is
+        treated as V(object); a B(list) of dicts is treated as V(list(object));
+        a B(list) of all primitives is treated as V(list(<primitive>));
+        primitive scalars are treated as their matching primitive type;
+        empty collections, V(None), and mixed-type lists are skipped (mixed
+        lists with a warning). Note that a dict of primitives is ambiguous
+        between V(object) and V(map(string)) — V(auto) picks V(object); declare
+        V(type: map(string)) explicitly when you want the map semantics."
+      - For V(map(...)) shapes the map key becomes the resolved hostname; the
         V(hostnames) preference list has no further effect for those records.
         The special variable V(key) is always set to the map key.
-      - V(kind=scalar) produces one host; the raw value is stored as V(value).
+      - V(use_as) is ignored on V(object), V(list(object)), V(set(object)), and
+        V(map(object)) shapes (object element fields become host variables
+        directly). A warning is emitted at validation time when V(use_as) is
+        set on a known object shape.
+      - Unsupported expressions (V(tuple), nested forms such as V(map(list(...)))
+        or V(object({...})), and V(null)) are rejected at validation time with
+        a clear message. Reshape such values in your Terraform output using
+        C(flatten()) or C(for) expressions; inventory is the wrong layer for
+        nested-collection transformation.
       - Has no effect for V(source=statefile).
     type: raw
     default: null
@@ -302,7 +334,10 @@ EXAMPLES = r"""
   exclude_filters:
     - env: staging
 
-# ── hosts_from: handle primitive and map-keyed output shapes ─────────────────
+# ── hosts_from: HCL-style type expressions ────────────────────────────────────
+# Each spec declares the shape of a Terraform output via an HCL-style `type:`
+# expression. Nested collections and `tuple` are not supported — reshape with
+# Terraform's flatten()/for if needed.
 
 # list(string) output → one auto-named host per IP; IP assigned to ansible_host
 # Terraform: output "instance_ips" { value = aws_instance.ec2[*].public_ip }
@@ -314,8 +349,7 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: instance_ips
-    kind: list
-    element_type: string
+    type: list(string)
     use_as: ansible_host
 
 # Use the IP value itself as the hostname
@@ -326,8 +360,7 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: instance_ips
-    kind: list
-    element_type: string
+    type: list(string)
     use_as: ansible_host
   hostnames:
     - ansible_host    # e.g. "52.10.0.1" becomes the Ansible hostname
@@ -341,8 +374,7 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: host_map
-    kind: map
-    element_type: string
+    type: map(string)
     use_as: ansible_host
 
 # map(object) → key = hostname, object value = host variables (best structured format)
@@ -354,12 +386,52 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: ec2_hosts
-    kind: map
-    element_type: object
+    type: map(object)
   compose:
     ansible_host: public_ip
 
-# Multiple outputs combined — hosts_from accepts a list of specs
+# set(object) — same JSON wire format as list(object); accepted as a synonym
+# Terraform: output "node_set" { value = toset([{ name = "n1", ip = "..." }, ...]) }
+- name: Inventory from set(object)
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: node_set
+    type: set(object)
+  hostnames:
+    - name
+
+# Scalar: number output → one host, value stored as `value`
+# Terraform: output "host_count" { value = length(aws_instance.ec2) }
+- name: Scalar inventory
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: host_count
+    type: number
+
+# type: auto (experimental) — shape inferred from the runtime value.
+# Note: a dict of primitives is treated as `object` (one host whose vars are
+# the dict). To get map(string) semantics from a dict of primitives, declare
+# `type: map(string)` explicitly.
+- name: Inventory with auto-detected types
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    - output: ec2_hosts        # dict of dicts → map(object)
+      type: auto
+    - output: db_ips           # list of strings → list(string)
+      type: auto
+      use_as: ansible_host
+
+# Multiple outputs combined — hosts_from accepts a list of specs mixing
+# primitive and object shapes.
 - name: Multi-output inventory
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -367,11 +439,12 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     - output: web_hosts
-      kind: map
-      element_type: object
+      type: map(object)
     - output: db_ips
-      kind: list
-      element_type: string
+      type: list(string)
+      use_as: ansible_host
+    - output: bastion_ip
+      type: string
       use_as: ansible_host
 """
 
@@ -380,12 +453,25 @@ from typing import Any, Dict, Iterable, List, Optional
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.utils.display import Display
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
+
+
+def _wire_outputs_display() -> None:
+    """Wire the controller's Display into the outputs source backend so its
+    hosts_from validation/auto-detection warnings surface to the user."""
+    display = Display()
+    _outputs_module._warn = display.warning
+    _outputs_module._debug = display.vvv
+
+
+_wire_outputs_display()
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]

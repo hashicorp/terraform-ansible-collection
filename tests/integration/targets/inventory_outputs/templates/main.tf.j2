@@ -21,7 +21,7 @@ resource "random_string" "host_id" {
   upper   = false
 }
 
-# Structured list output — used by hosts_from with kind=list, element_type=object.
+# Structured list output — used by hosts_from with type=list(object).
 output "hosts_list" {
   description = "List of host objects for outputs-based inventory testing"
   value = [for i, r in random_string.host_id : {
@@ -31,7 +31,7 @@ output "hosts_list" {
   }]
 }
 
-# Scalar output — used to test hosts_from with kind=scalar.
+# Scalar output — used to test hosts_from with type=number.
 output "host_count" {
   description = "Total number of hosts (scalar)"
   value       = length(random_string.host_id)
