@@ -23,6 +23,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sour
     _get_tag_value,
     _parse_provider_name,
     _resolve_resource_preference,
+    _sanitize_sensitive_attributes,
     _should_include_resource,
     get_resource_hostname,
 )
@@ -490,14 +491,26 @@ class TestResolveResourcePreference:
         attrs = {"public_ip": "1.2.3.4"}
         assert _resolve_resource_preference(attrs, "public_ip") == "1.2.3.4"
 
-    def test_attribute_not_present_returns_literal(self):
-        assert _resolve_resource_preference({}, "static-hostname") == "static-hostname"
+    def test_attribute_not_present_returns_none(self):
+        # Plain strings are NOT treated as literal hostnames — an unresolved
+        # preference falls through (and ultimately to the resource-name
+        # default) instead of silently collapsing multi-host inventories
+        # into a single literal-named host.  Mirrors outputs source.
+        assert _resolve_resource_preference({}, "static-hostname") is None
 
     def test_blank_attribute_value_returns_none(self):
         assert _resolve_resource_preference({"public_dns": "  "}, "public_dns") is None
 
     def test_blank_preference_returns_none(self):
         assert _resolve_resource_preference({}, "   ") is None
+
+    def test_attribute_dropped_as_sensitive_returns_none(self):
+        # When sanitization removed an attribute referenced by a hostname
+        # preference, resolution must return None (so the next preference or
+        # the resource-name fallback is used) — never a literal that could
+        # collapse multiple hosts to the same name.
+        attrs = {"public_ip": "1.2.3.4"}  # 'private_dns' was sanitized out
+        assert _resolve_resource_preference(attrs, "private_dns") is None
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +559,146 @@ class TestGetResourceHostname:
         attrs = {"public_ip": "1.2.3.4", "name": "web-1"}
         result = get_resource_hostname("aws_instance", "web", attrs, hostnames=["name", "public_ip"])
         assert result == "web-1"
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_sensitive_attributes (sources/statefile)
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeSensitiveAttributes:
+    def test_top_level_sensitive_attr_removed(self):
+        attrs = {"public_ip": "1.2.3.4", "password": "secret"}
+        paths = [[{"type": "get_attr", "value": "password"}]]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_multiple_sensitive_attrs_removed(self):
+        attrs = {"public_ip": "1.2.3.4", "password": "secret", "token": "abc"}
+        paths = [
+            [{"type": "get_attr", "value": "password"}],
+            [{"type": "get_attr", "value": "token"}],
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_nested_dict_path_removed(self):
+        attrs = {"config": {"username": "admin", "password": "secret"}}
+        paths = [
+            [
+                {"type": "get_attr", "value": "config"},
+                {"type": "get_attr", "value": "password"},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"config": {"username": "admin"}}
+
+    def test_nested_list_index_removed(self):
+        attrs = {"items": [{"k": "keep"}, {"k": "drop"}]}
+        paths = [
+            [
+                {"type": "get_attr", "value": "items"},
+                {"type": "index", "value": 1},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"items": [{"k": "keep"}]}
+
+    def test_nested_map_string_index_removed(self):
+        attrs = {"creds": {"prod": "secret", "dev": "ok"}}
+        paths = [
+            [
+                {"type": "get_attr", "value": "creds"},
+                {"type": "index", "value": "prod"},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"creds": {"dev": "ok"}}
+
+    def test_unknown_traversal_falls_back_to_top_level(self):
+        attrs = {"creds": {"username": "admin", "password": "secret"}, "public_ip": "1.2.3.4"}
+        paths = [
+            [
+                {"type": "get_attr", "value": "creds"},
+                {"type": "mystery", "value": "password"},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_missing_intermediate_key_falls_back_to_top_level(self):
+        attrs = {"config": {"username": "admin"}, "public_ip": "1.2.3.4"}
+        paths = [
+            [
+                {"type": "get_attr", "value": "config"},
+                {"type": "get_attr", "value": "missing_branch"},
+                {"type": "get_attr", "value": "password"},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_empty_sensitive_attributes_leaves_hostvars_unchanged(self):
+        attrs = {"public_ip": "1.2.3.4", "env": "prod"}
+        result = _sanitize_sensitive_attributes(attrs, [])
+        assert result == attrs
+
+    def test_empty_path_entry_ignored(self):
+        attrs = {"public_ip": "1.2.3.4"}
+        result = _sanitize_sensitive_attributes(attrs, [[]])
+        assert result == attrs
+
+    def test_malformed_first_step_with_no_attribute_reference_ignored(self):
+        attrs = {"public_ip": "1.2.3.4"}
+        paths = [[{"type": "index", "value": 0}]]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == attrs
+
+    def test_does_not_mutate_input_attributes(self):
+        attrs = {"password": "secret", "public_ip": "1.2.3.4"}
+        paths = [[{"type": "get_attr", "value": "password"}]]
+        _sanitize_sensitive_attributes(attrs, paths)
+        assert attrs == {"password": "secret", "public_ip": "1.2.3.4"}
+
+    def test_top_level_attr_already_absent_is_silent(self):
+        attrs = {"public_ip": "1.2.3.4"}
+        paths = [[{"type": "get_attr", "value": "password"}]]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_unhashable_get_attr_value_does_not_crash(self):
+        # A malformed sensitive path with an unhashable value must not raise
+        # TypeError from `value in parent` — it should fall through safely.
+        attrs = {"public_ip": "1.2.3.4"}
+        paths = [[{"type": "get_attr", "value": []}]]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_unhashable_index_value_does_not_crash(self):
+        attrs = {"creds": {"a": 1, "b": 2}, "public_ip": "1.2.3.4"}
+        paths = [
+            [
+                {"type": "get_attr", "value": "creds"},
+                {"type": "index", "value": {}},
+            ]
+        ]
+        # Falls back to deleting top-level 'creds'.
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_unhashable_walking_step_does_not_crash(self):
+        # Unhashable get_attr in an intermediate walking step also short-circuits
+        # to top-level fallback rather than crashing.
+        attrs = {"creds": {"nested": {"x": 1}}, "public_ip": "1.2.3.4"}
+        paths = [
+            [
+                {"type": "get_attr", "value": "creds"},
+                {"type": "get_attr", "value": []},
+                {"type": "get_attr", "value": "x"},
+            ]
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
 
 
 # ---------------------------------------------------------------------------
@@ -777,6 +930,174 @@ class TestStatefileSourceCollectHosts:
         )
         records = source.collect_hosts()
         assert len(records) == 1
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_sensitive_attributes_dropped_from_host_vars(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "web",
+                    [
+                        {
+                            "attributes": {
+                                "public_ip": "1.2.3.4",
+                                "password": "supersecret",
+                                "config": {"username": "admin", "token": "tok"},
+                            },
+                            "sensitive_attributes": [
+                                [{"type": "get_attr", "value": "password"}],
+                                [
+                                    {"type": "get_attr", "value": "config"},
+                                    {"type": "get_attr", "value": "token"},
+                                ],
+                            ],
+                        }
+                    ],
+                ),
+            ]
+        )
+
+        records = self._make_source().collect_hosts()
+
+        assert len(records) == 1
+        host_vars = records[0]["host_vars"]
+        assert "password" not in host_vars
+        assert host_vars["config"] == {"username": "admin"}
+        # Non-sensitive attributes remain available.
+        assert host_vars["public_ip"] == "1.2.3.4"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_sensitive_attribute_value_never_emitted_via_hostname(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "web",
+                    [
+                        {
+                            "attributes": {"public_ip": "1.2.3.4", "private_dns": "internal.example"},
+                            "sensitive_attributes": [
+                                [{"type": "get_attr", "value": "private_dns"}],
+                            ],
+                        }
+                    ],
+                ),
+            ]
+        )
+
+        records = self._make_source(hostnames=["private_dns"]).collect_hosts()
+        # Sensitive value must never appear in inventory output, regardless of
+        # how hostname preferences degrade when the attribute is gone.
+        assert records[0]["resolved_hostname"] != "internal.example"
+        assert "private_dns" not in records[0]["host_vars"]
+        assert records[0]["host_vars"]["public_ip"] == "1.2.3.4"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_no_sensitive_attributes_preserves_all_host_vars(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "web",
+                    [{"attributes": {"public_ip": "1.2.3.4", "env": "prod"}}],
+                ),
+            ]
+        )
+
+        records = self._make_source(hostnames=["public_ip"]).collect_hosts()
+        assert records[0]["host_vars"] == {"public_ip": "1.2.3.4", "env": "prod"}
+        assert records[0]["resolved_hostname"] == "1.2.3.4"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_sanitized_hostname_does_not_collapse_multi_host_inventory(self, mock_resolve, mock_download):
+        # Two distinct instances both have private_dns marked sensitive.  Each
+        # must fall back to a unique resource-name-based default rather than
+        # all collapsing to the literal preference string.
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "servers",
+                    [
+                        {
+                            "index_key": 0,
+                            "attributes": {"public_ip": "10.0.0.1", "private_dns": "host-a.internal"},
+                            "sensitive_attributes": [[{"type": "get_attr", "value": "private_dns"}]],
+                        },
+                        {
+                            "index_key": 1,
+                            "attributes": {"public_ip": "10.0.0.2", "private_dns": "host-b.internal"},
+                            "sensitive_attributes": [[{"type": "get_attr", "value": "private_dns"}]],
+                        },
+                    ],
+                ),
+            ]
+        )
+
+        records = self._make_source(hostnames=["private_dns"]).collect_hosts()
+        names = [r["resolved_hostname"] for r in records]
+        assert names == ["aws_instance_servers_0", "aws_instance_servers_1"]
+        for r in records:
+            assert "private_dns" not in r["host_vars"]
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_child_module_sensitive_attributes_also_sanitized(self, mock_resolve, mock_download):
+        # search_child_modules=True must not bypass sanitization for resources
+        # discovered inside a child module.
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "child_srv",
+                    [
+                        {
+                            "attributes": {"public_ip": "10.1.0.1", "password": "topsecret"},
+                            "sensitive_attributes": [[{"type": "get_attr", "value": "password"}]],
+                        }
+                    ],
+                    module="module.networking",
+                ),
+            ]
+        )
+
+        records = self._make_source(search_child_modules=True).collect_hosts()
+        assert len(records) == 1
+        assert "password" not in records[0]["host_vars"]
+        assert records[0]["host_vars"]["public_ip"] == "10.1.0.1"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_malformed_sensitive_path_drops_top_level_attr(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "web",
+                    [
+                        {
+                            "attributes": {"creds": {"username": "admin", "password": "secret"}, "public_ip": "1.2.3.4"},
+                            "sensitive_attributes": [
+                                [
+                                    {"type": "get_attr", "value": "creds"},
+                                    {"type": "unknown", "value": "password"},
+                                ],
+                            ],
+                        }
+                    ],
+                ),
+            ]
+        )
+
+        records = self._make_source().collect_hosts()
+        host_vars = records[0]["host_vars"]
+        assert "creds" not in host_vars
+        assert host_vars["public_ip"] == "1.2.3.4"
 
 
 # ---------------------------------------------------------------------------

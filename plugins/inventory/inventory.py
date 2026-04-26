@@ -39,6 +39,15 @@ options:
         Requires no Terraform CLI, no backend credentials.  Inventory
         candidates are selected by provider and resource type; see
         O(provider_mapping) to extend the defaults.
+      - "B(Sensitive attributes are stripped before host vars are emitted):
+        any path listed in an instance's Terraform C(sensitive_attributes)
+        metadata is dropped entirely (not masked), so values that
+        Terraform/its providers flag as sensitive cannot leak into inventory
+        output.  Stripped fields are unavailable to O(hostnames),
+        O(compose), O(groups), O(keyed_groups), and filters; references to
+        them simply will not resolve.  This protection only covers
+        provider-flagged sensitive attributes — for intentionally shaped,
+        always-safe inventory data, prefer V(source=outputs)."
       - V(outputs) queries the HCP Terraform state version outputs API
         endpoint and builds hosts from workspace output values.  Lighter weight
         when only named output values are needed.  By default only dict and
@@ -270,7 +279,8 @@ EXAMPLES = r"""
 
 # Minimal: token from TFE_TOKEN, workspace by organization + name.
 # Produces one host per matching resource instance (aws_instance, etc.)
-# with all Terraform attributes as host vars.
+# with Terraform attributes as host vars.  Attributes flagged as sensitive
+# in the state (sensitive_attributes) are dropped before being exposed.
 - name: Build inventory from latest HCP Terraform state
   plugin: hashicorp.terraform.inventory
   source: statefile
