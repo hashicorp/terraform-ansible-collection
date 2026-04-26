@@ -240,7 +240,10 @@
 
     # ── Inventory test: map(object) reserved field collision ──────────────────
     # The Terraform output `bad_map_object` deliberately contains a reserved
-    # 'item' field; the inventory build must fail with a clear error.
+    # 'item' field. Ansible's inventory loader is resilient: it emits a WARNING
+    # and returns an empty inventory (rc=0) rather than a hard failure. We
+    # assert that the 'reserved field' message appears in stderr and that no
+    # hosts are produced.
 
     - name: Write inventory config for map(object) collision case
       ansible.builtin.copy:
@@ -255,7 +258,7 @@
             output: bad_map_object
             type: map(object)
 
-    - name: Run ansible-inventory for collision case (expected to fail)
+    - name: Run ansible-inventory for map(object) collision case
       ansible.builtin.command:
         argv:
           - ansible-inventory
@@ -268,15 +271,16 @@
       changed_when: false
       failed_when: false
 
-    - name: Assert collision build failed with the documented message
+    - name: Assert collision emits reserved-field warning and produces no hosts
       ansible.builtin.assert:
         that:
-          - collision_result.rc != 0
           - "'reserved field' in collision_result.stderr"
           - "'bad_map_object' in collision_result.stderr"
+          - (collision_result.stdout | from_json)._meta.hostvars | length == 0
         fail_msg: >-
-          Expected ansible-inventory to fail with a 'reserved field' error
-          on bad_map_object. Got rc={{ collision_result.rc }},
+          Expected a 'reserved field' warning for bad_map_object and an empty
+          inventory. Got rc={{ collision_result.rc }},
+          hostvars={{ (collision_result.stdout | from_json)._meta.hostvars }},
           stderr={{ collision_result.stderr }}
 
     # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
