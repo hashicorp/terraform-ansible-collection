@@ -243,13 +243,18 @@ options:
         V(inventory_hostname), …) — for example V(hostvars_prefix=tf_)
         renames a V(name) field to V(tf_name) and silences the
         "Found variable using reserved name" warning.
-      - Mirrors the option of the same name in M(amazon.aws.aws_ec2).
+      - Mirrors the option of the same name in M(amazon.aws.aws_ec2) /
+        M(amazon.aws.aws_rds).
       - The plugin-injected variables V(ansible_host) and V(value) (the
         primitive-shape host var) are never renamed.
-      - V(compose), V(keyed_groups), V(groups), V(hostnames), and filter
-        keys all reference the B(original) field names — the prefix is a
-        storage-time rename only, so existing expressions keep working when
-        you add a prefix later.
+      - "V(compose), V(keyed_groups), V(groups), V(hostnames), and filter
+        keys can reference B(either) the original Terraform field name
+        B(or) the prefixed/suffixed name — both resolve to the same value.
+        For example, with V(hostvars_prefix=tf_), both
+        V(compose={ansible_host=public_ip}) and
+        V(compose={ansible_host=tf_public_ip}) work. The renamed name is
+        what is actually B(stored) on the host; the original is available
+        only at config-resolution time."
     type: str
     default: ""
   hostvars_suffix:
@@ -634,10 +639,36 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # idiom.
     _PLUGIN_INJECTED_VARS = frozenset({"ansible_host", "value"})
 
+    def _build_resolution_view(
+        self,
+        host_vars: Dict[str, Any],
+        hostvars_prefix: str,
+        hostvars_suffix: str,
+    ) -> Dict[str, Any]:
+        """Return a dict containing BOTH original and renamed user-field names.
+
+        ``hostnames``, ``compose``, ``keyed_groups``, ``groups``, and filter
+        keys all resolve names against this view, so users can reference
+        either ``public_ip`` or ``tf_public_ip`` (when ``hostvars_prefix=tf_``)
+        and both will work. Mirrors the dict-update pattern used by
+        ``amazon.aws.aws_rds`` (see ``host.update(new_vars)``).
+
+        Plugin-injected vars (``ansible_host``, ``value``) are never renamed.
+        """
+        if not (hostvars_prefix or hostvars_suffix):
+            return host_vars
+        view: Dict[str, Any] = dict(host_vars)
+        for key, value in host_vars.items():
+            if key in self._PLUGIN_INJECTED_VARS:
+                continue
+            view[f"{hostvars_prefix}{key}{hostvars_suffix}"] = value
+        return view
+
     def _add_host(
         self,
         hostname: str,
         host_vars: Dict[str, Any],
+        resolution_view: Dict[str, Any],
         compose: Dict[str, str],
         keyed_groups: List[Dict[str, Any]],
         groups: Dict[str, Any],
@@ -654,12 +685,13 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             else:
                 var_name = key
             self.inventory.set_variable(hostname, var_name, value)
-        # ``compose`` / ``keyed_groups`` / ``groups`` receive the ORIGINAL
-        # host_vars dict (pre-rename) so user expressions reference the same
-        # field names regardless of any namespacing — matching aws_ec2.
-        self._set_composite_vars(compose, host_vars, hostname, strict=strict)
-        self._add_host_to_keyed_groups(keyed_groups, host_vars, hostname, strict=strict)
-        self._add_host_to_composed_groups(groups, host_vars, hostname, strict=strict)
+        # ``compose`` / ``keyed_groups`` / ``groups`` receive the resolution
+        # view containing BOTH original and prefixed/suffixed field names, so
+        # user expressions can reference either form consistently regardless
+        # of whether ``hostvars_prefix`` is set.
+        self._set_composite_vars(compose, resolution_view, hostname, strict=strict)
+        self._add_host_to_keyed_groups(keyed_groups, resolution_view, hostname, strict=strict)
+        self._add_host_to_composed_groups(groups, resolution_view, hostname, strict=strict)
 
     def _populate_from_host_records(
         self,
@@ -683,8 +715,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         """
         for record in records:
             host_vars: Dict[str, Any] = record["host_vars"]
+            resolution_view = self._build_resolution_view(host_vars, hostvars_prefix, hostvars_suffix)
 
-            if not passes_filters(host_vars, include_filters, exclude_filters):
+            if not passes_filters(resolution_view, include_filters, exclude_filters):
                 continue
 
             if "resolved_hostname" in record:
@@ -693,12 +726,13 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                 output_name: str = record["output_name"]
                 workspace_name: str = record["workspace_name"]
                 index = record.get("index")
-                hostname = get_preferred_hostname(output_name, workspace_name, host_vars, hostnames, index)
+                hostname = get_preferred_hostname(output_name, workspace_name, resolution_view, hostnames, index)
 
             if hostname:
                 self._add_host(
                     hostname,
                     host_vars,
+                    resolution_view,
                     compose,
                     keyed_groups,
                     groups,

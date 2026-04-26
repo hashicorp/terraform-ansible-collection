@@ -2140,6 +2140,97 @@ class TestInventoryModuleParseOutputs:
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_hostvars_prefix_hostnames_works_with_prefixed_reference(
+        self, mock_client_cls, mock_resolve, mock_fetch
+    ):
+        # With hostvars_prefix=tf_ and hostnames=[tf_instance_id], the
+        # prefixed name resolves via the resolution view (combined dict
+        # holding both original and prefixed keys), matching aws_rds.
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": [
+                {"name": "web-1", "instance_id": "i-aaa"},
+                {"name": "web-2", "instance_id": "i-bbb"},
+            ], "sensitive": False},
+        ]
+
+        plugin = _make_plugin(_base_options(
+            source="outputs",
+            hostvars_prefix="tf_",
+            hosts_from={"output": "ec2", "type": "list(object)"},
+            hostnames=["tf_instance_id"],
+        ))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        assert plugin.inventory.add_host.call_count == 2
+        hostnames = {c[0][0] for c in plugin.inventory.add_host.call_args_list}
+        assert hostnames == {"i-aaa", "i-bbb"}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_hostvars_prefix_hostnames_also_works_with_original_reference(
+        self, mock_client_cls, mock_resolve, mock_fetch
+    ):
+        # With hostvars_prefix=tf_ and hostnames=[instance_id] (UNprefixed),
+        # resolution must STILL work — the resolution view contains both
+        # original and prefixed names. This is what AWS plugins do.
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": [
+                {"name": "web-1", "instance_id": "i-aaa"},
+                {"name": "web-2", "instance_id": "i-bbb"},
+            ], "sensitive": False},
+        ]
+
+        plugin = _make_plugin(_base_options(
+            source="outputs",
+            hostvars_prefix="tf_",
+            hosts_from={"output": "ec2", "type": "list(object)"},
+            hostnames=["instance_id"],
+        ))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        assert plugin.inventory.add_host.call_count == 2
+        hostnames = {c[0][0] for c in plugin.inventory.add_host.call_args_list}
+        assert hostnames == {"i-aaa", "i-bbb"}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_hostvars_prefix_filters_resolve_against_combined_view(
+        self, mock_client_cls, mock_resolve, mock_fetch
+    ):
+        # include_filters with prefixed key should match (and an unprefixed
+        # key would equally — both names live in the resolution view).
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": [
+                {"name": "web-1", "role": "web"},
+                {"name": "db-1", "role": "db"},
+            ], "sensitive": False},
+        ]
+
+        plugin = _make_plugin(_base_options(
+            source="outputs",
+            hostvars_prefix="tf_",
+            hosts_from={"output": "ec2", "type": "list(object)"},
+            include_filters=[{"tf_role": "web"}],
+        ))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        # Only the web host should be registered (db filtered out).
+        assert plugin.inventory.add_host.call_count == 1
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
     def test_hostvars_prefix_does_not_rename_value_for_primitives(self, mock_client_cls, mock_resolve, mock_fetch):
         # `value` is a plugin-contract var name and must never be renamed —
         # otherwise `compose: {ansible_host: value}` and `hostnames: [value]`
