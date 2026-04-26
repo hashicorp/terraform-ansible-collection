@@ -12,25 +12,41 @@ Type-expression vocabulary mirrors Terraform's official type system —
 https://developer.hashicorp.com/terraform/language/expressions/types — so any
 expression valid as an output's ``type`` constraint is accepted here.
 
-Unified host-vars model
------------------------
-Every host produced by this source has at most two top-level variables:
+Host-vars data model
+--------------------
+Object-shape outputs (``object``, ``list(object)``, ``set(object)``,
+``map(object)``) have their user dict fields **spread flat at the top level
+of host_vars**, matching the convention used by ``amazon.aws.aws_ec2`` and
+the rest of the Ansible inventory plugin ecosystem. ``compose``,
+``hostnames``, and filter expressions reference fields by their original
+Terraform names (``compose: {ansible_host: public_ip}``,
+``hostnames: [name]``).
 
-- ``item`` — the user payload. Always present. For primitives this is the
-  scalar; for object shapes it is the full user dict (so user fields are
-  referenced as ``item.<field>`` from ``compose``, ``hostnames``, templates).
-- ``key`` — the map key. Present only for ``map(<primitive>)`` and
-  ``map(object)`` shapes.
+Primitive-shape outputs (``string`` / ``number`` / ``bool`` /
+``list(<primitive>)`` / ``set(<primitive>)`` / ``map(<primitive>)``) expose
+the scalar as a single host variable named ``value`` — matching the field
+name returned by Terraform's own outputs API
+(``{"name": "<output>", "value": "<scalar>"}``). ``value`` is distinct from
+Ansible's loop variable ``item`` and lives in a different scope, so an
+``hostvars | dict2items`` loop reads ``item.value.value`` cleanly.
 
-User dict fields are deliberately *not* spread at the top level. This keeps
-arbitrary user field names from colliding with Ansible's reserved host-var
-namespace (``name``, ``groups``, ``tags``, etc.) and removes the need for any
-runtime collision check.
+For ``map(...)`` shapes the map key becomes the resolved hostname and is
+available as ``inventory_hostname`` — no separate ``key`` host variable is
+injected, so user dicts containing a field named ``key`` are preserved
+as-is.
+
+Reserved-name collisions: when a Terraform field collides with one of
+Ansible's reserved host-var names (``name``, ``groups``, ``tags``,
+``inventory_hostname``, …) the var is still set but Ansible emits an
+informational warning. Use the inventory-level ``hostvars_prefix`` /
+``hostvars_suffix`` options (mirroring ``amazon.aws.aws_ec2``) to namespace
+every spread field at once: ``hostvars_prefix: tf_`` turns a ``name`` field
+into ``tf_name`` and silences the warning.
 
 Dynamic-detection mode (no ``hosts_from``)
 ------------------------------------------
-- ``dict`` output  → one host; ``host_vars = {"item": dict}``.
-- ``list(dict)`` output → one indexed host per element; ``host_vars = {"item": dict}``.
+- ``dict`` output  → one host; user dict spread at top level.
+- ``list(dict)`` output → one indexed host per element; each user dict spread.
 - All other shapes are silently skipped.
 
 Explicit mode (``hosts_from`` configured)
@@ -39,12 +55,12 @@ Each ``hosts_from`` entry declares a Terraform ``type:`` constraint:
 
 type expression                              →  host_vars
 ---------------------------------------------------------
-``string`` / ``number`` / ``bool``           →  ``{"item": value}``
-``object`` / ``object({attr=type,...})``     →  ``{"item": dict}``
-``list(<primitive>)`` / ``set(<primitive>)`` →  one host per element; ``{"item": value}``
-``list(object)`` / ``set(object)``           →  one host per element; ``{"item": dict}``
-``map(<primitive>)``                         →  one host per key; ``{"item": value, "key": key}``
-``map(object)``                              →  one host per key; ``{"item": dict, "key": key}``
+``string`` / ``number`` / ``bool``           →  ``{"value": scalar}``
+``object`` / ``object({attr=type,...})``     →  user dict spread flat
+``list(<primitive>)`` / ``set(<primitive>)`` →  one host per element; ``{"value": scalar}``
+``list(object)`` / ``set(object)``           →  one host per element; user dict spread flat
+``map(<primitive>)``                         →  one host per key; ``{"value": scalar}`` (key = inventory_hostname)
+``map(object)``                              →  one host per key; user dict spread flat (key = inventory_hostname)
 ``tuple`` / ``tuple([...])``                 →  routed through dynamic detection (wire-level
                                                  indistinguishable from a JSON array)
 ``dynamic`` (default when type omitted)      →  shape inferred at runtime from the value
@@ -64,9 +80,9 @@ declared at the type-expression level.
 
 Auto-``ansible_host`` for primitive shapes: when the inventory's ``compose``
 option is empty, primitive shapes additionally set ``ansible_host`` to the
-primitive value. This makes ``hosts_from: {output: ips, type: list(string)}``
-work without any further config. Setting *any* ``compose`` entry suppresses the
-auto-assignment — the user is then in full control.
+scalar value. This makes ``hosts_from: {output: ips, type: list(string)}``
+work without any further config. Setting *any* ``compose`` entry suppresses
+the auto-assignment — the user is then in full control.
 
 Unsupported expressions — nested collections such as ``map(list(...))``,
 ``list(map(...))``, etc. — are rejected at validation time. Reshape the value
@@ -268,10 +284,10 @@ def _record(output_name: str, workspace_name: str, host_vars: Dict[str, Any], **
     return record
 
 
-def _primitive_host_vars(item: Any, auto_ansible_host: bool) -> Dict[str, Any]:
-    host_vars: Dict[str, Any] = {"item": item}
+def _primitive_host_vars(scalar: Any, auto_ansible_host: bool) -> Dict[str, Any]:
+    host_vars: Dict[str, Any] = {"value": scalar}
     if auto_ansible_host:
-        host_vars["ansible_host"] = item
+        host_vars["ansible_host"] = scalar
     return host_vars
 
 
@@ -282,15 +298,15 @@ def _records_for_primitive(value: Any, output_name: str, workspace_name: str, au
 def _records_for_object(value: Any, output_name: str, workspace_name: str) -> List[HostRecord]:
     if not isinstance(value, dict):
         return []
-    return [_record(output_name, workspace_name, {"item": value})]
+    return [_record(output_name, workspace_name, dict(value))]
 
 
 def _records_for_seq_primitive(value: Any, output_name: str, workspace_name: str, auto_ansible_host: bool) -> List[HostRecord]:
     if not isinstance(value, list):
         return []
     records: List[HostRecord] = []
-    for idx, item in enumerate(value):
-        records.append(_record(output_name, workspace_name, _primitive_host_vars(item, auto_ansible_host), index=idx))
+    for idx, scalar in enumerate(value):
+        records.append(_record(output_name, workspace_name, _primitive_host_vars(scalar, auto_ansible_host), index=idx))
     return records
 
 
@@ -298,9 +314,9 @@ def _records_for_seq_object(value: Any, output_name: str, workspace_name: str) -
     if not isinstance(value, list):
         return []
     records: List[HostRecord] = []
-    for idx, item in enumerate(value):
-        if isinstance(item, dict):
-            records.append(_record(output_name, workspace_name, {"item": item}, index=idx))
+    for idx, element in enumerate(value):
+        if isinstance(element, dict):
+            records.append(_record(output_name, workspace_name, dict(element), index=idx))
     return records
 
 
@@ -308,10 +324,8 @@ def _records_for_map_primitive(value: Any, output_name: str, workspace_name: str
     if not isinstance(value, dict):
         return []
     records: List[HostRecord] = []
-    for key, item in value.items():
-        host_vars = _primitive_host_vars(item, auto_ansible_host)
-        host_vars["key"] = key
-        records.append(_record(output_name, workspace_name, host_vars, resolved_hostname=key))
+    for map_key, scalar in value.items():
+        records.append(_record(output_name, workspace_name, _primitive_host_vars(scalar, auto_ansible_host), resolved_hostname=map_key))
     return records
 
 
@@ -319,11 +333,10 @@ def _records_for_map_object(value: Any, output_name: str, workspace_name: str) -
     if not isinstance(value, dict):
         return []
     records: List[HostRecord] = []
-    for key, obj in value.items():
+    for map_key, obj in value.items():
         if not isinstance(obj, dict):
             continue
-        host_vars: Dict[str, Any] = {"item": obj, "key": key}
-        records.append(_record(output_name, workspace_name, host_vars, resolved_hostname=key))
+        records.append(_record(output_name, workspace_name, dict(obj), resolved_hostname=map_key))
     return records
 
 
@@ -419,8 +432,22 @@ class OutputsSource(BaseInventorySource):
                 raise TerraformError(
                     f"hosts_from[{idx}]: 'use_as' is no longer supported. "
                     "Use the inventory-level 'compose' option instead "
-                    "(e.g. 'compose: {ansible_host: item}'). For primitive shapes, "
+                    "(e.g. 'compose: {ansible_host: value}'). For primitive shapes, "
                     "'ansible_host' is now set automatically when 'compose' is empty."
+                )
+            if "item" in spec:
+                raise TerraformError(
+                    f"hosts_from[{idx}]: 'item' is not a recognised spec key. "
+                    "If you meant the host variable for primitive elements, it is now "
+                    "named 'value' (matching Terraform's outputs API). Reference it as "
+                    "'value' in compose / hostnames / templates."
+                )
+            if "key" in spec:
+                raise TerraformError(
+                    f"hosts_from[{idx}]: 'key' is not a recognised spec key. "
+                    "For map(...) shapes the map key is exposed as 'inventory_hostname' "
+                    "(no separate 'key' host variable is injected). Reference it as "
+                    "'inventory_hostname' in compose / templates."
                 )
             output_name = spec.get("output")
             if not isinstance(output_name, str) or not output_name:

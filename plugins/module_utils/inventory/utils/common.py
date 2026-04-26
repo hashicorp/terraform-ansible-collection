@@ -47,19 +47,22 @@ def _resolve_single_preference(
 ) -> Optional[str]:
     """Return the resolved value for one hostname preference token.
 
-    Handles the special token ``output_name``, dotted-path look-ups in
-    *host_vars* (e.g. ``item.name`` walks ``host_vars["item"]["name"]``), and
-    falls back to treating *preference* as a literal string.
-    Returns ``None`` when the resolved string would be blank.
+    Handles the special token ``output_name`` and dotted-path look-ups in
+    *host_vars* (e.g. ``tags.role`` walks ``host_vars["tags"]["role"]`` for
+    nested user data). When the preference doesn't resolve, returns ``None``
+    so the caller can try the next preference or fall back to the
+    ``<workspace_name>_<output_name>[_<index>]`` default — there is *no*
+    literal-string fallback (which silently collapsed multi-host inventories
+    to a single literal-named host when users misspelled a field).
     """
     if preference == "output_name":
         return output_name if index is None else f"{output_name}_{index}"
     value = _lookup_path(host_vars, preference)
-    if value is not _MISSING:
-        if value is not None and str(value).strip():
-            return str(value)
+    if value is _MISSING:
         return None
-    return preference if preference.strip() else None
+    if value is None or not str(value).strip():
+        return None
+    return str(value)
 
 
 def get_preferred_hostname(
