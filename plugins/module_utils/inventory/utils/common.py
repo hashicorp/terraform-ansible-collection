@@ -22,6 +22,23 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 # ---------------------------------------------------------------------------
 
 
+_MISSING = object()
+
+
+def _lookup_path(host_vars: Dict[str, Any], path: str) -> Any:
+    """Walk a dotted ``path`` through nested dicts, returning ``_MISSING`` on miss.
+
+    A literal-key sentinel (``_MISSING``) is used so callers can distinguish
+    "key absent" from "key present with value ``None``".
+    """
+    cur: Any = host_vars
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return _MISSING
+        cur = cur[part]
+    return cur
+
+
 def _resolve_single_preference(
     output_name: str,
     host_vars: Dict[str, Any],
@@ -30,18 +47,22 @@ def _resolve_single_preference(
 ) -> Optional[str]:
     """Return the resolved value for one hostname preference token.
 
-    Handles the special token ``output_name``, field look-ups in *host_vars*,
-    and falls back to treating *preference* as a literal string.
-    Returns ``None`` when the resolved string would be blank.
+    Handles the special token ``output_name`` and dotted-path look-ups in
+    *host_vars* (e.g. ``tags.role`` walks ``host_vars["tags"]["role"]`` for
+    nested user data). When the preference doesn't resolve, returns ``None``
+    so the caller can try the next preference or fall back to the
+    ``<workspace_name>_<output_name>[_<index>]`` default — there is *no*
+    literal-string fallback (which silently collapsed multi-host inventories
+    to a single literal-named host when users misspelled a field).
     """
     if preference == "output_name":
         return output_name if index is None else f"{output_name}_{index}"
-    if preference in host_vars:
-        value = host_vars[preference]
-        if value is not None and str(value).strip():
-            return str(value)
+    value = _lookup_path(host_vars, preference)
+    if value is _MISSING:
         return None
-    return preference if preference.strip() else None
+    if value is None or not str(value).strip():
+        return None
+    return str(value)
 
 
 def get_preferred_hostname(
@@ -90,7 +111,11 @@ def get_preferred_hostname(
 
 
 def _filter_dict_matches(host_vars: Dict[str, Any], filter_dict: Dict[str, Any]) -> bool:
-    return all(host_vars.get(k) == v for k, v in filter_dict.items())
+    for key, expected in filter_dict.items():
+        actual = _lookup_path(host_vars, key)
+        if actual is _MISSING or actual != expected:
+            return False
+    return True
 
 
 def passes_filters(

@@ -117,18 +117,77 @@ options:
   hosts_from:
     description:
       - Explicit output-to-host mapping for V(source=outputs).
-      - When set, auto-detection is disabled; only the listed outputs are
-        processed according to their declared V(kind) and V(element_type).
+      - When set, plugin-level dynamic-detection is disabled; only the listed
+        outputs are processed, each according to its declared V(type).
       - Accepts a single mapping or a list of mappings.  Each entry requires
-        V(output) (the output name), V(kind) (top-level structure — one of
-        V(scalar), V(list), V(map), V(object)), and V(element_type) (per-element
-        type — one of V(string), V(number), V(bool), V(object), V(map)).
-      - For primitive element types, V(use_as) assigns each element value
-        directly to the named Ansible host variable (e.g. V(ansible_host)).
-      - For V(kind=map) the map key becomes the resolved hostname; the
+        V(output) (the Terraform output name) and accepts V(type) (a Terraform
+        type expression, default V(dynamic)).
+      - "The V(type) vocabulary mirrors Terraform's official type system —
+        see U(https://developer.hashicorp.com/terraform/language/expressions/types)."
+      - "Object-shape outputs (V(object), V(list(object)), V(set(object)),
+        V(map(object))) have their user dict fields B(spread flat) at the
+        top level of host_vars, matching the convention used by
+        M(amazon.aws.aws_ec2). Reference fields directly:
+        V(compose: {ansible_host: public_ip}), V(hostnames: [name]),
+        V(keyed_groups: [{key: env}]) — no V(item.<field>) ceremony."
+      - "Primitive-shape outputs (V(string) / V(number) / V(bool) /
+        V(list(<primitive>)) / V(set(<primitive>)) / V(map(<primitive>)))
+        expose the scalar as a single host variable named V(value), matching
+        the field name returned by Terraform's outputs API
+        (V({\"name\": \"<output>\", \"value\": \"<scalar>\"})). V(value) is
+        distinct from Ansible's loop variable V(item) and lives in a
+        different scope, so an V(hostvars | dict2items) loop reads
+        V(item.value.value) cleanly."
+      - "For V(map(...)) shapes the map key becomes the resolved hostname and
+        is available as V(inventory_hostname) — no separate V(key) host
+        variable is injected, so a user dict containing a field named V(key)
+        is preserved as-is."
+      - "Supported V(type) expressions:
+        V(string), V(number), V(bool) → one host, V(host_vars = {value: scalar});
+        V(object) and V(object({...})) → one host, user dict spread flat at
+        top level (the schema body of V(object({...})) is informational and
+        ignored — Terraform has already validated it);
+        V(list(string)), V(list(number)), V(list(bool)) → N indexed hosts,
+        each V(host_vars = {value: scalar});
+        V(list(object)) → N indexed hosts, each user dict spread flat;
+        V(set(...)) → wire-level synonym for V(list(...)) (both serialize as
+        JSON arrays);
+        V(map(string)), V(map(number)), V(map(bool)) → one host per key,
+        V(host_vars = {value: scalar}), map key becomes V(inventory_hostname);
+        V(map(object)) → one host per key, user dict spread flat, map key
+        becomes V(inventory_hostname);
+        V(tuple) and V(tuple([...])) → routed through dynamic detection (a
+        tuple is a JSON array on the wire, indistinguishable from a list);
+        V(dynamic) (default when V(type) is omitted) → shape inferred at
+        runtime from the value, mirroring Terraform's plugin-framework
+        U(https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic) type."
+      - "Auto-V(ansible_host): when the inventory's V(compose) option is
+        empty, primitive shapes additionally set V(ansible_host) to the
+        scalar. This makes V(hosts_from)
+        V({output: ips, type: list(string)}) usable with no further config.
+        Setting any V(compose) entry suppresses this default — V(compose) is
+        then the single source of host-var assignment."
+      - For V(map(...)) shapes the map key becomes the resolved hostname; the
         V(hostnames) preference list has no further effect for those records.
-        The special variable V(key) is always set to the map key.
-      - V(kind=scalar) produces one host; the raw value is stored as V(value).
+      - "Reserved-name collisions: when a Terraform field name collides with
+        an Ansible-reserved host variable (V(name), V(groups), V(tags),
+        V(inventory_hostname), …) Ansible emits an informational warning.
+        Set O(hostvars_prefix) (e.g. V(tf_)) to namespace every spread field
+        and silence the warning, mirroring M(amazon.aws.aws_ec2)'s
+        recommendation."
+      - "V(type=dynamic) detection rules: a B(dict) of dicts is treated as
+        V(map(object)); any other dict (including a dict of primitives) is
+        treated as V(object); a B(list) of dicts is treated as V(list(object));
+        a B(list) of all primitives is treated as V(list(<primitive>));
+        primitive scalars are treated as their matching primitive type;
+        empty collections, V(None), and mixed-type lists are skipped (mixed
+        lists with a warning). Note that a dict of primitives is ambiguous
+        between V(object) and V(map(string)) — V(dynamic) picks V(object);
+        declare V(type: map(string)) explicitly when you want the map semantics."
+      - Nested collections (V(map(list(...))), V(list(map(...))), etc.) are
+        rejected at validation time with a clear message. Reshape such values
+        in your Terraform output using C(flatten()) or C(for) expressions;
+        inventory is the wrong layer for nested-collection transformation.
       - Has no effect for V(source=statefile).
     type: raw
     default: null
@@ -141,9 +200,15 @@ options:
         instance attributes. Use V(tag:Name) to read the value of the V(Name)
         tag, or V(tag:Name=Value) to produce V(Name_Value) only when that exact
         tag value matches. Fallback: V(<resource_type>_<resource_name>[_<index>])."
-      - "For V(source=outputs): a plain string is matched against the output
-        value mapping. Use the special token V(output_name) to use the Terraform
-        output name itself. Fallback: V(<workspace_name>_<output_name>[_<index>])."
+      - "For V(source=outputs): a string is resolved as a host-var name
+        lookup, with dotted paths walking nested user dicts (e.g.
+        V(tags.role) reads V(host_vars[tags][role])). Use the special token
+        V(output_name) to use the Terraform output name itself. When a
+        preference does not resolve in this record's host vars, the next
+        preference is tried; if none resolve, the
+        V(<workspace_name>_<output_name>[_<index>]) default is used. Plain
+        strings are B(not) treated as literal hostnames — set a static
+        hostname via V(compose) instead."
     type: list
     elements: raw
     default: []
@@ -152,6 +217,9 @@ options:
       - List of key-value dicts. A host is included only when its variables
         match at least one dict (all key-value pairs within a given dict must
         match). An empty list means all hosts are included.
+      - "For V(source=outputs), keys may use dotted paths to read into nested
+        user-data dicts (e.g. V({tags.role: web}) when V(tags) is itself a
+        Terraform object)."
     type: list
     elements: dict
     default: []
@@ -160,9 +228,41 @@ options:
       - List of key-value dicts. A host is excluded when its variables match
         any dict (all key-value pairs within a given dict must match).
         Exclusion is evaluated before O(include_filters).
+      - "For V(source=outputs), keys may use dotted paths to read into nested
+        user-data dicts (e.g. V({tags.role: web}) when V(tags) is itself a
+        Terraform object)."
     type: list
     elements: dict
     default: []
+  hostvars_prefix:
+    description:
+      - String prepended to every host variable name sourced from user data
+        before it is registered with the inventory.
+      - Use this when Terraform output field names collide with Ansible's
+        reserved host-var namespace (V(name), V(groups), V(tags),
+        V(inventory_hostname), …) — for example V(hostvars_prefix=tf_)
+        renames a V(name) field to V(tf_name) and silences the
+        "Found variable using reserved name" warning.
+      - Mirrors the option of the same name in M(amazon.aws.aws_ec2) /
+        M(amazon.aws.aws_rds).
+      - The plugin-injected variables V(ansible_host) and V(value) (the
+        primitive-shape host var) are never renamed.
+      - "V(compose), V(keyed_groups), V(groups), V(hostnames), and filter
+        keys can reference B(either) the original Terraform field name
+        B(or) the prefixed/suffixed name — both resolve to the same value.
+        For example, with V(hostvars_prefix=tf_), both
+        V(compose={ansible_host=public_ip}) and
+        V(compose={ansible_host=tf_public_ip}) work. The renamed name is
+        what is actually B(stored) on the host; the original is available
+        only at config-resolution time."
+    type: str
+    default: ""
+  hostvars_suffix:
+    description:
+      - String appended to every host variable name sourced from user data,
+        with the same scope and exclusions as O(hostvars_prefix).
+    type: str
+    default: ""
 """
 
 EXAMPLES = r"""
@@ -302,23 +402,30 @@ EXAMPLES = r"""
   exclude_filters:
     - env: staging
 
-# ── hosts_from: handle primitive and map-keyed output shapes ─────────────────
+# ── hosts_from: Terraform type expressions ────────────────────────────────────
+# Object shapes (object, list(object), set(object), map(object)) spread the
+# user dict at the top level of host_vars — reference fields directly as
+# `name`, `public_ip`, etc. (matching amazon.aws.aws_ec2 conventions).
+# Primitive shapes expose the scalar as `value`. For map(...) shapes the map
+# key becomes inventory_hostname (no separate `key` host var).
+# When `compose` is empty, primitive shapes auto-set `ansible_host` to the
+# scalar — so the simplest configurations need no compose at all.
+# Nested collections (map(list(...)) etc.) are not supported — reshape with
+# Terraform's flatten()/for if needed.
 
-# list(string) output → one auto-named host per IP; IP assigned to ansible_host
+# list(string): no compose needed — each IP auto-becomes ansible_host
 # Terraform: output "instance_ips" { value = aws_instance.ec2[*].public_ip }
-# Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, …
-- name: Inventory from list-of-string IPs
+# Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, … (ansible_host = the IP)
+- name: Inventory from list-of-string IPs (zero compose)
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
   workspace: my-workspace
   hosts_from:
     output: instance_ips
-    kind: list
-    element_type: string
-    use_as: ansible_host
+    type: list(string)
 
-# Use the IP value itself as the hostname
+# Same shape, but use the IP itself as the Ansible hostname.
 - name: IP-as-hostname from list(string)
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -326,13 +433,25 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: instance_ips
-    kind: list
-    element_type: string
-    use_as: ansible_host
+    type: list(string)
   hostnames:
-    - ansible_host    # e.g. "52.10.0.1" becomes the Ansible hostname
+    - ansible_host    # auto-assigned IP becomes the Ansible hostname
 
-# map(string) → key = hostname, string value → ansible_host
+# list(string) with custom compose — auto-ansible_host is suppressed by the
+# presence of any compose entry, so re-assign explicitly using `value`.
+- name: list(string) with custom compose
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: instance_ips
+    type: list(string)
+  compose:
+    ansible_host: value
+    ansible_user: '"ec2-user"'
+
+# map(string): key becomes the hostname; primitive auto-becomes ansible_host
 # Terraform: output "host_map" { value = { "web-1" = "1.2.3.4", "web-2" = "5.6.7.8" } }
 - name: Map-keyed IP inventory
   plugin: hashicorp.terraform.inventory
@@ -341,11 +460,24 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: host_map
-    kind: map
-    element_type: string
-    use_as: ansible_host
+    type: map(string)
 
-# map(object) → key = hostname, object value = host variables (best structured format)
+# map(string) using `value` (the scalar) and `inventory_hostname` (the map key)
+# to compose a richer host_var.
+- name: map(string) with composed environment
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: host_map
+    type: map(string)
+  compose:
+    ansible_host: value
+    env_short: inventory_hostname | regex_replace('-.*', '')
+
+# map(object): key = hostname, user dict spread flat at top level. Reference
+# fields directly from compose / hostnames / filters.
 # Terraform: output "ec2_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
 - name: Structured map-keyed inventory
   plugin: hashicorp.terraform.inventory
@@ -354,12 +486,77 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     output: ec2_hosts
-    kind: map
-    element_type: object
+    type: map(object)
   compose:
     ansible_host: public_ip
+  keyed_groups:
+    - key: env
+      prefix: env
 
-# Multiple outputs combined — hosts_from accepts a list of specs
+# list(object) with reserved-name avoidance: hostvars_prefix namespaces every
+# spread field, silencing the "Found variable using reserved name" warning
+# when a Terraform field is named e.g. `name` or `tags`. Mirrors aws_ec2's
+# hostvars_prefix recommendation.
+- name: list(object) with hostvars_prefix
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: ec2_hosts
+    type: list(object)
+  hostvars_prefix: tf_                # name → tf_name, public_ip → tf_public_ip
+  hostnames:
+    - tf_name                         # reference the prefixed name
+  compose:
+    ansible_host: tf_public_ip
+
+# set(object) — same JSON wire format as list(object); accepted as a synonym.
+- name: Inventory from set(object)
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: node_set
+    type: set(object)
+  hostnames:
+    - name
+
+# Scalar: number output → one host, primitive stored as `value`. With no
+# compose, `ansible_host = value` automatically.
+# Terraform: output "host_count" { value = length(aws_instance.ec2) }
+- name: Scalar inventory
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: host_count
+    type: number
+
+# type: dynamic — shape inferred from the runtime value (mirrors Terraform's
+# plugin-framework "dynamic" type — see
+# https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic).
+# Note: a dict of primitives is treated as `object` (one host with the dict
+# spread flat). To get map(string) semantics from a dict of primitives,
+# declare `type: map(string)` explicitly.
+- name: Inventory with dynamic-detected types
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    - output: ec2_hosts        # dict of dicts → map(object)
+      type: dynamic
+    - output: db_ips           # list of strings → list(string), auto ansible_host
+      type: dynamic
+
+# Multiple outputs combined — hosts_from accepts a list of specs mixing
+# primitive and object shapes. Note: any compose entry suppresses the auto-
+# ansible_host default for primitive specs, so when mixing shapes, set
+# `compose: ansible_host` to a Jinja that picks up either a field name (for
+# the object specs) or `value` (for the primitive specs).
 - name: Multi-output inventory
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -367,12 +564,13 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     - output: web_hosts
-      kind: map
-      element_type: object
+      type: map(object)        # ansible_host pulled from public_ip via compose
     - output: db_ips
-      kind: list
-      element_type: string
-      use_as: ansible_host
+      type: list(string)       # ansible_host = value via compose
+    - output: bastion_ip
+      type: string             # ansible_host = value via compose
+  compose:
+    ansible_host: public_ip | default(value)
 """
 
 from typing import Any, Dict, Iterable, List, Optional
@@ -380,12 +578,25 @@ from typing import Any, Dict, Iterable, List, Optional
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.utils.display import Display
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
+
+
+def _wire_outputs_display() -> None:
+    """Wire the controller's Display into the outputs source backend so its
+    hosts_from validation/dynamic-detection warnings surface to the user."""
+    display = Display()
+    _outputs_module._warn = display.warning
+    _outputs_module._debug = display.vvv
+
+
+_wire_outputs_display()
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
@@ -421,22 +632,66 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             return str(self._sanitize_group_name(txt))
         return str(txt)
 
+    # Plugin-injected host variable names that must NEVER be renamed by
+    # ``hostvars_prefix`` / ``hostvars_suffix``. ``ansible_host`` is reserved
+    # by Ansible itself; ``value`` is this plugin's contract for primitive
+    # shapes and renaming it would break the ``compose: {ansible_host: value}``
+    # idiom.
+    _PLUGIN_INJECTED_VARS = frozenset({"ansible_host", "value"})
+
+    def _build_resolution_view(
+        self,
+        host_vars: Dict[str, Any],
+        hostvars_prefix: str,
+        hostvars_suffix: str,
+    ) -> Dict[str, Any]:
+        """Return a dict containing BOTH original and renamed user-field names.
+
+        ``hostnames``, ``compose``, ``keyed_groups``, ``groups``, and filter
+        keys all resolve names against this view, so users can reference
+        either ``public_ip`` or ``tf_public_ip`` (when ``hostvars_prefix=tf_``)
+        and both will work. Mirrors the dict-update pattern used by
+        ``amazon.aws.aws_rds`` (see ``host.update(new_vars)``).
+
+        Plugin-injected vars (``ansible_host``, ``value``) are never renamed.
+        """
+        if not (hostvars_prefix or hostvars_suffix):
+            return host_vars
+        view: Dict[str, Any] = dict(host_vars)
+        for key, value in host_vars.items():
+            if key in self._PLUGIN_INJECTED_VARS:
+                continue
+            view[f"{hostvars_prefix}{key}{hostvars_suffix}"] = value
+        return view
+
     def _add_host(
         self,
         hostname: str,
         host_vars: Dict[str, Any],
+        resolution_view: Dict[str, Any],
         compose: Dict[str, str],
         keyed_groups: List[Dict[str, Any]],
         groups: Dict[str, Any],
         strict: bool,
+        hostvars_prefix: str = "",
+        hostvars_suffix: str = "",
     ) -> None:
         hostname = self._sanitize_hostname(hostname)
         self.inventory.add_host(hostname)
+        rename = hostvars_prefix or hostvars_suffix
         for key, value in host_vars.items():
-            self.inventory.set_variable(hostname, key, value)
-        self._set_composite_vars(compose, host_vars, hostname, strict=strict)
-        self._add_host_to_keyed_groups(keyed_groups, host_vars, hostname, strict=strict)
-        self._add_host_to_composed_groups(groups, host_vars, hostname, strict=strict)
+            if rename and key not in self._PLUGIN_INJECTED_VARS:
+                var_name = f"{hostvars_prefix}{key}{hostvars_suffix}"
+            else:
+                var_name = key
+            self.inventory.set_variable(hostname, var_name, value)
+        # ``compose`` / ``keyed_groups`` / ``groups`` receive the resolution
+        # view containing BOTH original and prefixed/suffixed field names, so
+        # user expressions can reference either form consistently regardless
+        # of whether ``hostvars_prefix`` is set.
+        self._set_composite_vars(compose, resolution_view, hostname, strict=strict)
+        self._add_host_to_keyed_groups(keyed_groups, resolution_view, hostname, strict=strict)
+        self._add_host_to_composed_groups(groups, resolution_view, hostname, strict=strict)
 
     def _populate_from_host_records(
         self,
@@ -448,6 +703,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         strict: bool,
         include_filters: List[Dict],
         exclude_filters: List[Dict],
+        hostvars_prefix: str = "",
+        hostvars_suffix: str = "",
     ) -> None:
         """Apply filtering and register each record as an Ansible host.
 
@@ -458,8 +715,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         """
         for record in records:
             host_vars: Dict[str, Any] = record["host_vars"]
+            resolution_view = self._build_resolution_view(host_vars, hostvars_prefix, hostvars_suffix)
 
-            if not passes_filters(host_vars, include_filters, exclude_filters):
+            if not passes_filters(resolution_view, include_filters, exclude_filters):
                 continue
 
             if "resolved_hostname" in record:
@@ -468,10 +726,20 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                 output_name: str = record["output_name"]
                 workspace_name: str = record["workspace_name"]
                 index = record.get("index")
-                hostname = get_preferred_hostname(output_name, workspace_name, host_vars, hostnames, index)
+                hostname = get_preferred_hostname(output_name, workspace_name, resolution_view, hostnames, index)
 
             if hostname:
-                self._add_host(hostname, host_vars, compose, keyed_groups, groups, strict)
+                self._add_host(
+                    hostname,
+                    host_vars,
+                    resolution_view,
+                    compose,
+                    keyed_groups,
+                    groups,
+                    strict,
+                    hostvars_prefix=hostvars_prefix,
+                    hostvars_suffix=hostvars_suffix,
+                )
 
     # ------------------------------------------------------------------
     # Entry point
@@ -491,6 +759,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         keyed_groups: List[Dict] = self.get_option("keyed_groups") or []
         groups: Dict[str, Any] = self.get_option("groups") or {}
         strict: bool = bool(self.get_option("strict"))
+        hostvars_prefix: str = self.get_option("hostvars_prefix") or ""
+        hostvars_suffix: str = self.get_option("hostvars_suffix") or ""
 
         source_options: Dict[str, Any] = {
             "workspace_id": self.get_option("workspace_id"),
@@ -506,6 +776,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             # Read directly from raw config: type: raw option parsing is unreliable
             # across Ansible versions and may return None even when the key is set.
             "hosts_from": (raw or {}).get("hosts_from") if isinstance(raw, dict) else self.get_option("hosts_from"),
+            # OutputsSource uses this to decide whether to auto-assign
+            # ansible_host for primitive shapes (off when compose is non-empty).
+            "compose": compose,
         }
 
         if not tfe_token:
@@ -527,6 +800,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                     strict,
                     include_filters,
                     exclude_filters,
+                    hostvars_prefix=hostvars_prefix,
+                    hostvars_suffix=hostvars_suffix,
                 )
         except TerraformError as exc:
             raise AnsibleParserError(str(exc)) from exc

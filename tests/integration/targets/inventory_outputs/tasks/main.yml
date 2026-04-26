@@ -94,8 +94,7 @@
           tfe_token: {{ tfc_token }}
           hosts_from:
             output: hosts_list
-            kind: list
-            element_type: object
+            type: list(object)
           hostnames:
             - name
           compose:
@@ -111,6 +110,7 @@
         PATH: "{{ lookup('env', 'PATH') }}"
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
         TFE_TOKEN: "{{ tfc_token }}"
+      register: inv_list_object_run
       changed_when: false
 
     - name: Debug raw inventory output (list object)
@@ -122,28 +122,33 @@
         file: "{{ temp_dir.path }}/inv_list_object.json"
         name: inv_list
 
-    - name: Assert exactly 2 hosts from hosts_list output
+    - name: Assert exactly 2 hosts from hosts_list output (regression for the literal-fallback collapse)
       ansible.builtin.assert:
         that:
           - inv_list._meta.hostvars | length == 2
         fail_msg: >-
-          Expected 2 hosts from hosts_list (list of objects).
+          Expected 2 hosts from hosts_list (list of objects). With hostnames=[name]
+          and a `name` field on each record, the resolver must produce 2 distinct
+          hosts — not collapse them into 1 literal-named host.
           Got {{ inv_list._meta.hostvars | length }}: {{ inv_list._meta.hostvars.keys() | list }}
 
-    - name: Assert hostnames start with 'host-' (from hostnames preference 'name')
+    - name: Assert hostnames start with 'host-' (resolved from the flat 'name' field)
       ansible.builtin.assert:
         that:
           - item.key is match('^host-')
-        fail_msg: "Hostname '{{ item.key }}' does not start with 'host-' — expected name field used as hostname"
+        fail_msg: "Hostname '{{ item.key }}' does not start with 'host-' — expected the 'name' field used as hostname"
       loop: "{{ inv_list._meta.hostvars | dict2items }}"
 
-    - name: Assert each host has server_ip and host_index vars
+    - name: Assert each host's user fields are spread flat at the top level
       ansible.builtin.assert:
         that:
           - item.value.server_ip is defined
           - item.value.server_ip is match('10\\.0\\.0\\.[0-9]+')
           - item.value.host_index is defined
-        fail_msg: "Host {{ item.key }} missing expected variables — got: {{ item.value.keys() | list }}"
+          - item.value.ansible_host == item.value.server_ip
+        fail_msg: >-
+          Host {{ item.key }} missing expected flat user fields or ansible_host
+          not composed correctly — got: {{ item.value }}
       loop: "{{ inv_list._meta.hostvars | dict2items }}"
 
     # ── Inventory test: scalar output via hosts_from ───────────────────────────
@@ -159,7 +164,7 @@
           tfe_token: {{ tfc_token }}
           hosts_from:
             output: host_count
-            kind: scalar
+            type: number
 
     - name: Run ansible-inventory for scalar output
       ansible.builtin.shell: >-
@@ -195,6 +200,49 @@
         fail_msg: >-
           Expected scalar host to have value=2.
           Got: {{ inv_scalar._meta.hostvars.values() | first }}
+
+    # ── Inventory test: list(string) auto-ansible_host ────────────────────────
+    # No `compose` is set, so the plugin auto-assigns ansible_host to each
+    # primitive (the IP).
+
+    - name: Write inventory config for list(string) output (auto ansible_host)
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_list_string.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: host_ips_list
+            type: list(string)
+
+    - name: Run ansible-inventory for list(string) output
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_list_string.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_list_string.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
+
+    - name: Load inventory JSON (list string)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_list_string.json"
+        name: inv_list_string
+
+    - name: Assert exactly 2 hosts and ansible_host auto-set to the IP
+      ansible.builtin.assert:
+        that:
+          - inv_list_string._meta.hostvars | length == 2
+          - item.value.value is match('10\\.0\\.0\\.[0-9]+')
+          - item.value.ansible_host == item.value.value
+        fail_msg: >-
+          Expected list(string) hosts with ansible_host auto-set to the IP.
+          Got {{ inv_list_string._meta.hostvars | length }} hosts: {{ inv_list_string._meta.hostvars }}
+      loop: "{{ inv_list_string._meta.hostvars | dict2items }}"
 
     # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
     # hosts_list is a list(object) — auto-detection should discover these hosts.
@@ -235,6 +283,68 @@
         fail_msg: >-
           Expected 2 hosts via auto-detection (list of objects).
           Got {{ inv_auto._meta.hostvars | length }}: {{ inv_auto._meta.hostvars.keys() | list }}
+
+    # ── Inventory test: hostvars_prefix namespacing ───────────────────────────
+    # The Terraform fixture's hosts_list has a `name` field that collides with
+    # Ansible's reserved namespace. Setting hostvars_prefix renames every user
+    # field on the way in, silencing the warning and matching aws_ec2 idiom.
+
+    - name: Write inventory config with hostvars_prefix
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_prefix.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: hosts_list
+            type: list(object)
+          hostvars_prefix: tf_
+          hostnames:
+            - tf_name
+          compose:
+            ansible_host: tf_server_ip
+
+    - name: Run ansible-inventory with hostvars_prefix
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_prefix.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_prefix.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      register: inv_prefix_run
+      changed_when: false
+
+    - name: Load inventory JSON (hostvars_prefix)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_prefix.json"
+        name: inv_prefix
+
+    - name: Assert prefixed user fields and unprefixed plugin-injected ansible_host
+      ansible.builtin.assert:
+        that:
+          - inv_prefix._meta.hostvars | length == 2
+          - item.value.tf_name is defined
+          - item.value.tf_server_ip is defined
+          - item.value.tf_host_index is defined
+          - item.value.ansible_host == item.value.tf_server_ip
+          - item.value.name is not defined
+          - item.value.server_ip is not defined
+        fail_msg: >-
+          Expected user fields prefixed with 'tf_' and ansible_host preserved
+          unprefixed. Got: {{ item.value }}
+      loop: "{{ inv_prefix._meta.hostvars | dict2items }}"
+
+    - name: Assert no 'reserved name' warning was emitted (prefix silences it)
+      ansible.builtin.assert:
+        that:
+          - "'reserved name' not in inv_prefix_run.stderr"
+        fail_msg: >-
+          ansible-inventory still emitted a reserved-name warning despite
+          hostvars_prefix being set. stderr was: {{ inv_prefix_run.stderr }}
 
   always:
     # ── Cleanup ────────────────────────────────────────────────────────────────
