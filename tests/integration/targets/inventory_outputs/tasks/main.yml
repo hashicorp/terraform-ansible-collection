@@ -256,10 +256,12 @@
             type: map(object)
 
     - name: Run ansible-inventory for collision case (expected to fail)
-      ansible.builtin.shell: >-
-        ansible-inventory
-        -i "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
-        --list
+      ansible.builtin.command:
+        argv:
+          - ansible-inventory
+          - -i
+          - "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
+          - --list
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
       register: collision_result

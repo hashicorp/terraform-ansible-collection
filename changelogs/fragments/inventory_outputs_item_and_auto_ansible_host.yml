@@ -1,9 +1,39 @@
 minor_changes:
-  - inventory plugin (source=outputs) - rename the reserved host variable produced for primitive shapes from ``value`` to ``item``, matching Ansible's loop vocabulary (``item`` in ``loop`` / ``with_items``). Applies to ``string``, ``number``, ``bool``, ``list(<primitive>)``, ``set(<primitive>)``, and ``map(<primitive>)`` outputs. Reference it from ``compose`` entries and templates as ``item``.
-  - inventory plugin (source=outputs) - drop the per-spec ``use_as`` shortcut. The inventory-level ``compose`` option is now the single mental model for assigning host variables (for example, ``compose.ansible_host`` set to ``item``).
-  - inventory plugin (source=outputs) - automatically assign ``ansible_host`` to the primitive value for ``string``, ``list(<primitive>)``, ``set(<primitive>)``, and ``map(<primitive>)`` shapes when the inventory's ``compose`` option is empty. Setting any ``compose`` entry suppresses this default — ``compose`` is then in full control. Object shapes (``object``, ``list(object)``, ``set(object)``, ``map(object)``) never auto-assign.
-  - inventory plugin (source=outputs) - reject ``map(object)`` element dicts that contain the reserved field names ``item`` or ``key`` at collection time (rather than silently overwriting). The error names the offending output, the offending map key, and the colliding field, and tells the user to rename it in their Terraform output.
+  - >-
+    inventory plugin (source=outputs) - rename the reserved host variable produced for primitive
+    shapes from ``value`` to ``item``, matching Ansible's loop vocabulary (``item`` in
+    ``loop`` / ``with_items``). Applies to ``string``, ``number``, ``bool``,
+    ``list(<primitive>)``, ``set(<primitive>)``, and ``map(<primitive>)`` outputs. Reference
+    it from ``compose`` entries and templates as ``item``.
+  - >-
+    inventory plugin (source=outputs) - drop the per-spec ``use_as`` shortcut. The
+    inventory-level ``compose`` option is now the single mental model for assigning host
+    variables (for example, set ``compose.ansible_host`` to ``item``).
+  - >-
+    inventory plugin (source=outputs) - automatically assign ``ansible_host`` to the primitive
+    value for ``string``, ``list(<primitive>)``, ``set(<primitive>)``, and ``map(<primitive>)``
+    shapes when the inventory's ``compose`` option is empty. Setting any ``compose`` entry
+    suppresses this default — ``compose`` is then in full control. Object shapes
+    (``object``, ``list(object)``, ``set(object)``, ``map(object)``) never auto-assign.
+  - >-
+    inventory plugin (source=outputs) - reject ``map(object)`` element dicts that contain the
+    reserved field names ``item`` or ``key`` at collection time (rather than silently
+    overwriting). The error names the offending output, the offending map key, and the
+    colliding field, and tells the user to rename it in their Terraform output.
 breaking_changes:
-  - inventory plugin (source=outputs) - the host variable formerly named ``value`` for primitive shapes is now named ``item``. Update any ``compose`` entries, ``hostnames`` references, and templates that read ``value`` from primitive ``hosts_from`` records.
-  - inventory plugin (source=outputs) - the per-spec ``use_as`` field is removed. ``hosts_from`` configurations that include ``use_as`` are rejected at validation time with a migration error. Replace it with an inventory-level ``compose`` entry such as ``compose.ansible_host`` set to ``item``; for the common ``use_as=ansible_host`` case you can usually drop the field entirely, since primitive shapes auto-assign ``ansible_host`` when ``compose`` is empty.
-  - inventory plugin (source=outputs) - ``map(object)`` outputs whose elements contain reserved fields ``item`` or ``key`` now fail at collection time. Rename the field in your Terraform output. For ``list(object)`` / ``set(object)`` / ``object`` shapes, no fields are injected and the user dict is preserved as-is — ``item`` / ``key`` are not reserved there.
+  - >-
+    inventory plugin (source=outputs) - the host variable formerly named ``value`` for
+    primitive shapes is now named ``item``. Update any ``compose`` entries, ``hostnames``
+    references, and templates that read ``value`` from primitive ``hosts_from`` records.
+  - >-
+    inventory plugin (source=outputs) - the per-spec ``use_as`` field is removed.
+    ``hosts_from`` configurations that include ``use_as`` are rejected at validation time with
+    a migration error. Replace it with an inventory-level ``compose`` entry; for the common
+    ``use_as=ansible_host`` case you can usually drop the field entirely, since primitive
+    shapes auto-assign ``ansible_host`` when ``compose`` is empty.
+  - >-
+    inventory plugin (source=outputs) - ``map(object)`` outputs whose elements contain
+    reserved fields ``item`` or ``key`` now fail at collection time. Rename the field in your
+    Terraform output. For ``list(object)`` / ``set(object)`` / ``object`` shapes, no fields
+    are injected and the user dict is preserved as-is — ``item`` / ``key`` are not reserved
+    there.
