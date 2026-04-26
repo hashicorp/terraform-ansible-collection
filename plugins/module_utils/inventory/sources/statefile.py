@@ -38,6 +38,7 @@ Supported resource types (extendable via ``provider_mapping``)
 - GCP:    ``google_compute_instance``
 """
 
+import copy
 import json
 import re
 from typing import Any, Dict, List, Optional, Union
@@ -162,6 +163,120 @@ def _should_include_resource(
         return False
     allowed_types = provider_configs.get(provider_name, [])
     return resource_type in allowed_types
+
+
+# ---------------------------------------------------------------------------
+# Sensitive attribute sanitization
+# ---------------------------------------------------------------------------
+
+
+def _first_top_level_attribute(path: List[Any]) -> Optional[str]:
+    """Return the first ``get_attr`` name in *path*, or ``None`` when missing.
+
+    Used as the safe fallback target when a sensitive path cannot be walked
+    precisely.  Terraform always begins a sensitive path with a ``get_attr``
+    step naming a top-level attribute; anything else is treated as malformed.
+    """
+    if not path:
+        return None
+    first = path[0]
+    if not isinstance(first, dict) or first.get("type") != "get_attr":
+        return None
+    value = first.get("value")
+    return value if isinstance(value, str) else None
+
+
+def _step_into(parent: Any, step: Any) -> Any:
+    """Follow one traversal step into *parent*; return ``None`` when impossible."""
+    if not isinstance(step, dict):
+        return None
+    step_type = step.get("type")
+    value = step.get("value")
+    if step_type == "get_attr":
+        if isinstance(parent, dict) and value in parent:
+            return parent[value]
+        return None
+    if step_type == "index":
+        if isinstance(parent, list) and isinstance(value, int) and 0 <= value < len(parent):
+            return parent[value]
+        if isinstance(parent, dict) and value in parent:
+            return parent[value]
+    return None
+
+
+def _drop_sensitive_path(attributes: Dict[str, Any], path: List[Any]) -> None:
+    """Remove a single sensitive path from *attributes* in-place.
+
+    Walks *path* one step at a time.  When the leaf step targets a precise
+    dict key or list index, that element is deleted.  Any ambiguity
+    (unwalkable parent, unknown step type, missing key/index) falls back to
+    deleting the first top-level attribute named in the path.  Paths with no
+    usable top-level reference are ignored.
+    """
+    top_level = _first_top_level_attribute(path)
+
+    def _drop_top_level() -> None:
+        if top_level is not None and top_level in attributes:
+            del attributes[top_level]
+
+    if len(path) == 1:
+        _drop_top_level()
+        return
+
+    parent: Any = attributes
+    for step in path[:-1]:
+        parent = _step_into(parent, step)
+        if parent is None:
+            _drop_top_level()
+            return
+
+    last = path[-1]
+    if not isinstance(last, dict):
+        _drop_top_level()
+        return
+
+    last_type = last.get("type")
+    last_value = last.get("value")
+
+    if last_type == "get_attr" and isinstance(parent, dict) and last_value in parent:
+        del parent[last_value]
+        return
+    if last_type == "index":
+        if isinstance(parent, list) and isinstance(last_value, int) and 0 <= last_value < len(parent):
+            del parent[last_value]
+            return
+        if isinstance(parent, dict) and last_value in parent:
+            del parent[last_value]
+            return
+
+    _drop_top_level()
+
+
+def _sanitize_sensitive_attributes(
+    attributes: Dict[str, Any],
+    sensitive_paths: List[Any],
+) -> Dict[str, Any]:
+    """Return a copy of *attributes* with Terraform-flagged sensitive paths removed.
+
+    *sensitive_paths* matches Terraform raw-state ``sensitive_attributes``: a
+    list of paths where each path is a list of traversal steps shaped like
+    ``{"type": "get_attr", "value": "<name>"}`` or
+    ``{"type": "index", "value": <int|str>}``.
+
+    Sensitive values are dropped entirely (not masked) so they cannot leak
+    into Ansible inventory output.  When precise traversal is not possible,
+    the first top-level attribute referenced by the path is removed as the
+    safe fallback.
+    """
+    if not isinstance(attributes, dict) or not sensitive_paths:
+        return attributes
+
+    sanitized = copy.deepcopy(attributes)
+    for path in sensitive_paths:
+        if not isinstance(path, list) or not path:
+            continue
+        _drop_sensitive_path(sanitized, path)
+    return sanitized
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +436,8 @@ class StatefileSource(BaseInventorySource):
 
             for instance in instances:
                 attributes: Dict[str, Any] = instance.get("attributes") or {}
+                sensitive_paths: List[Any] = instance.get("sensitive_attributes") or []
+                attributes = _sanitize_sensitive_attributes(attributes, sensitive_paths)
                 index_key: Optional[Union[int, str]] = instance.get("index_key")
 
                 effective_index = index_key if multi_instance else None
