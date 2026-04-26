@@ -117,11 +117,13 @@ options:
   hosts_from:
     description:
       - Explicit output-to-host mapping for V(source=outputs).
-      - When set, plugin-level auto-detection is disabled; only the listed
+      - When set, plugin-level dynamic-detection is disabled; only the listed
         outputs are processed, each according to its declared V(type).
       - Accepts a single mapping or a list of mappings.  Each entry requires
-        V(output) (the Terraform output name) and accepts V(type) (an
-        HCL-style type expression, default V(auto)).
+        V(output) (the Terraform output name) and accepts V(type) (a Terraform
+        type expression, default V(dynamic)).
+      - "The V(type) vocabulary mirrors Terraform's official type system —
+        see U(https://developer.hashicorp.com/terraform/language/expressions/types)."
       - "Every host produced by this source has at most two top-level
         variables: V(item) (always — the user payload, primitive or dict) and
         V(key) (only for V(map(...)) shapes — the map key). User dict fields
@@ -130,18 +132,23 @@ options:
         namespace (V(name), V(groups), V(tags), …)."
       - "Supported V(type) expressions:
         V(string), V(number), V(bool) → one host, V(host_vars = {item: value});
-        V(object) → one host, V(host_vars = {item: dict});
+        V(object) and V(object({...})) → one host, V(host_vars = {item: dict})
+        (the schema body of V(object({...})) is informational and ignored —
+        Terraform has already validated it);
         V(list(string)), V(list(number)), V(list(bool)) → N indexed hosts,
         each V(host_vars = {item: value});
         V(list(object)) → N indexed hosts, each V(host_vars = {item: dict});
-        V(set(...)) → synonym for V(list(...)) — the API serializes both as
-        JSON arrays, so they are indistinguishable on the wire;
+        V(set(...)) → wire-level synonym for V(list(...)) (both serialize as
+        JSON arrays);
         V(map(string)), V(map(number)), V(map(bool)) → one host per key,
         V(host_vars = {item: value, key: k}), map key becomes the hostname;
         V(map(object)) → one host per key, V(host_vars = {item: dict, key: k}),
         map key becomes the hostname;
-        V(auto) (default when V(type) is omitted) → shape inferred at runtime
-        from the value (experimental)."
+        V(tuple) and V(tuple([...])) → routed through dynamic detection (a
+        tuple is a JSON array on the wire, indistinguishable from a list);
+        V(dynamic) (default when V(type) is omitted) → shape inferred at
+        runtime from the value, mirroring Terraform's plugin-framework
+        U(https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic) type."
       - "Reference user fields with dotted paths from V(compose),
         V(hostnames), and filters: V(item.server_ip), V(item.tags.role), etc.
         For map shapes, V(key) is plugin-injected metadata at the top level so
@@ -154,20 +161,19 @@ options:
         then the single source of host-var assignment."
       - For V(map(...)) shapes the map key becomes the resolved hostname; the
         V(hostnames) preference list has no further effect for those records.
-      - "V(type=auto) detection rules: a B(dict) of dicts is treated as
+      - "V(type=dynamic) detection rules: a B(dict) of dicts is treated as
         V(map(object)); any other dict (including a dict of primitives) is
         treated as V(object); a B(list) of dicts is treated as V(list(object));
         a B(list) of all primitives is treated as V(list(<primitive>));
         primitive scalars are treated as their matching primitive type;
         empty collections, V(None), and mixed-type lists are skipped (mixed
         lists with a warning). Note that a dict of primitives is ambiguous
-        between V(object) and V(map(string)) — V(auto) picks V(object); declare
-        V(type: map(string)) explicitly when you want the map semantics."
-      - Unsupported expressions (V(tuple), nested forms such as V(map(list(...)))
-        or V(object({...})), and V(null)) are rejected at validation time with
-        a clear message. Reshape such values in your Terraform output using
-        C(flatten()) or C(for) expressions; inventory is the wrong layer for
-        nested-collection transformation.
+        between V(object) and V(map(string)) — V(dynamic) picks V(object);
+        declare V(type: map(string)) explicitly when you want the map semantics."
+      - Nested collections (V(map(list(...))), V(list(map(...))), etc.) are
+        rejected at validation time with a clear message. Reshape such values
+        in your Terraform output using C(flatten()) or C(for) expressions;
+        inventory is the wrong layer for nested-collection transformation.
       - Has no effect for V(source=statefile).
     type: raw
     default: null
@@ -459,20 +465,22 @@ EXAMPLES = r"""
     output: host_count
     type: number
 
-# type: auto (experimental) — shape inferred from the runtime value.
+# type: dynamic — shape inferred from the runtime value (mirrors Terraform's
+# plugin-framework "dynamic" type — see
+# https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic).
 # Note: a dict of primitives is treated as `object` (one host whose dict lives
 # under `item`). To get map(string) semantics from a dict of primitives,
 # declare `type: map(string)` explicitly.
-- name: Inventory with auto-detected types
+- name: Inventory with dynamic-detected types
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
   workspace: my-workspace
   hosts_from:
     - output: ec2_hosts        # dict of dicts → map(object)
-      type: auto
+      type: dynamic
     - output: db_ips           # list of strings → list(string), auto ansible_host
-      type: auto
+      type: dynamic
 
 # Multiple outputs combined — hosts_from accepts a list of specs mixing
 # primitive and object shapes. Note: any compose entry suppresses the auto-
@@ -513,7 +521,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.util
 
 def _wire_outputs_display() -> None:
     """Wire the controller's Display into the outputs source backend so its
-    hosts_from validation/auto-detection warnings surface to the user."""
+    hosts_from validation/dynamic-detection warnings surface to the user."""
     display = Display()
     _outputs_module._warn = display.warning
     _outputs_module._debug = display.vvv

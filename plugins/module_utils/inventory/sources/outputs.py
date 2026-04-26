@@ -8,6 +8,10 @@
 Uses the ``/state-version-outputs`` endpoint (via ``get_workspace_outputs``)
 to list the current state version outputs for the target workspace.
 
+Type-expression vocabulary mirrors Terraform's official type system —
+https://developer.hashicorp.com/terraform/language/expressions/types — so any
+expression valid as an output's ``type`` constraint is accepted here.
+
 Unified host-vars model
 -----------------------
 Every host produced by this source has at most two top-level variables:
@@ -23,29 +27,40 @@ arbitrary user field names from colliding with Ansible's reserved host-var
 namespace (``name``, ``groups``, ``tags``, etc.) and removes the need for any
 runtime collision check.
 
-Auto-detection mode (no ``hosts_from``)
------------------------------------------
+Dynamic-detection mode (no ``hosts_from``)
+------------------------------------------
 - ``dict`` output  → one host; ``host_vars = {"item": dict}``.
 - ``list(dict)`` output → one indexed host per element; ``host_vars = {"item": dict}``.
 - All other shapes are silently skipped.
 
 Explicit mode (``hosts_from`` configured)
 ------------------------------------------
-Each ``hosts_from`` entry declares an HCL-style ``type:`` constraint:
+Each ``hosts_from`` entry declares a Terraform ``type:`` constraint:
 
-type expression                      →  host_vars
--------------------------------------------------
-``string`` / ``number`` / ``bool``   →  ``{"item": value}``
-``object``                           →  ``{"item": dict}``
-``list(<primitive>)`` /
-``set(<primitive>)``                 →  one host per element; ``{"item": value}``
-``list(object)`` / ``set(object)``   →  one host per element; ``{"item": dict}``
-``map(<primitive>)``                 →  one host per key; ``{"item": value, "key": key}``
-``map(object)``                      →  one host per key; ``{"item": dict, "key": key}``
-``auto`` (default when type omitted) →  shape inferred at runtime. Experimental.
+type expression                              →  host_vars
+---------------------------------------------------------
+``string`` / ``number`` / ``bool``           →  ``{"item": value}``
+``object`` / ``object({attr=type,...})``     →  ``{"item": dict}``
+``list(<primitive>)`` / ``set(<primitive>)`` →  one host per element; ``{"item": value}``
+``list(object)`` / ``set(object)``           →  one host per element; ``{"item": dict}``
+``map(<primitive>)``                         →  one host per key; ``{"item": value, "key": key}``
+``map(object)``                              →  one host per key; ``{"item": dict, "key": key}``
+``tuple`` / ``tuple([...])``                 →  routed through dynamic detection (wire-level
+                                                 indistinguishable from a JSON array)
+``dynamic`` (default when type omitted)      →  shape inferred at runtime from the value
 
-``set`` is treated as a synonym for ``list`` (the outputs API serializes both
-as JSON arrays — no distinction is possible at the wire level).
+Wire-level synonyms (Terraform types whose JSON serialization is identical):
+
+- ``set(T)`` ≡ ``list(T)`` (both serialize as JSON arrays)
+- ``object({...})`` ≡ ``object`` (the schema body is informational; Terraform
+  has already validated it)
+- ``tuple([...])`` ≡ ``tuple`` ≡ ``dynamic`` for sequences (the element-types
+  body is informational; we run runtime detection on the JSON array)
+
+``dynamic`` mirrors Terraform's plugin-framework "dynamic" type
+(https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic):
+the value's shape is determined at runtime from the JSON payload rather than
+declared at the type-expression level.
 
 Auto-``ansible_host`` for primitive shapes: when the inventory's ``compose``
 option is empty, primitive shapes additionally set ``ansible_host`` to the
@@ -53,10 +68,10 @@ primitive value. This makes ``hosts_from: {output: ips, type: list(string)}``
 work without any further config. Setting *any* ``compose`` entry suppresses the
 auto-assignment — the user is then in full control.
 
-Unsupported expressions (``tuple``, nested collections such as
-``map(list(...))``, ``object({...})``, etc.) are rejected at validation time.
-Reshape the value in your Terraform output (``flatten()``, ``for`` expressions)
-instead of trying to handle it in inventory.
+Unsupported expressions — nested collections such as ``map(list(...))``,
+``list(map(...))``, etc. — are rejected at validation time. Reshape the value
+in your Terraform output (``flatten()``, ``for`` expressions) instead of
+trying to handle it in inventory.
 """
 
 import re
@@ -81,16 +96,25 @@ def _debug(msg: str) -> None:
 
 # ---------------------------------------------------------------------------
 # hosts_from type expression parser
+#
+# Accepts every Terraform type expression from
+# https://developer.hashicorp.com/terraform/language/expressions/types — the
+# wire format coming back from the outputs API is JSON, so several Terraform
+# types collapse to the same handler:
+#
+#   - ``set(T)`` is treated as ``list(T)`` (both serialize as JSON arrays)
+#   - ``object({...})`` is treated as ``object`` (the schema body is
+#     informational; Terraform already validated it)
+#   - ``tuple`` and ``tuple([...])`` route through ``dynamic`` runtime
+#     detection — element shapes are inspected per record
+#
+# ``dynamic`` mirrors Terraform's plugin-framework
+# (https://developer.hashicorp.com/terraform/plugin/framework/handling-data/types/dynamic)
+# "type determined at runtime" — when ``type`` is omitted it defaults to
+# ``dynamic``.
 # ---------------------------------------------------------------------------
 
-_TYPE_RE = re.compile(r"^\s*(auto|string|number|bool|object|list|set|map)\s*(?:\(\s*(string|number|bool|object)\s*\))?\s*$")
-
-_SHAPES: Dict[Tuple[str, Optional[str]], str] = {
-    ("auto", None): "auto",
-    ("string", None): "primitive",
-    ("number", None): "primitive",
-    ("bool", None): "primitive",
-    ("object", None): "object",
+_COLLECTION_SHAPES: Dict[Tuple[str, str], str] = {
     ("list", "string"): "seq_primitive",
     ("list", "number"): "seq_primitive",
     ("list", "bool"): "seq_primitive",
@@ -105,12 +129,25 @@ _SHAPES: Dict[Tuple[str, Optional[str]], str] = {
     ("map", "object"): "map_object",
 }
 
+# Bare type tokens (no parentheses) → internal shape tag.
+_BARE_SHAPES: Dict[str, str] = {
+    "dynamic": "dynamic",
+    "string": "primitive",
+    "number": "primitive",
+    "bool": "primitive",
+    "object": "object",
+    "tuple": "dynamic",
+}
+
 _VALID_FORMS: Tuple[str, ...] = (
-    "auto",
+    "dynamic",
     "string",
     "number",
     "bool",
     "object",
+    "object({...})",
+    "tuple",
+    "tuple([...])",
     "list(string)",
     "list(number)",
     "list(bool)",
@@ -125,36 +162,65 @@ _VALID_FORMS: Tuple[str, ...] = (
     "map(object)",
 )
 
+_TERRAFORM_TYPES_DOC_URL = "https://developer.hashicorp.com/terraform/language/expressions/types"
+
+# A bare type head, optionally followed by a parenthesized body. The body's
+# allowed contents depend on the head and are validated procedurally below.
+_TYPE_RE = re.compile(
+    r"""^\s*
+        (?P<head>[A-Za-z]+)
+        (?:\s*\(\s*(?P<body>.*?)\s*\)\s*)?
+        \s*$""",
+    re.VERBOSE | re.DOTALL,
+)
+
 
 def parse_type(expr: Any) -> str:
-    """Parse an HCL-style type expression and return the internal shape tag.
+    """Parse a Terraform type expression and return the internal shape tag.
 
     Raises :class:`TerraformError` for empty / non-string inputs and for any
-    unsupported expression. The error message lists the valid forms and points
-    the user at Terraform-side reshaping for nested collections.
+    unsupported expression. The error message lists the valid forms and links
+    the user at Terraform's official type system docs.
     """
     if not isinstance(expr, str) or not expr.strip():
-        raise TerraformError("hosts_from 'type' must be a non-empty string. " f"Supported forms: {', '.join(_VALID_FORMS)}.")
+        raise TerraformError("hosts_from 'type' must be a non-empty string. " f"Supported forms: {', '.join(_VALID_FORMS)}. " f"See {_TERRAFORM_TYPES_DOC_URL}")
+
     match = _TYPE_RE.match(expr)
     if match:
-        key = (match.group(1), match.group(2))
-        if key in _SHAPES:
-            return _SHAPES[key]
+        head = match.group("head")
+        body = match.group("body")
+
+        # Bare type with no body
+        if body is None and head in _BARE_SHAPES:
+            return _BARE_SHAPES[head]
+
+        if body is not None:
+            # object({...}) — schema body informational, treat as object
+            if head == "object" and body.startswith("{") and body.endswith("}"):
+                return "object"
+            # tuple([...]) — element-types body informational, treat as dynamic
+            if head == "tuple" and body.startswith("[") and body.endswith("]"):
+                return "dynamic"
+            # list/set/map(<primitive|object>)
+            if (head, body) in _COLLECTION_SHAPES:
+                return _COLLECTION_SHAPES[(head, body)]
+
     raise TerraformError(
         f"unsupported hosts_from type expression: {expr!r}. "
         f"Supported forms: {', '.join(_VALID_FORMS)}. "
-        "Nested collections (tuple, map(list(...)), object({...}), etc.) "
-        "are not supported — reshape the value in your Terraform output "
-        "using flatten() or a for expression."
+        "Nested collections (map(list(...)), list(map(...)), etc.) are not "
+        "supported — reshape the value in your Terraform output using "
+        "flatten() or a for expression. "
+        f"See {_TERRAFORM_TYPES_DOC_URL}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Auto-detection of shape from runtime value
+# Dynamic-detection of shape from runtime value
 # ---------------------------------------------------------------------------
 
 
-def _detect_auto_shape(value: Any, output_name: str) -> Optional[str]:
+def _detect_dynamic_shape(value: Any, output_name: str) -> Optional[str]:
     """Return the internal shape tag detected from *value*, or ``None`` to skip."""
     if value is None:
         return None
@@ -164,25 +230,25 @@ def _detect_auto_shape(value: Any, output_name: str) -> Optional[str]:
         return "primitive"
     if isinstance(value, dict):
         if not value:
-            _debug(f"hosts_from auto: output {output_name!r} is an empty dict; skipping")
+            _debug(f"hosts_from dynamic: output {output_name!r} is an empty dict; skipping")
             return None
         if all(isinstance(v, dict) for v in value.values()):
             return "map_object"
         return "object"
     if isinstance(value, list):
         if not value:
-            _debug(f"hosts_from auto: output {output_name!r} is an empty list; skipping")
+            _debug(f"hosts_from dynamic: output {output_name!r} is an empty list; skipping")
             return None
         if all(isinstance(item, dict) for item in value):
             return "seq_object"
         if all(isinstance(item, (str, int, float, bool)) for item in value):
             return "seq_primitive"
         _warn(
-            f"hosts_from auto: output {output_name!r} is a list of mixed types; skipping. "
+            f"hosts_from dynamic: output {output_name!r} is a list of mixed types; skipping. "
             + "Declare type explicitly or reshape in Terraform if all elements should produce hosts."
         )
         return None
-    _warn(f"hosts_from auto: output {output_name!r} has unsupported value type {type(value).__name__}; skipping.")
+    _warn(f"hosts_from dynamic: output {output_name!r} has unsupported value type {type(value).__name__}; skipping.")
     return None
 
 
@@ -280,13 +346,11 @@ def _collect_hosts_from_spec(
     to the primitive value. Object shapes never auto-assign.
 
     Returns an empty list when the named output is absent or the runtime value
-    does not match the declared shape (or when ``type: auto`` cannot pick a
-    supported shape from the value). Raises :class:`TerraformError` when a
-    ``map(object)`` element collides with the reserved ``item``/``key`` field
-    names.
+    does not match the declared shape (or when ``type: dynamic`` cannot pick a
+    supported shape from the value).
     """
     output_name: str = spec.get("output", "")
-    type_expr: str = spec.get("type") or "auto"
+    type_expr: str = spec.get("type") or "dynamic"
 
     if output_name not in outputs_map:
         return []
@@ -294,8 +358,8 @@ def _collect_hosts_from_spec(
     shape = parse_type(type_expr)
     value = outputs_map[output_name]
 
-    if shape == "auto":
-        detected = _detect_auto_shape(value, output_name)
+    if shape == "dynamic":
+        detected = _detect_dynamic_shape(value, output_name)
         if detected is None:
             return []
         shape = detected

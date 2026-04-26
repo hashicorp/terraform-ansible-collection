@@ -860,16 +860,29 @@ class TestOutputsSourceCollectHosts:
 
 
 class TestParseType:
-    """Verify each supported HCL-style type expression maps to the right shape."""
+    """Verify each supported Terraform type expression maps to the right shape."""
 
     @pytest.mark.parametrize(
         "expr,shape",
         [
-            ("auto", "auto"),
+            # Special: dynamic (matches Terraform's plugin-framework dynamic type)
+            ("dynamic", "dynamic"),
+            # Primitives
             ("string", "primitive"),
             ("number", "primitive"),
             ("bool", "primitive"),
+            # Structural: object (with and without schema body)
             ("object", "object"),
+            ("object({})", "object"),
+            ("object({name=string})", "object"),
+            ("object({name=string, age=number, tags=map(string)})", "object"),
+            # Structural: tuple (with and without element-types body) — routed through dynamic
+            ("tuple", "dynamic"),
+            ("tuple([])", "dynamic"),
+            ("tuple([string])", "dynamic"),
+            ("tuple([string, number, bool])", "dynamic"),
+            ("tuple([string, object])", "dynamic"),
+            # Collections
             ("list(string)", "seq_primitive"),
             ("list(number)", "seq_primitive"),
             ("list(bool)", "seq_primitive"),
@@ -891,6 +904,13 @@ class TestParseType:
         assert parse_type("set(string)") == parse_type("list(string)")
         assert parse_type("set(object)") == parse_type("list(object)")
 
+    def test_object_with_and_without_schema_produce_identical_shape(self):
+        # The schema body is informational; runtime behavior is identical.
+        assert parse_type("object") == parse_type("object({})") == parse_type("object({foo=string})")
+
+    def test_tuple_with_and_without_body_routes_through_dynamic(self):
+        assert parse_type("tuple") == parse_type("tuple([])") == parse_type("tuple([string,number])") == "dynamic"
+
     @pytest.mark.parametrize("expr", [" string ", "  list(object) ", "list( string )", "MAP(STRING)"])
     def test_whitespace_tolerated_but_case_required(self, expr):
         # whitespace is fine; an UPPERCASE form should fail since HCL uses lowercase types.
@@ -903,16 +923,15 @@ class TestParseType:
     @pytest.mark.parametrize(
         "expr",
         [
-            "tuple",
-            "tuple([string])",
+            "auto",  # renamed → dynamic
             "list",  # must declare element type
             "set",
             "map",
             "list(list(string))",  # nested
             "map(list(string))",
-            "object({name=string})",
-            "any",
-            "null",
+            "list(map(string))",
+            "any",  # Terraform input-var placeholder; not meaningful for outputs
+            "null",  # null is a value, not a type
             "string()",
             "string(string)",
             "",
@@ -925,6 +944,11 @@ class TestParseType:
         # Message should list valid forms or mention reshaping in Terraform.
         msg = str(exc.value).lower()
         assert "supported forms" in msg or "non-empty" in msg
+
+    def test_unsupported_message_links_to_terraform_types_docs(self):
+        with pytest.raises(TerraformError) as exc:
+            parse_type("totally-bogus")
+        assert "developer.hashicorp.com/terraform/language/expressions/types" in str(exc.value)
 
     def test_nested_collection_message_mentions_flatten(self):
         with pytest.raises(TerraformError, match=r"flatten\(\)|for expression"):
@@ -1206,21 +1230,21 @@ class TestCollectHostsFromSpec:
         assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4", "env": "prod"}}
         assert records[0]["index"] is None
 
-    # ── auto-detection ────────────────────────────────────────────────────────
+    # ── dynamic-detection ─────────────────────────────────────────────────────
 
-    def test_auto_dict_of_dicts_treated_as_map_object(self):
+    def test_dynamic_dict_of_dicts_treated_as_map_object(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ec2", type="auto"),
+            self._spec(output="ec2", type="dynamic"),
             {"ec2": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
             self._WS,
         )
         assert len(records) == 2
         assert {r["resolved_hostname"] for r in records} == {"web-1", "web-2"}
 
-    def test_auto_dict_of_primitives_treated_as_object(self):
-        # The ambiguous case: auto picks `object`, not `map(string)`.
+    def test_dynamic_dict_of_primitives_treated_as_object(self):
+        # The ambiguous case: dynamic picks `object`, not `map(string)`.
         records = _collect_hosts_from_spec(
-            self._spec(output="cfg", type="auto"),
+            self._spec(output="cfg", type="dynamic"),
             {"cfg": {"region": "us-east-1", "env": "prod"}},
             self._WS,
         )
@@ -1228,9 +1252,9 @@ class TestCollectHostsFromSpec:
         assert records[0]["host_vars"] == {"item": {"region": "us-east-1", "env": "prod"}}
         assert "resolved_hostname" not in records[0]
 
-    def test_auto_list_of_dicts_treated_as_list_object(self):
+    def test_dynamic_list_of_dicts_treated_as_list_object(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="hosts", type="auto"),
+            self._spec(output="hosts", type="dynamic"),
             {"hosts": [{"ip": "1.2.3.4"}, {"ip": "5.6.7.8"}]},
             self._WS,
         )
@@ -1238,9 +1262,9 @@ class TestCollectHostsFromSpec:
         assert records[0]["index"] == 0
         assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4"}}
 
-    def test_auto_list_of_primitives_treated_as_seq_primitive(self):
+    def test_dynamic_list_of_primitives_treated_as_seq_primitive(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", type="auto"),
+            self._spec(output="ips", type="dynamic"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             self._WS,
         )
@@ -1249,16 +1273,16 @@ class TestCollectHostsFromSpec:
         assert records[1]["host_vars"]["item"] == "5.6.7.8"
 
     @pytest.mark.parametrize("value", ["a-string", 42, 3.14, True])
-    def test_auto_primitives_treated_as_primitive(self, value):
+    def test_dynamic_primitives_treated_as_primitive(self, value):
         records = _collect_hosts_from_spec(
-            self._spec(output="x", type="auto"),
+            self._spec(output="x", type="dynamic"),
             {"x": value},
             self._WS,
         )
         assert len(records) == 1
         assert records[0]["host_vars"]["item"] == value
 
-    def test_auto_omitted_type_defaults_to_auto(self):
+    def test_dynamic_omitted_type_defaults_to_dynamic(self):
         records = _collect_hosts_from_spec(
             self._spec(output="ip"),
             {"ip": "1.2.3.4"},
@@ -1267,34 +1291,34 @@ class TestCollectHostsFromSpec:
         assert len(records) == 1
         assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
-    def test_auto_empty_list_skipped_silently(self):
+    def test_dynamic_empty_list_skipped_silently(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", type="auto"),
+            self._spec(output="ips", type="dynamic"),
             {"ips": []},
             self._WS,
         )
         assert records == []
 
-    def test_auto_empty_dict_skipped_silently(self):
+    def test_dynamic_empty_dict_skipped_silently(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="cfg", type="auto"),
+            self._spec(output="cfg", type="dynamic"),
             {"cfg": {}},
             self._WS,
         )
         assert records == []
 
-    def test_auto_none_skipped_silently(self):
+    def test_dynamic_none_skipped_silently(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="x", type="auto"),
+            self._spec(output="x", type="dynamic"),
             {"x": None},
             self._WS,
         )
         assert records == []
 
-    def test_auto_mixed_list_emits_warning_and_skips(self):
+    def test_dynamic_mixed_list_emits_warning_and_skips(self):
         with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
             records = _collect_hosts_from_spec(
-                self._spec(output="mixed", type="auto"),
+                self._spec(output="mixed", type="dynamic"),
                 {"mixed": ["a", {"k": "v"}]},
                 self._WS,
             )
@@ -1302,10 +1326,47 @@ class TestCollectHostsFromSpec:
             mock_warn.assert_called_once()
             assert "mixed" in mock_warn.call_args.args[0]
 
-    def test_auto_unsupported_value_emits_warning_and_skips(self):
+    # ── tuple (routes through dynamic detection) ──────────────────────────────
+
+    def test_tuple_bare_dispatches_via_dynamic_detection(self):
+        # `tuple` (no element-types body) is a wire-level synonym for `dynamic`
+        # — runtime detection inspects the value.
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", type="tuple"),
+            {"ips": ["10.0.0.1", "10.0.0.2"]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["host_vars"]["item"] == "10.0.0.1"
+
+    def test_tuple_with_element_types_body_dispatches_via_dynamic(self):
+        # `tuple([string, string])` — body is informational, runtime behavior
+        # matches `tuple` / `dynamic`.
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", type="tuple([object, object])"),
+            {"hosts": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}]},
+            self._WS,
+        )
+        assert len(records) == 2
+        assert records[0]["host_vars"] == {"item": {"ip": "10.0.0.1"}}
+
+    # ── object with schema body ────────────────────────────────────────────────
+
+    def test_object_with_schema_body_treated_as_object(self):
+        # `object({attr=type,...})` — body is informational, runtime behavior
+        # is identical to bare `object`.
+        records = _collect_hosts_from_spec(
+            self._spec(output="single", type="object({ip=string, env=string})"),
+            {"single": {"ip": "1.2.3.4", "env": "prod"}},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4", "env": "prod"}}
+
+    def test_dynamic_unsupported_value_emits_warning_and_skips(self):
         with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
             records = _collect_hosts_from_spec(
-                self._spec(output="weird", type="auto"),
+                self._spec(output="weird", type="dynamic"),
                 {"weird": object()},
                 self._WS,
             )
@@ -1386,13 +1447,27 @@ class TestOutputsSourceHostsFromValidation:
             self._validate({"output": "", "type": "string"})
 
     @pytest.mark.parametrize(
+        "good_type",
+        [
+            "dynamic",
+            "tuple",
+            "tuple([string, number])",
+            "object",
+            "object({name=string, tags=map(string)})",
+        ],
+    )
+    def test_terraform_native_type_expressions_accepted(self, good_type):
+        self._validate({"output": "x", "type": good_type})
+
+    @pytest.mark.parametrize(
         "bad_type",
         [
-            "tuple",
+            "auto",  # renamed → dynamic
             "list(list(string))",
             "map(list(string))",
-            "object({name=string})",
-            "any",
+            "list(map(string))",
+            "any",  # input-var placeholder, not meaningful for outputs
+            "null",  # null is a value, not a type
             "string()",
             "",
         ],
@@ -1485,12 +1560,12 @@ class TestOutputsSourceHostsFromMode:
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
-    def test_hosts_from_auto_dispatches_at_runtime(self, mock_resolve, mock_fetch):
+    def test_hosts_from_dynamic_dispatches_at_runtime(self, mock_resolve, mock_fetch):
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
             {"name": "ec2", "value": {"web-1": {"ip": "1.2.3.4"}, "web-2": {"ip": "5.6.7.8"}}},
         ]
-        records = self._make_source(hosts_from={"output": "ec2", "type": "auto"}).collect_hosts()
+        records = self._make_source(hosts_from={"output": "ec2", "type": "dynamic"}).collect_hosts()
         assert len(records) == 2
         assert {r["resolved_hostname"] for r in records} == {"web-1", "web-2"}
 
