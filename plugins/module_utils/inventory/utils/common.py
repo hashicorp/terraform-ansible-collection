@@ -22,6 +22,23 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
 # ---------------------------------------------------------------------------
 
 
+_MISSING = object()
+
+
+def _lookup_path(host_vars: Dict[str, Any], path: str) -> Any:
+    """Walk a dotted ``path`` through nested dicts, returning ``_MISSING`` on miss.
+
+    A literal-key sentinel (``_MISSING``) is used so callers can distinguish
+    "key absent" from "key present with value ``None``".
+    """
+    cur: Any = host_vars
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return _MISSING
+        cur = cur[part]
+    return cur
+
+
 def _resolve_single_preference(
     output_name: str,
     host_vars: Dict[str, Any],
@@ -30,14 +47,15 @@ def _resolve_single_preference(
 ) -> Optional[str]:
     """Return the resolved value for one hostname preference token.
 
-    Handles the special token ``output_name``, field look-ups in *host_vars*,
-    and falls back to treating *preference* as a literal string.
+    Handles the special token ``output_name``, dotted-path look-ups in
+    *host_vars* (e.g. ``item.name`` walks ``host_vars["item"]["name"]``), and
+    falls back to treating *preference* as a literal string.
     Returns ``None`` when the resolved string would be blank.
     """
     if preference == "output_name":
         return output_name if index is None else f"{output_name}_{index}"
-    if preference in host_vars:
-        value = host_vars[preference]
+    value = _lookup_path(host_vars, preference)
+    if value is not _MISSING:
         if value is not None and str(value).strip():
             return str(value)
         return None
@@ -90,7 +108,11 @@ def get_preferred_hostname(
 
 
 def _filter_dict_matches(host_vars: Dict[str, Any], filter_dict: Dict[str, Any]) -> bool:
-    return all(host_vars.get(k) == v for k, v in filter_dict.items())
+    for key, expected in filter_dict.items():
+        actual = _lookup_path(host_vars, key)
+        if actual is _MISSING or actual != expected:
+            return False
+    return True
 
 
 def passes_filters(

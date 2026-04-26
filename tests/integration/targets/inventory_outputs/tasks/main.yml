@@ -96,9 +96,9 @@
             output: hosts_list
             type: list(object)
           hostnames:
-            - name
+            - item.name
           compose:
-            ansible_host: server_ip
+            ansible_host: item.server_ip
 
     - name: Run ansible-inventory for list(object) output
       ansible.builtin.shell: >-
@@ -110,6 +110,7 @@
         PATH: "{{ lookup('env', 'PATH') }}"
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
         TFE_TOKEN: "{{ tfc_token }}"
+      register: inv_list_object_run
       changed_when: false
 
     - name: Debug raw inventory output (list object)
@@ -129,21 +130,33 @@
           Expected 2 hosts from hosts_list (list of objects).
           Got {{ inv_list._meta.hostvars | length }}: {{ inv_list._meta.hostvars.keys() | list }}
 
-    - name: Assert hostnames start with 'host-' (from hostnames preference 'name')
+    - name: Assert hostnames start with 'host-' (resolved from item.name)
       ansible.builtin.assert:
         that:
           - item.key is match('^host-')
-        fail_msg: "Hostname '{{ item.key }}' does not start with 'host-' — expected name field used as hostname"
+        fail_msg: "Hostname '{{ item.key }}' does not start with 'host-' — expected item.name used as hostname"
       loop: "{{ inv_list._meta.hostvars | dict2items }}"
 
-    - name: Assert each host has server_ip and host_index vars
+    - name: Assert each host's user fields live under 'item' and ansible_host is composed from item.server_ip
       ansible.builtin.assert:
         that:
-          - item.value.server_ip is defined
-          - item.value.server_ip is match('10\\.0\\.0\\.[0-9]+')
-          - item.value.host_index is defined
-        fail_msg: "Host {{ item.key }} missing expected variables — got: {{ item.value.keys() | list }}"
+          - item.value.item.server_ip is defined
+          - item.value.item.server_ip is match('10\\.0\\.0\\.[0-9]+')
+          - item.value.item.host_index is defined
+          - item.value.ansible_host == item.value.item.server_ip
+        fail_msg: >-
+          Host {{ item.key }} missing expected nested vars under 'item' or
+          ansible_host not composed correctly — got: {{ item.value }}
       loop: "{{ inv_list._meta.hostvars | dict2items }}"
+
+    - name: Assert no 'reserved name' warning was emitted (regression for the 'name' field issue)
+      ansible.builtin.assert:
+        that:
+          - "'reserved name' not in inv_list_object_run.stderr"
+        fail_msg: >-
+          ansible-inventory emitted a reserved-name warning despite the
+          item-nesting model. stderr was:
+          {{ inv_list_object_run.stderr }}
 
     # ── Inventory test: scalar output via hosts_from ───────────────────────────
 
@@ -237,51 +250,6 @@
           Expected list(string) hosts with ansible_host auto-set to the IP.
           Got {{ inv_list_string._meta.hostvars | length }} hosts: {{ inv_list_string._meta.hostvars }}
       loop: "{{ inv_list_string._meta.hostvars | dict2items }}"
-
-    # ── Inventory test: map(object) reserved field collision ──────────────────
-    # The Terraform output `bad_map_object` deliberately contains a reserved
-    # 'item' field. Ansible's inventory loader is resilient: it emits a WARNING
-    # and returns an empty inventory (rc=0) rather than a hard failure. We
-    # assert that the 'reserved field' message appears in stderr and that no
-    # hosts are produced.
-
-    - name: Write inventory config for map(object) collision case
-      ansible.builtin.copy:
-        dest: "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
-        mode: "0644"
-        content: |
-          plugin: hashicorp.terraform.inventory
-          source: outputs
-          workspace_id: {{ workspace_id }}
-          tfe_token: {{ tfc_token }}
-          hosts_from:
-            output: bad_map_object
-            type: map(object)
-
-    - name: Run ansible-inventory for map(object) collision case
-      ansible.builtin.command:
-        argv:
-          - ansible-inventory
-          - -i
-          - "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
-          - --list
-      environment:
-        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
-      register: collision_result
-      changed_when: false
-      failed_when: false
-
-    - name: Assert collision emits reserved-field warning and produces no hosts
-      ansible.builtin.assert:
-        that:
-          - "'reserved field' in collision_result.stderr"
-          - "'bad_map_object' in collision_result.stderr"
-          - (collision_result.stdout | from_json)._meta.hostvars | length == 0
-        fail_msg: >-
-          Expected a 'reserved field' warning for bad_map_object and an empty
-          inventory. Got rc={{ collision_result.rc }},
-          hostvars={{ (collision_result.stdout | from_json)._meta.hostvars }},
-          stderr={{ collision_result.stderr }}
 
     # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
     # hosts_list is a list(object) — auto-detection should discover these hosts.

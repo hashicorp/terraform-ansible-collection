@@ -8,48 +8,44 @@
 Uses the ``/state-version-outputs`` endpoint (via ``get_workspace_outputs``)
 to list the current state version outputs for the target workspace.
 
+Unified host-vars model
+-----------------------
+Every host produced by this source has at most two top-level variables:
+
+- ``item`` — the user payload. Always present. For primitives this is the
+  scalar; for object shapes it is the full user dict (so user fields are
+  referenced as ``item.<field>`` from ``compose``, ``hostnames``, templates).
+- ``key`` — the map key. Present only for ``map(<primitive>)`` and
+  ``map(object)`` shapes.
+
+User dict fields are deliberately *not* spread at the top level. This keeps
+arbitrary user field names from colliding with Ansible's reserved host-var
+namespace (``name``, ``groups``, ``tags``, etc.) and removes the need for any
+runtime collision check.
+
 Auto-detection mode (no ``hosts_from``)
 -----------------------------------------
-- ``dict`` output  → one host with the dict as host variables.
-- ``list(dict)`` output → one host per element (indexed).
+- ``dict`` output  → one host; ``host_vars = {"item": dict}``.
+- ``list(dict)`` output → one indexed host per element; ``host_vars = {"item": dict}``.
 - All other shapes are silently skipped.
 
 Explicit mode (``hosts_from`` configured)
 ------------------------------------------
-Each ``hosts_from`` entry declares an HCL-style ``type:`` constraint. The
-runtime value of the named output is mapped to host records as follows:
+Each ``hosts_from`` entry declares an HCL-style ``type:`` constraint:
 
-type expression                     →  behaviour
-------------------------------------------------
-``string`` / ``number`` / ``bool``  →  single host; raw value stored as ``item``.
-``object``                          →  single host; dict becomes host variables.
+type expression                      →  host_vars
+-------------------------------------------------
+``string`` / ``number`` / ``bool``   →  ``{"item": value}``
+``object``                           →  ``{"item": dict}``
 ``list(<primitive>)`` /
-``set(<primitive>)``                →  one indexed host per element; element stored
-                                       as ``item``.
-``list(object)`` / ``set(object)``  →  one indexed host per element; element dict
-                                       becomes host variables.
-``map(<primitive>)``                →  one host per key; key becomes the resolved
-                                       hostname and is stored in ``key``; primitive
-                                       stored as ``item``.
-``map(object)``                     →  one host per key; key becomes the resolved
-                                       hostname and is stored in ``key``; element
-                                       dict becomes host variables.
-``auto`` (default when type omitted) →  shape inferred at runtime from the value.
-                                        Experimental.
+``set(<primitive>)``                 →  one host per element; ``{"item": value}``
+``list(object)`` / ``set(object)``   →  one host per element; ``{"item": dict}``
+``map(<primitive>)``                 →  one host per key; ``{"item": value, "key": key}``
+``map(object)``                      →  one host per key; ``{"item": dict, "key": key}``
+``auto`` (default when type omitted) →  shape inferred at runtime. Experimental.
 
 ``set`` is treated as a synonym for ``list`` (the outputs API serializes both
 as JSON arrays — no distinction is possible at the wire level).
-
-Reserved host var names produced by primitive shapes:
-
-- ``item`` — the primitive element itself (``string``/``number``/``bool``,
-  each list element, or each map value).
-- ``key`` — the map key. Only present for ``map(...)`` shapes.
-
-For ``map(object)``, ``item`` and ``key`` are both reserved: collisions in the
-element dict are rejected at collection time. For ``list(object)`` /
-``set(object)`` / ``object`` shapes, the dict becomes host vars directly with
-no injection — a user-supplied ``item`` field is preserved as-is.
 
 Auto-``ansible_host`` for primitive shapes: when the inventory's ``compose``
 option is empty, primitive shapes additionally set ``ansible_host`` to the
@@ -206,9 +202,6 @@ def _record(output_name: str, workspace_name: str, host_vars: Dict[str, Any], **
     return record
 
 
-_RESERVED_MAP_OBJECT_FIELDS = ("item", "key")
-
-
 def _primitive_host_vars(item: Any, auto_ansible_host: bool) -> Dict[str, Any]:
     host_vars: Dict[str, Any] = {"item": item}
     if auto_ansible_host:
@@ -223,7 +216,7 @@ def _records_for_primitive(value: Any, output_name: str, workspace_name: str, au
 def _records_for_object(value: Any, output_name: str, workspace_name: str) -> List[HostRecord]:
     if not isinstance(value, dict):
         return []
-    return [_record(output_name, workspace_name, value)]
+    return [_record(output_name, workspace_name, {"item": value})]
 
 
 def _records_for_seq_primitive(value: Any, output_name: str, workspace_name: str, auto_ansible_host: bool) -> List[HostRecord]:
@@ -241,7 +234,7 @@ def _records_for_seq_object(value: Any, output_name: str, workspace_name: str) -
     records: List[HostRecord] = []
     for idx, item in enumerate(value):
         if isinstance(item, dict):
-            records.append(_record(output_name, workspace_name, item, index=idx))
+            records.append(_record(output_name, workspace_name, {"item": item}, index=idx))
     return records
 
 
@@ -263,15 +256,7 @@ def _records_for_map_object(value: Any, output_name: str, workspace_name: str) -
     for key, obj in value.items():
         if not isinstance(obj, dict):
             continue
-        for reserved in _RESERVED_MAP_OBJECT_FIELDS:
-            if reserved in obj:
-                raise TerraformError(
-                    f"hosts_from: output {output_name!r} (map(object)) element with key {key!r} contains "
-                    f"reserved field {reserved!r}; rename it in your Terraform output. "
-                    "Both 'item' and 'key' are reserved host variable names for map(object) shapes."
-                )
-        host_vars = dict(obj)
-        host_vars["key"] = key
+        host_vars: Dict[str, Any] = {"item": obj, "key": key}
         records.append(_record(output_name, workspace_name, host_vars, resolved_hostname=key))
     return records
 
@@ -373,13 +358,6 @@ class OutputsSource(BaseInventorySource):
                     "(e.g. 'compose: {ansible_host: item}'). For primitive shapes, "
                     "'ansible_host' is now set automatically when 'compose' is empty."
                 )
-            if "value" in spec:
-                raise TerraformError(
-                    f"hosts_from[{idx}]: 'value' is no longer a recognised key. "
-                    "The reserved host variable for primitive elements is now 'item' "
-                    "(reference it as 'item' in 'compose' or templates). "
-                    "If you meant to declare the output's type, use 'type:'."
-                )
             output_name = spec.get("output")
             if not isinstance(output_name, str) or not output_name:
                 raise TerraformError(f"hosts_from[{idx}] requires a non-empty 'output' string.")
@@ -414,27 +392,12 @@ class OutputsSource(BaseInventorySource):
         # from outputs never meant for inventory.
         records = []
         for output in outputs:
-            output_name: str = output.get("name") or "unknown"
+            output_name = output.get("name") or "unknown"
             value = output.get("value")
 
             if isinstance(value, dict):
-                records.append(
-                    {
-                        "output_name": output_name,
-                        "workspace_name": workspace_name,
-                        "host_vars": value,
-                        "index": None,
-                    }
-                )
+                records.extend(_records_for_object(value, output_name, workspace_name))
             elif isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
-                for idx, item in enumerate(value):
-                    records.append(
-                        {
-                            "output_name": output_name,
-                            "workspace_name": workspace_name,
-                            "host_vars": item,
-                            "index": idx,
-                        }
-                    )
+                records.extend(_records_for_seq_object(value, output_name, workspace_name))
 
         return records

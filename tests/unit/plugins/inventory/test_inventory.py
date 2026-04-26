@@ -190,6 +190,19 @@ class TestResolveSinglePreference:
     def test_blank_preference_string_returns_none(self):
         assert _resolve_single_preference("out", {}, "   ") is None
 
+    def test_dotted_path_walks_nested_dict(self):
+        host_vars = {"item": {"name": "web-1", "tags": {"role": "api"}}}
+        assert _resolve_single_preference("out", host_vars, "item.name") == "web-1"
+        assert _resolve_single_preference("out", host_vars, "item.tags.role") == "api"
+
+    def test_dotted_path_missing_intermediate_key_falls_through_to_literal(self):
+        # When the path can't be walked, the preference is treated as a literal
+        # string, just like a missing single-segment key.
+        assert _resolve_single_preference("out", {"item": {}}, "item.missing") == "item.missing"
+
+    def test_dotted_path_into_non_dict_falls_through_to_literal(self):
+        assert _resolve_single_preference("out", {"item": "primitive"}, "item.name") == "item.name"
+
 
 # ---------------------------------------------------------------------------
 # get_preferred_hostname (utils/common)
@@ -307,6 +320,17 @@ class TestPassesFilters:
             )
             is True
         )
+
+    def test_dotted_filter_key_walks_nested_dict(self):
+        # Filters work against the nested user payload via dotted keys.
+        host_vars = {"item": {"role": "web", "tags": {"env": "prod"}}}
+        assert passes_filters(host_vars, [{"item.role": "web"}], []) is True
+        assert passes_filters(host_vars, [{"item.tags.env": "prod"}], []) is True
+        assert passes_filters(host_vars, [{"item.role": "db"}], []) is False
+
+    def test_dotted_filter_with_missing_path_does_not_match(self):
+        host_vars = {"item": {"role": "web"}}
+        assert passes_filters(host_vars, [{"item.missing": "anything"}], []) is False
 
 
 # ---------------------------------------------------------------------------
@@ -788,7 +812,7 @@ class TestOutputsSourceCollectHosts:
         assert records[0] == {
             "output_name": "web_server",
             "workspace_name": "my-ws",
-            "host_vars": {"ip": "1.2.3.4", "env": "prod"},
+            "host_vars": {"item": {"ip": "1.2.3.4", "env": "prod"}},
             "index": None,
         }
 
@@ -803,7 +827,9 @@ class TestOutputsSourceCollectHosts:
 
         assert len(records) == 2
         assert records[0]["index"] == 0
+        assert records[0]["host_vars"] == {"item": {"ip": "10.0.0.1"}}
         assert records[1]["index"] == 1
+        assert records[1]["host_vars"] == {"item": {"ip": "10.0.0.2"}}
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
@@ -1030,7 +1056,7 @@ class TestCollectHostsFromSpec:
             self._WS,
         )
         assert len(records) == 2
-        assert records[0]["host_vars"] == {"ip": "1.2.3.4"}
+        assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4"}}
         assert records[0]["index"] == 0
 
     def test_list_object_skips_non_dict_elements(self):
@@ -1098,14 +1124,13 @@ class TestCollectHostsFromSpec:
         hostnames = {r["resolved_hostname"] for r in records}
         assert hostnames == {"web-1", "web-2"}
 
-    def test_map_object_host_vars_include_key_variable(self):
+    def test_map_object_host_vars_nest_user_dict_under_item(self):
         records = _collect_hosts_from_spec(
             self._spec(output="ec2", type="map(object)"),
-            {"ec2": {"web-1": {"ip": "1.2.3.4"}}},
+            {"ec2": {"web-1": {"ip": "1.2.3.4", "env": "prod"}}},
             self._WS,
         )
-        assert records[0]["host_vars"]["key"] == "web-1"
-        assert records[0]["host_vars"]["ip"] == "1.2.3.4"
+        assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4", "env": "prod"}, "key": "web-1"}
 
     def test_map_object_skips_non_dict_values(self):
         records = _collect_hosts_from_spec(
@@ -1116,35 +1141,30 @@ class TestCollectHostsFromSpec:
         assert len(records) == 1
         assert records[0]["resolved_hostname"] == "web-1"
 
-    def test_map_object_collision_with_item_field_raises(self):
-        with pytest.raises(TerraformError, match=r"reserved field 'item'") as exc:
-            _collect_hosts_from_spec(
-                self._spec(output="ec2", type="map(object)"),
-                {"ec2": {"web-1": {"item": "oops", "ip": "1.2.3.4"}}},
-                self._WS,
-            )
-        msg = str(exc.value)
-        assert "ec2" in msg
-        assert "web-1" in msg
+    def test_map_object_user_field_named_item_preserved_under_nesting(self):
+        # User dict is sandboxed under top-level `item`; a user field literally
+        # named "item" lives at host_vars["item"]["item"] — no collision with
+        # the wrapper, no warning, no special handling.
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", type="map(object)"),
+            {"ec2": {"web-1": {"item": "user-data", "ip": "1.2.3.4"}}},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {
+            "item": {"item": "user-data", "ip": "1.2.3.4"},
+            "key": "web-1",
+        }
 
-    def test_map_object_collision_with_key_field_raises(self):
-        with pytest.raises(TerraformError, match=r"reserved field 'key'"):
-            _collect_hosts_from_spec(
-                self._spec(output="ec2", type="map(object)"),
-                {"ec2": {"web-1": {"key": "oops", "ip": "1.2.3.4"}}},
-                self._WS,
-            )
-
-    def test_list_object_does_not_inject_item_and_preserves_user_field(self):
-        # `item` is not reserved for list(object); a Terraform field named `item`
-        # must be preserved as-is (no collision, no overwrite).
+    def test_list_object_user_field_named_item_preserved_under_nesting(self):
+        # Same property for list(object): user fields are sandboxed under `item`.
         records = _collect_hosts_from_spec(
             self._spec(output="hosts", type="list(object)"),
             {"hosts": [{"item": "user-data", "ip": "1.2.3.4"}]},
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"] == {"item": "user-data", "ip": "1.2.3.4"}
+        assert records[0]["host_vars"] == {"item": {"item": "user-data", "ip": "1.2.3.4"}}
 
     def test_object_shape_no_auto_ansible_host_when_compose_empty(self):
         # Only primitive shapes auto-assign ansible_host; object shapes never do.
@@ -1176,14 +1196,14 @@ class TestCollectHostsFromSpec:
 
     # ── object ────────────────────────────────────────────────────────────────
 
-    def test_object_produces_single_record_with_dict_as_host_vars(self):
+    def test_object_produces_single_record_with_dict_nested_under_item(self):
         records = _collect_hosts_from_spec(
             self._spec(output="single", type="object"),
             {"single": {"ip": "1.2.3.4", "env": "prod"}},
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"] == {"ip": "1.2.3.4", "env": "prod"}
+        assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4", "env": "prod"}}
         assert records[0]["index"] is None
 
     # ── auto-detection ────────────────────────────────────────────────────────
@@ -1205,7 +1225,7 @@ class TestCollectHostsFromSpec:
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"] == {"region": "us-east-1", "env": "prod"}
+        assert records[0]["host_vars"] == {"item": {"region": "us-east-1", "env": "prod"}}
         assert "resolved_hostname" not in records[0]
 
     def test_auto_list_of_dicts_treated_as_list_object(self):
@@ -1216,7 +1236,7 @@ class TestCollectHostsFromSpec:
         )
         assert len(records) == 2
         assert records[0]["index"] == 0
-        assert records[0]["host_vars"] == {"ip": "1.2.3.4"}
+        assert records[0]["host_vars"] == {"item": {"ip": "1.2.3.4"}}
 
     def test_auto_list_of_primitives_treated_as_seq_primitive(self):
         records = _collect_hosts_from_spec(
@@ -1392,11 +1412,6 @@ class TestOutputsSourceHostsFromValidation:
         assert "compose" in msg
         assert "item" in msg
 
-    def test_value_key_rejected_with_migration_message(self):
-        with pytest.raises(TerraformError, match=r"'value' is no longer a recognised key") as exc:
-            self._validate({"output": "x", "type": "string", "value": "anything"})
-        assert "item" in str(exc.value)
-
 
 # ---------------------------------------------------------------------------
 # OutputsSource — hosts_from mode via collect_hosts (sources/outputs)
@@ -1499,14 +1514,21 @@ class TestOutputsSourceHostsFromMode:
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
-    def test_map_object_collision_propagates_from_collect_hosts(self, mock_resolve, mock_fetch):
+    def test_map_object_user_field_named_item_does_not_collide(self, mock_resolve, mock_fetch):
+        # Regression: with the unified nesting model, a user dict containing a
+        # field literally named "item" or "key" must NOT raise — it is just data
+        # under the top-level `item` wrapper.
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
-            {"name": "ec2", "value": {"web-1": {"item": "oops", "ip": "1.2.3.4"}}},
+            {"name": "ec2", "value": {"web-1": {"item": "user-data", "key": "user-key", "ip": "1.2.3.4"}}},
         ]
         source = self._make_source(hosts_from={"output": "ec2", "type": "map(object)"})
-        with pytest.raises(TerraformError, match=r"reserved field 'item'"):
-            source.collect_hosts()
+        records = source.collect_hosts()
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {
+            "item": {"item": "user-data", "key": "user-key", "ip": "1.2.3.4"},
+            "key": "web-1",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1896,7 +1918,7 @@ class TestInventoryModuleParseOutputs:
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
         plugin.inventory.add_host.assert_called_once_with("my-ws_web_server")
-        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "public_ip", "1.2.3.4")
+        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "item", {"public_ip": "1.2.3.4", "env": "prod"})
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
