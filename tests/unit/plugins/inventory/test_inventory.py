@@ -925,40 +925,52 @@ class TestCollectHostsFromSpec:
 
     # ── primitive (string / number / bool) ────────────────────────────────────
 
-    def test_string_produces_one_record_with_value_var(self):
+    def test_string_produces_one_record_with_item_var(self):
         records = _collect_hosts_from_spec(
             self._spec(output="ip", type="string"),
             {"ip": "1.2.3.4"},
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
+        assert "value" not in records[0]["host_vars"]
         assert records[0]["index"] is None
 
-    def test_string_with_use_as_sets_named_var(self):
+    def test_string_auto_ansible_host_when_compose_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ip", type="string", use_as="ansible_host"),
+            self._spec(output="ip", type="string"),
             {"ip": "1.2.3.4"},
             self._WS,
+            compose_active=False,
         )
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
-        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
-    def test_number_primitive_records_value(self):
+    def test_string_no_auto_ansible_host_when_compose_active(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ip", type="string"),
+            {"ip": "1.2.3.4"},
+            self._WS,
+            compose_active=True,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
+
+    def test_number_primitive_records_item(self):
         records = _collect_hosts_from_spec(
             self._spec(output="count", type="number"),
             {"count": 42},
             self._WS,
         )
-        assert records[0]["host_vars"]["value"] == 42
+        assert records[0]["host_vars"]["item"] == 42
 
-    def test_bool_primitive_records_value(self):
+    def test_bool_primitive_records_item(self):
         records = _collect_hosts_from_spec(
             self._spec(output="enabled", type="bool"),
             {"enabled": True},
             self._WS,
         )
-        assert records[0]["host_vars"]["value"] is True
+        assert records[0]["host_vars"]["item"] is True
 
     # ── list(primitive) and set(primitive) ────────────────────────────────────
 
@@ -970,18 +982,30 @@ class TestCollectHostsFromSpec:
         )
         assert len(records) == 2
         assert records[0]["index"] == 0
-        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
         assert records[1]["index"] == 1
-        assert records[1]["host_vars"]["value"] == "5.6.7.8"
+        assert records[1]["host_vars"]["item"] == "5.6.7.8"
 
-    def test_list_string_with_use_as_sets_named_var(self):
+    def test_list_string_auto_ansible_host_when_compose_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", type="list(string)", use_as="ansible_host"),
+            self._spec(output="ips", type="list(string)"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             self._WS,
+            compose_active=False,
         )
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
         assert records[1]["host_vars"]["ansible_host"] == "5.6.7.8"
+
+    def test_list_string_no_auto_ansible_host_when_compose_active(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ips", type="list(string)"),
+            {"ips": ["1.2.3.4", "5.6.7.8"]},
+            self._WS,
+            compose_active=True,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
+        assert "ansible_host" not in records[1]["host_vars"]
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
     def test_list_string_no_resolved_hostname_uses_index(self):
         records = _collect_hosts_from_spec(
@@ -1042,15 +1066,25 @@ class TestCollectHostsFromSpec:
             self._WS,
         )
         assert records[0]["host_vars"]["key"] == "web-1"
-        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
-    def test_map_string_with_use_as_sets_named_var(self):
+    def test_map_string_auto_ansible_host_when_compose_empty(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="host_map", type="map(string)", use_as="ansible_host"),
+            self._spec(output="host_map", type="map(string)"),
             {"host_map": {"web-1": "1.2.3.4"}},
             self._WS,
+            compose_active=False,
         )
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+
+    def test_map_string_no_auto_ansible_host_when_compose_active(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="host_map", type="map(string)"),
+            {"host_map": {"web-1": "1.2.3.4"}},
+            self._WS,
+            compose_active=True,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
 
     # ── map(object) ───────────────────────────────────────────────────────────
 
@@ -1081,6 +1115,64 @@ class TestCollectHostsFromSpec:
         )
         assert len(records) == 1
         assert records[0]["resolved_hostname"] == "web-1"
+
+    def test_map_object_collision_with_item_field_raises(self):
+        with pytest.raises(TerraformError, match=r"reserved field 'item'") as exc:
+            _collect_hosts_from_spec(
+                self._spec(output="ec2", type="map(object)"),
+                {"ec2": {"web-1": {"item": "oops", "ip": "1.2.3.4"}}},
+                self._WS,
+            )
+        msg = str(exc.value)
+        assert "ec2" in msg
+        assert "web-1" in msg
+
+    def test_map_object_collision_with_key_field_raises(self):
+        with pytest.raises(TerraformError, match=r"reserved field 'key'"):
+            _collect_hosts_from_spec(
+                self._spec(output="ec2", type="map(object)"),
+                {"ec2": {"web-1": {"key": "oops", "ip": "1.2.3.4"}}},
+                self._WS,
+            )
+
+    def test_list_object_does_not_inject_item_and_preserves_user_field(self):
+        # `item` is not reserved for list(object); a Terraform field named `item`
+        # must be preserved as-is (no collision, no overwrite).
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", type="list(object)"),
+            {"hosts": [{"item": "user-data", "ip": "1.2.3.4"}]},
+            self._WS,
+        )
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {"item": "user-data", "ip": "1.2.3.4"}
+
+    def test_object_shape_no_auto_ansible_host_when_compose_empty(self):
+        # Only primitive shapes auto-assign ansible_host; object shapes never do.
+        records = _collect_hosts_from_spec(
+            self._spec(output="single", type="object"),
+            {"single": {"ip": "1.2.3.4", "env": "prod"}},
+            self._WS,
+            compose_active=False,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
+
+    def test_list_object_no_auto_ansible_host_when_compose_empty(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="hosts", type="list(object)"),
+            {"hosts": [{"ip": "1.2.3.4"}]},
+            self._WS,
+            compose_active=False,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
+
+    def test_map_object_no_auto_ansible_host_when_compose_empty(self):
+        records = _collect_hosts_from_spec(
+            self._spec(output="ec2", type="map(object)"),
+            {"ec2": {"web-1": {"ip": "1.2.3.4"}}},
+            self._WS,
+            compose_active=False,
+        )
+        assert "ansible_host" not in records[0]["host_vars"]
 
     # ── object ────────────────────────────────────────────────────────────────
 
@@ -1128,12 +1220,13 @@ class TestCollectHostsFromSpec:
 
     def test_auto_list_of_primitives_treated_as_seq_primitive(self):
         records = _collect_hosts_from_spec(
-            self._spec(output="ips", type="auto", use_as="ansible_host"),
+            self._spec(output="ips", type="auto"),
             {"ips": ["1.2.3.4", "5.6.7.8"]},
             self._WS,
         )
         assert len(records) == 2
-        assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
+        assert records[1]["host_vars"]["item"] == "5.6.7.8"
 
     @pytest.mark.parametrize("value", ["a-string", 42, 3.14, True])
     def test_auto_primitives_treated_as_primitive(self, value):
@@ -1143,7 +1236,7 @@ class TestCollectHostsFromSpec:
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"]["value"] == value
+        assert records[0]["host_vars"]["item"] == value
 
     def test_auto_omitted_type_defaults_to_auto(self):
         records = _collect_hosts_from_spec(
@@ -1152,7 +1245,7 @@ class TestCollectHostsFromSpec:
             self._WS,
         )
         assert len(records) == 1
-        assert records[0]["host_vars"]["value"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
     def test_auto_empty_list_skipped_silently(self):
         records = _collect_hosts_from_spec(
@@ -1292,21 +1385,17 @@ class TestOutputsSourceHostsFromValidation:
         with pytest.raises(TerraformError, match=r"flatten\(\)|for expression"):
             self._validate({"output": "x", "type": "map(list(string))"})
 
-    def test_use_as_must_be_string(self):
-        with pytest.raises(TerraformError, match="'use_as' must be a string"):
-            self._validate({"output": "x", "type": "list(string)", "use_as": 123})
+    def test_use_as_key_rejected_with_migration_message(self):
+        with pytest.raises(TerraformError, match=r"'use_as' is no longer supported") as exc:
+            self._validate({"output": "x", "type": "list(string)", "use_as": "ansible_host"})
+        msg = str(exc.value)
+        assert "compose" in msg
+        assert "item" in msg
 
-    def test_use_as_on_object_shape_warns_but_passes(self):
-        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
-            self._validate({"output": "ec2", "type": "map(object)", "use_as": "ansible_host"})
-            mock_warn.assert_called_once()
-            assert "use_as" in mock_warn.call_args.args[0]
-
-    def test_use_as_on_auto_does_not_warn(self):
-        # auto resolves at runtime; we don't know object-ness at validation time.
-        with patch(f"{_OUTPUTS_SRC}._warn") as mock_warn:
-            self._validate({"output": "ec2", "type": "auto", "use_as": "ansible_host"})
-            mock_warn.assert_not_called()
+    def test_value_key_rejected_with_migration_message(self):
+        with pytest.raises(TerraformError, match=r"'value' is no longer a recognised key") as exc:
+            self._validate({"output": "x", "type": "string", "value": "anything"})
+        assert "item" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
@@ -1315,12 +1404,13 @@ class TestOutputsSourceHostsFromValidation:
 
 
 class TestOutputsSourceHostsFromMode:
-    def _make_source(self, hosts_from):
+    def _make_source(self, hosts_from, compose=None):
         options = {
             "workspace_id": None,
             "organization": "my-org",
             "workspace": "my-ws",
             "hosts_from": hosts_from,
+            "compose": compose or {},
         }
         return OutputsSource(Mock(), options)
 
@@ -1331,9 +1421,11 @@ class TestOutputsSourceHostsFromMode:
         mock_fetch.return_value = [
             {"name": "instance_ips", "value": ["1.2.3.4", "5.6.7.8"]},
         ]
-        records = self._make_source(hosts_from={"output": "instance_ips", "type": "list(string)", "use_as": "ansible_host"}).collect_hosts()
+        records = self._make_source(hosts_from={"output": "instance_ips", "type": "list(string)"}).collect_hosts()
         assert len(records) == 2
+        # No compose → ansible_host is auto-set to the primitive value.
         assert records[0]["host_vars"]["ansible_host"] == "1.2.3.4"
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
@@ -1345,8 +1437,8 @@ class TestOutputsSourceHostsFromMode:
         ]
         records = self._make_source(
             hosts_from=[
-                {"output": "web_ips", "type": "list(string)", "use_as": "ansible_host"},
-                {"output": "db_ips", "type": "list(string)", "use_as": "ansible_host"},
+                {"output": "web_ips", "type": "list(string)"},
+                {"output": "db_ips", "type": "list(string)"},
             ]
         ).collect_hosts()
         assert len(records) == 2
@@ -1386,6 +1478,35 @@ class TestOutputsSourceHostsFromMode:
         records = self._make_source(hosts_from={"output": "ec2", "type": "auto"}).collect_hosts()
         assert len(records) == 2
         assert {r["resolved_hostname"] for r in records} == {"web-1", "web-2"}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_compose_active_suppresses_auto_ansible_host(self, mock_resolve, mock_fetch):
+        # When compose is non-empty, the user is in control; do not auto-assign
+        # ansible_host even if compose doesn't reference it.
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ips", "value": ["1.2.3.4"]},
+        ]
+        source = self._make_source(
+            hosts_from={"output": "ips", "type": "list(string)"},
+            compose={"some_other_var": "item"},
+        )
+        records = source.collect_hosts()
+        assert len(records) == 1
+        assert "ansible_host" not in records[0]["host_vars"]
+        assert records[0]["host_vars"]["item"] == "1.2.3.4"
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_map_object_collision_propagates_from_collect_hosts(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ec2", "value": {"web-1": {"item": "oops", "ip": "1.2.3.4"}}},
+        ]
+        source = self._make_source(hosts_from={"output": "ec2", "type": "map(object)"})
+        with pytest.raises(TerraformError, match=r"reserved field 'item'"):
+            source.collect_hosts()
 
 
 # ---------------------------------------------------------------------------

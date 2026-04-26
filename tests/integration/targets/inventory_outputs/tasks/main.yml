@@ -187,13 +187,95 @@
           Expected 1 host from scalar output host_count.
           Got {{ inv_scalar._meta.hostvars | length }}: {{ inv_scalar._meta.hostvars.keys() | list }}
 
-    - name: Assert scalar host has 'value' var equal to 2 (number of random_string resources)
+    - name: Assert scalar host has 'item' var equal to 2 (number of random_string resources)
       ansible.builtin.assert:
         that:
-          - (inv_scalar._meta.hostvars.values() | first).value | int == 2
+          - (inv_scalar._meta.hostvars.values() | first).item | int == 2
         fail_msg: >-
-          Expected scalar host to have value=2.
+          Expected scalar host to have item=2.
           Got: {{ inv_scalar._meta.hostvars.values() | first }}
+
+    # ── Inventory test: list(string) auto-ansible_host ────────────────────────
+    # No `compose` is set, so the plugin auto-assigns ansible_host to each
+    # primitive (the IP).
+
+    - name: Write inventory config for list(string) output (auto ansible_host)
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_list_string.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: host_ips_list
+            type: list(string)
+
+    - name: Run ansible-inventory for list(string) output
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_list_string.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_list_string.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
+
+    - name: Load inventory JSON (list string)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_list_string.json"
+        name: inv_list_string
+
+    - name: Assert exactly 2 hosts and ansible_host auto-set to the IP
+      ansible.builtin.assert:
+        that:
+          - inv_list_string._meta.hostvars | length == 2
+          - item.value.item is match('10\\.0\\.0\\.[0-9]+')
+          - item.value.ansible_host == item.value.item
+        fail_msg: >-
+          Expected list(string) hosts with ansible_host auto-set to the IP.
+          Got {{ inv_list_string._meta.hostvars | length }} hosts: {{ inv_list_string._meta.hostvars }}
+      loop: "{{ inv_list_string._meta.hostvars | dict2items }}"
+
+    # ── Inventory test: map(object) reserved field collision ──────────────────
+    # The Terraform output `bad_map_object` deliberately contains a reserved
+    # 'item' field; the inventory build must fail with a clear error.
+
+    - name: Write inventory config for map(object) collision case
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.inventory
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: bad_map_object
+            type: map(object)
+
+    - name: Run ansible-inventory for collision case (expected to fail)
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_collision.terraform_inventory.yml"
+        --list
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      register: collision_result
+      changed_when: false
+      failed_when: false
+
+    - name: Assert collision build failed with the documented message
+      ansible.builtin.assert:
+        that:
+          - collision_result.rc != 0
+          - "'reserved field' in collision_result.stderr"
+          - "'bad_map_object' in collision_result.stderr"
+        fail_msg: >-
+          Expected ansible-inventory to fail with a 'reserved field' error
+          on bad_map_object. Got rc={{ collision_result.rc }},
+          stderr={{ collision_result.stderr }}
 
     # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
     # hosts_list is a list(object) — auto-detection should discover these hosts.

@@ -36,3 +36,18 @@ output "host_count" {
   description = "Total number of hosts (scalar)"
   value       = length(random_string.host_id)
 }
+
+# list(string) — used to test the auto-ansible_host default for primitive shapes.
+output "host_ips_list" {
+  description = "Flat list of host IPs (list of strings)"
+  value       = [for i, _ in random_string.host_id : "10.0.0.${i + 1}"]
+}
+
+# map(object) — element contains the reserved field 'item' to exercise
+# collision detection at collection time.
+output "bad_map_object" {
+  description = "map(object) with a deliberately reserved 'item' field for collision testing"
+  value = {
+    "web-1" = { item = "this should fail", ip = "10.0.0.1" }
+  }
+}

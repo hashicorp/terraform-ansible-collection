@@ -121,25 +121,42 @@ options:
         outputs are processed, each according to its declared V(type).
       - Accepts a single mapping or a list of mappings.  Each entry requires
         V(output) (the Terraform output name) and accepts V(type) (an
-        HCL-style type expression, default V(auto)) and V(use_as) (an Ansible
-        variable name to mirror the raw element value into, e.g.
-        V(ansible_host)).
+        HCL-style type expression, default V(auto)).
       - "Supported V(type) expressions:
-        V(string), V(number), V(bool) → one host, raw value stored as V(value);
+        V(string), V(number), V(bool) → one host, raw value stored as V(item);
         V(object) → one host, dict becomes host variables;
         V(list(string)), V(list(number)), V(list(bool)) → N indexed hosts,
-        primitive stored as V(value);
+        primitive stored as V(item);
         V(list(object)) → N indexed hosts, each element dict becomes host
         variables;
         V(set(...)) → synonym for V(list(...)) — the API serializes both
         as JSON arrays, so they are indistinguishable on the wire;
         V(map(string)), V(map(number)), V(map(bool)) → one host per key, key
-        becomes the resolved hostname and is stored in the V(key) host var,
-        primitive stored as V(value);
+        becomes the resolved hostname and is stored in V(key); primitive
+        stored as V(item);
         V(map(object)) → one host per key, key becomes the resolved hostname
         and is stored in V(key), element dict becomes host variables;
         V(auto) (default when V(type) is omitted) → shape inferred at runtime
         from the value (experimental)."
+      - "Reserved host variable names produced by primitive shapes: V(item)
+        (the primitive element itself — the value for V(string)/V(number)/V(bool),
+        each list element for V(list(<primitive>))/V(set(<primitive>)), each
+        map value for V(map(<primitive>))) and V(key) (the map key, only
+        for V(map(...)) shapes)."
+      - "Auto-V(ansible_host): when the inventory's V(compose) option is
+        empty, primitive shapes additionally set V(ansible_host) to the
+        primitive value. This makes V(hosts_from)
+        V({output: ips, type: list(string)}) usable with no further config.
+        Setting any V(compose) entry suppresses this default — V(compose) is
+        then the single source of host-var assignment."
+      - For V(map(...)) shapes the map key becomes the resolved hostname; the
+        V(hostnames) preference list has no further effect for those records.
+      - "For V(map(object)), V(item) and V(key) are both reserved. An element
+        dict that contains either field is rejected at collection time so
+        plugin-injected vars never silently overwrite user data. Rename the
+        offending field in the Terraform output. For V(list(object)) /
+        V(set(object)) / V(object), no fields are injected — V(item) is not
+        reserved there and a user-supplied V(item) field is preserved."
       - "V(type=auto) detection rules: a B(dict) of dicts is treated as
         V(map(object)); any other dict (including a dict of primitives) is
         treated as V(object); a B(list) of dicts is treated as V(list(object));
@@ -149,13 +166,6 @@ options:
         lists with a warning). Note that a dict of primitives is ambiguous
         between V(object) and V(map(string)) — V(auto) picks V(object); declare
         V(type: map(string)) explicitly when you want the map semantics."
-      - For V(map(...)) shapes the map key becomes the resolved hostname; the
-        V(hostnames) preference list has no further effect for those records.
-        The special variable V(key) is always set to the map key.
-      - V(use_as) is ignored on V(object), V(list(object)), V(set(object)), and
-        V(map(object)) shapes (object element fields become host variables
-        directly). A warning is emitted at validation time when V(use_as) is
-        set on a known object shape.
       - Unsupported expressions (V(tuple), nested forms such as V(map(list(...)))
         or V(object({...})), and V(null)) are rejected at validation time with
         a clear message. Reshape such values in your Terraform output using
@@ -336,13 +346,17 @@ EXAMPLES = r"""
 
 # ── hosts_from: HCL-style type expressions ────────────────────────────────────
 # Each spec declares the shape of a Terraform output via an HCL-style `type:`
-# expression. Nested collections and `tuple` are not supported — reshape with
+# expression. The plugin exposes the primitive element as the reserved host
+# var `item` (and the map key as `key` for map(...) shapes). When `compose`
+# is empty, primitive shapes auto-set `ansible_host` to the primitive — so
+# the simplest configurations need no compose at all.
+# Nested collections and `tuple` are not supported — reshape with
 # Terraform's flatten()/for if needed.
 
-# list(string) output → one auto-named host per IP; IP assigned to ansible_host
+# list(string): no compose needed — each IP auto-becomes ansible_host
 # Terraform: output "instance_ips" { value = aws_instance.ec2[*].public_ip }
-# Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, …
-- name: Inventory from list-of-string IPs
+# Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, … (ansible_host = the IP)
+- name: Inventory from list-of-string IPs (zero compose)
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
@@ -350,9 +364,8 @@ EXAMPLES = r"""
   hosts_from:
     output: instance_ips
     type: list(string)
-    use_as: ansible_host
 
-# Use the IP value itself as the hostname
+# Same shape, but use the IP itself as the Ansible hostname.
 - name: IP-as-hostname from list(string)
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -361,11 +374,24 @@ EXAMPLES = r"""
   hosts_from:
     output: instance_ips
     type: list(string)
-    use_as: ansible_host
   hostnames:
-    - ansible_host    # e.g. "52.10.0.1" becomes the Ansible hostname
+    - ansible_host    # auto-assigned IP becomes the Ansible hostname
 
-# map(string) → key = hostname, string value → ansible_host
+# list(string) with custom compose — auto-ansible_host is suppressed by the
+# presence of any compose entry, so re-assign explicitly using `item`.
+- name: list(string) with custom compose
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: instance_ips
+    type: list(string)
+  compose:
+    ansible_host: item
+    ansible_user: '"ec2-user"'
+
+# map(string): key becomes the hostname; primitive auto-becomes ansible_host
 # Terraform: output "host_map" { value = { "web-1" = "1.2.3.4", "web-2" = "5.6.7.8" } }
 - name: Map-keyed IP inventory
   plugin: hashicorp.terraform.inventory
@@ -375,9 +401,23 @@ EXAMPLES = r"""
   hosts_from:
     output: host_map
     type: map(string)
-    use_as: ansible_host
 
-# map(object) → key = hostname, object value = host variables (best structured format)
+# map(string) using both reserved vars — `item` (the value) and `key` (the
+# map key) — to compose a richer host_var.
+- name: map(string) with composed environment
+  plugin: hashicorp.terraform.inventory
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: host_map
+    type: map(string)
+  compose:
+    ansible_host: item
+    env_short: key | regex_replace('-.*', '')
+
+# map(object): key = hostname, dict = host variables. Field names must not
+# collide with `item` or `key` — those are reserved here.
 # Terraform: output "ec2_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
 - name: Structured map-keyed inventory
   plugin: hashicorp.terraform.inventory
@@ -390,8 +430,9 @@ EXAMPLES = r"""
   compose:
     ansible_host: public_ip
 
-# set(object) — same JSON wire format as list(object); accepted as a synonym
-# Terraform: output "node_set" { value = toset([{ name = "n1", ip = "..." }, ...]) }
+# set(object) — same JSON wire format as list(object); accepted as a synonym.
+# `item` is not reserved for object shapes, so a Terraform field named `item`
+# would be preserved as-is.
 - name: Inventory from set(object)
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -403,7 +444,8 @@ EXAMPLES = r"""
   hostnames:
     - name
 
-# Scalar: number output → one host, value stored as `value`
+# Scalar: number output → one host, primitive stored as `item`. With no
+# compose, `ansible_host = item` automatically.
 # Terraform: output "host_count" { value = length(aws_instance.ec2) }
 - name: Scalar inventory
   plugin: hashicorp.terraform.inventory
@@ -426,12 +468,15 @@ EXAMPLES = r"""
   hosts_from:
     - output: ec2_hosts        # dict of dicts → map(object)
       type: auto
-    - output: db_ips           # list of strings → list(string)
+    - output: db_ips           # list of strings → list(string), auto ansible_host
       type: auto
-      use_as: ansible_host
 
 # Multiple outputs combined — hosts_from accepts a list of specs mixing
-# primitive and object shapes.
+# primitive and object shapes. Note: any compose entry suppresses the auto-
+# ansible_host default for primitive specs, so when mixing shapes, set
+# `compose: ansible_host` to a Jinja that picks up either `item` (for the
+# primitive specs) or the relevant field name (for map(object) hosts) — or
+# split the mix into two inventory files if expressions get awkward.
 - name: Multi-output inventory
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -439,13 +484,13 @@ EXAMPLES = r"""
   workspace: my-workspace
   hosts_from:
     - output: web_hosts
-      type: map(object)
+      type: map(object)        # ansible_host pulled from public_ip via compose
     - output: db_ips
-      type: list(string)
-      use_as: ansible_host
+      type: list(string)       # ansible_host = item via compose
     - output: bastion_ip
-      type: string
-      use_as: ansible_host
+      type: string             # ansible_host = item via compose
+  compose:
+    ansible_host: public_ip | default(item)
 """
 
 from typing import Any, Dict, Iterable, List, Optional
@@ -592,6 +637,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
             # Read directly from raw config: type: raw option parsing is unreliable
             # across Ansible versions and may return None even when the key is set.
             "hosts_from": (raw or {}).get("hosts_from") if isinstance(raw, dict) else self.get_option("hosts_from"),
+            # OutputsSource uses this to decide whether to auto-assign
+            # ansible_host for primitive shapes (off when compose is non-empty).
+            "compose": compose,
         }
 
         if not tfe_token:
