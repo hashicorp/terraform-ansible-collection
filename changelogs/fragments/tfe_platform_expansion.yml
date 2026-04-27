@@ -1,0 +1,30 @@
+---
+minor_changes:
+  - >-
+    actions - Added ``hashicorp.terraform.promote_run`` to gate and optionally
+    apply a run based on Sentinel policy-check outcomes, and
+    ``hashicorp.terraform.workspace_bootstrap`` to converge workspace settings,
+    variables, variable-set attachments, run triggers, and notification
+    configurations in one idempotent task.
+  - >-
+    lookups - Added ``hashicorp.terraform.tfe_policy_checks``,
+    ``hashicorp.terraform.tfe_run_events``, and
+    ``hashicorp.terraform.tfe_variable_set_vars`` for policy-check gating, run
+    timeline inspection, and variable-set variable retrieval. Sensitive
+    variable-set values are masked by default.
+  - >-
+    modules - Added ``hashicorp.terraform.notification_configuration``,
+    ``hashicorp.terraform.organizations``, ``hashicorp.terraform.run_trigger``,
+    ``hashicorp.terraform.ssh_keys``, ``hashicorp.terraform.variable``, and
+    ``hashicorp.terraform.variable_sets``.
+  - >-
+    module_utils - Added pytfe-backed helpers for notification configurations,
+    organizations, run events, run triggers, SSH keys, workspace variables,
+    variable-set variables, and variable sets.
+bugfixes:
+  - >-
+    run - Increased the default run polling timeout to 120 seconds to avoid
+    premature timeout failures on normal Terraform Cloud/Enterprise runs.
+  - >-
+    modules - Preserved task invocation parameters in module results so module
+    code does not override the invocation data reported by Ansible.

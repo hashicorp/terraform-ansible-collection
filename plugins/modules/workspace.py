@@ -567,6 +567,11 @@ IGNORE_LIST = [
     "tfe_token",
     "tf_token",
     "tfe_address",
+    "tfe_timeout",
+    "tfe_verify_tls",
+    "tfe_max_retries",
+    "tfe_ca_bundle",
+    "tfe_proxies",
     "check_mode",
     "state",
 ]

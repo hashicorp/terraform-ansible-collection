@@ -69,8 +69,10 @@ class ActionModule(ActionBase):
             "tfe_address",
             "tfe_timeout",
             "tfe_verify_tls",
+            "tfe_max_retries",
+            "tfe_ca_bundle",
+            "tfe_proxies",
             "tf_token",
-            "tf_hostname",
         )
     )
 

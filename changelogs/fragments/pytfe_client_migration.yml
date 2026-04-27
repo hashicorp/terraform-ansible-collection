@@ -1,0 +1,28 @@
+---
+breaking_changes:
+  - >-
+    client - The collection now uses a shared pytfe-backed client wrapper
+    (``plugins/module_utils/client.py``) instead of the removed
+    ``plugins/module_utils/common.py`` request helpers. Custom plugins or
+    automation that imported the internal ``common`` module must migrate to
+    ``AnsibleTerraformModule`` and ``TerraformClient`` from
+    ``plugins/module_utils/client.py``.
+  - >-
+    authentication - The canonical authentication and transport options are now
+    ``tfe_token``, ``tfe_address``, ``tfe_timeout``, ``tfe_verify_tls``,
+    ``tfe_max_retries``, ``tfe_ca_bundle``, and ``tfe_proxies``. The
+    ``tf_token`` option remains as an alias for ``tfe_token`` for compatibility,
+    but old transport names such as ``tf_hostname``, ``tf_validate_certs``,
+    ``tf_timeout``, and ``tf_max_retries`` are not supported by the pytfe-backed
+    client. The primary environment variables also move to ``TFE_TOKEN`` and
+    ``TFE_ADDRESS``.
+major_changes:
+  - >-
+    client - Added a shared pytfe-backed ``TerraformClient`` lifecycle wrapper
+    for modules, lookups, action plugins, and inventory plugins. The wrapper
+    centralizes token/address handling, timeout, retry, TLS verification, CA
+    bundle, proxy, and collection ``User-Agent`` suffix configuration.
+  - >-
+    module_utils - Removed the collection's custom request/session and local
+    response-model layer in favor of the first-class pytfe SDK and pytfe's
+    response models.

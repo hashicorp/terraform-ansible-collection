@@ -1,3 +1,0 @@
----
-minor_changes:
-  - Adds a new module hashicorp.terraform.variable for managing workspace-scoped Terraform and environment variables on TFE/C.

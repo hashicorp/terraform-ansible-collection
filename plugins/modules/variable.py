@@ -95,7 +95,7 @@ EXAMPLES = r"""
     key: "region"
     value: "us-east-1"
     category: "terraform"
-    description: "Default AWS region"
+    description: "Default application region"
     state: present
 
 - name: Idempotent re-run with identical input
@@ -105,7 +105,7 @@ EXAMPLES = r"""
     key: "region"
     value: "us-east-1"
     category: "terraform"
-    description: "Default AWS region"
+    description: "Default application region"
     state: present
 
 # Re-running with the same inputs yields:
@@ -115,8 +115,8 @@ EXAMPLES = r"""
   hashicorp.terraform.variable:
     organization: "my-org"
     workspace: "my-workspace"
-    key: "AWS_ACCESS_KEY_ID"
-    value: "AKIA...updated..."
+    key: "APP_API_ENDPOINT"
+    value: "https://api.example.com"
     category: "env"
     state: present
 
@@ -124,8 +124,8 @@ EXAMPLES = r"""
   hashicorp.terraform.variable:
     organization: "my-org"
     workspace: "my-workspace"
-    key: "AWS_SECRET_ACCESS_KEY"
-    value: "{{ aws_secret }}"
+    key: "APP_API_TOKEN"
+    value: "{{ app_api_token }}"
     category: "env"
     sensitive: true
     state: present
@@ -171,7 +171,7 @@ description:
   description: The variable description.
   returned: when set
   type: str
-  sample: "Default AWS region"
+  sample: "Default application region"
 category:
   description: The variable category.
   returned: when state is present

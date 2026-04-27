@@ -1,3 +1,0 @@
----
-minor_changes:
-  - Adds a new module hashicorp.terraform.organizations for organization management on TFE/C.

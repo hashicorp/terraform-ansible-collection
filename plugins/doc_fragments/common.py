@@ -14,9 +14,10 @@ options:
       - The Terraform Enterprise/Cloud authentication token.
       - See the HCP documentation for more information about authentication tokens
         U(https://developer.hashicorp.com/terraform/cloud-docs/api-docs#authentication).
-      - If this value is not set, the environment variable C(TFE_TOKEN) environment variables will be tried.
+      - If this value is not set, the environment variable C(TFE_TOKEN) will be tried.
       - If the environment variable is also unset, an exception will be raised and the task will fail.
       - The user should ensure that token being used has the correct permissions to perform the operations requested through the Ansible task.
+      - The C(tf_token) alias is kept for compatibility with older collection releases.
     type: str
     required: true
     aliases:

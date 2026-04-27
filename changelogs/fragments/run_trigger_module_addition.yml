@@ -1,3 +1,0 @@
----
-minor_changes:
-  - Adds a new module hashicorp.terraform.run_trigger for managing run triggers between workspaces on TFE/C.
