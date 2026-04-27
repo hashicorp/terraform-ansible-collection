@@ -20,6 +20,13 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 )
 
 
+@pytest.fixture(autouse=True)
+def clean_auth_env(monkeypatch):
+    """Keep fallback-sensitive tests independent from the caller's shell."""
+    for env_name in ("TFE_TOKEN", "TFE_ADDRESS", "TFE_TIMEOUT", "TFE_VERIFY_TLS", "TFE_MAX_RETRIES", "SSL_CERT_FILE"):
+        monkeypatch.delenv(env_name, raising=False)
+
+
 class TestAnsibleTerraformModule:
     """Test AnsibleTerraformModule wrapper class."""
 
@@ -192,6 +199,46 @@ class TestFromMapping:
         client = TerraformClient.from_mapping({"tfe_token": "t", "tfe_proxies": None, "tfe_ca_bundle": None})
         assert client._sdk_kwargs == {
             "token": "t",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
+
+    def test_env_token_fallback_used_when_token_not_passed(self, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "env-token")
+
+        client = TerraformClient.from_mapping({})
+
+        assert client._sdk_kwargs == {
+            "token": "env-token",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
+
+    def test_explicit_token_overrides_env_token(self, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "env-token")
+
+        client = TerraformClient.from_mapping({"tfe_token": "explicit-token"})
+
+        assert client._sdk_kwargs == {
+            "token": "explicit-token",
+            "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
+        }
+
+    def test_empty_env_token_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "")
+
+        with pytest.raises(TerraformTokenNotFoundError):
+            TerraformClient.from_mapping({})
+
+    def test_env_fallbacks_are_applied_to_non_token_options(self, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "env-token")
+        monkeypatch.setenv("TFE_ADDRESS", "https://tfe.example.com")
+        monkeypatch.setenv("TFE_TIMEOUT", "45")
+
+        client = TerraformClient.from_mapping({})
+
+        assert client._sdk_kwargs == {
+            "token": "env-token",
+            "address": "https://tfe.example.com",
+            "timeout": "45",
             "user_agent_suffix": COLLECTION_USER_AGENT_SUFFIX,
         }
 

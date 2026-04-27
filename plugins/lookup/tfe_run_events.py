@@ -109,7 +109,6 @@ class LookupModule(LookupBase):
         action = kwargs.get("action")
         since = kwargs.get("since")
         until = kwargs.get("until")
-        kwargs.setdefault("tfe_address", "https://app.terraform.io")
 
         try:
             with TerraformClient.from_mapping(kwargs) as adapter:

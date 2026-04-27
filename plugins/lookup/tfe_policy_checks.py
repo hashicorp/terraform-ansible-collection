@@ -108,7 +108,6 @@ class LookupModule(LookupBase):
         run_id = kwargs.get("run_id")
         policy_check_id = kwargs.get("policy_check_id")
         only_failures = bool(kwargs.get("only_failures", False))
-        kwargs.setdefault("tfe_address", "https://app.terraform.io")
 
         if run_id and policy_check_id:
             raise AnsibleError("run_id and policy_check_id are mutually exclusive.")

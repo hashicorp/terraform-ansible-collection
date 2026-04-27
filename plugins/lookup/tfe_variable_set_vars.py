@@ -129,7 +129,6 @@ class LookupModule(LookupBase):
         name = kwargs.get("name")
         organization = kwargs.get("organization")
         display_sensitive = bool(kwargs.get("display_sensitive", False))
-        kwargs.setdefault("tfe_address", "https://app.terraform.io")
 
         try:
             with TerraformClient.from_mapping(kwargs) as adapter:
