@@ -1,3 +1,0 @@
-minor_changes:
-  - Adds a new lookup plugin hashicorp.terraform.tfe_run_events to retrieve the ordered timeline
-    of events for a TFE/C run, with optional filtering by action and time window.

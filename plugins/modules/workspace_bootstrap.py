@@ -80,14 +80,14 @@ EXAMPLES = r"""
       terraform_version: "1.9.5"
       auto_apply: false
     variables:
-      - key: AWS_REGION
+      - key: APP_REGION
         value: us-east-1
         category: env
       - key: replicas
         value: "3"
         category: terraform
     variable_sets:
-      - name: shared-aws-credentials
+      - name: shared-platform-defaults
     run_triggers:
       - ws-upstream-dep
     notifications:

@@ -53,10 +53,8 @@ options:
         when only named output values are needed.  By default only dict and
         list-of-dict outputs produce hosts.  Use O(hosts_from) to handle
         primitive shapes such as scalars, list(string), and map(string).
-      - V(search) is reserved for future implementation and will raise an
-        error if selected.
     type: str
-    choices: [statefile, outputs, search]
+    choices: [statefile, outputs]
     default: statefile
   tfe_token:
     description:
@@ -135,8 +133,8 @@ options:
         see U(https://developer.hashicorp.com/terraform/language/expressions/types)."
       - "Object-shape outputs (V(object), V(list(object)), V(set(object)),
         V(map(object))) have their user dict fields B(spread flat) at the
-        top level of host_vars, matching the convention used by
-        M(amazon.aws.aws_ec2). Reference fields directly:
+        top level of host_vars, matching common Ansible inventory plugin
+        conventions. Reference fields directly:
         V(compose: {ansible_host: public_ip}), V(hostnames: [name]),
         V(keyed_groups: [{key: env}]) — no V(item.<field>) ceremony."
       - "Primitive-shape outputs (V(string) / V(number) / V(bool) /
@@ -182,8 +180,7 @@ options:
         an Ansible-reserved host variable (V(name), V(groups), V(tags),
         V(inventory_hostname), …) Ansible emits an informational warning.
         Set O(hostvars_prefix) (e.g. V(tf_)) to namespace every spread field
-        and silence the warning, mirroring M(amazon.aws.aws_ec2)'s
-        recommendation."
+        and silence the warning."
       - "V(type=dynamic) detection rules: a B(dict) of dicts is treated as
         V(map(object)); any other dict (including a dict of primitives) is
         treated as V(object); a B(list) of dicts is treated as V(list(object));
@@ -252,8 +249,6 @@ options:
         V(inventory_hostname), …) — for example V(hostvars_prefix=tf_)
         renames a V(name) field to V(tf_name) and silences the
         "Found variable using reserved name" warning.
-      - Mirrors the option of the same name in M(amazon.aws.aws_ec2) /
-        M(amazon.aws.aws_rds).
       - The plugin-injected variables V(ansible_host) and V(value) (the
         primitive-shape host var) are never renamed.
       - "V(compose), V(keyed_groups), V(groups), V(hostnames), and filter
@@ -415,7 +410,7 @@ EXAMPLES = r"""
 # ── hosts_from: Terraform type expressions ────────────────────────────────────
 # Object shapes (object, list(object), set(object), map(object)) spread the
 # user dict at the top level of host_vars — reference fields directly as
-# `name`, `public_ip`, etc. (matching amazon.aws.aws_ec2 conventions).
+# `name`, `public_ip`, etc.
 # Primitive shapes expose the scalar as `value`. For map(...) shapes the map
 # key becomes inventory_hostname (no separate `key` host var).
 # When `compose` is empty, primitive shapes auto-set `ansible_host` to the
@@ -424,7 +419,7 @@ EXAMPLES = r"""
 # Terraform's flatten()/for if needed.
 
 # list(string): no compose needed — each IP auto-becomes ansible_host
-# Terraform: output "instance_ips" { value = aws_instance.ec2[*].public_ip }
+# Terraform: output "instance_ips" { value = ["1.2.3.4", "5.6.7.8"] }
 # Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, … (ansible_host = the IP)
 - name: Inventory from list-of-string IPs (zero compose)
   plugin: hashicorp.terraform.inventory
@@ -488,14 +483,14 @@ EXAMPLES = r"""
 
 # map(object): key = hostname, user dict spread flat at top level. Reference
 # fields directly from compose / hostnames / filters.
-# Terraform: output "ec2_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
+# Terraform: output "web_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
 - name: Structured map-keyed inventory
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
   workspace: my-workspace
   hosts_from:
-    output: ec2_hosts
+    output: web_hosts
     type: map(object)
   compose:
     ansible_host: public_ip
@@ -505,15 +500,14 @@ EXAMPLES = r"""
 
 # list(object) with reserved-name avoidance: hostvars_prefix namespaces every
 # spread field, silencing the "Found variable using reserved name" warning
-# when a Terraform field is named e.g. `name` or `tags`. Mirrors aws_ec2's
-# hostvars_prefix recommendation.
+# when a Terraform field is named e.g. `name` or `tags`.
 - name: list(object) with hostvars_prefix
   plugin: hashicorp.terraform.inventory
   source: outputs
   organization: my-org
   workspace: my-workspace
   hosts_from:
-    output: ec2_hosts
+    output: web_hosts
     type: list(object)
   hostvars_prefix: tf_                # name → tf_name, public_ip → tf_public_ip
   hostnames:
@@ -535,7 +529,7 @@ EXAMPLES = r"""
 
 # Scalar: number output → one host, primitive stored as `value`. With no
 # compose, `ansible_host = value` automatically.
-# Terraform: output "host_count" { value = length(aws_instance.ec2) }
+# Terraform: output "host_count" { value = 3 }
 - name: Scalar inventory
   plugin: hashicorp.terraform.inventory
   source: outputs
@@ -557,7 +551,7 @@ EXAMPLES = r"""
   organization: my-org
   workspace: my-workspace
   hosts_from:
-    - output: ec2_hosts        # dict of dicts → map(object)
+    - output: web_hosts        # dict of dicts → map(object)
       type: dynamic
     - output: db_ips           # list of strings → list(string), auto ansible_host
       type: dynamic
@@ -661,7 +655,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         keys all resolve names against this view, so users can reference
         either ``public_ip`` or ``tf_public_ip`` (when ``hostvars_prefix=tf_``)
         and both will work. Mirrors the dict-update pattern used by
-        ``amazon.aws.aws_rds`` (see ``host.update(new_vars)``).
+        common inventory plugins that keep both raw and renamed variables
+        available while resolving constructed configuration.
 
         Plugin-injected vars (``ansible_host``, ``value``) are never renamed.
         """

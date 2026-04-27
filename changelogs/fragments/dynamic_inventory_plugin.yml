@@ -1,0 +1,44 @@
+---
+minor_changes:
+  - >-
+    inventory - Added the ``hashicorp.terraform.inventory`` dynamic inventory
+    plugin for HCP Terraform and Terraform Enterprise. The plugin targets a
+    single workspace by ``workspace_id`` or by ``organization`` plus
+    ``workspace``, uses the pytfe SDK, supports constructed inventory features,
+    and does not require the Terraform CLI or direct backend credentials.
+  - >-
+    inventory statefile source - Added ``source=statefile`` to build hosts from
+    the latest Terraform state version. The source supports Terraform state v4,
+    managed resources, optional child-module traversal with
+    ``search_child_modules``, built-in mappings for common AWS, AzureRM, and
+    Google compute resources, custom ``provider_mapping`` entries, attribute
+    and tag-based hostname preferences, include/exclude filters, and keyed
+    groups.
+  - >-
+    inventory statefile source - Terraform resource attributes marked in
+    ``sensitive_attributes`` are stripped before host variables are emitted.
+    Sensitive values are dropped rather than masked, and stripped values are not
+    available to hostname resolution, filters, compose, groups, or keyed groups.
+  - >-
+    inventory outputs source - Added ``source=outputs`` to build hosts from
+    current state version outputs. The source supports ``hosts_from`` mappings
+    using Terraform type expressions for primitives, objects, lists, sets, maps,
+    tuples, and dynamic values, including automatic ``ansible_host`` assignment
+    for primitive shapes when ``compose`` is empty.
+  - >-
+    inventory outputs source - Object-shaped outputs spread user fields at the
+    top level of host variables; primitive-shaped outputs expose the scalar as
+    ``value``; map-shaped outputs use the map key as the inventory hostname.
+    ``hostvars_prefix`` and ``hostvars_suffix`` can namespace user fields while
+    leaving plugin-injected ``ansible_host`` and ``value`` unchanged.
+  - >-
+    inventory outputs source - Sensitive outputs are fetched with
+    ``display_sensitive=False`` and are masked by the shared output helper unless
+    the API omits the value.
+breaking_changes:
+  - >-
+    inventory - The hostname resolver no longer falls back to interpreting an
+    unresolved preference as a literal hostname. Unresolved preferences now
+    return ``None`` so the next preference, or the plugin default hostname, is
+    used. This avoids collapsing hosts into a single literal name when a
+    hostname preference is misspelled.

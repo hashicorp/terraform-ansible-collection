@@ -1,3 +1,0 @@
----
-minor_changes:
-  - Adds a new module hashicorp.terraform.variable_sets for managing variable sets on TFE/C, including reconciling workspace and project attachments.

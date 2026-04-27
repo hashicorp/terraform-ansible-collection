@@ -34,19 +34,47 @@ options:
       - When I(false) (default), sensitive values are replaced with C(<sensitive>).
     type: bool
     default: false
-  tf_hostname:
-    description: Terraform Cloud/Enterprise hostname.
+  tfe_address:
+    description:
+      - Terraform Cloud/Enterprise API address.
+      - Falls back to the C(TFE_ADDRESS) environment variable when not set.
     type: str
-    default: app.terraform.io
-    aliases: ['hostname']
-  tf_token:
-    description: Terraform Cloud/Enterprise API token.
+    default: https://app.terraform.io
+  tfe_token:
+    description:
+      - Terraform Cloud/Enterprise API token.
+      - Falls back to the C(TFE_TOKEN) environment variable when not set.
+      - The C(tf_token) alias is kept for compatibility with older collection releases.
     type: str
-    aliases: ['token']
-  tf_validate_certs:
-    description: Whether to validate TLS certificates.
+    required: true
+    aliases: ['tf_token']
+  tfe_timeout:
+    description:
+      - HTTP request timeout in seconds used by the underlying pytfe SDK.
+      - Falls back to the C(TFE_TIMEOUT) environment variable when not set.
+    type: float
+    default: 30.0
+  tfe_verify_tls:
+    description:
+      - Whether to verify TLS certificates when talking to the Terraform Cloud/Enterprise API.
+      - Falls back to the C(TFE_VERIFY_TLS) environment variable when not set.
     type: bool
     default: true
+  tfe_max_retries:
+    description:
+      - Maximum number of automatic retries the pytfe SDK performs for transient HTTP failures.
+      - Falls back to the C(TFE_MAX_RETRIES) environment variable when not set.
+    type: int
+    default: 5
+  tfe_ca_bundle:
+    description:
+      - Path to a CA bundle file used to verify TLS certificates.
+      - Falls back to the C(SSL_CERT_FILE) environment variable when not set.
+    type: path
+  tfe_proxies:
+    description:
+      - HTTP/HTTPS proxy URL passed through to the pytfe SDK.
+    type: str
 """
 
 EXAMPLES = r"""

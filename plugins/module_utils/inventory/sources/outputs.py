@@ -16,10 +16,9 @@ Host-vars data model
 --------------------
 Object-shape outputs (``object``, ``list(object)``, ``set(object)``,
 ``map(object)``) have their user dict fields **spread flat at the top level
-of host_vars**, matching the convention used by ``amazon.aws.aws_ec2`` and
-the rest of the Ansible inventory plugin ecosystem. ``compose``,
-``hostnames``, and filter expressions reference fields by their original
-Terraform names (``compose: {ansible_host: public_ip}``,
+of host_vars**, matching common Ansible inventory plugin conventions.
+``compose``, ``hostnames``, and filter expressions reference fields by their
+original Terraform names (``compose: {ansible_host: public_ip}``,
 ``hostnames: [name]``).
 
 Primitive-shape outputs (``string`` / ``number`` / ``bool`` /
@@ -39,9 +38,9 @@ Reserved-name collisions: when a Terraform field collides with one of
 Ansible's reserved host-var names (``name``, ``groups``, ``tags``,
 ``inventory_hostname``, …) the var is still set but Ansible emits an
 informational warning. Use the inventory-level ``hostvars_prefix`` /
-``hostvars_suffix`` options (mirroring ``amazon.aws.aws_ec2``) to namespace
-every spread field at once: ``hostvars_prefix: tf_`` turns a ``name`` field
-into ``tf_name`` and silences the warning.
+``hostvars_suffix`` options to namespace every spread field at once:
+``hostvars_prefix: tf_`` turns a ``name`` field into ``tf_name`` and
+silences the warning.
 
 Dynamic-detection mode (no ``hosts_from``)
 ------------------------------------------

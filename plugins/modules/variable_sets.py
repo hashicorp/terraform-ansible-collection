@@ -85,8 +85,8 @@ EXAMPLES = r"""
 - name: Create a non-global variable set
   hashicorp.terraform.variable_sets:
     organization: "my-org"
-    name: "shared-aws-creds"
-    description: "Shared AWS credentials for platform workspaces"
+    name: "shared-platform-defaults"
+    description: "Shared platform defaults for application workspaces"
     global: false
     priority: false
     state: present
@@ -94,8 +94,8 @@ EXAMPLES = r"""
 - name: Idempotent re-run with identical input
   hashicorp.terraform.variable_sets:
     organization: "my-org"
-    name: "shared-aws-creds"
-    description: "Shared AWS credentials for platform workspaces"
+    name: "shared-platform-defaults"
+    description: "Shared platform defaults for application workspaces"
     global: false
     priority: false
     state: present
@@ -106,7 +106,7 @@ EXAMPLES = r"""
 - name: Attach the variable set to two workspaces
   hashicorp.terraform.variable_sets:
     organization: "my-org"
-    name: "shared-aws-creds"
+    name: "shared-platform-defaults"
     workspace_ids:
       - "ws-abc123"
       - "ws-def456"
@@ -115,15 +115,15 @@ EXAMPLES = r"""
 - name: Update description and raise priority
   hashicorp.terraform.variable_sets:
     organization: "my-org"
-    name: "shared-aws-creds"
-    description: "Shared AWS credentials (authoritative)"
+    name: "shared-platform-defaults"
+    description: "Shared platform defaults (authoritative)"
     priority: true
     state: present
 
 - name: Detach from every workspace and project
   hashicorp.terraform.variable_sets:
     organization: "my-org"
-    name: "shared-aws-creds"
+    name: "shared-platform-defaults"
     workspace_ids: []
     project_ids: []
     state: present
@@ -149,12 +149,12 @@ name:
   description: Variable set name.
   returned: when state is present
   type: str
-  sample: "shared-aws-creds"
+  sample: "shared-platform-defaults"
 description:
   description: Variable set description.
   returned: when set
   type: str
-  sample: "Shared AWS credentials for platform workspaces"
+  sample: "Shared platform defaults for application workspaces"
 global:
   description: Whether the variable set applies to all workspaces in the organization.
   returned: when state is present
