@@ -262,7 +262,6 @@ class LookupModule(LookupBase):
         organization = kwargs.get("organization")
         name = kwargs.get("name")
         display_sensitive = kwargs.get("display_sensitive", False)
-        kwargs.setdefault("tfe_address", "https://app.terraform.io")
 
         allow_all_outputs = self._validate_parameters(
             state_version_output_id,

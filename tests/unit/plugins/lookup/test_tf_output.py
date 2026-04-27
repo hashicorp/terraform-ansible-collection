@@ -378,8 +378,8 @@ class TestTfOutputLookup:
         )
         assert result == []
 
-    def test_lookup_defaults_tfe_address(self, patched_client, lookup_plugin):
-        """from_mapping should receive the default tfe_address when none is provided."""
+    def test_lookup_leaves_tfe_address_to_client_defaults(self, patched_client, lookup_plugin):
+        """from_mapping should apply TFE_ADDRESS/pytfe defaults when address is omitted."""
         mock_client, mock_class = patched_client
         with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output") as mock_get:
             mock_get.return_value = {"id": "test", "name": "test", "value": "test", "sensitive": False}
@@ -390,7 +390,29 @@ class TestTfOutputLookup:
                 state_version_output_id="wsout-123",
             )
             passed = mock_class.from_mapping.call_args[0][0]
-            assert passed.get("tfe_address") == "https://app.terraform.io"
+            assert "tfe_address" not in passed
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
+    def test_lookup_uses_env_token_when_token_not_passed(self, mock_get_specific, lookup_plugin, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "env-token")
+        monkeypatch.setenv("TFE_ADDRESS", "https://tfe.example.com")
+        mock_get_specific.return_value = {
+            "id": "wsout-123",
+            "name": "server_id",
+            "value": "i-1234567890abcdef",
+            "sensitive": False,
+        }
+
+        result = lookup_plugin.run(
+            [],
+            None,
+            state_version_output_id="wsout-123",
+        )
+
+        assert result == ["i-1234567890abcdef"]
+        adapter = mock_get_specific.call_args[0][0]
+        assert adapter._sdk_kwargs["token"] == "env-token"
+        assert adapter._sdk_kwargs["address"] == "https://tfe.example.com"
 
 
 if __name__ == "__main__":

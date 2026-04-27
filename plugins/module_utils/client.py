@@ -15,6 +15,7 @@ import traceback
 from typing import Any, Mapping
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
+from ansible.module_utils.errors import AnsibleFallbackNotFound
 
 try:
     from pytfe import TFEClient, TFEConfig
@@ -102,6 +103,19 @@ _ARGSPEC_TO_SDK = {
 COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.0 pytfe/0.1"
 
 
+def _resolve_argspec_fallback(key: str) -> Any:
+    """Resolve an AUTH_ARGSPEC fallback outside AnsibleModule processing."""
+    fallback = AUTH_ARGSPEC.get(key, {}).get("fallback")
+    if not fallback:
+        return None
+
+    fallback_fn, fallback_args = fallback
+    try:
+        return fallback_fn(*fallback_args)
+    except AnsibleFallbackNotFound:
+        return None
+
+
 class AnsibleTerraformModule:
     """Wrapper for AnsibleModule with TFE-specific enhancements.
 
@@ -186,6 +200,8 @@ class TerraformClient:
                     if params.get(alias) is not None:
                         value = params[alias]
                         break
+            if value is None:
+                value = _resolve_argspec_fallback(key)
             if value is not None:
                 mapped[_ARGSPEC_TO_SDK[key]] = value
         return cls(**mapped)

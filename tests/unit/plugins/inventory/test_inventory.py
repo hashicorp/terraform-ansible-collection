@@ -593,8 +593,8 @@ class TestSanitizeSensitiveAttributes:
         result = _sanitize_sensitive_attributes(attrs, paths)
         assert result == {"config": {"username": "admin"}}
 
-    def test_nested_list_index_removed(self):
-        attrs = {"items": [{"k": "keep"}, {"k": "drop"}]}
+    def test_nested_list_index_drops_top_level_list(self):
+        attrs = {"items": [{"k": "keep"}, {"k": "drop"}], "public_ip": "1.2.3.4"}
         paths = [
             [
                 {"type": "get_attr", "value": "items"},
@@ -602,7 +602,22 @@ class TestSanitizeSensitiveAttributes:
             ]
         ]
         result = _sanitize_sensitive_attributes(attrs, paths)
-        assert result == {"items": [{"k": "keep"}]}
+        assert result == {"public_ip": "1.2.3.4"}
+
+    def test_multiple_sensitive_list_indices_in_same_list_no_leak(self):
+        attrs = {"secrets": ["first", "second", "public"], "public_ip": "1.2.3.4"}
+        paths = [
+            [
+                {"type": "get_attr", "value": "secrets"},
+                {"type": "index", "value": 0},
+            ],
+            [
+                {"type": "get_attr", "value": "secrets"},
+                {"type": "index", "value": 1},
+            ],
+        ]
+        result = _sanitize_sensitive_attributes(attrs, paths)
+        assert result == {"public_ip": "1.2.3.4"}
 
     def test_nested_map_string_index_removed(self):
         attrs = {"creds": {"prod": "secret", "dev": "ok"}}
@@ -967,6 +982,41 @@ class TestStatefileSourceCollectHosts:
         assert host_vars["config"] == {"username": "admin"}
         # Non-sensitive attributes remain available.
         assert host_vars["public_ip"] == "1.2.3.4"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    def test_sensitive_list_indices_drop_entire_list_from_host_vars(self, mock_resolve, mock_download):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = _make_resource_state(
+            [
+                _aws_resource(
+                    "web",
+                    [
+                        {
+                            "attributes": {
+                                "public_ip": "1.2.3.4",
+                                "secrets": ["first-secret", "second-secret", "public-ish"],
+                            },
+                            "sensitive_attributes": [
+                                [
+                                    {"type": "get_attr", "value": "secrets"},
+                                    {"type": "index", "value": 0},
+                                ],
+                                [
+                                    {"type": "get_attr", "value": "secrets"},
+                                    {"type": "index", "value": 1},
+                                ],
+                            ],
+                        }
+                    ],
+                ),
+            ]
+        )
+
+        records = self._make_source().collect_hosts()
+
+        assert len(records) == 1
+        assert records[0]["host_vars"] == {"public_ip": "1.2.3.4"}
 
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")

@@ -222,7 +222,7 @@ def _drop_sensitive_path(attributes: Dict[str, Any], path: List[Any]) -> None:
     """Remove a single sensitive path from *attributes* in-place.
 
     Walks *path* one step at a time.  When the leaf step targets a precise
-    dict key or list index, that element is deleted.  Any ambiguity
+    dict key, that element is deleted.  Any ambiguity
     (unwalkable parent, unknown step type, missing key/index) falls back to
     deleting the first top-level attribute named in the path.  Paths with no
     usable top-level reference are ignored.
@@ -257,7 +257,10 @@ def _drop_sensitive_path(attributes: Dict[str, Any], path: List[Any]) -> None:
         return
     if last_type == "index":
         if isinstance(parent, list) and isinstance(last_value, int) and 0 <= last_value < len(parent):
-            del parent[last_value]
+            # Deleting individual list indices can shift later Terraform
+            # sensitive paths. Drop the owning top-level attribute instead so
+            # multiple sensitive list entries cannot leave one another behind.
+            _drop_top_level()
             return
         if isinstance(parent, dict) and isinstance(last_value, (str, int)) and last_value in parent:
             del parent[last_value]
