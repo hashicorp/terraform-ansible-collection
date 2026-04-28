@@ -10,13 +10,12 @@ import pytest
 from ansible.errors import AnsibleParserError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.inventory import InventoryModule
+from ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv import InventoryModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformError,
     TerraformTokenNotFoundError,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource, _collect_hosts_from_spec, parse_type
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.search import SearchSource
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile import (
     StatefileSource,
     _build_provider_configs,
@@ -38,7 +37,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.util
 # Module-level patch target constants
 # ---------------------------------------------------------------------------
 
-_INV_MODULE = "ansible_collections.hashicorp.terraform.plugins.inventory.inventory"
+_INV_MODULE = "ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv"
 _STATEFILE_SRC = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile"
 _OUTPUTS_SRC = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs"
 _COMMON = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common"
@@ -2002,21 +2001,6 @@ class TestOutputsSourceHostsFromMode:
 
 
 # ---------------------------------------------------------------------------
-# SearchSource stub (sources/search)
-# ---------------------------------------------------------------------------
-
-
-class TestSearchSourceStub:
-    def test_validate_options_raises_not_implemented(self):
-        with pytest.raises(TerraformError, match="not yet implemented"):
-            SearchSource.validate_options({})
-
-    def test_collect_hosts_raises_not_implemented(self):
-        with pytest.raises(TerraformError, match="not yet implemented"):
-            SearchSource(Mock(), {}).collect_hosts()
-
-
-# ---------------------------------------------------------------------------
 # get_source_backend factory (utils/factory)
 # ---------------------------------------------------------------------------
 
@@ -2028,15 +2012,12 @@ class TestGetSourceBackend:
     def test_outputs_returns_outputs_class(self):
         assert get_source_backend("outputs") is OutputsSource
 
-    def test_search_returns_search_class(self):
-        assert get_source_backend("search") is SearchSource
-
     def test_unknown_source_raises(self):
         with pytest.raises(TerraformError, match="Unknown source"):
             get_source_backend("nonexistent")
 
     def test_sources_registry_contains_all_backends(self):
-        assert set(SOURCES.keys()) == {"statefile", "outputs", "search"}
+        assert set(SOURCES.keys()) == {"statefile", "outputs"}
 
 
 # ---------------------------------------------------------------------------
@@ -2670,8 +2651,8 @@ class TestInventoryModuleParseErrors:
             with pytest.raises(AnsibleParserError, match="Authentication"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-    def test_source_search_raises_not_implemented(self):
+    def test_source_search_raises_unknown_source(self):
         plugin = _make_plugin(_base_options(source="search"))
         with _parse_ctx(plugin):
-            with pytest.raises(AnsibleParserError, match="not yet implemented"):
+            with pytest.raises(AnsibleParserError, match="Unknown source"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")

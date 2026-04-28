@@ -88,7 +88,7 @@
         dest: "{{ temp_dir.path }}/inventory_list_object.terraform_inventory.yml"
         mode: "0644"
         content: |
-          plugin: hashicorp.terraform.inventory
+          plugin: hashicorp.terraform.tfc_inv
           source: outputs
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}
@@ -158,7 +158,7 @@
         dest: "{{ temp_dir.path }}/inventory_scalar.terraform_inventory.yml"
         mode: "0644"
         content: |
-          plugin: hashicorp.terraform.inventory
+          plugin: hashicorp.terraform.tfc_inv
           source: outputs
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}
@@ -210,7 +210,7 @@
         dest: "{{ temp_dir.path }}/inventory_list_string.terraform_inventory.yml"
         mode: "0644"
         content: |
-          plugin: hashicorp.terraform.inventory
+          plugin: hashicorp.terraform.tfc_inv
           source: outputs
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}
@@ -252,7 +252,7 @@
         dest: "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
         mode: "0644"
         content: |
-          plugin: hashicorp.terraform.inventory
+          plugin: hashicorp.terraform.tfc_inv
           source: outputs
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}
@@ -294,7 +294,7 @@
         dest: "{{ temp_dir.path }}/inventory_prefix.terraform_inventory.yml"
         mode: "0644"
         content: |
-          plugin: hashicorp.terraform.inventory
+          plugin: hashicorp.terraform.tfc_inv
           source: outputs
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}

@@ -130,11 +130,12 @@ releases:
           apply a run based on Sentinel policy-check outcomes, and ``hashicorp.terraform.workspace_bootstrap``
           to converge workspace settings, variables, variable-set attachments, run
           triggers, and notification configurations in one idempotent task.
-        - inventory - Added the ``hashicorp.terraform.inventory`` dynamic inventory
-          plugin for HCP Terraform and Terraform Enterprise. The plugin targets
-          a single workspace by ``workspace_id`` or by ``organization`` plus ``workspace``,
-          uses the pytfe SDK, supports constructed inventory features, and does
-          not require the Terraform CLI or direct backend credentials.
+        - inventory - Added the ``hashicorp.terraform.tfc_inv`` dynamic inventory
+          plugin for HCP Terraform and Terraform Enterprise. The plugin supports
+          ``source=outputs`` and ``source=statefile``, targets a single workspace
+          by ``workspace_id`` or by ``organization`` plus ``workspace``, uses the
+          pytfe SDK, supports constructed inventory features, and does not require
+          the Terraform CLI or direct backend credentials.
         - inventory statefile source - Added ``source=statefile`` to build hosts
           from the latest Terraform state version. The source supports Terraform
           state v4, managed resources, optional child-module traversal with ``search_child_modules``,

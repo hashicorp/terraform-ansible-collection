@@ -4,7 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION = r"""
-name: inventory
+name: tfc_inv
 author:
   - Prabuddha Chakraborty (@iam404)
 short_description: Unified dynamic inventory plugin for HCP Terraform / Terraform Enterprise.
@@ -26,10 +26,10 @@ options:
   plugin:
     description:
       - The name of the Inventory Plugin.
-      - This should always be V(hashicorp.terraform.inventory).
+      - This should always be V(hashicorp.terraform.tfc_inv).
     required: true
     type: str
-    choices: [hashicorp.terraform.inventory]
+    choices: [hashicorp.terraform.tfc_inv]
   source:
     description:
       - Data source backend to use.
@@ -277,20 +277,20 @@ EXAMPLES = r"""
 # with Terraform attributes as host vars.  Attributes flagged as sensitive
 # in the state (sensitive_attributes) are dropped before being exposed.
 - name: Build inventory from latest HCP Terraform state
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
 
 # Workspace by direct ID (avoids an extra org lookup)
 - name: Inventory from workspace ID
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   workspace_id: ws-xxxxxxxxxxxxxxxx
 
 # Use the instance's public_ip as ansible_host
 - name: Set ansible_host from public_ip
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -299,7 +299,7 @@ EXAMPLES = r"""
 
 # Hostname from the value of the 'Name' tag
 - name: Tag-based hostname
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -308,7 +308,7 @@ EXAMPLES = r"""
 
 # Hostname with environment prefix from tags
 - name: Prefixed hostname from tags
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -320,7 +320,7 @@ EXAMPLES = r"""
 
 # Hostname from a plain attribute value, falling back to the resource name
 - name: Hostname from attribute
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -330,7 +330,7 @@ EXAMPLES = r"""
 
 # Group by instance_state attribute (running / stopped / terminated)
 - name: Group by instance state
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -341,7 +341,7 @@ EXAMPLES = r"""
 
 # Include only running instances
 - name: Filter to running instances
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -350,7 +350,7 @@ EXAMPLES = r"""
 
 # Also include child-module resources
 - name: Include resources from child modules
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -358,7 +358,7 @@ EXAMPLES = r"""
 
 # Add DigitalOcean droplets (custom provider mapping)
 - name: DigitalOcean inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   organization: my-org
   workspace: my-workspace
@@ -372,7 +372,7 @@ EXAMPLES = r"""
 
 # Target a self-hosted Terraform Enterprise instance
 - name: TFE on-prem inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: statefile
   tfe_address: https://terraform.example.com
   organization: my-org
@@ -382,7 +382,7 @@ EXAMPLES = r"""
 
 # Build inventory from workspace outputs (dict/list-of-dict values only)
 - name: Inventory from workspace outputs API
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -391,7 +391,7 @@ EXAMPLES = r"""
 
 # Hostname from the output name itself
 - name: Use Terraform output name as hostname
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -400,7 +400,7 @@ EXAMPLES = r"""
 
 # Exclude staging hosts from outputs inventory
 - name: Exclude staging from outputs
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -422,7 +422,7 @@ EXAMPLES = r"""
 # Terraform: output "instance_ips" { value = ["1.2.3.4", "5.6.7.8"] }
 # Hosts: my-ws_instance_ips_0, my-ws_instance_ips_1, … (ansible_host = the IP)
 - name: Inventory from list-of-string IPs (zero compose)
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -432,7 +432,7 @@ EXAMPLES = r"""
 
 # Same shape, but use the IP itself as the Ansible hostname.
 - name: IP-as-hostname from list(string)
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -445,7 +445,7 @@ EXAMPLES = r"""
 # list(string) with custom compose — auto-ansible_host is suppressed by the
 # presence of any compose entry, so re-assign explicitly using `value`.
 - name: list(string) with custom compose
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -459,7 +459,7 @@ EXAMPLES = r"""
 # map(string): key becomes the hostname; primitive auto-becomes ansible_host
 # Terraform: output "host_map" { value = { "web-1" = "1.2.3.4", "web-2" = "5.6.7.8" } }
 - name: Map-keyed IP inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -470,7 +470,7 @@ EXAMPLES = r"""
 # map(string) using `value` (the scalar) and `inventory_hostname` (the map key)
 # to compose a richer host_var.
 - name: map(string) with composed environment
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -485,7 +485,7 @@ EXAMPLES = r"""
 # fields directly from compose / hostnames / filters.
 # Terraform: output "web_hosts" { value = { "web-1" = { public_ip = "…", env = "prod" } } }
 - name: Structured map-keyed inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -502,7 +502,7 @@ EXAMPLES = r"""
 # spread field, silencing the "Found variable using reserved name" warning
 # when a Terraform field is named e.g. `name` or `tags`.
 - name: list(object) with hostvars_prefix
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -517,7 +517,7 @@ EXAMPLES = r"""
 
 # set(object) — same JSON wire format as list(object); accepted as a synonym.
 - name: Inventory from set(object)
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -531,7 +531,7 @@ EXAMPLES = r"""
 # compose, `ansible_host = value` automatically.
 # Terraform: output "host_count" { value = 3 }
 - name: Scalar inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -546,7 +546,7 @@ EXAMPLES = r"""
 # spread flat). To get map(string) semantics from a dict of primitives,
 # declare `type: map(string)` explicitly.
 - name: Inventory with dynamic-detected types
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -562,7 +562,7 @@ EXAMPLES = r"""
 # `compose: ansible_host` to a Jinja that picks up either a field name (for
 # the object specs) or `value` (for the primitive specs).
 - name: Multi-output inventory
-  plugin: hashicorp.terraform.inventory
+  plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
@@ -604,7 +604,7 @@ _wire_outputs_display()
 
 
 class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
-    NAME = "hashicorp.terraform.inventory"
+    NAME = "hashicorp.terraform.tfc_inv"
 
     _VALID_SUFFIXES = (
         "inventory.yaml",
