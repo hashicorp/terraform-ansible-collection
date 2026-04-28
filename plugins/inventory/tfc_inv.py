@@ -50,9 +50,10 @@ options:
         always-safe inventory data, prefer V(source=outputs)."
       - V(outputs) queries the HCP Terraform state version outputs API
         endpoint and builds hosts from workspace output values.  Lighter weight
-        when only named output values are needed.  By default only dict and
-        list-of-dict outputs produce hosts.  Use O(hosts_from) to handle
-        primitive shapes such as scalars, list(string), and map(string).
+        when only named output values are needed.  By default, when
+        O(hosts_from) is omitted, only the Terraform output named
+        V(ansible_host) is processed.  Use O(hosts_from) to target any other
+        output name or to declare an explicit Terraform type expression.
     type: str
     choices: [statefile, outputs]
     default: statefile
@@ -124,8 +125,10 @@ options:
   hosts_from:
     description:
       - Explicit output-to-host mapping for V(source=outputs).
-      - When set, plugin-level dynamic-detection is disabled; only the listed
-        outputs are processed, each according to its declared V(type).
+      - When unset, V(source=outputs) processes only the Terraform output
+        named V(ansible_host), using default output-shape detection.  When
+        set, only the listed outputs are processed, each according to its
+        declared V(type).
       - Accepts a single mapping or a list of mappings.  Each entry requires
         V(output) (the Terraform output name) and accepts V(type) (a Terraform
         type expression, default V(dynamic)).
@@ -189,7 +192,10 @@ options:
         empty collections, V(None), and mixed-type lists are skipped (mixed
         lists with a warning). Note that a dict of primitives is ambiguous
         between V(object) and V(map(string)) — V(dynamic) picks V(object);
-        declare V(type: map(string)) explicitly when you want the map semantics."
+        declare V(type: map(string)) explicitly when you want the map semantics.
+        The no-O(hosts_from) default is a special case: a Terraform output
+        named V(ansible_host) whose value is a dict of primitives is treated
+        as V(map(<primitive>)) so map keys become inventory hostnames."
       - Nested collections (V(map(list(...))), V(list(map(...))), etc.) are
         rejected at validation time with a clear message. Reshape such values
         in your Terraform output using C(flatten()) or C(for) expressions;
@@ -380,23 +386,35 @@ EXAMPLES = r"""
 
 # ── outputs source ────────────────────────────────────────────────────────────
 
-# Build inventory from workspace outputs (dict/list-of-dict values only)
-- name: Inventory from workspace outputs API
+# Default mode processes only Terraform output "ansible_host".
+# Terraform: output "ansible_host" { value = ["10.0.0.1", "10.0.0.2"] }
+- name: Inventory from default ansible_host output
   plugin: hashicorp.terraform.tfc_inv
   source: outputs
   organization: my-org
   workspace: my-workspace
+
+# Terraform: output "ansible_host" { value = { web1 = "10.0.0.1", web2 = "10.0.0.2" } }
+# The map keys become inventory hostnames; values become ansible_host.
+- name: Inventory from ansible_host map output
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+
+# Use hosts_from for any output name other than "ansible_host".
+- name: Inventory from custom hosts output
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  hosts_from:
+    output: hosts
+    type: list(object)
+  hostnames:
+    - name
   compose:
     ansible_host: public_ip
-
-# Hostname from the output name itself
-- name: Use Terraform output name as hostname
-  plugin: hashicorp.terraform.tfc_inv
-  source: outputs
-  organization: my-org
-  workspace: my-workspace
-  hostnames:
-    - output_name
 
 # Exclude staging hosts from outputs inventory
 - name: Exclude staging from outputs

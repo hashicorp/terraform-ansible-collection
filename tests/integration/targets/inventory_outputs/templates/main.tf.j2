@@ -42,3 +42,9 @@ output "host_ips_list" {
   description = "Flat list of host IPs (list of strings)"
   value       = [for i, _ in random_string.host_id : "10.0.0.${i + 1}"]
 }
+
+# Default outputs inventory source — used when hosts_from is omitted.
+output "ansible_host" {
+  description = "Default inventory hosts for source=outputs without hosts_from"
+  value       = [for i, _ in random_string.host_id : "10.0.0.${i + 1}"]
+}

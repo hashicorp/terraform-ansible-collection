@@ -42,11 +42,14 @@ informational warning. Use the inventory-level ``hostvars_prefix`` /
 ``hostvars_prefix: tf_`` turns a ``name`` field into ``tf_name`` and
 silences the warning.
 
-Dynamic-detection mode (no ``hosts_from``)
-------------------------------------------
-- ``dict`` output  → one host; user dict spread at top level.
-- ``list(dict)`` output → one indexed host per element; each user dict spread.
-- All other shapes are silently skipped.
+Default mode (no ``hosts_from``)
+--------------------------------
+When ``hosts_from`` is omitted, only the Terraform output named
+``ansible_host`` is processed. The value is treated as ``type: dynamic`` and
+uses the same shape rules listed below, except that a dict of primitives is
+treated as a host map so map keys become inventory hostnames and values become
+``ansible_host``. All other outputs are ignored, so unrelated object outputs
+do not accidentally become inventory hosts.
 
 Explicit mode (``hosts_from`` configured)
 ------------------------------------------
@@ -476,18 +479,27 @@ class OutputsSource(BaseInventorySource):
                 records.extend(_collect_hosts_from_spec(spec, outputs_map, workspace_name, compose_active))
             return records
 
-        # Plugin-level auto-detection (when hosts_from is entirely absent).
-        # Intentionally narrower than per-spec ``type: auto``: only dict and
-        # list(dict) produce hosts. Broadening this would risk surprise hosts
-        # from outputs never meant for inventory.
-        records = []
-        for output in outputs:
-            output_name = output.get("name") or "unknown"
-            value = output.get("value")
-
-            if isinstance(value, dict):
-                records.extend(_records_for_object(value, output_name, workspace_name))
-            elif isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
-                records.extend(_records_for_seq_object(value, output_name, workspace_name))
-
-        return records
+        # Default mode is intentionally narrow: only a Terraform output named
+        # ``ansible_host`` is treated as inventory. A dict of primitives is
+        # interpreted as a host map (map keys are hostnames, values become
+        # ansible_host); users can opt into any other output name or force a
+        # single-object interpretation with explicit ``hosts_from``.
+        outputs_map = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}
+        ansible_host_value = outputs_map.get("ansible_host")
+        if (
+            isinstance(ansible_host_value, dict)
+            and ansible_host_value
+            and all(isinstance(v, (str, int, float, bool)) for v in ansible_host_value.values())
+        ):
+            return _collect_hosts_from_spec(
+                {"output": "ansible_host", "type": "map(string)"},
+                outputs_map,
+                workspace_name,
+                compose_active,
+            )
+        return _collect_hosts_from_spec(
+            {"output": "ansible_host", "type": "dynamic"},
+            outputs_map,
+            workspace_name,
+            compose_active,
+        )

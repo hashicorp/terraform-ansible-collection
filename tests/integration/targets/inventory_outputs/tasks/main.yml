@@ -244,12 +244,13 @@
           Got {{ inv_list_string._meta.hostvars | length }} hosts: {{ inv_list_string._meta.hostvars }}
       loop: "{{ inv_list_string._meta.hostvars | dict2items }}"
 
-    # ── Inventory test: auto-detection (no hosts_from) ────────────────────────
-    # hosts_list is a list(object) — auto-detection should discover these hosts.
+    # ── Inventory test: default ansible_host output (no hosts_from) ───────────
+    # Only the Terraform output named ansible_host is used when hosts_from is
+    # omitted; unrelated object outputs must not be auto-discovered.
 
-    - name: Write inventory config using auto-detection (no hosts_from)
+    - name: Write inventory config using default ansible_host output
       ansible.builtin.copy:
-        dest: "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
+        dest: "{{ temp_dir.path }}/inventory_default.terraform_inventory.yml"
         mode: "0644"
         content: |
           plugin: hashicorp.terraform.tfc_inv
@@ -257,32 +258,35 @@
           workspace_id: {{ workspace_id }}
           tfe_token: {{ tfc_token }}
 
-    - name: Run ansible-inventory with auto-detection
+    - name: Run ansible-inventory with default ansible_host output
       ansible.builtin.shell: >-
         ansible-inventory
-        -i "{{ temp_dir.path }}/inventory_auto.terraform_inventory.yml"
+        -i "{{ temp_dir.path }}/inventory_default.terraform_inventory.yml"
         --list
-        > "{{ temp_dir.path }}/inv_auto.json"
+        > "{{ temp_dir.path }}/inv_default.json"
       environment:
         ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
       changed_when: false
 
-    - name: Debug raw inventory output (auto-detection)
+    - name: Debug raw inventory output (default ansible_host)
       ansible.builtin.debug:
-        msg: "{{ lookup('file', temp_dir.path + '/inv_auto.json') }}"
+        msg: "{{ lookup('file', temp_dir.path + '/inv_default.json') }}"
 
-    - name: Load inventory JSON (auto-detection)
+    - name: Load inventory JSON (default ansible_host)
       ansible.builtin.include_vars:
-        file: "{{ temp_dir.path }}/inv_auto.json"
-        name: inv_auto
+        file: "{{ temp_dir.path }}/inv_default.json"
+        name: inv_default
 
-    - name: Assert auto-detection finds 2 hosts from list(object) output
+    - name: Assert default ansible_host output finds 2 hosts
       ansible.builtin.assert:
         that:
-          - inv_auto._meta.hostvars | length == 2
+          - inv_default._meta.hostvars | length == 2
+          - item.value.value is match('10\\.0\\.0\\.[0-9]+')
+          - item.value.ansible_host == item.value.value
         fail_msg: >-
-          Expected 2 hosts via auto-detection (list of objects).
-          Got {{ inv_auto._meta.hostvars | length }}: {{ inv_auto._meta.hostvars.keys() | list }}
+          Expected 2 hosts via default ansible_host output.
+          Got {{ inv_default._meta.hostvars | length }}: {{ inv_default._meta.hostvars }}
+      loop: "{{ inv_default._meta.hostvars | dict2items }}"
 
     # ── Inventory test: hostvars_prefix namespacing ───────────────────────────
     # The Terraform fixture's hosts_list has a `name` field that collides with
