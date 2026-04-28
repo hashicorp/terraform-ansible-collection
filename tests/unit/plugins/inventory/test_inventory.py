@@ -1169,6 +1169,12 @@ class TestOutputsSourceValidateOptions:
         with pytest.raises(TerraformError):
             OutputsSource.validate_options({"workspace_id": None, "organization": "my-org", "workspace": None})
 
+    def test_hosts_from_without_type_defaults_to_dynamic_and_is_valid(self):
+        OutputsSource.validate_options({"workspace_id": "ws-abc", "hosts_from": {"output": "my_hosts"}})
+
+    def test_hosts_from_with_explicit_dynamic_type_is_valid(self):
+        OutputsSource.validate_options({"workspace_id": "ws-abc", "hosts_from": {"output": "my_hosts", "type": "dynamic"}})
+
 
 # ---------------------------------------------------------------------------
 # OutputsSource — collect_hosts (sources/outputs)

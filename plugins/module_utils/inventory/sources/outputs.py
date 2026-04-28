@@ -454,7 +454,7 @@ class OutputsSource(BaseInventorySource):
             output_name = spec.get("output")
             if not isinstance(output_name, str) or not output_name:
                 raise TerraformError(f"hosts_from[{idx}] requires a non-empty 'output' string.")
-            type_expr = spec.get("type", "auto")
+            type_expr = spec.get("type", "dynamic")
             parse_type(type_expr)
 
     def collect_hosts(self) -> List[HostRecord]:
@@ -486,11 +486,7 @@ class OutputsSource(BaseInventorySource):
         # single-object interpretation with explicit ``hosts_from``.
         outputs_map = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}
         ansible_host_value = outputs_map.get("ansible_host")
-        if (
-            isinstance(ansible_host_value, dict)
-            and ansible_host_value
-            and all(isinstance(v, (str, int, float, bool)) for v in ansible_host_value.values())
-        ):
+        if isinstance(ansible_host_value, dict) and ansible_host_value and all(isinstance(v, (str, int, float, bool)) for v in ansible_host_value.values()):
             return _collect_hosts_from_spec(
                 {"output": "ansible_host", "type": "map(string)"},
                 outputs_map,
