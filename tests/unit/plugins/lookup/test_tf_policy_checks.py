@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from ansible.errors import AnsibleError
 
-from ansible_collections.hashicorp.terraform.plugins.lookup.tfe_policy_checks import LookupModule
+from ansible_collections.hashicorp.terraform.plugins.lookup.tf_policy_checks import LookupModule
 
-MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tfe_policy_checks"
+MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tf_policy_checks"
 
 
 @pytest.fixture
@@ -73,5 +73,5 @@ class TestTfePolicyChecksLookup:
     @patch(f"{MOD}.list_policy_checks")
     def test_api_error_wrapped(self, mock_list, patched_client, lookup_plugin):
         mock_list.side_effect = RuntimeError("boom")
-        with pytest.raises(AnsibleError, match="tfe_policy_checks lookup failed"):
+        with pytest.raises(AnsibleError, match="tf_policy_checks lookup failed"):
             lookup_plugin.run([], None, run_id="run-1")

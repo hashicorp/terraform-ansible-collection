@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 DOCUMENTATION = r"""
-name: tfe_policy_checks
+name: tf_policy_checks
 short_description: Retrieve Sentinel policy check outcomes for a run
 version_added: "2.0.0"
 author: "Prabuddha Chakraborty (@iam404)"
@@ -74,12 +74,12 @@ options:
 EXAMPLES = r"""
 - name: Get all policy checks for a run
   ansible.builtin.debug:
-    msg: "{{ lookup('hashicorp.terraform.tfe_policy_checks', run_id='run-abc123') }}"
+    msg: "{{ lookup('hashicorp.terraform.tf_policy_checks', run_id='run-abc123') }}"
 
 - name: Fail if any hard-mandatory policy check failed
   ansible.builtin.fail:
     msg: "Mandatory policy checks failed on run {{ run_id }}"
-  when: lookup('hashicorp.terraform.tfe_policy_checks',
+  when: lookup('hashicorp.terraform.tf_policy_checks',
                run_id=run_id, only_failures=true)
         | selectattr('status', 'equalto', 'hard_failed') | list | length > 0
 """
@@ -126,7 +126,7 @@ class LookupModule(LookupBase):
         except AnsibleError:
             raise
         except Exception as e:
-            raise AnsibleError(f"tfe_policy_checks lookup failed: {e}")
+            raise AnsibleError(f"tf_policy_checks lookup failed: {e}")
 
         if only_failures:
             failing = HARD_FAIL_STATUSES | SOFT_FAIL_STATUSES

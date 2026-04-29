@@ -159,8 +159,8 @@ releases:
           fields while leaving plugin-injected ``ansible_host`` and ``value`` unchanged.
         - inventory outputs source - Sensitive outputs are fetched with ``display_sensitive=False``
           and are masked by the shared output helper unless the API omits the value.
-        - lookups - Added ``hashicorp.terraform.tfe_policy_checks``, ``hashicorp.terraform.tfe_run_events``,
-          and ``hashicorp.terraform.tfe_variable_set_vars`` for policy-check gating,
+        - lookups - Added ``hashicorp.terraform.tf_policy_checks``, ``hashicorp.terraform.tf_run_events``,
+          and ``hashicorp.terraform.tf_variable_set_vars`` for policy-check gating,
           run timeline inspection, and variable-set variable retrieval. Sensitive
           variable-set values are masked by default.
         - modules - Added ``hashicorp.terraform.notification_configuration``, ``hashicorp.terraform.organizations``,
@@ -217,14 +217,14 @@ releases:
           namespace: null
       lookup:
         - description: Retrieve Sentinel policy check outcomes for a run
-          name: tfe_policy_checks
+          name: tf_policy_checks
           namespace: null
         - description: Retrieve the timeline of events for a Terraform Cloud/Enterprise
             run
-          name: tfe_run_events
+          name: tf_run_events
           namespace: null
         - description: Retrieve variables owned by a Terraform Cloud/Enterprise variable
             set
-          name: tfe_variable_set_vars
+          name: tf_variable_set_vars
           namespace: null
     release_date: '2026-04-27'
