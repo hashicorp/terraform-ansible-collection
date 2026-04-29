@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from ansible.errors import AnsibleError
 
-from ansible_collections.hashicorp.terraform.plugins.lookup.tfe_variable_set_vars import LookupModule
+from ansible_collections.hashicorp.terraform.plugins.lookup.tf_variable_set_vars import LookupModule
 
-MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tfe_variable_set_vars"
+MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tf_variable_set_vars"
 
 
 @pytest.fixture
@@ -75,5 +75,5 @@ class TestTfeVariableSetVarsLookup:
     @patch(f"{MOD}.list_variable_set_variables")
     def test_api_error_wrapped(self, mock_list, patched_client, lookup_plugin):
         mock_list.side_effect = RuntimeError("boom")
-        with pytest.raises(AnsibleError, match="tfe_variable_set_vars lookup failed"):
+        with pytest.raises(AnsibleError, match="tf_variable_set_vars lookup failed"):
             lookup_plugin.run([], None, variable_set_id="varset-abc")

@@ -10,13 +10,12 @@ import pytest
 from ansible.errors import AnsibleParserError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.inventory import InventoryModule
+from ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv import InventoryModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformError,
     TerraformTokenNotFoundError,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource, _collect_hosts_from_spec, parse_type
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.search import SearchSource
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile import (
     StatefileSource,
     _build_provider_configs,
@@ -38,7 +37,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.util
 # Module-level patch target constants
 # ---------------------------------------------------------------------------
 
-_INV_MODULE = "ansible_collections.hashicorp.terraform.plugins.inventory.inventory"
+_INV_MODULE = "ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv"
 _STATEFILE_SRC = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile"
 _OUTPUTS_SRC = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs"
 _COMMON = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common"
@@ -1170,6 +1169,12 @@ class TestOutputsSourceValidateOptions:
         with pytest.raises(TerraformError):
             OutputsSource.validate_options({"workspace_id": None, "organization": "my-org", "workspace": None})
 
+    def test_hosts_from_without_type_defaults_to_dynamic_and_is_valid(self):
+        OutputsSource.validate_options({"workspace_id": "ws-abc", "hosts_from": {"output": "my_hosts"}})
+
+    def test_hosts_from_with_explicit_dynamic_type_is_valid(self):
+        OutputsSource.validate_options({"workspace_id": "ws-abc", "hosts_from": {"output": "my_hosts", "type": "dynamic"}})
+
 
 # ---------------------------------------------------------------------------
 # OutputsSource — collect_hosts (sources/outputs)
@@ -1183,50 +1188,75 @@ class TestOutputsSourceCollectHosts:
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
-    def test_dict_output_produces_one_record(self, mock_resolve, mock_fetch):
+    def test_unrelated_dict_output_ignored_without_hosts_from(self, mock_resolve, mock_fetch):
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
             {"name": "web_server", "value": {"ip": "1.2.3.4", "env": "prod"}, "sensitive": False},
+            {"name": "servers", "value": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}], "sensitive": False},
+        ]
+        records = self._make_source().collect_hosts()
+
+        assert records == []
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_default_ansible_host_object_output_produces_one_record(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ansible_host", "value": {"ip": "1.2.3.4", "metadata": {"env": "prod"}}, "sensitive": False},
         ]
         records = self._make_source().collect_hosts()
 
         assert len(records) == 1
         assert records[0] == {
-            "output_name": "web_server",
+            "output_name": "ansible_host",
             "workspace_name": "my-ws",
-            "host_vars": {"ip": "1.2.3.4", "env": "prod"},
+            "host_vars": {"ip": "1.2.3.4", "metadata": {"env": "prod"}},
             "index": None,
         }
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
-    def test_list_output_produces_indexed_records(self, mock_resolve, mock_fetch):
+    def test_default_ansible_host_scalar_output_produces_one_record(self, mock_resolve, mock_fetch):
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
-            {"name": "servers", "value": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}], "sensitive": False},
+            {"name": "ansible_host", "value": "1.2.3.4", "sensitive": False},
+        ]
+        records = self._make_source().collect_hosts()
+
+        assert len(records) == 1
+        assert records[0]["output_name"] == "ansible_host"
+        assert records[0]["host_vars"] == {"value": "1.2.3.4", "ansible_host": "1.2.3.4"}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    def test_default_ansible_host_list_string_output_produces_indexed_records(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {"name": "ansible_host", "value": ["10.0.0.1", "10.0.0.2"], "sensitive": False},
         ]
         records = self._make_source().collect_hosts()
 
         assert len(records) == 2
         assert records[0]["index"] == 0
-        assert records[0]["host_vars"] == {"ip": "10.0.0.1"}
+        assert records[0]["host_vars"] == {"value": "10.0.0.1", "ansible_host": "10.0.0.1"}
         assert records[1]["index"] == 1
-        assert records[1]["host_vars"] == {"ip": "10.0.0.2"}
+        assert records[1]["host_vars"] == {"value": "10.0.0.2", "ansible_host": "10.0.0.2"}
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
-    def test_scalar_and_mixed_list_outputs_skipped(self, mock_resolve, mock_fetch):
+    def test_default_ansible_host_map_string_output_uses_map_keys_as_hostnames(self, mock_resolve, mock_fetch):
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
-            {"name": "str_val", "value": "a-string", "sensitive": False},
-            {"name": "num_val", "value": 42, "sensitive": False},
-            {"name": "mixed_list", "value": ["a", {"k": "v"}], "sensitive": False},
-            {"name": "dict_val", "value": {"ip": "1.2.3.4"}, "sensitive": False},
+            {"name": "ansible_host", "value": {"web1": "10.0.0.1", "web2": "10.0.0.2"}, "sensitive": False},
         ]
         records = self._make_source().collect_hosts()
 
-        assert len(records) == 1
-        assert records[0]["output_name"] == "dict_val"
+        assert len(records) == 2
+        assert records[0]["resolved_hostname"] == "web1"
+        assert records[0]["host_vars"] == {"value": "10.0.0.1", "ansible_host": "10.0.0.1"}
+        assert records[1]["resolved_hostname"] == "web2"
+        assert records[1]["host_vars"] == {"value": "10.0.0.2", "ansible_host": "10.0.0.2"}
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
@@ -2002,21 +2032,6 @@ class TestOutputsSourceHostsFromMode:
 
 
 # ---------------------------------------------------------------------------
-# SearchSource stub (sources/search)
-# ---------------------------------------------------------------------------
-
-
-class TestSearchSourceStub:
-    def test_validate_options_raises_not_implemented(self):
-        with pytest.raises(TerraformError, match="not yet implemented"):
-            SearchSource.validate_options({})
-
-    def test_collect_hosts_raises_not_implemented(self):
-        with pytest.raises(TerraformError, match="not yet implemented"):
-            SearchSource(Mock(), {}).collect_hosts()
-
-
-# ---------------------------------------------------------------------------
 # get_source_backend factory (utils/factory)
 # ---------------------------------------------------------------------------
 
@@ -2028,15 +2043,12 @@ class TestGetSourceBackend:
     def test_outputs_returns_outputs_class(self):
         assert get_source_backend("outputs") is OutputsSource
 
-    def test_search_returns_search_class(self):
-        assert get_source_backend("search") is SearchSource
-
     def test_unknown_source_raises(self):
         with pytest.raises(TerraformError, match="Unknown source"):
             get_source_backend("nonexistent")
 
     def test_sources_registry_contains_all_backends(self):
-        assert set(SOURCES.keys()) == {"statefile", "outputs", "search"}
+        assert set(SOURCES.keys()) == {"statefile", "outputs"}
 
 
 # ---------------------------------------------------------------------------
@@ -2376,29 +2388,29 @@ class TestInventoryModuleParseOutputs:
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_dict_output_adds_one_host(self, mock_client_cls, mock_resolve, mock_fetch):
+    def test_default_ansible_host_object_output_adds_one_host(self, mock_client_cls, mock_resolve, mock_fetch):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
-            {"name": "web_server", "value": {"public_ip": "1.2.3.4", "env": "prod"}, "sensitive": False},
+            {"name": "ansible_host", "value": {"public_ip": "1.2.3.4", "metadata": {"env": "prod"}}, "sensitive": False},
         ]
 
         plugin = _make_plugin(_base_options(source="outputs"))
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-        plugin.inventory.add_host.assert_called_once_with("my-ws_web_server")
-        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "public_ip", "1.2.3.4")
-        plugin.inventory.set_variable.assert_any_call("my-ws_web_server", "env", "prod")
+        plugin.inventory.add_host.assert_called_once_with("my-ws_ansible_host")
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host", "public_ip", "1.2.3.4")
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host", "metadata", {"env": "prod"})
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
-    def test_list_output_adds_indexed_hosts(self, mock_client_cls, mock_resolve, mock_fetch):
+    def test_default_ansible_host_list_string_output_adds_indexed_hosts(self, mock_client_cls, mock_resolve, mock_fetch):
         mock_client_cls.return_value = Mock()
         mock_resolve.return_value = ("ws-abc", "my-ws")
         mock_fetch.return_value = [
-            {"name": "servers", "value": [{"ip": "10.0.0.1"}, {"ip": "10.0.0.2"}], "sensitive": False},
+            {"name": "ansible_host", "value": ["10.0.0.1", "10.0.0.2"], "sensitive": False},
         ]
 
         plugin = _make_plugin(_base_options(source="outputs"))
@@ -2407,7 +2419,9 @@ class TestInventoryModuleParseOutputs:
 
         assert plugin.inventory.add_host.call_count == 2
         hostnames = {c[0][0] for c in plugin.inventory.add_host.call_args_list}
-        assert hostnames == {"my-ws_servers_0", "my-ws_servers_1"}
+        assert hostnames == {"my-ws_ansible_host_0", "my-ws_ansible_host_1"}
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host_0", "ansible_host", "10.0.0.1")
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host_1", "ansible_host", "10.0.0.2")
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
     @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
@@ -2670,8 +2684,8 @@ class TestInventoryModuleParseErrors:
             with pytest.raises(AnsibleParserError, match="Authentication"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
-    def test_source_search_raises_not_implemented(self):
+    def test_source_search_raises_unknown_source(self):
         plugin = _make_plugin(_base_options(source="search"))
         with _parse_ctx(plugin):
-            with pytest.raises(AnsibleParserError, match="not yet implemented"):
+            with pytest.raises(AnsibleParserError, match="Unknown source"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")

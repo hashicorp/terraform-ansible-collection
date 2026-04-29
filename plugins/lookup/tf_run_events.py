@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 DOCUMENTATION = r"""
-name: tfe_run_events
+name: tf_run_events
 short_description: Retrieve the timeline of events for a Terraform Cloud/Enterprise run
 version_added: "2.0.0"
 author: "Prabuddha Chakraborty (@iam404)"
@@ -77,11 +77,11 @@ options:
 EXAMPLES = r"""
 - name: Get all events for a run
   ansible.builtin.debug:
-    msg: "{{ lookup('hashicorp.terraform.tfe_run_events', run_id='run-abc123') }}"
+    msg: "{{ lookup('hashicorp.terraform.tf_run_events', run_id='run-abc123') }}"
 
 - name: Get only applied events since a timestamp
   ansible.builtin.set_fact:
-    applied_events: "{{ lookup('hashicorp.terraform.tfe_run_events',
+    applied_events: "{{ lookup('hashicorp.terraform.tf_run_events',
                               run_id='run-abc123',
                               action='applied',
                               since='2026-01-01T00:00:00Z') }}"
@@ -114,6 +114,6 @@ class LookupModule(LookupBase):
             with TerraformClient.from_mapping(kwargs) as adapter:
                 events = list_run_events(adapter, run_id)
         except Exception as e:
-            raise AnsibleError(f"tfe_run_events lookup failed: {e}")
+            raise AnsibleError(f"tf_run_events lookup failed: {e}")
 
         return filter_events(events, action=action, since=since, until=until)

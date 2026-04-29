@@ -9,14 +9,12 @@ from typing import Dict
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.outputs import OutputsSource
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.search import SearchSource
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources.statefile import StatefileSource
 
 #: Registry mapping source name → backend class.
 SOURCES: Dict[str, type] = {
     StatefileSource.NAME: StatefileSource,
     OutputsSource.NAME: OutputsSource,
-    SearchSource.NAME: SearchSource,
 }
 
 

@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from ansible.errors import AnsibleError
 
-from ansible_collections.hashicorp.terraform.plugins.lookup.tfe_run_events import LookupModule
+from ansible_collections.hashicorp.terraform.plugins.lookup.tf_run_events import LookupModule
 
-MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tfe_run_events"
+MOD = "ansible_collections.hashicorp.terraform.plugins.lookup.tf_run_events"
 
 
 @pytest.fixture
@@ -64,5 +64,5 @@ class TestTfeRunEventsLookup:
     @patch(f"{MOD}.list_run_events")
     def test_api_error_wrapped(self, mock_list, patched_client, lookup_plugin):
         mock_list.side_effect = RuntimeError("boom")
-        with pytest.raises(AnsibleError, match="tfe_run_events lookup failed"):
+        with pytest.raises(AnsibleError, match="tf_run_events lookup failed"):
             lookup_plugin.run([], None, run_id="run-1")

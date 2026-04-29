@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 DOCUMENTATION = r"""
-name: tfe_variable_set_vars
+name: tf_variable_set_vars
 short_description: Retrieve variables owned by a Terraform Cloud/Enterprise variable set
 version_added: "2.0.0"
 author: "Prabuddha Chakraborty (@iam404)"
@@ -80,11 +80,11 @@ options:
 EXAMPLES = r"""
 - name: Fetch platform defaults from a variable set
   ansible.builtin.debug:
-    msg: "{{ lookup('hashicorp.terraform.tfe_variable_set_vars', variable_set_id='varset-abc123') }}"
+    msg: "{{ lookup('hashicorp.terraform.tf_variable_set_vars', variable_set_id='varset-abc123') }}"
 
 - name: Fetch variables by variable-set name
   ansible.builtin.set_fact:
-    platform_vars: "{{ lookup('hashicorp.terraform.tfe_variable_set_vars',
+    platform_vars: "{{ lookup('hashicorp.terraform.tf_variable_set_vars',
                              name='platform-defaults',
                              organization='my-org',
                              display_sensitive=false) }}"
@@ -137,6 +137,6 @@ class LookupModule(LookupBase):
         except AnsibleError:
             raise
         except Exception as e:
-            raise AnsibleError(f"tfe_variable_set_vars lookup failed: {e}")
+            raise AnsibleError(f"tf_variable_set_vars lookup failed: {e}")
 
         return mask_sensitive(variables_list, display_sensitive=display_sensitive)
