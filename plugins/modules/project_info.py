@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from __future__ import absolute_import, annotations, division, print_function
-
 
 __metaclass__ = type
 DOCUMENTATION = r"""
@@ -200,13 +199,11 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.project import (
     get_project_by_id,
@@ -223,24 +220,27 @@ def main() -> None:
 
     warnings: list[str] = []
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+
     try:
-        client = TerraformClient(**params)
+        with module.client() as adapter:
+            project_data: Optional[Dict[str, Any]] = None
 
-        project_data: Optional[Dict[str, Any]] = None
-        if params["project_id"]:
-            project_data = get_project_by_id(client, params["project_id"])
-            if not project_data:
-                raise ValueError(f"Project '{params['project_id']}' was not found.")
-        else:
-            raise ValueError("Project ID is required.")
+            if params["project_id"]:
+                project_data = get_project_by_id(adapter, params["project_id"])
 
-        project_data.pop("status", None)
+                if not project_data:
+                    raise ValueError(f"Project '{params['project_id']}' was not found.")
+            else:
+                raise ValueError("Project ID is required.")
 
-        result["project"] = project_data.get("data", project_data)
+            project_data.pop("status", None)
 
-        module.exit_json(**result)
+            result["project"] = project_data.get("data", project_data)
+
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

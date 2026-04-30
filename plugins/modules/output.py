@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright: (c) 2025, Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
-
 
 DOCUMENTATION = r"""
 ---
@@ -385,7 +384,6 @@ count:
 
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict
 
@@ -393,9 +391,8 @@ from copy import deepcopy
 
 from ansible.module_utils._text import to_text
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
     get_output_by_name,
@@ -439,27 +436,26 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False}
 
     try:
-        client = TerraformClient(**params)
-
-        if state_version_output_id:
-            output_data = get_specific_output(client, state_version_output_id, display_sensitive=display_sensitive)
-            result["output"] = output_data
-        else:
-            workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
-            if name:
-                output_data = get_output_by_name(client, workspace_id, name, display_sensitive=display_sensitive)
+        with module.client() as adapter:
+            if state_version_output_id:
+                output_data = get_specific_output(adapter, state_version_output_id, display_sensitive=display_sensitive)
                 result["output"] = output_data
             else:
-                outputs = get_workspace_outputs(client, workspace_id, display_sensitive=display_sensitive)
-                if outputs:
-                    result["outputs"] = outputs
-                    result["count"] = len(outputs)
+                workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
+                if name:
+                    output_data = get_output_by_name(adapter, workspace_id, name, display_sensitive=display_sensitive)
+                    result["output"] = output_data
                 else:
-                    result["outputs"] = []
-                    result["count"] = 0
-                    result["msg"] = "No outputs found for workspace."
+                    outputs = get_workspace_outputs(adapter, workspace_id, display_sensitive=display_sensitive)
+                    if outputs:
+                        result["outputs"] = outputs
+                        result["count"] = len(outputs)
+                    else:
+                        result["outputs"] = []
+                        result["count"] = 0
+                        result["msg"] = "No outputs found for workspace."
 
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

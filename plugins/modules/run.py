@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or
 # https://www.gnu.org/licenses/gpl-3.0.txt)
 
@@ -126,45 +126,31 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": true,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "applied",
-#         "status-timestamps": {
-#             "applied-at": "2025-01-15T10:35:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z",
-#             "apply-queueable-at": "2025-01-15T10:32:05.000Z",
-#             "applying-at": "2025-01-15T10:33:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "auto_apply": true,
+#     "created_at": "2025-01-15T10:30:00.000Z",,
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "applied_at": "2025-01-15T10:35:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "apply_queueable_at": "2025-01-15T10:32:05.000Z",
+#         "applying_at": "2025-01-15T10:33:00.000Z"
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "type": "runs"
 # }
 
 - name: Create a plan-only run for review (with polling)
@@ -178,41 +164,28 @@ EXAMPLES = r"""
 # Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": true,
-#             "is-discardable": true,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T11:00:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Review infrastructure changes",
-#         "plan-only": true,
-#         "source": "tfe-api",
-#         "status": "planned",
-#         "status-timestamps": {
-#             "plan-queueable-at": "2025-01-15T11:00:05.000Z",
-#             "planning-at": "2025-01-15T11:00:10.000Z",
-#             "planned-at": "2025-01-15T11:02:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "id": "run-def456ghi789",
-#     "links": {
-#         "self": "/api/v2/runs/run-def456ghi789"
+#     "auto_apply": false,
+#     "created_at": "2025-02-20T14:00:00.000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Review infrastructure changes",
+#     "source": "tfe-api",
+#     "status": "planned",
+#     "plan_only": true,
+#     "status_timestamps": {
+#         "plan_queueable_at": "2025-01-15T11:00:05.000Z",
+#         "planning_at": "2025-01-15T11:00:10.000Z",
+#         "planned_at": "2025-01-15T11:02:00.000Z"
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-abc123def456",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": true,
+#         "is_discardable": true,
+#         "is_force_cancelable": false
 #     },
-#     "type": "runs"
+#     "variables": []
 # }
 
 - name: Create a plan-only run without polling
@@ -226,39 +199,25 @@ EXAMPLES = r"""
 # Task output (with poll: false):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T11:30:00.000Z",
-#         "has-changes": null,
-#         "is-destroy": false,
-#         "message": "Quick plan check",
-#         "plan-only": true,
-#         "source": "tfe-api",
-#         "status": "pending",
-#         "status-timestamps": {
-#             "queuing-at": "2025-01-15T11:30:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "id": "run-jkl012mno345",
-#     "links": {
-#         "self": "/api/v2/runs/run-jkl012mno345"
+#     "actions": {
+#         "is_cancelable": true,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-abc123def456",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2025-01-15T11:30:00.000Z",
+#     "has_changes": null,
+#     "is_destroy": false,
+#     "message": "Quick plan check",
+#     "plan_only": true,
+#     "source": "tfe-api",
+#     "status": "pending",
+#     "status_timestamps": {
+#         "queuing_at": "2025-01-15T11:30:00.000Z"
 #     },
-#     "type": "runs"
 # }
 
 - name: Create a destroy run to remove resources
@@ -273,41 +232,27 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": true,
-#             "is-confirmable": true,
-#             "is-discardable": true,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T12:00:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": true,
-#         "message": "Clean up staging environment",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "planned",
-#         "status-timestamps": {
-#             "plan-queueable-at": "2025-01-15T12:00:05.000Z",
-#             "planning-at": "2025-01-15T12:00:10.000Z",
-#             "planned-at": "2025-01-15T12:01:30.000Z"
-#         }
-#     },
 #     "changed": true,
-#     "id": "run-ghi789jkl012",
-#     "links": {
-#         "self": "/api/v2/runs/run-ghi789jkl012"
+#     "id": "run-ghi789jkl012hi",
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-staging123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": true,
+#     "created_at": "2026-03-26T10:15:05.813000Z",
+#     "has_changes": true,
+#     "is_destroy": true,
+#     "message": "Clean up staging environment",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "planned",
+#     "status_timestamps": {
+#         "plan_queueable_at": "2026-03-26T10:15:05Z",
+#         "planning_at": "2026-03-26T10:15:08Z",
+#         "planned_at": "2026-03-26T10:15:12Z",
 #     },
-#     "type": "runs"
 # }
 
 - name: Apply an existing run
@@ -321,45 +266,31 @@ EXAMPLES = r"""
 # Task output (with poll: true, poll_timeout: 300, poll_interval: 10):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "applied",
-#         "status-timestamps": {
-#             "applied-at": "2025-01-15T13:15:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z",
-#             "apply-queueable-at": "2025-01-15T13:10:00.000Z",
-#             "applying-at": "2025-01-15T13:12:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2026-03-26T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "applied_at": "2025-01-15T10:35:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "apply_queueable_at": "2025-01-15T10:32:05.000Z",
+#         "applying_at": "2025-01-15T10:33:00.000Z",
 #     },
-#     "type": "runs"
 # }
 #
 # Task output (with poll: false):
@@ -377,43 +308,30 @@ EXAMPLES = r"""
 # Task output (with poll: true - default):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "canceled",
-#         "status-timestamps": {
-#             "canceled-at": "2025-01-15T13:20:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": true,
+#     "created_at": "2025-01-15T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "canceled",
+#     "status_timestamps": {
+#         "canceled_at": "2025-01-15T10:20:00.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
+#         "planned_at": "2025-01-15T10:32:00.000Z",
 #     },
-#     "type": "runs"
+
 # }
 #
 # Task output (with poll: false):
@@ -431,43 +349,29 @@ EXAMPLES = r"""
 # Task output (with poll: true - default interval and timeout):
 # ------------
 # "result": {
-#     "attributes": {
-#         "actions": {
-#             "is-cancelable": false,
-#             "is-confirmable": false,
-#             "is-discardable": false,
-#             "is-force-cancelable": false
-#         },
-#         "auto-apply": false,
-#         "created-at": "2025-01-15T10:30:00.000Z",
-#         "has-changes": true,
-#         "is-destroy": false,
-#         "message": "Deploy new application version",
-#         "plan-only": false,
-#         "source": "tfe-api",
-#         "status": "discarded",
-#         "status-timestamps": {
-#             "discarded-at": "2025-01-15T13:25:00.000Z",
-#             "plan-queueable-at": "2025-01-15T10:30:05.000Z",
-#             "planning-at": "2025-01-15T10:30:10.000Z",
-#             "planned-at": "2025-01-15T10:32:00.000Z"
-#         }
-#     },
 #     "changed": true,
 #     "failed": false,
 #     "id": "run-abc123def456",
-#     "links": {
-#         "self": "/api/v2/runs/run-abc123def456"
+#     "actions": {
+#         "is_cancelable": false,
+#         "is_confirmable": false,
+#         "is_discardable": false,
+#         "is_force_cancelable": false
 #     },
-#     "relationships": {
-#         "workspace": {
-#             "data": {
-#                 "id": "ws-xyz789abc123",
-#                 "type": "workspaces"
-#             }
-#         }
+#     "auto_apply": false,
+#     "created_at": "2025-01-15T10:14:34.631000Z",
+#     "has_changes": true,
+#     "is_destroy": false,
+#     "message": "Deploy new application version",
+#     "plan_only": false,
+#     "source": "tfe-api",
+#     "status": "discarded",
+#     "status_timestamps": {
+#         "planned_at": "2025-01-15T10:32:00.000Z",
+#         "discarded_at": "2025-01-15T10:36:10.000Z",
+#         "plan_queueable_at": "2025-01-15T10:30:05.000Z",
+#         "planning_at": "2025-01-15T10:30:10.000Z",
 #     },
-#     "type": "runs"
 # }
 #
 # Task output (with poll: false):
@@ -483,105 +387,108 @@ id:
     description: The unique identifier of the run.
     returned: always
     type: str
-    sample: "run-7TwrwCoRQ3FXbFtP"
-type:
-    description: The resource type, always 'runs'.
-    returned: always
+    sample: run-uYpZSm96CYWWk5gJ
+status:
+    description: Current status of the run.
+    returned: when run data is returned
     type: str
-    sample: "runs"
-attributes:
-    description: The run's attributes and configuration.
-    returned: always
+    sample: applied
+actions:
+    description: Action capability flags for the run.
+    returned: when run data is returned
     type: dict
-    sample: {
-        "actions": {
-            "is-cancelable": true,
-            "is-confirmable": false,
-            "is-discardable": false,
-            "is-force-cancelable": false
-        },
-        "allow-config-generation": false,
-        "allow-empty-apply": false,
-        "auto-apply": false,
-        "canceled-at": null,
-        "created-at": "2025-07-03T08:10:20.479Z",
-        "has-changes": false,
-        "is-destroy": false,
-        "message": "Custom message2",
-        "plan-only": true,
-        "status": "pending",
-        "terraform-version": "1.10.5",
-        "updated-at": "2025-07-03T08:10:20.651Z",
-        "permissions": {
-            "can-apply": true,
-            "can-cancel": true,
-            "can-discard": true,
-            "can-force-cancel": true
-        },
-        "variables": []
-    }
-relationships:
-    description: Related resources linked to the run.
-    returned: always
+    sample:
+        is_cancelable: false
+        is_confirmable: false
+        is_discardable: false
+        is_force_cancelable: false
+auto_apply:
+    description: Whether auto-apply is enabled for the run.
+    returned: when run data is returned
+    type: bool
+    sample: false
+created_at:
+    description: Run creation timestamp.
+    returned: when run data is returned
+    type: str
+    sample: "2026-03-26T10:14:34.631000Z"
+has_changes:
+    description: Whether the run contains infrastructure changes.
+    returned: when run data is returned
+    type: bool
+    sample: true
+is_destroy:
+    description: Whether the run is a destroy run.
+    returned: when run data is returned
+    type: bool
+    sample: false
+message:
+    description: Message associated with the run.
+    returned: when run data is returned
+    type: str
+    sample: Triggered via API
+plan_only:
+    description: Whether the run is plan-only.
+    returned: when run data is returned
+    type: bool
+    sample: false
+source:
+    description: Source of the run trigger.
+    returned: when run data is returned
+    type: str
+    sample: tfe-api
+status_timestamps:
+    description: Lifecycle timestamps keyed by event name.
+    returned: when run data is returned
     type: dict
-    sample: {
-        "workspace": {
-            "data": {
-                "id": "ws-82Qk88p7boaHK2BT",
-                "type": "workspaces"
-            }
-        },
-        "apply": {
-            "data": {
-                "id": "apply-qki4X5daDtNzNjpw",
-                "type": "applies"
-            }
-        },
-        "configuration-version": {
-            "data": {
-                "id": "cv-h2u3XnkPasTHbgyv",
-                "type": "configuration-versions"
-            }
-        },
-        "plan": {
-            "data": {
-                "id": "plan-YDyzmtnwadKwjVSn",
-                "type": "plans"
-            }
-        },
-        "created-by": {
-            "data": {
-                "id": "user-YYhuc7w4AJxv5RVp",
-                "type": "users"
-            }
-        }
-    }
-links:
-    description: API links for the run.
-    returned: always
-    type: dict
-    sample: {
-        "self": "/api/v2/runs/run-7TwrwCoRQ3FXbFtP"
-    }
+    sample:
+        planned_at: "2026-03-26T10:14:40Z"
+        applied_at: "2026-03-26T10:14:55Z"
+variables:
+    description: Variables passed to the run.
+    returned: when run data is returned
+    type: list
+    elements: dict
+    sample:
+        - key: env
+          value: production
 """
 
 import time
-
 from copy import deepcopy
 from typing import Any, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import AnsibleTerraformModule, TerraformClient
+from ansible.module_utils.common.text.converters import to_text
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.run import RunRequest, RunStates
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, cancel_run, create_run, discard_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
+SUCCESS_STATES = [
+    "planned",
+    "planned_and_finished",
+    "planned_and_saved",
+    "applied",
+    "discarded",
+    "canceled",
+    "force_canceled",
+    "policy_override",
+    "post_plan_completed",
+    "post_plan_awaiting_decision",
+]
 
-def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 120, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
+FAILURE_STATES = ["errored", "policy_soft_failed"]
+
+
+def wait_for_state(adapter: TerraformClient, run_id: str, timeout: int = 120, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
     """
     Wait for a run to reach a terminal state (success or failure).
     Args:
-        client: TerraformClient instance
+        adapter: TerraformClient instance
         run_id: The ID of the run to wait for.
         timeout: The timeout for the wait in seconds.
         polling_interval: The polling interval in seconds.
@@ -593,14 +500,14 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 120, pol
     start_time = time.time()
     run = None
     while True:
-        run = get_run(client, run_id)
+        run = get_run(adapter, run_id)
         # Check for empty dict (404 case) or missing data
-        if not run or not run.get("data"):
+        if not run:
             return "failure", {"error": f"Run {run_id} not found"}
-        state = run.get("data").get("attributes", {}).get("status")
-        if run and RunStates.is_success_state(state):
+        state = run.get("status")
+        if run and state in SUCCESS_STATES:
             return "success", run
-        elif run and RunStates.is_failure_state(state):
+        elif run and state in FAILURE_STATES:
             return "failure", run
 
         if time.time() - start_time > timeout:
@@ -610,11 +517,11 @@ def wait_for_state(client: TerraformClient, run_id: str, timeout: int = 120, pol
     return "timeout", run
 
 
-def handle_polling_and_result(client: TerraformClient, response: dict, poll: bool, run_id: Optional[str] = None, **kwargs: Any) -> dict[str, Any]:
+def handle_polling_and_result(adapter: TerraformClient, response: dict, poll: bool, run_id: Optional[str] = None, **kwargs: Any) -> dict[str, Any]:
     """
     Handle polling and return appropriate action result.
     Args:
-        client: TerraformClient instance
+        adapter: TerraformClient instance
         response: The API response
         poll: Whether to poll for status
         run_id: Run ID to poll (defaults to response data id)
@@ -622,16 +529,16 @@ def handle_polling_and_result(client: TerraformClient, response: dict, poll: boo
         Action result dictionary
     """
     action_result = {}
-    target_run_id = run_id or response.get("data", {}).get("id")
+    target_run_id = run_id or response.get("id")
     if poll and target_run_id:
-        status, poll_response = wait_for_state(client, target_run_id, kwargs.get("poll_timeout", 120), kwargs.get("poll_interval", 5))
+        status, poll_response = wait_for_state(adapter, target_run_id, kwargs.get("poll_timeout", 120), kwargs.get("poll_interval", 5))
         if status == "success" and poll_response:
-            poll_data = poll_response.get("data") or {}
+            poll_data = poll_response or {}
             action_result.update({"changed": True, **poll_data})
         else:
             action_result.update({"failed": True, "msg": f"Run reached status '{status}' instead of expected success state"})
     else:
-        data = response.get("data") or {}
+        data = response or {}
         action_result.update({"changed": True, **data})
 
     return action_result
@@ -682,17 +589,17 @@ def idempotency_check(func):
         run_id = kwargs.get("run_id")
         if run_id:
             run = get_run(args[0], run_id)
-            if not run or not run.get("data"):
+            if not run:
                 return {"failed": True, "msg": f"Run {run_id} not found"}
-            elif run.get("data").get("attributes", {}).get("status") == func.__name__.split("_")[1]:
-                return {"changed": False, "run": run.get("data")}
+            elif run.get("status") == func.__name__.split("_")[1]:
+                return {"changed": False, "run": run}
         return func(*args, **kwargs)
 
     return wrapper
 
 
 @check_mode
-def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
+def state_present(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Create a new run with the given parameters.
     Args:
@@ -704,21 +611,15 @@ def state_present(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     """
     # Filter out Terraform client params (tf_*), polling params (poll_*), and Ansible-specific params
     excluded_params = {"check_mode", "state", "organization", "workspace"}
-    run_params = {key: value for key, value in kwargs.items() if not key.startswith(("tf_", "poll_")) and key not in excluded_params}
+    run_params = {key: value for key, value in kwargs.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in excluded_params}
 
-    workspace_id = run_params.pop("workspace_id")
-    configuration_version_id = run_params.pop("configuration_version", None)
-
-    run_request = RunRequest.create(workspace_id=workspace_id, configuration_version_id=configuration_version_id, **run_params)
-
-    run_payload = run_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
-    response = create_run(client, run_payload)
-    return handle_polling_and_result(client, response, **kwargs)
+    response = create_run(adapter, data=run_params)
+    return handle_polling_and_result(adapter, response, **kwargs)
 
 
 @check_mode
 @idempotency_check
-def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
+def state_applied(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Apply a run with the given parameters.
     Args:
@@ -728,13 +629,13 @@ def state_applied(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, 
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = apply_run(client, run_id)
-    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
+    response = apply_run(adapter, run_id, comment=kwargs.get("run_message"))
+    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
 @check_mode
 @idempotency_check
-def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
+def state_discarded(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Discard a run with the given parameters.
     Args:
@@ -744,13 +645,13 @@ def state_discarded(client: TerraformClient, **kwargs: Any) -> Optional[dict[str
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = discard_run(client, run_id)
-    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
+    response = discard_run(adapter, run_id, comment=kwargs.get("run_message"))
+    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
 @check_mode
 @idempotency_check
-def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
+def state_canceled(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str, Any]]:
     """
     Cancel a run with the given parameters.
     Args:
@@ -760,11 +661,11 @@ def state_canceled(client: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     """
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
-    response = cancel_run(client, run_id)
-    return handle_polling_and_result(client, response, poll, run_id, **kwargs)
+    response = cancel_run(adapter, run_id, comment=kwargs.get("run_message"))
+    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
 
 
-def get_workspace_id(client: TerraformClient, workspace: str, organization: str) -> str:
+def get_workspace_id(adapter: TerraformClient, workspace: str, organization: str) -> str:
     """
     Get the workspace ID for the given workspace and organization.
     Args:
@@ -773,10 +674,10 @@ def get_workspace_id(client: TerraformClient, workspace: str, organization: str)
     Returns:
         workspace_id: The ID of the workspace.
     """
-    response = get_workspace(client, organization, workspace)
+    response = get_workspace(adapter, organization, workspace)
     if not response:
         raise TerraformError(f"The Workspace {workspace} was not found in the organization {organization}")
-    return response.get("data").get("id")
+    return response.get("id")
 
 
 def main():
@@ -789,7 +690,7 @@ def main():
             "poll_interval": {"type": "int", "default": 5},
             "poll_timeout": {"type": "int", "default": 120},
             "configuration_version": {"type": "str"},
-            "run_message": {"type": "str"},
+            "run_message": {"type": "str", "default": None},
             "auto_apply": {"type": "bool"},
             "save_plan": {"type": "bool"},
             "variables": {"type": "list", "elements": "dict"},
@@ -821,27 +722,26 @@ def main():
     params["check_mode"] = module.check_mode
 
     try:
-        tf_client = TerraformClient(**module.params)
+        with module.client() as adapter:
+            # Get workspace_id if not provided and state is present
+            if not params.get("workspace_id") and params.get("state") == "present":
+                params["workspace_id"] = get_workspace_id(adapter, params["workspace"], params["organization"])
 
-        # Get workspace_id if not provided and state is present
-        if not params.get("workspace_id") and params.get("state") == "present":
-            params["workspace_id"] = get_workspace_id(tf_client, params["workspace"], params["organization"])
+            match params.get("state"):
+                case "present":
+                    action_result = state_present(adapter, **params)
+                case "applied":
+                    action_result = state_applied(adapter, **params)
+                case "discarded":
+                    action_result = state_discarded(adapter, **params)
+                case "canceled":
+                    action_result = state_canceled(adapter, **params)
 
-        match params.get("state"):
-            case "present":
-                action_result = state_present(tf_client, **params)
-            case "applied":
-                action_result = state_applied(tf_client, **params)
-            case "discarded":
-                action_result = state_discarded(tf_client, **params)
-            case "canceled":
-                action_result = state_canceled(tf_client, **params)
-
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
 
     except Exception as e:
-        module.fail_from_exception(e)
+        module.fail_json(msg=to_text(e))
 
 
 if __name__ == "__main__":

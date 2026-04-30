@@ -1,39 +1,44 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from ansible.errors import AnsibleError
 
 from ansible_collections.hashicorp.terraform.plugins.lookup.tf_output import LookupModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 
 
+@pytest.fixture
+def lookup_plugin():
+    return LookupModule()
+
+
+@pytest.fixture
+def patched_client():
+    """Patch TerraformClient so `from_mapping(...)` yields a configurable client via context manager.
+
+    Yields a tuple (mock_client, mock_class) so tests can assert on the client
+    passed into helpers and on the class itself (e.g. from_mapping kwargs).
+    """
+    with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient") as mock_class:
+        mock_client = Mock()
+        ctx = MagicMock()
+        ctx.__enter__.return_value = mock_client
+        ctx.__exit__.return_value = False
+        mock_class.from_mapping.return_value = ctx
+        yield mock_client, mock_class
+
+
 class TestTfOutputLookup:
     """Tests for the tf_output lookup plugin."""
 
-    @pytest.fixture
-    def lookup_plugin(self):
-        """Provide a LookupModule instance."""
-        return LookupModule()
-
-    @pytest.fixture
-    def mock_client(self):
-        """Provide a mock TerraformClient."""
-        return Mock()
-
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
-    def test_lookup_by_output_id(self, mock_get_specific, mock_client_class, lookup_plugin):
-        """Test lookup using state_version_output_id."""
-        # Setup
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    def test_lookup_by_output_id(self, mock_get_specific, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_get_specific.return_value = {
             "id": "wsout-123",
             "name": "server_id",
@@ -51,13 +56,9 @@ class TestTfOutputLookup:
         assert result == ["i-1234567890abcdef"]
         mock_get_specific.assert_called_once_with(mock_client, "wsout-123", display_sensitive=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
-    def test_lookup_by_output_id_with_display_sensitive(self, mock_get_specific, mock_client_class, lookup_plugin):
-        """Test lookup using state_version_output_id with display_sensitive=True."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    def test_lookup_by_output_id_with_display_sensitive(self, mock_get_specific, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_get_specific.return_value = {
             "id": "wsout-secret",
             "name": "api_token",
@@ -76,17 +77,11 @@ class TestTfOutputLookup:
         assert result == ["secret-token-xyz"]
         mock_get_specific.assert_called_once_with(mock_client, "wsout-secret", display_sensitive=True)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_by_name_with_workspace_id(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup using name and workspace_id."""
-        # Setup
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_by_name_with_workspace_id(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-123"
-
         mock_get_by_name.return_value = {
             "id": "wsout-456",
             "name": "database_url",
@@ -106,16 +101,11 @@ class TestTfOutputLookup:
         mock_resolve.assert_called_once_with(mock_client, "ws-123", None, None)
         mock_get_by_name.assert_called_once_with(mock_client, "ws-123", "database_url", display_sensitive=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_by_name_with_workspace_and_org(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup using name, workspace, and organization."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_by_name_with_workspace_and_org(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-resolved-789"
-
         mock_get_by_name.return_value = {
             "id": "wsout-app",
             "name": "app_version",
@@ -136,33 +126,14 @@ class TestTfOutputLookup:
         mock_resolve.assert_called_once_with(mock_client, None, "my-workspace", "my-org")
         mock_get_by_name.assert_called_once_with(mock_client, "ws-resolved-789", "app_version", display_sensitive=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_workspace_outputs")
-    def test_lookup_all_outputs_with_workspace_id(self, mock_get_outputs, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup returning all outputs from workspace using workspace_id."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_all_outputs_with_workspace_id(self, mock_resolve, mock_get_outputs, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-123"
-
         mock_get_outputs.return_value = [
-            {
-                "id": "wsout-1",
-                "name": "output1",
-                "value": "value1",
-                "sensitive": False,
-                "type": "string",
-                "detailed_type": "string",
-            },
-            {
-                "id": "wsout-2",
-                "name": "output2",
-                "value": "<sensitive>",
-                "sensitive": True,
-                "type": "string",
-                "detailed_type": "string",
-            },
+            {"id": "wsout-1", "name": "output1", "value": "value1", "sensitive": False, "type": "string", "detailed_type": "string"},
+            {"id": "wsout-2", "name": "output2", "value": "<sensitive>", "sensitive": True, "type": "string", "detailed_type": "string"},
         ]
         result = lookup_plugin.run(
             [],
@@ -176,25 +147,13 @@ class TestTfOutputLookup:
         mock_resolve.assert_called_once_with(mock_client, "ws-123", None, None)
         mock_get_outputs.assert_called_once_with(mock_client, "ws-123", display_sensitive=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_workspace_outputs")
-    def test_lookup_all_outputs_with_workspace_and_org(self, mock_get_outputs, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup returning all outputs using workspace name and organization."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_all_outputs_with_workspace_and_org(self, mock_resolve, mock_get_outputs, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-resolved-456"
-
         mock_get_outputs.return_value = [
-            {
-                "id": "wsout-public",
-                "name": "public_ip",
-                "value": "192.0.2.1",
-                "sensitive": False,
-                "type": "string",
-                "detailed_type": "string",
-            },
+            {"id": "wsout-public", "name": "public_ip", "value": "192.0.2.1", "sensitive": False, "type": "string", "detailed_type": "string"},
         ]
         result = lookup_plugin.run(
             [],
@@ -209,7 +168,6 @@ class TestTfOutputLookup:
         mock_get_outputs.assert_called_once_with(mock_client, "ws-resolved-456", display_sensitive=True)
 
     def test_lookup_mutually_exclusive_params(self, lookup_plugin):
-        """Test error when state_version_output_id is used with workspace params."""
         with pytest.raises(AnsibleError, match="state_version_output_id is mutually exclusive"):
             lookup_plugin.run(
                 [],
@@ -220,7 +178,6 @@ class TestTfOutputLookup:
             )
 
     def test_lookup_mutually_exclusive_with_name(self, lookup_plugin):
-        """Test error when state_version_output_id is used with name."""
         with pytest.raises(AnsibleError, match="state_version_output_id is mutually exclusive"):
             lookup_plugin.run(
                 [],
@@ -231,7 +188,6 @@ class TestTfOutputLookup:
             )
 
     def test_lookup_missing_required_params(self, lookup_plugin):
-        """Test error when no identification parameters provided."""
         with pytest.raises(
             AnsibleError,
             match="Either state_version_output_id or workspace identification \\(workspace_id or both workspace and organization\\) must be provided",
@@ -243,7 +199,6 @@ class TestTfOutputLookup:
             )
 
     def test_lookup_workspace_without_organization(self, lookup_plugin):
-        """Test error when workspace provided without organization."""
         with pytest.raises(AnsibleError, match="organization is required when workspace is specified"):
             lookup_plugin.run(
                 [],
@@ -252,13 +207,17 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
-    def test_lookup_workspace_not_found(self, mock_resolve, mock_client_class, lookup_plugin):
-        """Test error when workspace cannot be resolved."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
+    def test_lookup_organization_without_workspace(self, lookup_plugin):
+        with pytest.raises(AnsibleError, match="workspace is required when organization is specified"):
+            lookup_plugin.run(
+                [],
+                None,
+                organization="my-org",
+                tf_validate_certs=True,
+            )
 
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_workspace_not_found(self, mock_resolve, patched_client, lookup_plugin):
         mock_resolve.side_effect = ValueError("Workspace 'nonexistent' was not found in organization 'my-org'")
 
         with pytest.raises(AnsibleError, match="Output lookup failed - resource not found"):
@@ -270,13 +229,8 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
-    def test_lookup_output_not_found_by_id(self, mock_get_specific, mock_client_class, lookup_plugin):
-        """Test error when output ID is not found."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    def test_lookup_output_not_found_by_id(self, mock_get_specific, patched_client, lookup_plugin):
         mock_get_specific.side_effect = ValueError("State version output with ID 'wsout-notfound' was not found")
 
         with pytest.raises(AnsibleError, match="Output lookup failed - resource not found"):
@@ -287,14 +241,9 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_output_name_not_found(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test error when output name doesn't exist in workspace."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_output_name_not_found(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
         mock_resolve.return_value = "ws-123"
         mock_get_by_name.side_effect = ValueError("Output with name 'nonexistent' not found in workspace 'ws-123'")
 
@@ -307,13 +256,8 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
-    def test_lookup_api_error(self, mock_get_specific, mock_client_class, lookup_plugin):
-        """Test error handling for API failures."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    def test_lookup_api_error(self, mock_get_specific, patched_client, lookup_plugin):
         mock_get_specific.side_effect = TerraformError({"status": 500, "error": "Internal server error"})
 
         with pytest.raises(AnsibleError, match="Output lookup failed - API error"):
@@ -324,16 +268,10 @@ class TestTfOutputLookup:
                 tf_validate_certs=True,
             )
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_complex_value_types(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup with complex output value types (dict, list)."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_complex_value_types(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
         mock_resolve.return_value = "ws-123"
-
         mock_get_by_name.return_value = {
             "id": "wsout-complex",
             "name": "config",
@@ -356,16 +294,10 @@ class TestTfOutputLookup:
         assert result[0]["database"]["host"] == "db.example.com"
         assert result[0]["redis"]["port"] == 6379
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_list_value_type(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup with list output value type."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_list_value_type(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
         mock_resolve.return_value = "ws-123"
-
         mock_get_by_name.return_value = {
             "id": "wsout-list",
             "name": "instance_ids",
@@ -385,16 +317,11 @@ class TestTfOutputLookup:
         assert len(result[0]) == 3
         assert result[0][0] == "i-123"
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_sensitive_masked_by_default(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test that sensitive values are masked by default."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_sensitive_masked_by_default(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-123"
-
         mock_get_by_name.return_value = {
             "id": "wsout-secret",
             "name": "password",
@@ -413,16 +340,11 @@ class TestTfOutputLookup:
         assert result == ["<sensitive>"]
         mock_get_by_name.assert_called_once_with(mock_client, "ws-123", "password", display_sensitive=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_output_by_name")
-    def test_lookup_sensitive_revealed_with_flag(self, mock_get_by_name, mock_resolve, mock_client_class, lookup_plugin):
-        """Test that sensitive values are revealed with display_sensitive=True."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_sensitive_revealed_with_flag(self, mock_resolve, mock_get_by_name, patched_client, lookup_plugin):
+        mock_client, mock_class = patched_client
         mock_resolve.return_value = "ws-123"
-
         mock_get_by_name.return_value = {
             "id": "wsout-secret",
             "name": "password",
@@ -442,14 +364,9 @@ class TestTfOutputLookup:
         assert result == ["actual-secret-password"]
         mock_get_by_name.assert_called_once_with(mock_client, "ws-123", "password", display_sensitive=True)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient")
-    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
     @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_workspace_outputs")
-    def test_lookup_empty_workspace(self, mock_get_outputs, mock_resolve, mock_client_class, lookup_plugin):
-        """Test lookup from workspace with no outputs."""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.resolve_workspace_id")
+    def test_lookup_empty_workspace(self, mock_resolve, mock_get_outputs, patched_client, lookup_plugin):
         mock_resolve.return_value = "ws-empty"
         mock_get_outputs.return_value = []
 
@@ -461,19 +378,41 @@ class TestTfOutputLookup:
         )
         assert result == []
 
-    def test_lookup_validate_certs_default(self, lookup_plugin):
-        """Test that tf_validate_certs defaults to True."""
-        with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.TerraformClient") as mock_client_class:
-            with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output") as mock_get:
-                mock_get.return_value = {"id": "test", "name": "test", "value": "test", "sensitive": False}
+    def test_lookup_leaves_tfe_address_to_client_defaults(self, patched_client, lookup_plugin):
+        """from_mapping should apply TFE_ADDRESS/pytfe defaults when address is omitted."""
+        mock_client, mock_class = patched_client
+        with patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output") as mock_get:
+            mock_get.return_value = {"id": "test", "name": "test", "value": "test", "sensitive": False}
 
-                lookup_plugin.run(
-                    [],
-                    None,
-                    state_version_output_id="wsout-123",
-                )
-                call_kwargs = mock_client_class.call_args[1]
-                assert call_kwargs["tf_validate_certs"] is True
+            lookup_plugin.run(
+                [],
+                None,
+                state_version_output_id="wsout-123",
+            )
+            passed = mock_class.from_mapping.call_args[0][0]
+            assert "tfe_address" not in passed
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.lookup.tf_output.get_specific_output")
+    def test_lookup_uses_env_token_when_token_not_passed(self, mock_get_specific, lookup_plugin, monkeypatch):
+        monkeypatch.setenv("TFE_TOKEN", "env-token")
+        monkeypatch.setenv("TFE_ADDRESS", "https://tfe.example.com")
+        mock_get_specific.return_value = {
+            "id": "wsout-123",
+            "name": "server_id",
+            "value": "i-1234567890abcdef",
+            "sensitive": False,
+        }
+
+        result = lookup_plugin.run(
+            [],
+            None,
+            state_version_output_id="wsout-123",
+        )
+
+        assert result == ["i-1234567890abcdef"]
+        adapter = mock_get_specific.call_args[0][0]
+        assert adapter._sdk_kwargs["token"] == "env-token"
+        assert adapter._sdk_kwargs["address"] == "https://tfe.example.com"
 
 
 if __name__ == "__main__":

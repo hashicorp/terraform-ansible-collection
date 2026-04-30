@@ -12,7 +12,7 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 
 ## Requirements
 
-This collection requires `requests` and `pydantic>=2.0.0` libraries to be installed.
+This collection requires `pytfe>=0.1.2` and `pydantic>=2.0.0` libraries to be installed.
 
 Some modules and plugins may require other external libraries. Please check the
 requirements for each plugin or module you use in the documentation to check the
@@ -86,20 +86,170 @@ for more details.
 Modules in the collection can be called by their Fully Qualified Collection Name (FQCN), such as `hashicorp.terraform.configuration_version`, or by their short name if you list the `hashicorp.terraform` collection in the playbook's collections keyword.
 For examples on how to use modules included in this collection, please refer to their documentation.
 
+Authentication is done via the `tfe_token` parameter (alias: `tf_token`), or by setting the `TFE_TOKEN` environment variable. Use `module_defaults` with the `group/hashicorp.terraform.terraform` module group to avoid repeating credentials across tasks.
+
+### Manage workspaces
+
 ```yaml
 ---
-- name: Playbook using hashicorp.terraform collection
+- name: Manage Terraform workspaces
   hosts: localhost
   gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
   tasks:
-    - name: Create a new configuration version
+    - name: Create a workspace
+      hashicorp.terraform.workspace:
+        workspace: my-workspace
+        organization: my-org
+        description: Managed by Ansible
+        execution_mode: remote
+        auto_apply: true
+        terraform_version: "1.12.2"
+        tag_bindings:
+          env: dev
+          owner: platform-team
+        state: present
+      register: workspace_result
+
+    - name: Lock a workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_result.id }}"
+        lock_reason: Maintenance in progress
+        state: locked
+
+    - name: Delete a workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_result.id }}"
+        state: absent
+```
+
+### Manage projects
+
+```yaml
+---
+- name: Manage Terraform projects
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
+  tasks:
+    - name: Create a project
+      hashicorp.terraform.project:
+        organization: my-org
+        project: my-project
+        description: Platform infrastructure project
+        default_execution_mode: remote
+        auto_destroy_activity_duration: "14d"
+        tag_bindings:
+          - key: env
+            value: production
+        state: present
+      register: project_result
+
+    - name: Delete a project
+      hashicorp.terraform.project:
+        project_id: "{{ project_result.id }}"
+        state: absent
+```
+
+### Upload configuration and trigger a run
+
+```yaml
+---
+- name: Upload config and run Terraform
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
+  tasks:
+    - name: Upload a configuration version
       hashicorp.terraform.configuration_version:
         workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ playbook_dir }}/terraform"
+        auto_queue_runs: false
+        poll_interval: 5
+        poll_timeout: 60
         state: present
-        configuration_files_path: "{{ configuration_files }}"
-        poll_interval: 3
-        poll_timeout: 15
-        tf_token: "{{ terraform_cloud_token }}"
+      register: config_version
+
+    - name: Create and plan a run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        configuration_version: "{{ config_version.id }}"
+        run_message: Deployed by Ansible
+        poll: true
+        poll_interval: 10
+        poll_timeout: 300
+        state: present
+      register: run_result
+
+    - name: Apply the run
+      hashicorp.terraform.run:
+        run_id: "{{ run_result.id }}"
+        poll: true
+        poll_interval: 10
+        poll_timeout: 300
+        state: applied
+```
+
+### Retrieve Terraform outputs
+
+```yaml
+---
+- name: Retrieve Terraform state outputs
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
+  tasks:
+    - name: Get all outputs for a workspace
+      hashicorp.terraform.output:
+        workspace: my-workspace
+        organization: my-org
+      register: all_outputs
+
+    - name: Get a specific output by name
+      hashicorp.terraform.output:
+        workspace: my-workspace
+        organization: my-org
+        name: vpc_id
+      register: vpc_output
+
+    - name: Get a specific output including its sensitive value
+      hashicorp.terraform.output:
+        workspace: my-workspace
+        organization: my-org
+        name: db_password
+        display_sensitive: true
+      register: sensitive_output
+```
+
+### View a Terraform plan
+
+```yaml
+---
+- name: View a Terraform plan
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
+  tasks:
+    - name: View plan diff for a run
+      hashicorp.terraform.view_plan:
+        run_id: "{{ run_id }}"
+        output_format: diff
+
+    - name: Retrieve plan as structured JSON
+      hashicorp.terraform.view_plan:
+        run_id: "{{ run_id }}"
+        output_format: json
+      register: plan_json
 ```
 
 ## Testing

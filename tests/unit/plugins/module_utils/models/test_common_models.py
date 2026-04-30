@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 
 from typing import Optional
 
 import pytest
-
 from pydantic import ValidationError
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.common import (

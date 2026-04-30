@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 import unittest
-
 from unittest.mock import ANY, patch
 
 import pytest
@@ -33,33 +32,29 @@ class TestViewPlanModule:
                     "plan_id": "plan-123abc456def789",
                     "run_id": None,
                     "output_format": "diff",
-                    "tf_token": "test-token",
-                    "tf_hostname": "app.terraform.io",
+                    "tfe_token": "test-token",
+                    "tfe_address": "https://app.terraform.io",
                 },
                 {
-                    "data": {
-                        "id": "plan-123abc456def789",
-                        "type": "plans",
-                        "attributes": {"status": "finished", "has_changes": True},
-                    },
+                    "id": "plan-123abc456def789",
+                    "type": "plans",
+                    "attributes": {"status": "finished", "has_changes": True},
                 },
                 {
-                    "data": {
-                        "resource_changes": [
-                            {
-                                "address": "aws_instance.web",
-                                "change": {
-                                    "actions": ["create"],
-                                    "before": None,
-                                    "after": {"ami": "ami-12345", "instance_type": "t2.micro"},
-                                    "before_sensitive": {},
-                                    "after_sensitive": {},
-                                },
+                    "resource_changes": [
+                        {
+                            "address": "aws_instance.web",
+                            "change": {
+                                "actions": ["create"],
+                                "before": None,
+                                "after": {"ami": "ami-12345", "instance_type": "t2.micro"},
+                                "before_sensitive": {},
+                                "after_sensitive": {},
                             },
-                        ],
-                        "resource_drift": [],
-                        "output_changes": {},
-                    },
+                        },
+                    ],
+                    "resource_drift": [],
+                    "output_changes": {},
                 },
                 {"changed", "diff"},
                 True,
@@ -70,11 +65,11 @@ class TestViewPlanModule:
                     "plan_id": None,
                     "run_id": "run-456def789abc123",
                     "output_format": "json",
-                    "tf_token": "test-token",
-                    "tf_hostname": "app.terraform.io",
+                    "tfe_token": "test-token",
+                    "tfe_address": "https://app.terraform.io",
                 },
-                {"data": {"id": "plan-789", "attributes": {"status": "planning"}}},
-                {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}},
+                {"id": "plan-789", "attributes": {"status": "planning"}},
+                {"resource_changes": [], "resource_drift": [], "output_changes": {}},
                 {"metadata", "json_output"},
                 None,
             ),
@@ -84,23 +79,21 @@ class TestViewPlanModule:
                     "plan_id": "plan-nochanges123",
                     "run_id": None,
                     "output_format": "diff",
-                    "tf_token": "test-token",
-                    "tf_hostname": "app.terraform.io",
+                    "tfe_token": "test-token",
+                    "tfe_address": "https://app.terraform.io",
                 },
-                {"data": {"id": "plan-nochanges123", "attributes": {"status": "finished"}}},
-                {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}},
+                {"id": "plan-nochanges123", "attributes": {"status": "finished"}},
+                {"resource_changes": [], "resource_drift": [], "output_changes": {}},
                 {"diff", "msg"},
                 None,
             ),
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_success_scenarios(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         params,
         metadata_response,
@@ -144,12 +137,10 @@ class TestViewPlanModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_plan_not_found(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         plan_id,
         run_id,
@@ -161,8 +152,8 @@ class TestViewPlanModule:
         params = {
             "plan_id": plan_id,
             "run_id": run_id,
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
+            "tfe_token": "test-token",
+            "tfe_address": "https://app.terraform.io",
         }
 
         mock_module = enhanced_dummy_module
@@ -181,17 +172,15 @@ class TestViewPlanModule:
         identifier = plan_id if use_plan_id else run_id
         mock_get_data.assert_any_call(ANY, identifier, use_plan_id, include_json_output=False)
 
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
-    def test_main_exception_handling(self, mock_module_class, mock_client_class, enhanced_dummy_module):
+    def test_main_exception_handling(self, mock_module_class, enhanced_dummy_module):
         """Test main function exception handling."""
-        params = {"plan_id": "plan-exception123", "run_id": None, "tf_token": "test-token"}
+        params = {"plan_id": "plan-exception123", "run_id": None, "tfe_token": "test-token"}
 
         mock_module = enhanced_dummy_module
         mock_module.params = params
+        mock_module.client = lambda: (i for i in ()).throw(Exception("Connection failed"))
         mock_module_class.return_value = mock_module
-
-        mock_client_class.side_effect = Exception("Connection failed")
 
         with pytest.raises(AssertionError) as exc_info:
             main()
@@ -309,12 +298,10 @@ class TestViewPlanModule:
         ],
     )
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data")
-    @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.AnsibleTerraformModule")
     def test_main_complex_scenarios(
         self,
         mock_module_class,
-        mock_client,
         mock_get_data,
         scenario,
         json_data,
@@ -326,16 +313,16 @@ class TestViewPlanModule:
             "plan_id": f"plan-{scenario}123",
             "run_id": None,
             "output_format": "diff",
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
+            "tfe_token": "test-token",
+            "tfe_address": "https://app.terraform.io",
         }
 
         mock_module = enhanced_dummy_module
         mock_module.params = params
         mock_module_class.return_value = mock_module
 
-        metadata_response = {"data": {"id": f"plan-{scenario}123", "attributes": {"status": "finished"}}}
-        json_output_response = {"data": json_data}
+        metadata_response = {"id": f"plan-{scenario}123", "attributes": {"status": "finished"}}
+        json_output_response = json_data
 
         def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
             if include_json_output:
@@ -367,20 +354,20 @@ class TestViewPlanModule:
             "plan_id": "plan-test123",
             "run_id": None,
             "output_format": "diff",
-            "tf_token": "test-token",
-            "tf_hostname": "app.terraform.io",
+            "tfe_token": "test-token",
+            "tfe_address": "https://app.terraform.io",
         }
         mock_module_class.return_value = mock_module
 
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.view_plan.TerraformClient"), patch(
+        with patch(
             "ansible_collections.hashicorp.terraform.plugins.modules.view_plan.get_plan_data",
         ) as mock_get_data:
 
             def mock_get_plan_data(client, identifier, use_plan_id, include_json_output=False):
                 if include_json_output:
-                    return {"data": {"resource_changes": [], "resource_drift": [], "output_changes": {}}}
+                    return {"resource_changes": [], "resource_drift": [], "output_changes": {}}
                 else:
-                    return {"data": {"attributes": {"status": "finished"}}}
+                    return {"attributes": {"status": "finished"}}
 
             mock_get_data.side_effect = mock_get_plan_data
 

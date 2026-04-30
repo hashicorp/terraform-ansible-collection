@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, annotations, division, print_function
-
 
 __metaclass__ = type
 
@@ -168,137 +167,20 @@ EXAMPLES = r"""
 
 # Task output:
 # ------------
-#  "result_create": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": false,
-#             "auto-apply": false,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": null,
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:41:20.065Z",
-#             "description": null,
-#             "environment": "default",
-#             "execution-mode": "remote",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": true,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:41:20.065Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": false,
-#                 "execution-mode": false
-#             },
-#             "source": "tfe-api",
-#             "source-name": null,
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T04:41:20.065Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": null
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+# "result_create": {
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "organization": "my-organization",
+#     "execution_mode": "remote",
+#     "auto_apply": false,
+#     "auto_apply_run_trigger": true,
+#     "terraform_version": "1.12.2",
+#     "description": "",
+#     "locked": false,
+#     "created_at": "2026-02-26T08:00:00.000000Z",
+#     "updated_at": "2026-02-26T08:00:00.000000Z",
+#     "msg": "Workspace 'my-workspace' created successfully."
 # }
 
 - name: Create a new workspace
@@ -320,146 +202,36 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result_create": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": false,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": "2025-08-10T15:00:00.000Z",
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is a dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "remote",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T04:45:34.533Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": null
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "organization": "my-organization",
+#     "execution_mode": "remote",
+#     "description": "This is a dev workspace.",
+#     "auto_apply": true,
+#     "terraform_version": "1.12.2",
+#     "project_id": "prj-abc123",
+#     "allow_destroy_plan": true,
+#     "assessments_enabled": false,
+#     "file_triggers_enabled": true,
+#     "global_remote_state": false,
+#     "operations": true,
+#     "queue_all_runs": false,
+#     "speculative_enabled": true,
+#     "structured_run_output_enabled": true,
+#     "locked": false,
+#     "tag_names": [],
+#     "tag_bindings": [],
+#     "source_name": "xyz",
+#     "created_at": "2026-02-26T08:00:00.000000Z",
+#     "updated_at": "2026-02-26T08:00:00.000000Z",
+#     "permissions": {
+#         "can_update": true,
+#         "can_destroy": true,
+#         "can_queue_run": true,
+#         "can_lock": true
+#     },
+#     "msg": "Workspace 'my-workspace' created successfully."
 # }
 
 - name: Update an existing workspace
@@ -478,146 +250,15 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result_update": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": true,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is an updated dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "remote",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T04:50:09.208Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": null
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "execution_mode": "remote",
+#     "description": "This is an updated dev workspace.",
+#     "auto_apply": true,
+#     "project_id": "prj-xyz456",
+#     "terraform_version": "1.12.2",
+#     "updated_at": "2026-02-26T09:00:00.000000Z",
 # }
 
 - name: Update workspace execution mode to 'agent' by overwriting inherited execution mode from project
@@ -634,156 +275,15 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result_update": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": true,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is an updated dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "agent",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T04:53:12.902Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": {
-#                     "id": "apool-id",
-#                     "type": "agent-pools"
-#                 }
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "execution_mode": "agent",
+#     "setting_overwrites": {
+#         "execution_mode": true,
+#         "agent_pool": true
+#     },
 # }
-
-# If the workspace is updated with the same data again the results would look like:
-# "result_update": {
-#         "changed": false,
-#         "failed": false,
-#     }
 
 - name: Safe delete a workspace
   hashicorp.terraform.workspace:
@@ -822,158 +322,14 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result_lock": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": true,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is an updated dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "agent",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": true,
-#             "locked-reason": "this is my reason",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T04:59:39.739Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": {
-#                     "id": "apool-id",
-#                     "type": "agent-pools"
-#                 }
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "locked-by": {
-#                 "data": {
-#                     "id": "user-id",
-#                     "type": "users"
-#                 },
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "locked": true,
+#     "execution_mode": "remote",
+#     "terraform_version": "1.12.2",
+#     "msg": "Workspace 'ws-abc123xyz' locked successfully."
+# }
 
 - name: Unlock a workspace
   hashicorp.terraform.workspace:
@@ -983,149 +339,12 @@ EXAMPLES = r"""
 # Task output:
 # ------------
 # "result_unlock": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": true,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is an updated dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "agent",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T05:01:35.165Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": {
-#                     "id": "apool-id",
-#                     "type": "agent-pools"
-#                 }
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
+#     "changed": true,
+#     "id": "ws-abc123xyz",
+#     "name": "my-workspace",
+#     "locked": false,
+#     "execution_mode": "remote",
+#     "msg": "Workspace 'ws-abc123xyz' unlocked successfully."
 # }
 
 - name: Force unlock a workspace
@@ -1133,153 +352,6 @@ EXAMPLES = r"""
     workspace_id: <your-workspace-id>
     force: true
     state: unlocked
-
-# Task output:
-# ------------
-# "result_unlock": {
-#         "attributes": {
-#             "actions": {
-#                 "is-destroyable": true
-#             },
-#             "allow-destroy-plan": true,
-#             "apply-duration-average": null,
-#             "assessments-enabled": true,
-#             "auto-apply": true,
-#             "auto-apply-run-trigger": false,
-#             "auto-destroy-activity-duration": "14d",
-#             "auto-destroy-at": null,
-#             "auto-destroy-status": null,
-#             "created-at": "2025-09-03T04:45:34.533Z",
-#             "description": "This is an updated dev workspace.",
-#             "environment": "default",
-#             "execution-mode": "agent",
-#             "file-triggers-enabled": true,
-#             "global-remote-state": false,
-#             "inherits-project-auto-destroy": false,
-#             "last-assessment-result-at": null,
-#             "latest-change-at": "2025-09-03T04:45:34.533Z",
-#             "locked": false,
-#             "locked-reason": "",
-#             "name": "workspace-now",
-#             "operations": true,
-#             "permissions": {
-#                 "can-create-state-versions": true,
-#                 "can-destroy": true,
-#                 "can-force-delete": false,
-#                 "can-force-unlock": true,
-#                 "can-lock": true,
-#                 "can-manage-assessments": true,
-#                 "can-manage-ephemeral-workspaces": true,
-#                 "can-manage-run-tasks": true,
-#                 "can-manage-tags": true,
-#                 "can-queue-apply": true,
-#                 "can-queue-destroy": true,
-#                 "can-queue-run": true,
-#                 "can-read-assessment-results": true,
-#                 "can-read-change-requests": true,
-#                 "can-read-run": true,
-#                 "can-read-settings": true,
-#                 "can-read-state-outputs": true,
-#                 "can-read-state-versions": true,
-#                 "can-read-variable": true,
-#                 "can-unlock": true,
-#                 "can-update": true,
-#                 "can-update-change-requests": true,
-#                 "can-update-variable": true
-#             },
-#             "plan-duration-average": null,
-#             "policy-check-failures": null,
-#             "queue-all-runs": false,
-#             "resource-count": 0,
-#             "run-failures": null,
-#             "setting-overwrites": {
-#                 "agent-pool": true,
-#                 "execution-mode": true
-#             },
-#             "source": "tfe-api",
-#             "source-name": "xyz",
-#             "source-url": null,
-#             "speculative-enabled": true,
-#             "structured-run-output-enabled": true,
-#             "tag-names": [],
-#             "terraform-version": "1.13.1",
-#             "trigger-patterns": [],
-#             "trigger-prefixes": [],
-#             "unarchived-workspace-change-requests-count": 0,
-#             "updated-at": "2025-09-03T05:03:39.704Z",
-#             "vcs-repo": null,
-#             "vcs-repo-identifier": null,
-#             "working-directory": null,
-#             "workspace-kpis-runs-count": null
-#         },
-#         "changed": true,
-#         "failed": false,
-#         "id": "ws-id",
-#         "links": {
-#             "self": "api-link",
-#             "self-html": "api-link"
-#         },
-#         "relationships": {
-#             "agent-pool": {
-#                 "data": {
-#                     "id": "apool-id",
-#                     "type": "agent-pools"
-#                 }
-#             },
-#             "current-assessment-result": {
-#                 "data": null
-#             },
-#             "current-configuration-version": {
-#                 "data": null
-#             },
-#             "current-run": {
-#                 "data": null
-#             },
-#             "current-state-version": {
-#                 "data": null
-#             },
-#             "effective-tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "latest-run": {
-#                 "data": null
-#             },
-#             "organization": {
-#                 "data": {
-#                     "id": "Ansible-BU-TFC",
-#                     "type": "organizations"
-#                 }
-#             },
-#             "outputs": {
-#                 "data": []
-#             },
-#             "project": {
-#                 "data": {
-#                     "id": "prj-id",
-#                     "type": "projects"
-#                 }
-#             },
-#             "readme": {
-#                 "data": null
-#             },
-#             "remote-state-consumers": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "tag-bindings": {
-#                 "links": {
-#                     "related": "api-link"
-#                 }
-#             },
-#             "vars": {
-#                 "data": []
-#             }
-#         },
-#         "type": "workspaces"
-#     }
 """
 
 RETURN = r"""
@@ -1288,108 +360,196 @@ id:
   returned: when state is 'present' or 'locked' or 'unlocked'
   type: str
   sample: "ws-ybMGvqhs6MWLa5S2"
-type:
-    description: The resource type, always 'workspaces'.
-    returned: when state is 'present' or 'locked' or 'unlocked'
-    type: str
-    sample: "workspaces"
-attributes:
-  type: dict
+name:
+  description: The name of the workspace.
   returned: when state is 'present' or 'locked' or 'unlocked'
-  description: The attributes of the workspace created/updated/locked/unlocked.
-relationships:
-  description: Related resources linked to the run.
-  returned: when state is 'present' or 'locked' or 'unlocked'
-  type: dict
-  sample: {
-        "agent-pool": {
-            "data": {
-                "id": "apool-id",
-                "type": "agent-pools"
-            }
-        },
-        "current-assessment-result": {
-            "data": null
-        },
-        "current-configuration-version": {
-            "data": null
-        },
-        "current-run": {
-            "data": null
-        },
-        "current-state-version": {
-            "data": null
-        },
-        "effective-tag-bindings": {
-            "links": {
-                "related": "/api/v2/workspaces/ws-id/effective-tag-bindings"
-            }
-        },
-        "latest-run": {
-            "data": null
-        },
-        "organization": {
-            "data": {
-                "id": "org",
-                "type": "organizations"
-            }
-        },
-        "outputs": {
-            "data": []
-        },
-        "project": {
-            "data": {
-                "id": "prj-id",
-                "type": "projects"
-            }
-        },
-        "readme": {
-            "data": null
-        },
-        "remote-state-consumers": {
-            "links": {
-                "related": "/api/v2/workspaces/ws-id/relationships/remote-state-consumers"
-            }
-        },
-        "tag-bindings": {
-            "links": {
-                "related": "/api/v2/workspaces/ws-id/tag-bindings"
-            }
-        },
-        "vars": {
-            "data": []
-        }
-    }
-links:
-  description: API links for the run.
-  returned: when state is 'present' or 'locked' or 'unlocked'
-  type: dict
-  sample: {
-        "self": "/api/v2/organizations/org/workspaces/workspace",
-        "self-html": "/app/org/workspaces/workspace"
-    }
-msg:
   type: str
-  returned: when state is 'absent'.
-  description: The status of the operation.
+  sample: "my-workspace"
+organization:
+  description: The organization name.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "my-organization"
+execution_mode:
+  description: The execution mode of the workspace (remote, local, or agent).
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "remote"
+description:
+  description: A description for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "My workspace description"
+auto_apply:
+  description: Whether to automatically apply changes when a Terraform plan is successful.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+auto_apply_run_trigger:
+  description: Whether to automatically queue a run when new configuration versions are uploaded.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+terraform_version:
+  description: The version of Terraform to use for this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "1.12.2"
+working_directory:
+  description: The directory relative to the root of the repository where Terraform will be run.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "terraform/"
+locked:
+  description: Whether the workspace is locked.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+created_at:
+  description: The timestamp when the workspace was created.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "2026-02-26T08:00:00.000000Z"
+updated_at:
+  description: The timestamp when the workspace was last updated.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "2026-02-26T09:00:00.000000Z"
+allow_destroy_plan:
+  description: Whether destroy plans can be queued on the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+assessments_enabled:
+  description: Whether health assessments are enabled for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+file_triggers_enabled:
+  description: Whether to filter runs based on the changed files in a VCS push.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+global_remote_state:
+  description: Whether the workspace allows all workspaces in the organization to access its state data.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+operations:
+  description: Whether to use Terraform Cloud as the execution platform for this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+queue_all_runs:
+  description: Whether runs should be queued immediately after workspace creation.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: false
+speculative_enabled:
+  description: Whether to allow speculative plans.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+structured_run_output_enabled:
+  description: Whether to enable structured run output.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: bool
+  sample: true
+project_id:
+  description: The ID of the project this workspace belongs to.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: str
+  sample: "prj-abc123xyz"
+setting_overwrites:
+  description: Settings that have been overridden at the workspace level.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    execution_mode:
+      description: Whether execution mode is overridden.
+      type: bool
+    agent_pool:
+      description: Whether agent pool is overridden.
+      type: bool
+permissions:
+  description: The permissions for the current user on this workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    can_update:
+      description: Whether the user can update the workspace.
+      type: bool
+    can_destroy:
+      description: Whether the user can destroy the workspace.
+      type: bool
+    can_queue_run:
+      description: Whether the user can queue a run.
+      type: bool
+    can_lock:
+      description: Whether the user can lock the workspace.
+      type: bool
+    can_unlock:
+      description: Whether the user can unlock the workspace.
+      type: bool
+actions:
+  description: Actions available for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: dict
+  contains:
+    is_destroyable:
+      description: Whether the workspace can be destroyed.
+      type: bool
+tag_names:
+  description: List of tag names associated with the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: list
+  elements: str
+  sample: ["tag1", "tag2"]
+resource_count:
+  description: The number of resources managed by the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 5
+runs_count:
+  description: The total number of runs for the workspace.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 10
+policy_check_failures:
+  description: The number of policy check failures.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 0
+run_failures:
+  description: The number of failed runs.
+  returned: when state is 'present' or 'locked' or 'unlocked'
+  type: int
+  sample: 0
+msg:
+  description: The status message of the operation.
+  returned: always
+  type: str
+  sample: "Workspace 'my-workspace' created successfully."
+changed:
+  description: Whether the workspace was changed.
+  returned: always
+  type: bool
+  sample: true
 """
 
 from copy import deepcopy
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import Any, Dict
 
 from ansible.module_utils._text import to_text
 
-
-if TYPE_CHECKING:
-    from typing import Any, Dict
-
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
     TerraformClient,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.workspace import WorkspaceRequest
-from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
+    dict_diff,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     create_workspace,
     force_delete_workspace,
@@ -1403,92 +563,123 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace impo
     update_workspace,
 )
 
+IGNORE_LIST = [
+    "tfe_token",
+    "tf_token",
+    "tfe_address",
+    "tfe_timeout",
+    "tfe_verify_tls",
+    "tfe_max_retries",
+    "tfe_ca_bundle",
+    "tfe_proxies",
+    "check_mode",
+    "state",
+]
 
-IGNORE_LIST = ["tf_hostname", "tf_token", "tf_timeout", "tf_max_retries", "tf_validate_certs", "check_mode", "state"]
 
-
-def fetch_workspace_tag_bindings(client_terraform, workspace_id: str) -> dict:
+def fetch_workspace_tag_bindings(adapter: TerraformClient, workspace_id: str) -> dict:
     """
     Fetch actual tag key-value pairs for a workspace's tag bindings.
 
     Args:
-        client_terraform: An instance of TerraformClient.
+        adapter: An instance of TerraformClient.
         workspace_id (str): The workspace ID.
 
     Returns:
         Dict[str, str]: A mapping of tag keys to values.
     """
-    response = get_tag_bindings(client_terraform, workspace_id)
+    response = get_tag_bindings(adapter, workspace_id)
 
-    if not response or "data" not in response:
+    if not response:
         return {}
 
     tag_values = {}
-    for item in response["data"]:
-        if item.get("type") == "tag-bindings":
-            attributes = item.get("attributes", {})
-            key = attributes.get("key")
-            value = attributes.get("value")
-            if key is not None:
-                tag_values[key] = value
+    for item in response:
+        key = item.get("key") if isinstance(item, dict) else None
+        if key is not None:
+            tag_values[key] = item.get("value")
 
     return tag_values
 
 
-def normalize_workspace_response(response_data: dict, client_terraform: Any, workspace_id: str) -> dict:
+def normalize_workspace_attributes(params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Normalizes the raw workspace API response into a simplified, structured dictionary
-    representing the current state of a workspace.
-
-    This function extracts key attributes and relationships from the Terraform workspace
-    API response and formats certain fields for consistency (e.g., converting the
-    `auto-destroy-at` timestamp to a standard format). It also includes related data such
-    as tag bindings and conditionally includes the agent pool ID if the execution mode is 'agent'.
+    Normalize module parameters to workspace attributes format.
 
     Args:
-        response_data (dict): The raw JSON response from the workspace API.
-        client_terraform (Any): A client instance used to fetch additional workspace data
-        workspace_id (str): The ID of the workspace whose data is being normalized.
+        params: Module parameters
 
     Returns:
-        dict: A dictionary representing the normalized state of the workspace, excluding
-              any fields that are `None`.
+        Normalized attributes dictionary
     """
+    normalized = {}
 
-    auto_destroy_at = response_data.get("attributes", {}).get("auto-destroy-at")
-    if auto_destroy_at:
-        try:
-            dt = datetime.strptime(auto_destroy_at, "%Y-%m-%dT%H:%M:%S.%fZ")
-            auto_destroy_at = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            # if parsing fails, keep the original value
-            pass
-    execution_mode = response_data.get("attributes", {}).get("execution-mode")
+    # Map module parameters to API attributes
+    field_mapping = [
+        "name",
+        "description",
+        "allow_destroy_plan",
+        "assessments_enabled",
+        "auto_apply",
+        "auto_apply_run_trigger",
+        "auto_destroy_at",
+        "auto_destroy_activity_duration",
+        "terraform_version",
+        "execution_mode",
+        "agent_pool_id",
+        "setting_overwrites",
+        "project_id",
+        "tag_bindings",
+        "source_name",
+        "source_url",
+    ]
+
+    for param_key in field_mapping:
+        # Check if key exists and value is not None (allows False, 0, empty strings, etc.)
+        if param_key in params and params[param_key] is not None:
+            normalized[param_key] = params[param_key]
+
+    return normalized
+
+
+def extract_comparable_attributes(workspace_data: Dict[str, Any], adapter: TerraformClient, workspace_id: str) -> Dict[str, Any]:
+    """
+    Extract comparable attributes from workspace SDK response.
+
+    Args:
+        workspace_data: Workspace data from SDK adapter (flat format with underscored keys)
+
+    Returns:
+        Dictionary of comparable attributes with normalized values
+    """
+    comparable = {
+        "name": workspace_data.get("name"),
+        "description": workspace_data.get("description"),
+        "allow_destroy_plan": workspace_data.get("allow_destroy_plan"),
+        "assessments_enabled": workspace_data.get("assessments_enabled"),
+        "auto_apply": workspace_data.get("auto_apply"),
+        "auto_apply_run_trigger": workspace_data.get("auto_apply_run_trigger"),
+        "auto_destroy_at": workspace_data.get("auto_destroy_at"),
+        "auto_destroy_activity_duration": workspace_data.get("auto_destroy_activity_duration"),
+        "terraform_version": workspace_data.get("terraform_version"),
+        "execution_mode": workspace_data.get("execution_mode"),
+        "setting_overwrites": workspace_data.get("setting_overwrites", {}),
+        "project_id": workspace_data.get("project", {}).get("id"),
+    }
+    tag_bindings = fetch_workspace_tag_bindings(adapter, workspace_id)
+    comparable["tag_bindings"] = tag_bindings
+
+    execution_mode = workspace_data.get("execution_mode")
     agent_pool_id = None
     if execution_mode == "agent":
-        agent_pool_id = response_data.get("relationships", {}).get("agent-pool", {}).get("data", {}).get("id", None)
-    normalized = {
-        "name": response_data.get("attributes", {}).get("name"),
-        "description": response_data.get("attributes", {}).get("description"),
-        "allow_destroy_plan": response_data.get("attributes", {}).get("allow-destroy-plan"),
-        "assessments_enabled": response_data.get("attributes", {}).get("assessments-enabled"),
-        "auto_apply": response_data.get("attributes", {}).get("auto-apply"),
-        "auto_apply_run_trigger": response_data.get("attributes", {}).get("auto-apply-run-trigger"),
-        "auto_destroy_at": auto_destroy_at,
-        "auto_destroy_activity_duration": response_data.get("attributes", {}).get("auto-destroy-activity-duration"),
-        "terraform_version": response_data.get("attributes", {}).get("terraform-version"),
-        "execution_mode": execution_mode,
-        "agent_pool_id": agent_pool_id,
-        "setting_overwrites": {k.replace("-", "_"): v for k, v in response_data.get("attributes", {}).get("setting-overwrites", {}).items()},
-        "project_id": response_data.get("relationships", {}).get("project", {}).get("data", {}).get("id", None),
-    }
-    # Include tag bindings
-    tag_bindings = fetch_workspace_tag_bindings(client_terraform, workspace_id)
-    normalized["tag_bindings"] = tag_bindings
-    return {k: v for k, v in normalized.items() if v is not None}
+        agent_pool_id = workspace_data.get("agent_pool", {}).get("id", None)
+        comparable["agent_pool_id"] = agent_pool_id
+
+    # Remove None values
+    return {k: v for k, v in comparable.items() if v is not None}
 
 
-def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Creates a new Terraform workspace using the provided client and parameters.
 
@@ -1496,7 +687,7 @@ def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     and sends a request to create the workspace under the specified organization.
 
     Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
+        adapter: WorkspaceAdapter instance to communicate with the API using pytfe
         params (Dict[str, Any]): A dictionary of parameters including workspace details.
         check_mode (bool): A check mode parameter.
 
@@ -1505,12 +696,7 @@ def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool
             - "changed" (bool): Always True, indicating that a workspace was created.
             - "msg" (str): Success message.
             - Additional data returned from the workspace creation API.
-
-    Raises:
-        Any exceptions raised by the underlying Terraform client or request methods
-        will propagate up to the caller.
     """
-
     action_result = {}
     ignore_list = ["force"]
     ignore_list.extend(IGNORE_LIST)
@@ -1521,29 +707,25 @@ def state_create(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     # store required values for the api endpoint and relationships
     workspace_params["name"] = workspace_params.pop("workspace")
     organization = workspace_params.pop("organization")
-    project_id = workspace_params.pop("project_id", None)
-    tag_bindings = workspace_params.pop("tag_bindings", None)
-    # create the model and use the payload for the creation request of workspace
-    workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
-    workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
+
+    # Extract attributes
+    attributes = normalize_workspace_attributes(workspace_params)
+
     if not check_mode:
-        response = create_workspace(client_terraform, organization, workspace_payload)
-        params["workspace_id"] = response.get("data").get("id")
-        action_result.update(
-            {"changed": True, **response["data"]},
-        )
+        workspace = create_workspace(adapter, organization=organization, **attributes)
+        action_result.update({"changed": True, "msg": f"Workspace '{params['workspace']}' created successfully.", **workspace.get("data", workspace)})
     else:
         action_result.update(
             {
                 "changed": True,
                 "msg": f"The workspace {params['workspace']} would be created with the given options. Skipped creation due to check mode.",
-                **workspace_payload["data"],
+                **attributes,
             },
         )
     return action_result
 
 
-def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_update(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Updates an existing Terraform workspace using the provided client and parameters.
 
@@ -1551,19 +733,14 @@ def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     and sends a request to update the workspace with the specified ID.
 
     Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
+        adapter: TerraformClient instance
         params (Dict[str, Any]): A dictionary of parameters including updated workspace details.
-        check_mode (bool): A check mode parameter.
 
     Returns:
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
-            - "changed" (bool): Always True, indicating that the workspace was updated.
-            - "msg" (str): Success message.
+            - "changed" (bool): True if workspace was updated, False if no changes needed.
+            - "msg" (str): Status message.
             - Additional data returned from the workspace update API.
-
-    Raises:
-        Any exceptions raised by the underlying Terraform client or request methods
-        will propagate up to the caller.
     """
 
     action_result = {}
@@ -1579,15 +756,21 @@ def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     workspace_params = params.copy()
     for value in ignore_list:
         workspace_params.pop(value, None)
-    workspace_params["name"] = workspace_params.pop("workspace")
     workspace_id = workspace_params.pop("workspace_id")
-    workspace_response = get_workspace_by_id(client_terraform, workspace_id)
+    workspace_response = get_workspace_by_id(adapter, workspace_id)
     if not workspace_response:
         raise ValueError(f"The workspace {workspace_id} was not found.")
+
+    workspace_name = workspace_params.pop("workspace", None)
+    if workspace_name:
+        workspace_params["name"] = workspace_name
+    else:
+        workspace_params["name"] = workspace_response.get("name")
+
     # the keys and their corresponding values the workspace already has
-    have = normalize_workspace_response(workspace_response.get("data"), client_terraform, workspace_id)
+    have = extract_comparable_attributes(workspace_response.get("data", workspace_response), adapter, workspace_id)
     # the keys input by the user
-    want = workspace_params.copy()
+    want = normalize_workspace_attributes(workspace_params)
     want = {k: v for k, v in want.items() if v is not None}
     # removing excessive keys from have to match it to want
     have = {k: v for k, v in have.items() if k in want}
@@ -1607,61 +790,31 @@ def state_update(client_terraform: Any, params: Dict[str, Any], check_mode: bool
     # Since these keys are coupled, they need to be preserved to avoid running into scenarios where absence/removal (during diff)
     # of either of the attributes causes a mismatch
     preserve_keys = {"setting_overwrites", "execution_mode", "agent_pool_id"}
-    # If there are differences to be updated
+
+    # Remove keys from workspace_params that are not in updates (unless they're preserve_keys)
     for key in list(workspace_params.keys()):
         if key not in updates_response and key not in preserve_keys:
             workspace_params.pop(key)
 
-    # create the model and use the payload for the update request of workspace
-    workspace_request = WorkspaceRequest.create(project_id=project_id, tag_bindings=tag_bindings, **workspace_params)
-    workspace_payload = workspace_request.model_dump(by_alias=True, exclude_unset=False, exclude_none=True)
-
+    workspace_params["project_id"] = project_id
+    workspace_params["tag_bindings"] = tag_bindings
     if not check_mode:
-        response = update_workspace(client_terraform, workspace_id, workspace_payload)
+        updated_workspace = update_workspace(adapter, workspace_id, **workspace_params)
         action_result.update(
-            {"changed": True, **response["data"]},
+            {"changed": True, **updated_workspace.get("data", updated_workspace)},
         )
     else:
         action_result.update(
             {
                 "changed": True,
                 "msg": f"The workspace {params['workspace_id']} would be updated with the given options. Skipped update due to check mode.",
-                **workspace_payload["data"],
+                **workspace_params,
             },
         )
     return action_result
 
 
-def get_workspace_id(client_terraform: Any, params: Dict[str, Any]) -> str:
-    """
-    Retrieves the ID of a Terraform workspace based on its name and organization.
-
-    This function queries the Terraform API to fetch workspace details and returns
-    the corresponding workspace ID. If the workspace is not found, it raises a ValueError.
-
-    Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
-        params (Dict[str, Any]): A dictionary containing:
-            - "organization" (str): The name of the organization that owns the workspace.
-            - "workspace" (str): The name of the workspace to retrieve.
-
-    Returns:
-        str: The ID of the workspace.
-
-    Raises:
-        ValueError: If the specified workspace does not exist in the given organization.
-    """
-    # get the workspace_id from the provided workspace name
-    workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
-    if not workspace_response:
-        raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-    # retrieve the workspace ID
-    workspace_id = workspace_response.get("data")["id"]
-    # update module params to have a workspace ID
-    return workspace_id
-
-
-def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_absent(adapter: TerraformClient, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Deletes a Terraform workspace using either a safe or force delete method.
 
@@ -1670,7 +823,7 @@ def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_respon
     either a forceful or safe deletion.
 
     Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
+        adapter: TerraformClient instance
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
         check_mode (bool): A check mode parameter.
@@ -1679,25 +832,20 @@ def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_respon
         Dict[str, Any]: A dictionary indicating the result of the operation, including:
             - "changed" (bool): True if the workspace was deleted.
             - "msg" (str): A message describing the result of the deletion.
-
-    Raises:
-        ValueError: If the workspace cannot be found when attempting to resolve the ID.
-        Any exceptions from the delete functions will propagate up to the caller.
     """
     action_result = {
         "changed": False,
     }
     if not workspace_response:
         action_result["msg"] = f"The workspace {params['workspace_id']} was not found."
-        action_result["changed"] = False
         return action_result
     if not check_mode:
         if params["force"]:
-            force_delete_workspace(client_terraform, params["workspace_id"])
+            force_delete_workspace(adapter, workspace_response["id"])
             msg = f"The workspace {params['workspace_id']} was force-deleted successfully."
             action_result["changed"] = True
         else:
-            safe_delete_workspace(client_terraform, params["workspace_id"])
+            safe_delete_workspace(adapter, workspace_response["id"])
             msg = f"The workspace {params['workspace_id']} was safe-deleted successfully."
             action_result["changed"] = True
     else:
@@ -1707,15 +855,16 @@ def state_absent(client_terraform: Any, params: Dict[str, Any], workspace_respon
     return action_result
 
 
-def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_unlocked(adapter: TerraformClient, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Unlocks a Terraform workspace, either forcefully or gracefully depending on the provided parameters.
 
     If the workspace ID is not provided, it attempts to retrieve it using the organization and workspace name.
     Unlocking is then performed based on the value of the `force` flag.
 
+
     Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
+        adapter: TerraformClient instance
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
         check_mode (bool): A check mode parameter.
@@ -1725,15 +874,11 @@ def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_resp
             - "changed" (bool): Always True, indicating the workspace was unlocked.
             - "msg" (str): A success message.
             - Additional data returned from the unlock operation.
-
-    Raises:
-        ValueError: If the workspace ID could not be resolved.
-        Any exceptions raised by the underlying unlock functions will propagate up to the caller.
     """
     action_result = {}
     if not workspace_response:
         raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with unlocking.")
-    locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
+    locked_status = workspace_response.get("locked")
     if not locked_status:
         action_result.update(
             {"changed": False, "msg": f"The workspace {params['workspace_id']} is already unlocked."},
@@ -1741,11 +886,11 @@ def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_resp
         return action_result
     if not check_mode:
         if params["force"]:
-            response = force_unlock_workspace(client_terraform, params["workspace_id"])
+            response = force_unlock_workspace(adapter, workspace_response["id"])
         else:
-            response = unlock_workspace(client_terraform, params["workspace_id"])
+            response = unlock_workspace(adapter, workspace_response["id"])
         action_result.update(
-            {"changed": True, **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} was unlocked successfully.", **response},
         )
     else:
         action_result.update(
@@ -1754,7 +899,7 @@ def state_unlocked(client_terraform: Any, params: Dict[str, Any], workspace_resp
     return action_result
 
 
-def state_locked(client_terraform: Any, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
+def state_locked(adapter: TerraformClient, params: Dict[str, Any], workspace_response: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Locks a Terraform workspace.
 
@@ -1762,7 +907,7 @@ def state_locked(client_terraform: Any, params: Dict[str, Any], workspace_respon
     and workspace name. It then locks the workspace with the given reason.
 
     Args:
-        client_terraform (TerraformClient): An instance of the Terraform client used to communicate with the API.
+        adapter: TerraformClient instance
         params (Dict[str, Any]): A dictionary of module parameters.
         workspace_response (Dict[str, Any]): A dictionary of workspace response parameters.
         check_mode (bool): A check mode parameter.
@@ -1772,26 +917,22 @@ def state_locked(client_terraform: Any, params: Dict[str, Any], workspace_respon
             - "changed" (bool): True if the workspace was successfully locked.
             - "msg" (str): A message indicating success.
             - Additional data returned from the lock operation.
-
-    Raises:
-        ValueError: If the workspace cannot be found or resolved.
-        Any exceptions from the lock operation will propagate to the caller.
     """
     action_result = {
         "changed": False,
     }
     if not workspace_response:
         raise ValueError(f"The workspace {params['workspace_id']} was not found, hence cannot proceed with locking.")
-    locked_status = workspace_response.get("data").get("attributes", {}).get("locked")
+    locked_status = workspace_response.get("locked")
     if locked_status:
         action_result.update(
             {"changed": False, "msg": f"The workspace {params['workspace_id']} is already locked."},
         )
         return action_result
     if not check_mode:
-        response = lock_workspace(client_terraform, params["workspace_id"], params["lock_reason"])
+        response = lock_workspace(adapter, workspace_response["id"], reason=params["lock_reason"])
         action_result.update(
-            {"changed": True, **response["data"]},
+            {"changed": True, "msg": f"The workspace {params['workspace_id']} was locked successfully.", **response},
         )
     else:
         action_result.update(
@@ -1841,51 +982,51 @@ def main():
     action_result = {}
     params = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+    state = params["state"]
 
     try:
-        client_terraform = TerraformClient(**module.params)
-
-        if params["state"] == "present":
-            # validate the format of the timestamp
-            if params.get("auto_destroy_at"):
-                datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
-            # either workspace_id or workspace MUST be provided when state is present
-            # when a workspace is provided, organization must be given
-            if not params.get("workspace_id"):
-                # get the workspace_id from the provided workspace name
-                workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
-                if not workspace_response:
-                    action_result = state_create(client_terraform, params, params["check_mode"])
+        with module.client() as adapter:
+            if state == "present":
+                # validate the format of the timestamp
+                if params.get("auto_destroy_at"):
+                    datetime.strptime(params["auto_destroy_at"], "%Y-%m-%dT%H:%M:%SZ")
+                # either workspace_id or workspace MUST be provided when state is present
+                # when a workspace is provided, organization must be given
+                if not params.get("workspace_id"):
+                    # get the workspace_id from the provided workspace name
+                    workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
+                    if not workspace_response:
+                        action_result = state_create(adapter, params, params["check_mode"])
+                    else:
+                        # retrieve the workspace ID
+                        workspace_id = workspace_response.get("id")
+                        # update module params to have a workspace ID
+                        params["workspace_id"] = workspace_id
+                        action_result = state_update(adapter, params, params["check_mode"])
                 else:
-                    # retrieve the workspace ID
-                    workspace_id = workspace_response.get("data")["id"]
-                    # update module params to have a workspace ID
-                    params["workspace_id"] = workspace_id
-                    action_result = state_update(client_terraform, params, params["check_mode"])
-            else:
-                # if workspace_id is provided then update is triggered
-                action_result = state_update(client_terraform, params, params["check_mode"])
-        elif params["state"] in ("absent", "locked", "unlocked"):
-            # get the workspace response
-            if not params.get("workspace_id"):
-                workspace_response = get_workspace(client_terraform, params["organization"], params["workspace"])
-                if not workspace_response:
-                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
-                params["workspace_id"] = workspace_response.get("data")["id"]
-            else:
-                workspace_response = get_workspace_by_id(client_terraform, params["workspace_id"])
+                    # if workspace_id is provided then update is triggered
+                    action_result = state_update(adapter, params, params["check_mode"])
+            elif state in ("absent", "locked", "unlocked"):
+                # get the workspace response
+                if not params.get("workspace_id"):
+                    workspace_response = get_workspace(adapter, params.get("organization"), params.get("workspace"))
+                    if not workspace_response:
+                        raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+                    params["workspace_id"] = workspace_response["id"]
+                else:
+                    workspace_response = get_workspace_by_id(adapter, params["workspace_id"])
 
-            if params["state"] == "absent":
-                action_result = state_absent(client_terraform, params, workspace_response, params["check_mode"])
+                if state == "absent":
+                    action_result = state_absent(adapter, params, workspace_response, params["check_mode"])
 
-            elif params["state"] == "locked":
-                action_result = state_locked(client_terraform, params, workspace_response, params["check_mode"])
+                elif state == "locked":
+                    action_result = state_locked(adapter, params, workspace_response, params["check_mode"])
 
-            elif params["state"] == "unlocked":
-                action_result = state_unlocked(client_terraform, params, workspace_response, params["check_mode"])
+                elif state == "unlocked":
+                    action_result = state_unlocked(adapter, params, workspace_response, params["check_mode"])
 
-        result.update(action_result)
-        module.exit_json(**result)
+            result.update(action_result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

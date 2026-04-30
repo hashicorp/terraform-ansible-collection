@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright: (c) 2025, Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
-
 
 DOCUMENTATION = r"""
 ---
@@ -186,7 +185,6 @@ msg:
 
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -194,9 +192,8 @@ from copy import deepcopy
 
 from ansible.module_utils._text import to_text
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan import (
     SensitiveValueData,
@@ -205,7 +202,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan im
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_data,
 )
-
 
 # Action mapping constants
 ACTION_MAPPING = {
@@ -723,41 +719,40 @@ def main() -> None:
     result = {}
 
     try:
-        client = TerraformClient(**params)
+        with module.client() as adapter:
+            # Determine which ID is provided
+            identifier = plan_id if plan_id else run_id
+            use_plan_id = plan_id is not None
 
-        # Determine which ID is provided
-        identifier = plan_id if plan_id else run_id
-        use_plan_id = plan_id is not None
+            # Get plan information
+            metadata_response = get_plan_data(adapter, identifier, use_plan_id, include_json_output=False)
+            json_output_response = get_plan_data(adapter, identifier, use_plan_id, include_json_output=True)
 
-        # Get plan information
-        metadata_response = get_plan_data(client, identifier, use_plan_id, include_json_output=False)
-        json_output_response = get_plan_data(client, identifier, use_plan_id, include_json_output=True)
+            # Check if plan was found
+            if not metadata_response:
+                id_type = "Plan" if use_plan_id else "Plan for run"
+                raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
 
-        # Check if plan was found
-        if not metadata_response:
-            id_type = "Plan" if use_plan_id else "Plan for run"
-            raise ValueError(f"{id_type} with ID '{identifier}' was not found.")
-
-        if output_format == "json":
-            # Return json format
-            result.update(
-                {
-                    "metadata": metadata_response.get("data", {}),
-                    "json_output": json_output_response.get("data", {}),
-                },
-            )
-        else:
-            # Return diff format
-            json_output_data = json_output_response.get("data", {})
-            diff_sequences = _get_diff_sequences(json_output_data)
-            result["diff"] = diff_sequences
-
-            if diff_sequences:
-                result["changed"] = True
+            if output_format == "json":
+                # Return json format
+                result.update(
+                    {
+                        "metadata": metadata_response,
+                        "json_output": json_output_response,
+                    },
+                )
             else:
-                result["msg"] = "No changes. Your infrastructure matches the configuration."
+                # Return diff format
+                json_output_data = json_output_response
+                diff_sequences = _get_diff_sequences(json_output_data)
+                result["diff"] = diff_sequences
 
-        module.exit_json(**result)
+                if diff_sequences:
+                    result["changed"] = True
+                else:
+                    result["msg"] = "No changes. Your infrastructure matches the configuration."
+
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

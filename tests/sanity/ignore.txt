@@ -1,0 +1,13 @@
+# validate-modules cannot introspect argument_spec when pytfe is unavailable
+# at sanity-test time. The pytfe import is guarded (HAS_PYTFE) so this is
+# safe at runtime — the module will fail_json if pytfe is missing.
+plugins/modules/configuration_version.py validate-modules:import-error
+plugins/modules/configuration_version_info.py validate-modules:import-error
+plugins/modules/output.py validate-modules:import-error
+plugins/modules/project.py validate-modules:import-error
+plugins/modules/project_info.py validate-modules:import-error
+plugins/modules/run.py validate-modules:import-error
+plugins/modules/run_info.py validate-modules:import-error
+plugins/modules/view_plan.py validate-modules:import-error
+plugins/modules/workspace.py validate-modules:import-error
+plugins/modules/workspace_info.py validate-modules:import-error

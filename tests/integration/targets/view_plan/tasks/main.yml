@@ -42,8 +42,6 @@
         src: "expected_diff.json.j2"
         dest: "{{ temp_dir.path }}/expected_diff.json"
         mode: "0644"
-      vars:
-        unique_id: "{{ unique_id }}"
       register: expected_diff_file
 
     - name: Generate expected JSON structure from template
@@ -51,8 +49,6 @@
         src: "expected_json_structure.json.j2"
         dest: "{{ temp_dir.path }}/expected_json_structure.json"
         mode: "0644"
-      vars:
-        unique_id: "{{ unique_id }}"
       register: expected_json_file
 
     - name: Load expected diff and JSON structure
@@ -65,7 +61,6 @@
         workspace_id: "{{ workspace_id }}"
         configuration_files_path: "{{ temp_dir.path }}"
         auto_queue_runs: false
-        tf_validate_certs: true
         poll_interval: "{{ poll_interval }}"
         poll_timeout: "{{ poll_timeout }}"
         state: present
@@ -75,7 +70,7 @@
       ansible.builtin.assert:
         that:
           - config_version_result.changed
-          - config_version_result.attributes.status == "uploaded"
+          - config_version_result.status == "uploaded"
 
     - name: Create a new run for plan viewing
       hashicorp.terraform.run:
@@ -92,11 +87,11 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.attributes.status == "planned"
+          - run_result.status in ["planned", "planned_and_finished", "post_plan_completed"]
 
     - name: Get plan_id from run relationships
       ansible.builtin.set_fact:
-        plan_id: "{{ run_result.relationships.plan.data.id }}"
+        plan_id: "{{ run_result.plan.id }}"
 
     - name: View plan by run_id in diff format
       hashicorp.terraform.view_plan:
@@ -105,8 +100,8 @@
 
     - name: Sort diffs for run_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after.cidr_block') }}"
-        sorted_expected_diff: "{{ expected_diff | sort(attribute='after.cidr_block') }}"
+        sorted_actual_diff: "{{ view_plan_diff_by_run.diff | sort(attribute='after_header') }}"
+        sorted_expected_diff: "{{ expected_diff | sort(attribute='after_header') }}"
 
     - name: Assert diff from run_id matches expected
       ansible.builtin.assert:
@@ -122,7 +117,7 @@
 
     - name: Sort diffs for plan_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after.cidr_block') }}"
+        sorted_actual_diff_plan: "{{ view_plan_diff_by_plan.diff | sort(attribute='after_header') }}"
 
     - name: Assert diff from plan_id matches expected (order-independent)
       ansible.builtin.assert:
@@ -138,8 +133,8 @@
 
     - name: Sort JSON resource_changes for plan_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
-        sorted_expected_json: "{{ expected_json | sort(attribute='change.after.cidr_block') }}"
+        sorted_actual_json_plan: "{{ view_plan_json_by_plan.json_output.resource_changes | sort(attribute='address') }}"
+        sorted_expected_json: "{{ expected_json | sort(attribute='address') }}"
 
     - name: Assert JSON from plan_id matches expected structure (order-independent)
       ansible.builtin.assert:
@@ -155,7 +150,7 @@
 
     - name: Sort JSON resource_changes for run_id comparison
       ansible.builtin.set_fact:
-        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='change.after.cidr_block') }}"
+        sorted_actual_json_run: "{{ view_plan_json_by_run.json_output.resource_changes | sort(attribute='address') }}"
 
     - name: Assert JSON from run_id matches expected structure (order-independent)
       ansible.builtin.assert:

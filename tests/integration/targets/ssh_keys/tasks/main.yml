@@ -1,0 +1,106 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique SSH key names
+      ansible.builtin.set_fact:
+        ssh_key_name: "ssh-key-test-{{ unique_id[:8] }}"
+        ssh_key_renamed: "ssh-key-renamed-{{ unique_id[:8] }}"
+        ssh_key_value: |
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+          QyNTUxOQAAACB6wG2W4F2lGe2xRyA2IHbfLsF2mDAH7qLhLGZzPxC4QgAAAKBTgjEhU4Ix
+          IQAAAAtzc2gtZWQyNTUxOQAAACB6wG2W4F2lGe2xRyA2IHbfLsF2mDAH7qLhLGZzPxC4Qg
+          AAAEB3YwVVOvn5QmCBOPQwDQWGJoXz7EPRSYRmf+eTnJQMRXrAbZbgXaUZ7bFHIDYgdt8u
+          wXaYMAfuouEsZnM/ELhCAAAAGGludGVncmF0aW9uLXRlc3RAZXhhbXBsZQE=
+          -----END OPENSSH PRIVATE KEY-----
+
+    # ---------- create ----------
+    - name: Create an SSH key
+      hashicorp.terraform.ssh_keys: &create_key
+        organization: "{{ organization }}"
+        name: "{{ ssh_key_name }}"
+        value: "{{ ssh_key_value }}"
+        state: present
+      register: result_create
+
+    - name: Assert SSH key creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == ssh_key_name
+
+    - name: Save ssh_key_id fact
+      ansible.builtin.set_fact:
+        ssh_key_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same SSH key again (value is write-only, no drift)
+      hashicorp.terraform.ssh_keys: *create_key
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == ssh_key_id
+
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete
+      hashicorp.terraform.ssh_keys:
+        ssh_key_id: "{{ ssh_key_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete ----------
+    - name: Delete SSH key by ID
+      hashicorp.terraform.ssh_keys:
+        ssh_key_id: "{{ ssh_key_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same SSH key again (no-op)
+      hashicorp.terraform.ssh_keys:
+        ssh_key_id: "{{ ssh_key_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete SSH key by name (in case of mid-run failure)
+      hashicorp.terraform.ssh_keys:
+        organization: "{{ organization }}"
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ ssh_key_name | default('') }}"
+        - "{{ ssh_key_renamed | default('') }}"
+      when: item | length > 0
+      failed_when: false

@@ -1,0 +1,187 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace names
+      ansible.builtin.set_fact:
+        target_ws_name: "rt-target-{{ unique_id[:8] }}"
+        source_ws_name: "rt-source-{{ unique_id[:8] }}"
+        alt_source_ws_name: "rt-source-alt-{{ unique_id[:8] }}"
+
+    - name: Create target workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ target_ws_name }}"
+        organization: "{{ organization }}"
+        execution_mode: remote
+        description: integration test target workspace for run_trigger
+        state: present
+      register: target_ws
+
+    - name: Create source workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ source_ws_name }}"
+        organization: "{{ organization }}"
+        execution_mode: remote
+        description: integration test source workspace for run_trigger
+        state: present
+      register: source_ws
+
+    - name: Create alternate source workspace (for the mutation test)
+      hashicorp.terraform.workspace:
+        workspace: "{{ alt_source_ws_name }}"
+        organization: "{{ organization }}"
+        execution_mode: remote
+        description: alternate source workspace for run_trigger mutation test
+        state: present
+      register: alt_source_ws
+
+    - name: Set workspace id facts
+      ansible.builtin.set_fact:
+        target_ws_id: "{{ target_ws.id }}"
+        source_ws_id: "{{ source_ws.id }}"
+        alt_source_ws_id: "{{ alt_source_ws.id }}"
+
+    # ---------- create ----------
+    - name: Create run trigger (target <- source)
+      hashicorp.terraform.run_trigger: &create_rt
+        workspace_id: "{{ target_ws_id }}"
+        sourceable_id: "{{ source_ws_id }}"
+        state: present
+      register: result_create
+
+    - name: Assert run trigger creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+
+    - name: Save first run_trigger_id
+      ansible.builtin.set_fact:
+        run_trigger_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same run trigger again
+      hashicorp.terraform.run_trigger: *create_rt
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == run_trigger_id
+
+    # ---------- mutate: change sourceable to the alternate workspace ----------
+    - name: Create a second run trigger (target <- alt_source)
+      hashicorp.terraform.run_trigger:
+        workspace_id: "{{ target_ws_id }}"
+        sourceable_id: "{{ alt_source_ws_id }}"
+        state: present
+      register: result_mutate
+
+    - name: Assert second trigger creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_mutate.changed
+          - result_mutate.id is defined
+          - result_mutate.id != run_trigger_id
+
+    - name: Save second run_trigger_id
+      ansible.builtin.set_fact:
+        alt_run_trigger_id: "{{ result_mutate.id }}"
+
+    # ---------- lookup via names ----------
+    - name: Idempotency test - same trigger identified by (organization, workspace, sourceable_workspace)
+      hashicorp.terraform.run_trigger:
+        organization: "{{ organization }}"
+        workspace: "{{ target_ws_name }}"
+        sourceable_workspace: "{{ source_ws_name }}"
+        state: present
+      register: result_lookup_by_name
+
+    - name: Assert name-based lookup was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_lookup_by_name.changed
+          - result_lookup_by_name.id == run_trigger_id
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete
+      hashicorp.terraform.run_trigger:
+        run_trigger_id: "{{ run_trigger_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode_delete
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode_delete.changed
+          - "'check mode' in result_check_mode_delete.msg"
+
+    # ---------- delete ----------
+    - name: Delete run trigger by ID
+      hashicorp.terraform.run_trigger:
+        run_trigger_id: "{{ run_trigger_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same run trigger again (no-op)
+      hashicorp.terraform.run_trigger:
+        run_trigger_id: "{{ run_trigger_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+    - name: Delete second run trigger by (workspace, sourceable) pair
+      hashicorp.terraform.run_trigger:
+        workspace_id: "{{ target_ws_id }}"
+        sourceable_id: "{{ alt_source_ws_id }}"
+        state: absent
+      register: result_delete_pair
+
+    - name: Assert pair-based delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete_pair.changed
+
+  always:
+    - name: Cleanup - best-effort delete any leftover triggers
+      hashicorp.terraform.run_trigger:
+        workspace_id: "{{ target_ws_id }}"
+        sourceable_id: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ source_ws_id | default(omit) }}"
+        - "{{ alt_source_ws_id | default(omit) }}"
+      when: target_ws_id is defined
+      failed_when: false
+
+    - name: Cleanup - delete the test workspaces
+      hashicorp.terraform.workspace:
+        workspace: "{{ item }}"
+        organization: "{{ organization }}"
+        state: absent
+      loop:
+        - "{{ target_ws_name | default(omit) }}"
+        - "{{ source_ws_name | default(omit) }}"
+        - "{{ alt_source_ws_name | default(omit) }}"
+      when: item is defined and item != omit
+      failed_when: false

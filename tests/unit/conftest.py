@@ -10,7 +10,7 @@ This file provides common fixtures and configuration that can be used
 across all unit tests in the collection.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,6 +36,19 @@ class DummyModule:
         self.fail_args = None
         self.check_mode = check_mode
         self.changed = False
+        # The adapter tests can configure and assert against.
+        self.adapter = MagicMock(name="dummy_terraform_client")
+        self._client_cm = MagicMock(name="dummy_terraform_client_ctx")
+        self._client_cm.__enter__.return_value = self.adapter
+        self._client_cm.__exit__.return_value = None
+
+    def client(self):
+        """Mimics AnsibleTerraformModule.client() — returns a context manager.
+
+        The yielded adapter is ``self.adapter`` so tests can configure or
+        assert behavior via ``dummy_module.adapter``.
+        """
+        return self._client_cm
 
     def fail_json(self, **kwargs):
         self.failed = True
@@ -103,35 +116,6 @@ def dummy_module():
 def enhanced_dummy_module():
     """Provide an EnhancedDummyModule instance for testing."""
     return EnhancedDummyModule()
-
-
-@pytest.fixture
-def mock_terraform_client():
-    """
-    Mock TerraformClient class fixture with pre-configured HTTP responses.
-
-    Returns:
-        Mock: A mock TerraformClient class that returns a fully configured mock instance
-    """
-    with patch("ansible_collections.hashicorp.terraform.plugins.module_utils.common.TerraformClient") as mock_class:
-        mock_instance = Mock()
-        mock_instance.hostname = "app.terraform.io"
-        mock_instance.base_url = "https://app.terraform.io/api/v2"
-        mock_instance.session = Mock()
-
-        # Set up common session methods with default successful responses
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": {"id": "test-id"}}
-        mock_response.raise_for_status.return_value = None
-
-        mock_instance.session.get.return_value = mock_response
-        mock_instance.session.post.return_value = mock_response
-        mock_instance.session.patch.return_value = mock_response
-        mock_instance.session.delete.return_value = mock_response
-
-        mock_class.return_value = mock_instance
-        yield mock_class
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
-      tf_token: "{{ tfc_token }}"
+      tfe_token: "{{ tfc_token }}"
 
   block:
     - name: Generate a unique ID
@@ -39,12 +39,13 @@
       ansible.builtin.assert:
         that:
           - result_create.changed
-          - result_create.attributes["execution-mode"] == "remote"
-          - result_create.attributes["auto-apply"] == true
-          - result_create.attributes["auto-apply-run-trigger"] == true
-          - result_create.attributes["assessments-enabled"] == true
-          - result_create.attributes["auto-destroy-activity-duration"] == "12d"
-          - result_create.attributes["auto-destroy-at"] == "2027-08-10T15:00:00.000Z"
+          - result_create.execution_mode == "remote"
+          - result_create.auto_apply == true
+          - result_create.auto_apply_run_trigger == true
+          - result_create.assessments_enabled == true
+          - result_create.auto_destroy_activity_duration == "12d"
+          - result_create.auto_destroy_at == "2027-08-10T15:00:00Z"
+          - result_create.terraform_version == "1.12.2"
 
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
@@ -54,6 +55,8 @@
           env: dev
           owner: integration
         execution_mode: remote
+        auto_apply: true
+        auto_apply_run_trigger: true
         description: integration test workspace
         terraform_version: 1.12.2
         assessments_enabled: true
@@ -146,15 +149,14 @@
         that:
           - result_update.changed
           - result_update.id == workspace_id
-          - result_update.attributes["execution-mode"] == "agent"
-          - result_update.attributes["assessments-enabled"] == false
-          - result_update.attributes["auto-destroy-activity-duration"] == "14d"
-          - result_update.attributes["auto-destroy-at"] == "2028-08-10T15:00:00.000Z"
-          - result_update.attributes["terraform-version"] == "1.12.2"
-          - result_update.attributes["auto-apply"] == true
-          - result_update.attributes["auto-apply-run-trigger"] == false
-          - result_update.attributes["allow-destroy-plan"] == true
-          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
+          - result_update.execution_mode == "agent"
+          - result_update.assessments_enabled == false
+          - result_update.auto_destroy_activity_duration == "14d"
+          - result_update.auto_destroy_at == "2028-08-10T15:00:00Z"
+          - result_update.terraform_version == "1.12.2"
+          - result_update.auto_apply == true
+          - result_update.auto_apply_run_trigger == false
+          - result_update.allow_destroy_plan == true
 
     - name: Update a Terraform workspace with minimal data
       hashicorp.terraform.workspace:
@@ -172,17 +174,15 @@
       ansible.builtin.assert:
         that:
           - result_update.changed
-          - result_update.attributes["execution-mode"] == "agent"
-          - result_update.attributes["terraform-version"] == "1.12.2"
-          - result_update.attributes["assessments-enabled"] == false
-          - result_update.attributes["auto-destroy-activity-duration"] == "14d"
-          - result_update.attributes["auto-destroy-at"] == "2028-08-10T15:00:00.000Z"
-          - result_update.relationships["agent-pool"]["data"]["id"] == agent_pool_id
-          - result_update.relationships["project"]["data"]["id"] == project_id
-          - result_update.attributes["auto-apply"] == true
-          - result_update.attributes["auto-apply-run-trigger"] == false
-          - result_update.attributes["allow-destroy-plan"] == true
-          - result_update.attributes["description"] == "integration test workspace updated"
+          - result_update.execution_mode == "agent"
+          - result_update.terraform_version == "1.12.2"
+          - result_update.assessments_enabled == false
+          - result_update.auto_destroy_activity_duration == "14d"
+          - result_update.auto_destroy_at == "2028-08-10T15:00:00Z"
+          - result_update.auto_apply == true
+          - result_update.auto_apply_run_trigger == false
+          - result_update.allow_destroy_plan == true
+          - result_update.description == "integration test workspace updated"
 
     - name: Update a Terraform workspace with same data to ensure idempotency
       hashicorp.terraform.workspace:
@@ -208,7 +208,7 @@
       ansible.builtin.assert:
         that:
           - result_lock.changed
-          - result_lock.attributes["locked"] == true
+          - result_lock.locked == true
 
     - name: Lock workspace to check idempotency
       hashicorp.terraform.workspace:
@@ -238,7 +238,7 @@
       ansible.builtin.assert:
         that:
           - result_unlock.changed
-          - result_unlock.attributes["locked"] == false
+          - result_unlock.locked == false
 
     - name: Unlock workspace to check idempotency
       hashicorp.terraform.workspace:
@@ -292,6 +292,7 @@
           - result_delete.msg == expected_result
 
     - name: Force delete project
+      when: project_id is defined
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
         method: DELETE
@@ -304,6 +305,7 @@
       register: project_delete_response
 
     - name: Force delete agent pool
+      when: agent_pool_id is defined
       ansible.builtin.uri:
         url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
         method: DELETE

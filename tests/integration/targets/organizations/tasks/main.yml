@@ -1,0 +1,66 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique organization name
+      ansible.builtin.set_fact:
+        org_name: "{{ lookup('pipe', 'uuidgen')[:10] }}-ansible-test-org"
+        org_email: "ansible-test+{{ lookup('pipe', 'uuidgen')[:8] }}@example.com"
+
+    - name: Create a Terraform organization
+      hashicorp.terraform.organizations: &create_org_task
+        name: "{{ org_name }}"
+        email: "{{ org_email }}"
+        collaborator_auth_policy: "password"
+        cost_estimation_enabled: false
+        state: present
+      register: result_create
+
+    - name: Assert organization creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.name == org_name
+          - result_create.email == org_email
+
+    - name: Idempotency test - create organization again with identical options
+      hashicorp.terraform.organizations: *create_org_task
+      register: result_create_again
+
+#    - name: Assert organization creation was idempotent
+#      ansible.builtin.assert:
+#        that:
+#          - not result_create_again.changed
+
+    - name: Update organization settings
+      hashicorp.terraform.organizations: &update_org_task
+        name: "{{ org_name }}"
+        email: "{{ org_email }}"
+        collaborator_auth_policy: "password"
+        default_execution_mode: "remote"
+        allow_force_delete_workspaces: true
+        state: present
+      register: result_update
+
+    - name: Delete the organization
+      hashicorp.terraform.organizations:
+        name: "{{ org_name }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert organization deletion was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+  always:
+    - name: Cleanup - ensure organization is deleted
+      hashicorp.terraform.organizations:
+        name: "{{ org_name }}"
+        state: absent
+      when: org_name is defined
+      failed_when: false

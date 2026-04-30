@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
+from pytfe.errors import NotFound
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformError,
@@ -13,15 +14,14 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_data,
 )
-from tests.unit.constants import create_plan_response
 
 
 class TestPlanFunctions:
-    """Tests for Terraform plan helper functions."""
+    """Tests for plan helper functions with SDK adapters."""
 
     @pytest.fixture
     def mock_tf_client(self):
-        """Provide a mock TerraformClient for tests."""
+        """Provide a mock TerraformClient adapter for tests."""
         return Mock()
 
     @pytest.fixture
@@ -34,306 +34,152 @@ class TestPlanFunctions:
         """Provide a sample run ID."""
         return "run-456def789abc123"
 
-    @pytest.mark.parametrize(
-        "include_json_output,use_plan_id,resource_id,expected_endpoint_suffix",
-        [
-            (False, True, "plan-123", ""),
-            (False, False, "run-456", "/plan"),
-            (True, True, "plan-123", "/json-output"),
-            (True, False, "run-456", "/plan/json-output"),
-        ],
-    )
-    def test_get_plan_data_success(self, mock_tf_client, include_json_output, use_plan_id, resource_id, expected_endpoint_suffix):
-        """Test successful retrieval for both metadata and JSON output using get_plan_data."""
-        expected_response = {
-            "data": (
-                {
-                    "id": "plan-789" if not use_plan_id else resource_id,
-                    "type": "plans",
-                    "attributes": {"status": "finished", "has_changes": True},
-                }
-                if not include_json_output
-                else {
-                    "format_version": "1.2",
-                    "terraform_version": "1.5.0",
-                    "resource_changes": [{"address": "aws_instance.test", "change": {"actions": ["create"]}}],
-                    "applyable": True,
-                    "complete": True,
-                    "errored": False,
-                }
-            ),
-            "status": 200,
-        }
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_plan_id_metadata_success(self, mock_format_response, mock_tf_client, plan_id):
+        """Test metadata retrieval by plan_id using SDK plans.read."""
+        sdk_plan = Mock()
+        formatted_plan = {"id": plan_id, "status": "finished", "has_changes": True}
 
-        mock_tf_client.get.return_value = expected_response
-
-        result = get_plan_data(mock_tf_client, resource_id, use_plan_id=use_plan_id, include_json_output=include_json_output)
-
-        assert result == expected_response
-        if use_plan_id:
-            expected_endpoint = f"/plans/{resource_id}{expected_endpoint_suffix}"
-        else:
-            expected_endpoint = f"/runs/{resource_id}{expected_endpoint_suffix}"
-        mock_tf_client.get.assert_called_once_with(expected_endpoint)
-
-    @pytest.mark.parametrize(
-        "use_plan_id,include_json_output",
-        [
-            (True, False),
-            (False, False),
-            (True, True),
-            (False, True),
-        ],
-    )
-    def test_get_plan_data_not_found_404(self, mock_tf_client, use_plan_id, include_json_output):
-        """Test get_plan_data returns empty dict on 404."""
-        mock_tf_client.get.return_value = {"status": 404}
-
-        result = get_plan_data(mock_tf_client, "resource-123", use_plan_id=use_plan_id, include_json_output=include_json_output)
-
-        assert result == {}
-
-    @pytest.mark.parametrize(
-        "status_code,include_json_output",
-        [
-            (400, False),
-            (500, True),
-            (401, False),
-            (503, True),
-        ],
-    )
-    def test_get_plan_data_failure_statuses(self, mock_tf_client, plan_id, status_code, include_json_output):
-        """Test get_plan_data raises TerraformError on non-success status codes."""
-        response = {"status": status_code}
-        mock_tf_client.get.return_value = response
-
-        with pytest.raises(TerraformError) as exc_info:
-            get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=include_json_output)
-
-        assert exc_info.value.args[0] == response
-
-    def test_get_plan_data_metadata_complex_structure(self, mock_tf_client, plan_id, run_id):
-        """Test get_plan_data for metadata with complex nested data structure."""
-        expected_response = {
-            "data": {
-                "id": plan_id,
-                "type": "plans",
-                "attributes": {
-                    "status": "finished",
-                    "has_changes": True,
-                    "resource_additions": 3,
-                    "resource_changes": 1,
-                    "resource_destructions": 2,
-                    "status_timestamps": {
-                        "queued_at": "2025-01-15T10:25:00Z",
-                        "planned_at": "2025-01-15T10:30:00Z",
-                    },
-                    "permissions": {"can_update": True, "can_destroy": False},
-                },
-                "relationships": {
-                    "workspace": {"data": {"id": "ws-123abc", "type": "workspaces"}},
-                    "run": {"data": {"id": run_id, "type": "runs"}},
-                },
-            },
-            "status": 200,
-        }
-        mock_tf_client.get.return_value = expected_response
+        mock_tf_client.client.plans.read.return_value = sdk_plan
+        mock_format_response.return_value = formatted_plan
 
         result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
 
-        assert result == expected_response
-        assert "status_timestamps" in result["data"]["attributes"]
-        assert "permissions" in result["data"]["attributes"]
-        assert "relationships" in result["data"]
+        assert result == formatted_plan
+        mock_tf_client.client.plans.read.assert_called_once_with(plan_id)
+        mock_tf_client.client.plans.read_json_output.assert_not_called()
+        mock_format_response.assert_called_once_with(sdk_plan)
 
-    def test_get_plan_data_json_output_complex_changes(self, mock_tf_client, plan_id):
-        """Test get_plan_data for JSON output with complex resource changes."""
-        expected_response = {
-            "data": {
-                "format_version": "1.2",
-                "terraform_version": "1.5.0",
-                "resource_changes": [
-                    {
-                        "address": "aws_instance.web[0]",
-                        "mode": "managed",
-                        "type": "aws_instance",
-                        "name": "web",
-                        "index": 0,
-                        "change": {
-                            "actions": ["create"],
-                            "before": None,
-                            "after": {"ami": "ami-12345", "instance_type": "t3.micro"},
-                            "after_unknown": {"id": True, "public_ip": True},
-                        },
-                    },
-                    {
-                        "address": "aws_instance.old",
-                        "change": {"actions": ["delete"], "before": {"ami": "ami-old"}, "after": None},
-                    },
-                ],
-                "planned_values": {
-                    "root_module": {
-                        "resources": [
-                            {"address": "aws_instance.web[0]", "values": {"ami": "ami-12345"}},
-                        ],
-                    },
-                },
-                "applyable": True,
-                "complete": True,
-                "errored": False,
-            },
-            "status": 200,
-        }
-        mock_tf_client.get.return_value = expected_response
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_plan_id_json_output_model_success(self, mock_format_response, mock_tf_client, plan_id):
+        """Test JSON output retrieval by plan_id when SDK returns a model object."""
+        sdk_json_output = Mock()
+        formatted_json = {"format_version": "1.2", "resource_changes": []}
+
+        mock_tf_client.client.plans.read_json_output.return_value = sdk_json_output
+        mock_format_response.return_value = formatted_json
 
         result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
 
-        assert result == expected_response
-        assert len(result["data"]["resource_changes"]) > 1
-        assert "after_unknown" in result["data"]["resource_changes"][0]["change"]
-        assert "planned_values" in result["data"]
+        assert result == formatted_json
+        mock_tf_client.client.plans.read_json_output.assert_called_once_with(plan_id)
+        mock_tf_client.client.plans.read.assert_not_called()
+        mock_format_response.assert_called_once_with(sdk_json_output)
 
-    @pytest.mark.parametrize(
-        "plan_status,applyable,complete,errored",
-        [
-            ("finished", True, True, False),
-            ("planning", False, False, False),
-            ("errored", False, False, True),
-        ],
-    )
-    def test_get_plan_data_json_output_various_states(self, mock_tf_client, plan_id, plan_status, applyable, complete, errored):
-        """Test get_plan_data JSON output with various plan states."""
-        expected_response = {
-            "data": {
-                "format_version": "1.2",
-                "terraform_version": "1.5.0",
-                "resource_changes": [],
-                "applyable": applyable,
-                "complete": complete,
-                "errored": errored,
-            },
-            "status": 200,
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_plan_id_json_output_dict_passthrough(self, mock_format_response, mock_tf_client, plan_id):
+        """Test JSON output retrieval returns dict as-is without formatting."""
+        json_output = {
+            "format_version": "1.2",
+            "terraform_version": "1.5.0",
+            "resource_changes": [{"address": "null_resource.test", "change": {"actions": ["create"]}}],
         }
-        mock_tf_client.get.return_value = expected_response
+        mock_tf_client.client.plans.read_json_output.return_value = json_output
 
         result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
 
-        assert result["data"]["applyable"] == applyable
-        assert result["data"]["complete"] == complete
-        assert result["data"]["errored"] == errored
+        assert result == json_output
+        mock_tf_client.client.plans.read_json_output.assert_called_once_with(plan_id)
+        mock_format_response.assert_not_called()
 
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.get_run")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_run_id_metadata_success(self, mock_format_response, mock_get_run, mock_tf_client, run_id):
+        """Test metadata retrieval by run_id resolves plan id then reads plan."""
+        resolved_plan_id = "plan-resolved123"
+        sdk_plan = Mock()
+        formatted_plan = {"id": resolved_plan_id, "status": "finished"}
+
+        mock_get_run.return_value = {"id": run_id, "plan": {"id": resolved_plan_id}}
+        mock_tf_client.client.plans.read.return_value = sdk_plan
+        mock_format_response.return_value = formatted_plan
+
+        result = get_plan_data(mock_tf_client, run_id, use_plan_id=False, include_json_output=False)
+
+        assert result == formatted_plan
+        mock_get_run.assert_called_once_with(mock_tf_client, run_id)
+        mock_tf_client.client.plans.read.assert_called_once_with(resolved_plan_id)
+        mock_format_response.assert_called_once_with(sdk_plan)
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.get_run")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_run_id_json_success(self, mock_format_response, mock_get_run, mock_tf_client, run_id):
+        """Test JSON retrieval by run_id resolves plan id then reads json output."""
+        resolved_plan_id = "plan-resolved456"
+        sdk_json = Mock()
+        formatted_json = {"format_version": "1.2", "resource_changes": []}
+
+        mock_get_run.return_value = {"id": run_id, "plan": {"id": resolved_plan_id}}
+        mock_tf_client.client.plans.read_json_output.return_value = sdk_json
+        mock_format_response.return_value = formatted_json
+
+        result = get_plan_data(mock_tf_client, run_id, use_plan_id=False, include_json_output=True)
+
+        assert result == formatted_json
+        mock_get_run.assert_called_once_with(mock_tf_client, run_id)
+        mock_tf_client.client.plans.read_json_output.assert_called_once_with(resolved_plan_id)
+        mock_format_response.assert_called_once_with(sdk_json)
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.get_run")
+    def test_get_plan_data_run_id_not_found_raises(self, mock_get_run, mock_tf_client, run_id):
+        """Test run_id path raises TerraformError when run does not exist."""
+        mock_get_run.return_value = {}
+
+        with pytest.raises(TerraformError, match=f"Run with ID {run_id} not found"):
+            get_plan_data(mock_tf_client, run_id, use_plan_id=False)
+
+        mock_tf_client.client.plans.read.assert_not_called()
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.get_run")
     @pytest.mark.parametrize(
-        "exception_type,include_json_output",
-        [
-            (Exception, False),
-            (Exception, True),
-            (ConnectionError, False),
-            (TimeoutError, True),
-        ],
+        "run_response", [{"id": "run-abc"}, {"id": "run-abc", "plan": None}, {"id": "run-abc", "plan": {}}, {"id": "run-abc", "plan": {"type": "plans"}}]
     )
-    def test_get_plan_data_client_exceptions(self, mock_tf_client, exception_type, include_json_output):
-        """Test get_plan_data handles client exceptions."""
-        mock_tf_client.get.side_effect = exception_type("Network error")
+    def test_get_plan_data_run_id_without_associated_plan_raises(self, mock_get_run, mock_tf_client, run_response):
+        """Test run_id path raises TerraformError when run has no associated plan id."""
+        run_id = "run-abc"
+        mock_get_run.return_value = run_response
 
-        with pytest.raises(exception_type, match="Network error"):
-            get_plan_data(mock_tf_client, "plan-123", use_plan_id=True, include_json_output=include_json_output)
+        with pytest.raises(TerraformError, match=f"Run with ID {run_id} does not have an associated plan"):
+            get_plan_data(mock_tf_client, run_id, use_plan_id=False)
 
-    def test_get_plan_data_consistency(self, mock_tf_client):
-        """Test that metadata and JSON output are consistent for the same plan."""
-        plan_id = "plan-consistent123"
+        mock_tf_client.client.plans.read.assert_not_called()
 
-        def mock_get_response(endpoint):
-            if endpoint.endswith("/json-output"):
-                return {
-                    "data": {
-                        "resource_changes": [
-                            {"address": "aws_instance.new1", "change": {"actions": ["create"]}},
-                            {"address": "aws_instance.existing", "change": {"actions": ["update"]}},
-                        ],
-                        "applyable": True,
-                    },
-                    "status": 200,
-                }
-            else:
-                return {
-                    "data": {
-                        "attributes": {
-                            "has_changes": True,
-                            "resource_additions": 1,
-                            "resource_changes": 1,
-                        },
-                    },
-                    "status": 200,
-                }
+    @pytest.mark.parametrize("include_json_output", [False, True])
+    def test_get_plan_data_plan_not_found_returns_empty_dict(self, mock_tf_client, plan_id, include_json_output):
+        """Test plan read returns empty dict when SDK raises NotFound."""
+        if include_json_output:
+            mock_tf_client.client.plans.read_json_output.side_effect = NotFound("not found")
+        else:
+            mock_tf_client.client.plans.read.side_effect = NotFound("not found")
 
-        mock_tf_client.get.side_effect = mock_get_response
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=include_json_output)
 
-        metadata = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
-        json_output = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=True)
-
-        assert metadata["data"]["attributes"]["has_changes"] == json_output["data"]["applyable"]
-        creates = len([rc for rc in json_output["data"]["resource_changes"] if rc["change"]["actions"] == ["create"]])
-        updates = len([rc for rc in json_output["data"]["resource_changes"] if rc["change"]["actions"] == ["update"]])
-        assert metadata["data"]["attributes"]["resource_additions"] == creates
-        assert metadata["data"]["attributes"]["resource_changes"] == updates
-
-    def test_get_plan_data_default_parameter(self, mock_tf_client):
-        """Test that get_plan_data defaults to metadata when include_json_output is not specified."""
-        plan_id = "plan-default-test"
-        metadata_response = {
-            "data": {"id": plan_id, "attributes": {"status": "finished"}},
-            "status": 200,
-        }
-        mock_tf_client.get.return_value = metadata_response
-
-        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
-        assert result == metadata_response
-        mock_tf_client.get.assert_called_with(f"/plans/{plan_id}")
-
-        mock_tf_client.reset_mock()
-        mock_tf_client.get.return_value = metadata_response
-
-        result_explicit = get_plan_data(mock_tf_client, plan_id, use_plan_id=True, include_json_output=False)
-        assert result_explicit == metadata_response
-        mock_tf_client.get.assert_called_with(f"/plans/{plan_id}")
-
-    def test_get_plan_data_endpoint_construction(self, mock_tf_client):
-        """Test that get_plan_data constructs correct endpoints for all scenarios."""
-        plan_id = "plan-endpoint-test"
-        run_id = "run-endpoint-test"
-
-        test_cases = [
-            (True, False, plan_id, f"/plans/{plan_id}"),
-            (True, True, plan_id, f"/plans/{plan_id}/json-output"),
-            (False, False, run_id, f"/runs/{run_id}/plan"),
-            (False, True, run_id, f"/runs/{run_id}/plan/json-output"),
-        ]
-
-        mock_tf_client.get.return_value = create_plan_response(http_status=200)
-
-        for use_plan_id, include_json_output, identifier, expected_endpoint in test_cases:
-            mock_tf_client.reset_mock()
-            get_plan_data(mock_tf_client, identifier, use_plan_id, include_json_output)
-            mock_tf_client.get.assert_called_once_with(expected_endpoint)
-
-    def test_get_plan_data_response_handling(self, mock_tf_client):
-        """Test that get_plan_data properly handles different response scenarios."""
-        plan_id = "plan-response-test"
-
-        success_response = create_plan_response(plan_id=plan_id, http_status=200)
-        mock_tf_client.get.return_value = success_response
-        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
-        assert result == success_response
-
-        mock_tf_client.get.return_value = {"status": 404}
-        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
         assert result == {}
 
-        error_response = {"status": 500, "error": "Internal server error"}
-        mock_tf_client.get.return_value = error_response
-        with pytest.raises(TerraformError) as exc_info:
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_unexpected_exception_bubbles(self, mock_format_response, mock_tf_client, plan_id):
+        """Test non-NotFound exceptions are propagated to caller."""
+        mock_tf_client.client.plans.read.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
             get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
-        assert exc_info.value.args[0] == error_response
+
+        mock_format_response.assert_not_called()
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.plan.format_response")
+    def test_get_plan_data_default_parameter_reads_metadata(self, mock_format_response, mock_tf_client, plan_id):
+        """Test include_json_output defaults to metadata path."""
+        sdk_plan = Mock()
+        formatted = {"id": plan_id, "status": "finished"}
+
+        mock_tf_client.client.plans.read.return_value = sdk_plan
+        mock_format_response.return_value = formatted
+
+        result = get_plan_data(mock_tf_client, plan_id, use_plan_id=True)
+
+        assert result == formatted
+        mock_tf_client.client.plans.read.assert_called_once_with(plan_id)
+        mock_tf_client.client.plans.read_json_output.assert_not_called()
 
 
 if __name__ == "__main__":

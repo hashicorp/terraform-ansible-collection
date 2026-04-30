@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, annotations, division, print_function
-
 
 __metaclass__ = type
 
@@ -283,14 +282,10 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
-
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
-    AnsibleTerraformModule,
-    TerraformClient,
-)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import (
     get_workspace,
     get_workspace_by_id,
@@ -321,29 +316,28 @@ def main() -> None:
     result: Dict[str, Any] = {"changed": False, "warnings": warnings}
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
+
     try:
-        client = TerraformClient(**module.params)
+        with module.client() as adapter:
+            workspace_data: Optional[Dict[str, Any]] = None
+            if params["workspace_id"]:
+                # Retrieve workspace by ID
+                workspace_data = get_workspace_by_id(adapter, params["workspace_id"])
+                if not workspace_data:
+                    raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
+            else:
+                # Retrieve workspace by name and organization
+                workspace_data = get_workspace(adapter, params["organization"], params["workspace"])
+                if not workspace_data:
+                    raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
 
-        workspace_data: Optional[Dict[str, Any]] = None
-        if params["workspace_id"]:
-            # Retrieve workspace by ID
-            workspace_data = get_workspace_by_id(client, params["workspace_id"])
-            if not workspace_data:
-                raise ValueError(f"Workspace '{params['workspace_id']}' was not found.")
-        else:
-            # Retrieve workspace by name and organization
-            workspace_data = get_workspace(client, params["organization"], params["workspace"])
-            if not workspace_data:
-                raise ValueError(f"The workspace {params['workspace']} in {params['organization']} organization was not found.")
+            # Remove the status field from the response as it's internal
+            workspace_data.pop("status", None)
 
-        # Remove the status field from the response as it's internal
-        workspace_data.pop("status", None)
+            # Update result with workspace information
+            result["workspace"] = workspace_data
 
-        # Update result with workspace information
-        # Extract the data field to flatten the structure as requested by @NilashishC
-        result["workspace"] = workspace_data.get("data", workspace_data)
-
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

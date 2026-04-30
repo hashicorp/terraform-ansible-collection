@@ -1,0 +1,198 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "variable-test-{{ unique_id[:8] }}"
+
+    - name: Create a workspace to host the test variables
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        execution_mode: remote
+        description: integration test workspace for variable module
+        state: present
+      register: workspace_create
+
+    - name: Set workspace_id fact
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create.id }}"
+
+    # ---------- create ----------
+    - name: Create a Terraform input variable
+      hashicorp.terraform.variable: &create_tf_var
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        value: "us-east-1"
+        category: "terraform"
+        description: "default region"
+        hcl: false
+        sensitive: false
+        state: present
+      register: result_create
+
+    - name: Assert variable creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.id is defined
+          - result_create.key == "region"
+          - result_create.category == "terraform"
+
+    - name: Set variable_id fact
+      ansible.builtin.set_fact:
+        variable_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create same variable again
+      hashicorp.terraform.variable: *create_tf_var
+      register: result_create_again
+
+    # ---------- update via workspace+key ----------
+    - name: Update the variable's value via (workspace_id, key) lookup
+      hashicorp.terraform.variable: &update_tf_var
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        value: "us-west-2"
+        category: "terraform"
+        description: "default region"
+        hcl: false
+        sensitive: false
+        state: present
+      register: result_update
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.key == "region"
+
+    - name: Idempotency test - apply same update again
+      hashicorp.terraform.variable: *update_tf_var
+      register: result_update_again
+
+    # ---------- update via variable_id ----------
+    - name: Update description via variable_id path
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        variable_id: "{{ variable_id }}"
+        description: "updated description"
+        state: present
+      register: result_update_by_id
+
+    - name: Assert description was updated
+      ansible.builtin.assert:
+        that:
+          - result_update_by_id.changed
+          - result_update_by_id.description == "updated description"
+
+    - name: Idempotency test - same update via variable_id
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        variable_id: "{{ variable_id }}"
+        description: "updated description"
+        state: present
+      register: result_update_by_id_again
+
+    # ---------- check-mode ----------
+    - name: Check-mode update with a drifted field
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        value: "eu-central-1"
+        category: "terraform"
+        state: present
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying it
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    - name: Verify the real state was not mutated by check-mode
+      hashicorp.terraform.variable: *update_tf_var
+      register: result_post_check_mode
+
+
+    # ---------- sensitive environment variable ----------
+    - name: Create a sensitive env variable
+      hashicorp.terraform.variable: &create_env_secret
+        workspace_id: "{{ workspace_id }}"
+        key: "API_TOKEN"
+        value: "initial-secret"
+        category: "env"
+        sensitive: true
+        state: present
+      register: result_create_env
+
+    - name: Assert sensitive variable creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create_env.changed
+          - result_create_env.sensitive
+
+    - name: Idempotency test - re-apply sensitive variable (value not diffable, must be no-op)
+      hashicorp.terraform.variable: *create_env_secret
+      register: result_create_env_again
+
+    # ---------- delete ----------
+    - name: Delete the Terraform variable by (workspace_id, key)
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same variable again (no-op)
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        state: absent
+      register: result_delete_again
+
+    - name: Delete the sensitive env variable
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        key: "API_TOKEN"
+        state: absent
+      register: result_delete_env
+
+    - name: Assert sensitive variable delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete_env.changed
+
+  always:
+    - name: Cleanup - best-effort delete any leftover variables
+      hashicorp.terraform.variable:
+        workspace_id: "{{ workspace_id }}"
+        key: "{{ item }}"
+        state: absent
+      loop:
+        - region
+        - API_TOKEN
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Cleanup - delete the test workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: absent
+      when: workspace_name is defined
+      failed_when: false

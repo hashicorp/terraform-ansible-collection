@@ -13,25 +13,14 @@
       ansible.builtin.set_fact:
         project_name: "{{ unique_id[:30] }}-project"
 
-    # TODO: Replace with hashicorp.terraform.project module once available
-    # Currently using uri module because no project management module exists
     - name: Create a Terraform project with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/projects"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ project_name }}"
-              description: "Integration test project for project_info module"
-            type: "projects"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        project: "{{ project_name }}"
+        state: present
+        description: "Integration test project for project_info module"
+        default_execution_mode: "remote"
+        auto_destroy_activity_duration: "14d"
       register: project_create_response
 
     - name: Debug project creation response
@@ -40,13 +29,8 @@
 
     - name: Set a fact for 'project_id' (from json attribute)
       ansible.builtin.set_fact:
-        project_id: "{{ project_create_response.json.data.id }}"
-      when: project_create_response.json is defined
-
-    - name: Set a fact for 'project_id' (from content)
-      ansible.builtin.set_fact:
-        project_id: "{{ (project_create_response.content | from_json).data.id }}"
-      when: project_create_response.json is not defined and project_create_response.content is defined
+        project_id: "{{ project_create_response.id }}"
+      when: project_create_response.id is defined
 
     - name: Debug project_id value
       ansible.builtin.debug:
@@ -76,9 +60,8 @@
         that:
           - not result_by_id.changed
           - result_by_id.project.id == project_id
-          - result_by_id.project.type == "projects"
-          - result_by_id.project.attributes.name is defined
-          - result_by_id.project.attributes.name == project_name
+          - result_by_id.project.name is defined
+          - result_by_id.project.name == project_name
           - '"status" not in result_by_id.project'
 
     # Test error handling - invalid project ID
@@ -135,14 +118,6 @@
         that:
           - result_by_id.project == result_by_id_again.project
 
-    # Test that project contains basic expected structure
-    - name: Verify project basic structure
-      ansible.builtin.assert:
-        that:
-          - result_by_id.project.attributes is defined
-          - result_by_id.project.relationships is defined
-          - result_by_id.project.links is defined
-
     # Test error handling - missing project_id parameter
     - name: Test missing project_id parameter
       hashicorp.terraform.project_info:
@@ -177,17 +152,10 @@
             "conversion is not allowed" in result_null_id.msg
 
   always:
-    # TODO: Replace with hashicorp.terraform.project module once available
-    # Currently using uri module because no project management module exists
-    - name: Force delete project
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
+    - name: Delete first project
+      hashicorp.terraform.project:
+        project_id: "{{ project_id }}"
+        state: absent
       register: project_delete_response
       when: project_id is defined
+      no_log: true

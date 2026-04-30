@@ -1,2 +1,2 @@
-requests
 pydantic>=2.0.0
+pytfe>=0.1.4

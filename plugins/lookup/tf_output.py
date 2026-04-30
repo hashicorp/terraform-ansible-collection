@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright: (c) 2025, Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
-
 
 DOCUMENTATION = r"""
 name: tf_output
@@ -47,25 +46,49 @@ options:
       - Name of the organization that the workspace belongs to.
       - Required when the I(workspace) parameter is specified.
     type: str
-  tf_hostname:
+  tfe_address:
     description:
-      - Terraform Cloud/Enterprise hostname.
-      - Defaults to C(app.terraform.io) for Terraform Cloud.
+      - Terraform Cloud/Enterprise API address.
+      - Falls back to the C(TFE_ADDRESS) environment variable when not set.
+      - Defaults to C(https://app.terraform.io) for HCP Terraform.
     type: str
-    default: app.terraform.io
-    aliases: ['hostname']
-  tf_token:
+    default: https://app.terraform.io
+  tfe_token:
     description:
       - Terraform Cloud/Enterprise API token.
-      - Can also be specified via the C(TF_CLOUD_TOKEN) environment variable.
+      - Falls back to the C(TFE_TOKEN) environment variable when not set.
+      - The C(tf_token) alias is kept for compatibility with older collection releases.
     type: str
-    aliases: ['token']
-  tf_validate_certs:
+    required: true
+    aliases: ['tf_token']
+  tfe_timeout:
     description:
-      - Whether to validate SSL certificates for HTTPS requests.
-      - Set to I(false) to disable certificate validation (not recommended for production).
+      - HTTP request timeout in seconds used by the underlying pytfe SDK.
+      - Falls back to the C(TFE_TIMEOUT) environment variable when not set.
+    type: float
+    default: 30.0
+  tfe_verify_tls:
+    description:
+      - Whether to verify TLS certificates when talking to the Terraform Cloud/Enterprise API.
+      - Set to I(false) to disable certificate verification for self-signed Terraform Enterprise deployments (not recommended for production).
+      - Falls back to the C(TFE_VERIFY_TLS) environment variable when not set.
     type: bool
     default: true
+  tfe_max_retries:
+    description:
+      - Maximum number of automatic retries the pytfe SDK performs for transient HTTP failures.
+      - Falls back to the C(TFE_MAX_RETRIES) environment variable when not set.
+    type: int
+    default: 5
+  tfe_ca_bundle:
+    description:
+      - Path to a CA bundle file used to verify TLS certificates.
+      - Falls back to the C(SSL_CERT_FILE) environment variable when not set.
+    type: path
+  tfe_proxies:
+    description:
+      - HTTP/HTTPS proxy URL passed through to the pytfe SDK.
+    type: str
   display_sensitive:
     description:
       - Whether to return actual values for sensitive outputs.
@@ -156,7 +179,7 @@ value:
 from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import (
     get_output_by_name,
     get_specific_output,
@@ -196,7 +219,7 @@ class LookupModule(LookupBase):
 
     def _get_output_value(
         self,
-        client,
+        adapter,
         state_version_output_id,
         workspace_id,
         workspace,
@@ -208,23 +231,23 @@ class LookupModule(LookupBase):
         """Retrieve output value based on the provided parameters."""
         if state_version_output_id:
             output_data = get_specific_output(
-                client,
+                adapter,
                 state_version_output_id,
                 display_sensitive=display_sensitive,
             )
             return output_data["value"]
 
-        workspace_id = resolve_workspace_id(client, workspace_id, workspace, organization)
+        workspace_id = resolve_workspace_id(adapter, workspace_id, workspace, organization)
 
         if allow_all_outputs:
             return get_workspace_outputs(
-                client,
+                adapter,
                 workspace_id,
                 display_sensitive=display_sensitive,
             )
 
         output_data = get_output_by_name(
-            client,
+            adapter,
             workspace_id,
             name,
             display_sensitive=display_sensitive,
@@ -239,8 +262,6 @@ class LookupModule(LookupBase):
         organization = kwargs.get("organization")
         name = kwargs.get("name")
         display_sensitive = kwargs.get("display_sensitive", False)
-        kwargs.setdefault("tf_validate_certs", True)
-        kwargs.setdefault("tf_hostname", "app.terraform.io")
 
         allow_all_outputs = self._validate_parameters(
             state_version_output_id,
@@ -249,20 +270,18 @@ class LookupModule(LookupBase):
             organization,
             name,
         )
-
-        client = TerraformClient(**kwargs)
-
         try:
-            value = self._get_output_value(
-                client,
-                state_version_output_id,
-                workspace_id,
-                workspace,
-                organization,
-                name,
-                allow_all_outputs,
-                display_sensitive,
-            )
+            with TerraformClient.from_mapping(kwargs) as adapter:
+                value = self._get_output_value(
+                    adapter,
+                    state_version_output_id,
+                    workspace_id,
+                    workspace,
+                    organization,
+                    name,
+                    allow_all_outputs,
+                    display_sensitive,
+                )
         except ValueError as e:
             raise AnsibleError(f"Output lookup failed - resource not found: {str(e)}")
         except Exception as e:

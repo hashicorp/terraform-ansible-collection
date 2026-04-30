@@ -7,7 +7,8 @@ env:
 on:
   pull_request:
   push:
-    branches: [main, devel]
+    branches: [main, devel, stable-1, stable-2]
+  workflow_dispatch:
 
 jobs:
   common-tests:
@@ -30,15 +31,15 @@ jobs:
       - name: Install make
         run: sudo apt install make
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - name: Install python 3.11
-        uses: actions/setup-python@v5
+      - name: Install python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Install requirements
-        run: pip3.11 install -r test-requirements.txt
+        run: pip3.12 install -r test-requirements.txt
 
       - name: Run check ${{ matrix.tests.name }}
         run: make ${{ matrix.tests.command }}

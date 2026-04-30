@@ -2,7 +2,7 @@
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
-      tf_token: "{{ tfc_token }}"
+      tfe_token: "{{ tfc_token }}"
 
   block:
     - name: Generate a unique project name
@@ -15,7 +15,7 @@
         project: "{{ project_name }}"
         state: present
         description: "test project"
-        execution_mode: "remote"
+        default_execution_mode: "remote"
         auto_destroy_activity_duration: "14d"
         tag_bindings:
           - key: "env"
@@ -42,7 +42,7 @@
         organization: "{{ organization }}"
         state: present
         description: "test project updated"
-        execution_mode: "local"
+        default_execution_mode: "local"
         auto_destroy_activity_duration: "15d"
         tag_bindings:
           - key: "env"
@@ -53,9 +53,9 @@
       ansible.builtin.assert:
         that:
           - result_update.changed
-          - result_update.attributes.description == "test project updated"
-          - result_update.attributes["default-execution-mode"] == "local"
-          - result_update.attributes["auto-destroy-activity-duration"] == "15d"
+          - result_update.description == "test project updated"
+          - result_update.default_execution_mode == "local"
+          - result_update.auto_destroy_activity_duration == "15d"
 
     - name: Idempotency test - update project again
       hashicorp.terraform.project: *update_project_task
@@ -121,7 +121,7 @@
       hashicorp.terraform.project: &update_project_agent_task
         project_id: "{{ result_create.id }}"
         state: present
-        execution_mode: "agent"
+        default_execution_mode: "agent"
         default_agent_pool_id: "{{ agent_pool_id }}"
         description: "project with agent execution mode"
       register: result_update_agent
@@ -130,8 +130,8 @@
       ansible.builtin.assert:
         that:
           - result_update_agent.changed
-          - result_update_agent.attributes["default-execution-mode"] == "agent"
-          - result_update_agent.attributes["description"] == "project with agent execution mode"
+          - result_update_agent.default_execution_mode == "agent"
+          - result_update_agent.description == "project with agent execution mode"
 
     - name: Idempotency test - update project with agent pool again
       hashicorp.terraform.project: *update_project_agent_task
@@ -146,7 +146,7 @@
       hashicorp.terraform.project:
         project_id: "{{ result_create.id }}"
         state: present
-        execution_mode: "remote"
+        default_execution_mode: "remote"
         description: "project back to remote mode"
       register: result_update_remote
 
@@ -154,8 +154,8 @@
       ansible.builtin.assert:
         that:
           - result_update_remote.changed
-          - result_update_remote.attributes["default-execution-mode"] == "remote"
-          - result_update_remote.attributes["description"] == "project back to remote mode"
+          - result_update_remote.default_execution_mode == "remote"
+          - result_update_remote.description == "project back to remote mode"
 
     - name: Create a second project with agent execution mode from the start
       hashicorp.terraform.project:
@@ -163,7 +163,7 @@
         project: "{{ project_name }}-agent"
         state: present
         description: "test project with agent mode"
-        execution_mode: "agent"
+        default_execution_mode: "agent"
         default_agent_pool_id: "{{ agent_pool_id }}"
         auto_destroy_activity_duration: "14d"
       register: result_create_agent
@@ -172,15 +172,15 @@
       ansible.builtin.assert:
         that:
           - result_create_agent.changed
-          - result_create_agent.attributes["default-execution-mode"] == "agent"
-          - result_create_agent.attributes["description"] == "test project with agent mode"
-          - result_create_agent.attributes["auto-destroy-activity-duration"] == "14d"
+          - result_create_agent.default_execution_mode == "agent"
+          - result_create_agent.description == "test project with agent mode"
+          - result_create_agent.auto_destroy_activity_duration == "14d"
 
     - name: Update the second project's agent pool (same pool, testing idempotency)
       hashicorp.terraform.project:
         project_id: "{{ result_create_agent.id }}"
         state: present
-        execution_mode: "agent"
+        default_execution_mode: "agent"
         default_agent_pool_id: "{{ agent_pool_id }}"
       register: result_update_agent_same
 
@@ -194,7 +194,7 @@
       hashicorp.terraform.project:
         project_id: "{{ result_create.id }}"
         state: present
-        execution_mode: "remote"
+        default_execution_mode: "remote"
       register: result_update_before_delete
       when: result_create.id is defined
       ignore_errors: true
@@ -211,7 +211,7 @@
       hashicorp.terraform.project:
         project_id: "{{ result_create_agent.id }}"
         state: present
-        execution_mode: "remote"
+        default_execution_mode: "remote"
       register: result_update_agent_before_delete
       when: result_create_agent.id is defined
       ignore_errors: true

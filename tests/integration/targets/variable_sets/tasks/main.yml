@@ -1,0 +1,217 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate unique suffix
+      ansible.builtin.set_fact:
+        suffix: "{{ lookup('pipe', 'uuidgen')[:8] }}"
+
+    - name: Set fact for resource names
+      ansible.builtin.set_fact:
+        varset_name: "varset-{{ suffix }}"
+        workspace_a: "varset-ws-a-{{ suffix }}"
+        workspace_b: "varset-ws-b-{{ suffix }}"
+
+    - name: Create two supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        execution_mode: remote
+        description: "integration workspace for variable_sets tests"
+        state: present
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      register: workspace_create
+
+    - name: Pin workspace IDs
+      ansible.builtin.set_fact:
+        ws_a_id: "{{ workspace_create.results[0].id }}"
+        ws_b_id: "{{ workspace_create.results[1].id }}"
+
+    # ---------- create ----------
+    - name: Create a non-global variable set
+      hashicorp.terraform.variable_sets: &create_varset
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        description: "integration test varset"
+        global: false
+        priority: false
+        state: present
+      register: result_create
+
+    - name: Assert variable set creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == varset_name
+
+    - name: Set varset_id fact
+      ansible.builtin.set_fact:
+        varset_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create same variable set again
+      hashicorp.terraform.variable_sets: *create_varset
+      register: result_create_again
+
+    # ---------- update description ----------
+    - name: Update description
+      hashicorp.terraform.variable_sets: &update_varset
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        description: "integration test varset (authoritative)"
+        global: false
+        priority: true
+        state: present
+      register: result_update
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.priority
+          - result_update.description == "integration test varset (authoritative)"
+
+    # ---------- attach workspaces ----------
+    - name: Attach to two workspaces
+      hashicorp.terraform.variable_sets: &attach_two
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        global: false
+        priority: true
+        workspace_ids:
+          - "{{ ws_a_id }}"
+          - "{{ ws_b_id }}"
+        state: present
+      register: result_attach
+
+    - name: Assert attach was successful
+      ansible.builtin.assert:
+        that:
+          - result_attach.changed
+          - ws_a_id in result_attach.workspace_ids
+          - ws_b_id in result_attach.workspace_ids
+
+    - name: Idempotency test - attach same workspaces again
+      hashicorp.terraform.variable_sets: *attach_two
+      register: result_attach_again
+
+    # ---------- reduce to one workspace ----------
+    - name: Detach one workspace by providing a smaller desired set
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        global: false
+        priority: true
+        workspace_ids:
+          - "{{ ws_a_id }}"
+        state: present
+      register: result_reduce
+
+    - name: Assert one workspace was removed
+      ansible.builtin.assert:
+        that:
+          - result_reduce.changed
+          - result_reduce.workspace_ids == [ws_a_id]
+
+    # ---------- detach all ----------
+    - name: Detach all workspaces by passing an empty list
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        global: false
+        priority: true
+        workspace_ids: []
+        state: present
+      register: result_detach_all
+
+    - name: Assert full detach succeeded
+      ansible.builtin.assert:
+        that:
+          - result_detach_all.changed
+          - result_detach_all.workspace_ids == []
+
+    - name: Idempotency test - detach all again
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        global: false
+        priority: true
+        workspace_ids: []
+        state: present
+      register: result_detach_all_again
+
+
+    # ---------- check-mode ----------
+    - name: Check-mode update with drifted field
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        description: "would-be new description"
+        global: false
+        priority: true
+        state: present
+      check_mode: true
+      register: result_check
+
+    - name: Assert check-mode reports change without mutating
+      ansible.builtin.assert:
+        that:
+          - result_check.changed
+          - "'check mode' in result_check.msg"
+
+    - name: Verify check-mode did not actually mutate
+      hashicorp.terraform.variable_sets: *update_varset
+      register: result_post_check
+
+    # ---------- delete ----------
+    - name: Delete the variable set by (organization, name)
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the variable set again (no-op)
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert repeated delete is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - ensure variable set is gone
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        state: absent
+      when: varset_name is defined
+      failed_when: false
+
+    - name: Cleanup - delete supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      when: workspace_a is defined
+      failed_when: false

@@ -1,7 +1,26 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+from typing import Any, Dict
+
+try:
+    from pytfe.errors import AuthError, NotFound, ServerError, TFEError
+except ImportError:
+
+    class AuthError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class NotFound(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ServerError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class TFEError(Exception):  # type: ignore[no-redef]
+        pass
+
+
 from .exceptions import (
     TerraformError,
 )
@@ -64,3 +83,72 @@ def dict_diff(base, comparable):
         updates[key] = comparable.get(key)
 
     return updates
+
+
+def handle_error(error: Exception, context: str = "") -> None:
+    """Translate and re-raise SDK exceptions with additional context.
+
+    Args:
+        error: Exception from SDK
+        context: Additional context about the operation
+
+    Raises:
+        TerraformError: Wrapped exception with context
+    """
+    error_msg = str(error)
+
+    if context:
+        error_msg = f"{context}: {error_msg}"
+
+    # TFE-specific error handling
+    if isinstance(error, NotFound):
+        error_msg = f"Resource not found: {error_msg}"
+    elif isinstance(error, AuthError):
+        error_msg = f"Authentication error: {error_msg}"
+    elif isinstance(error, ServerError):
+        error_msg = f"Server error: {error_msg}"
+    elif isinstance(error, TFEError):
+        # Generic TFE error - extract additional details if available
+        details = getattr(error, "details", None)
+        if details:
+            error_msg = f"{error_msg} - Details: {details}"
+
+    raise TerraformError(error_msg) from error
+
+
+def safe_api_call(operation, *args, **kwargs) -> Any:
+    """Execute API operation with error handling.
+
+    Args:
+        operation: Callable API operation
+        *args: Positional arguments for the operation
+        **kwargs: Keyword arguments for the operation (error_context is extracted)
+
+    Returns:
+        Result from the API operation
+
+    Raises:
+        TerraformError: If operation fails
+    """
+    # Extract error_context before calling operation
+    error_context = kwargs.pop("error_context", str(operation))
+
+    try:
+        return operation(*args, **kwargs)
+    except TFEError as e:
+        handle_error(e, context=error_context)
+    except Exception as e:
+        raise TerraformError(f"Unexpected error: {str(e)}") from e
+
+
+def format_response(response: Any) -> Dict[str, Any]:
+    """Format SDK response for Ansible output.
+
+    Args:
+        response: Response object from SDK
+
+    Returns:
+        Dictionary formatted for Ansible
+    """
+    # Convert SDK response to dictionary with JSON-serializable types
+    return response.model_dump(mode="json", exclude_none=True)

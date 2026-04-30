@@ -5,20 +5,19 @@
 
 namespace: "hashicorp"
 name: "terraform"
-version: 1.0.0
+version: 2.0.0-dev
 readme: README.md
 authors:
-  - Ansible (https://github.com/ansible)
+  - HashiCorp, an IBM Company (https://github.com/hashicorp)
 
 description: An Ansible Collection for managing Terraform Cloud/Enterprise.
 license_file: LICENSE
 
-# TO-DO: update the tags based on your content type
 tags: ["hashicorp", "terraform", "infrastructure", "cloud"]
 
-repository: https://github.com/ansible
-homepage: http://ansible.com/
-issues: https://access.redhat.com/support/
+repository: https://github.com/hashicorp/terraform-ansible-collection
+homepage: https://www.hashicorp.com/
+issues: https://github.com/hashicorp/terraform-ansible-collection/issues
 
 # A list of file glob-like patterns used to filter any files or directories that should not be included in the build
 # artifact. A pattern is matched from the relative path of the file or directory of the collection directory. This

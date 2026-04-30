@@ -1,0 +1,13 @@
+terraform {
+  required_version = ">= 1.2.0"
+
+  cloud {
+    organization = "{{ organization }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name = "{{ workspace_name }}"
+    }
+  }
+}
+
+resource "null_resource" "promote_run_test" {}

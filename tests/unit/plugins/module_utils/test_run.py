@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-import pytest
+from pytfe.errors import NotFound
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import (
     apply_run,
     cancel_run,
@@ -15,745 +14,188 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.run import (
     discard_run,
     get_run,
     run_events,
-    task_stages,
 )
 
 
 class TestCreateRun:
-    """Test cases for create_run function."""
+    """Test cases for create_run with SDK adapters."""
 
-    @pytest.mark.parametrize(
-        "status,expected_result,should_raise",
-        [
-            (
-                201,
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {"status": "pending", "message": "Run created successfully"},
-                },
-                False,
-            ),
-            (400, None, True),
-            (422, None, True),
-            (500, None, True),
-        ],
-    )
-    def test_create_run_status_codes(self, status, expected_result, should_raise):
-        """Test create_run with various status codes."""
-        mock_client = Mock()
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.RunCreateOptions.model_validate")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.ConfigurationVersion.model_validate")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.Workspace.model_validate")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.safe_api_call")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.format_response")
+    def test_create_run_with_workspace_and_configuration_version(
+        self,
+        mock_format_response,
+        mock_safe_api_call,
+        mock_workspace_model_validate,
+        mock_cv_model_validate,
+        mock_run_options_validate,
+    ):
+        """Test create_run maps IDs to SDK models and formats response."""
+        mock_adapter = Mock()
+        mock_options = Mock()
+        mock_sdk_response = Mock()
 
-        if should_raise:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": expected_result,
-            }
+        mock_workspace_model_validate.return_value = "workspace-model"
+        mock_cv_model_validate.return_value = "config-version-model"
+        mock_run_options_validate.return_value = mock_options
+        mock_safe_api_call.return_value = mock_sdk_response
+        mock_format_response.return_value = {"id": "run-123", "status": "pending"}
 
-        test_data = {
-            "data": {
-                "type": "runs",
-                "attributes": {
-                    "message": "Test run",
-                },
-                "relationships": {"workspace": {"data": {"type": "workspaces", "id": "ws-123"}}},
-            }
+        payload = {
+            "workspace_id": "ws-123",
+            "configuration_version": "cv-123",
+            "run_message": "plan run",
+            "variables": [{"key": "env", "value": "dev"}],
         }
 
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                create_run(mock_client, test_data)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = create_run(mock_client, test_data)
-            assert result == expected_result
+        result = create_run(mock_adapter, payload)
 
-        mock_client.post.assert_called_once_with("/runs", data=test_data)
+        assert result == {"id": "run-123", "status": "pending"}
+        mock_workspace_model_validate.assert_called_once_with({"id": "ws-123", "type": "workspaces"})
+        mock_cv_model_validate.assert_called_once_with({"id": "cv-123", "type": "configuration-versions"})
+        mock_run_options_validate.assert_called_once()
 
-    @pytest.mark.parametrize(
-        "response_data,expected_result",
-        [
-            ({"status": 201, "data": None}, None),
-            ({"status": 201}, None),
-            ({"status": 201, "data": {"id": "run-abc", "type": "runs"}}, {"id": "run-abc", "type": "runs"}),
-        ],
-    )
-    def test_create_run_response_variations(self, response_data, expected_result):
-        """Test create_run with various response data structures."""
-        mock_client = Mock()
-        mock_client.post.return_value = response_data
+        validated_payload = mock_run_options_validate.call_args.args[0]
+        assert "workspace_id" not in validated_payload
+        assert "configuration_version" in validated_payload
+        assert validated_payload["workspace"] == "workspace-model"
 
-        test_data = {"data": {"type": "runs"}}
-        result = create_run(mock_client, test_data)
+        mock_safe_api_call.assert_called_once_with(mock_adapter.client.runs.create, mock_options)
+        mock_format_response.assert_called_once_with(mock_sdk_response)
 
-        assert result == expected_result
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.RunCreateOptions.model_validate")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.safe_api_call")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.format_response")
+    def test_create_run_minimal_payload(self, mock_format_response, mock_safe_api_call, mock_run_options_validate):
+        """Test create_run handles minimal payload without optional transforms."""
+        mock_adapter = Mock()
+        mock_options = Mock()
+        mock_sdk_response = Mock()
 
+        mock_run_options_validate.return_value = mock_options
+        mock_safe_api_call.return_value = mock_sdk_response
+        mock_format_response.return_value = {"id": "run-456"}
 
-class TestApplyRun:
-    """Test cases for apply_run function."""
+        payload = {"workspace_id": "ws-456"}
 
-    @pytest.mark.parametrize(
-        "run_id,status,expected_result,should_raise",
-        [
-            (
-                "run-123",
-                202,
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {"status": "applying", "message": "Run is being applied"},
-                },
-                False,
-            ),
-            ("nonexistent-run", 404, None, True),
-            ("run-456", 409, None, True),
-            ("", 202, {"id": "run-", "type": "runs"}, False),
-            ("run-test-123_abc", 202, {"id": "run-test-123_abc", "type": "runs"}, False),
-        ],
-    )
-    def test_apply_run_scenarios(self, run_id, status, expected_result, should_raise):
-        """Test apply_run with various scenarios."""
-        mock_client = Mock()
+        result = create_run(mock_adapter, payload)
 
-        if should_raise:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": expected_result,
-            }
-
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                apply_run(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = apply_run(mock_client, run_id)
-            if expected_result:
-                assert result["status"] == status
-                assert result["data"]["id"] == expected_result["id"]
-
-        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/apply")
+        assert result == {"id": "run-456"}
+        mock_run_options_validate.assert_called_once()
+        mock_safe_api_call.assert_called_once_with(mock_adapter.client.runs.create, mock_options)
 
 
-class TestCancelRun:
-    """Test cases for cancel_run function."""
+class TestRunActions:
+    """Test cases for apply/cancel/discard helpers."""
 
-    @pytest.mark.parametrize(
-        "run_id,status,expected_result,should_raise",
-        [
-            (
-                "run-123",
-                202,
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {"status": "canceled", "message": "Run has been canceled"},
-                },
-                False,
-            ),
-            ("run-123", 409, None, True),
-            ("run-test-123_abc", 202, {"id": "run-test-123_abc", "type": "runs"}, False),
-            ("run-invalid", 404, None, True),
-            ("run-forbidden", 403, None, True),
-        ],
-    )
-    def test_cancel_run_scenarios(self, run_id, status, expected_result, should_raise):
-        """Test cancel_run with various scenarios."""
-        mock_client = Mock()
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.safe_api_call")
+    def test_apply_run(self, mock_safe_api_call):
+        """Test apply_run uses SDK runs.apply with options and returns run id."""
+        mock_adapter = Mock()
 
-        if should_raise:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": expected_result,
-            }
+        result = apply_run(mock_adapter, "run-123", comment="apply now")
 
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                cancel_run(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = cancel_run(mock_client, run_id)
-            assert result["status"] == status
-            assert result["data"]["id"] == expected_result["id"]
+        assert result == {"data": {"id": "run-123"}}
+        mock_safe_api_call.assert_called_once()
+        args = mock_safe_api_call.call_args.args
+        assert args[0] == mock_adapter.client.runs.apply
+        assert args[1] == "run-123"
+        assert args[2].comment == "apply now"
 
-        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/cancel")
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.safe_api_call")
+    def test_cancel_run(self, mock_safe_api_call):
+        """Test cancel_run uses SDK runs.cancel with options and returns run id."""
+        mock_adapter = Mock()
 
+        result = cancel_run(mock_adapter, "run-456", comment="cancel now")
 
-class TestDiscardRun:
-    """Test cases for discard_run function."""
+        assert result == {"data": {"id": "run-456"}}
+        mock_safe_api_call.assert_called_once()
+        args = mock_safe_api_call.call_args.args
+        assert args[0] == mock_adapter.client.runs.cancel
+        assert args[1] == "run-456"
+        assert args[2].comment == "cancel now"
 
-    @pytest.mark.parametrize(
-        "run_id,status,response_data,expected_result,should_raise",
-        [
-            (
-                "run-123",
-                202,
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {"status": "discarded", "message": "Run has been discarded"},
-                },
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {"status": "discarded", "message": "Run has been discarded"},
-                },
-                False,
-            ),
-            ("run-123", 422, None, None, True),
-            ("run-123", 202, None, None, False),  # Empty data case
-            ("run-invalid", 404, None, None, True),
-            ("run-forbidden", 403, None, None, True),
-        ],
-    )
-    def test_discard_run_scenarios(self, run_id, status, response_data, expected_result, should_raise):
-        """Test discard_run with various scenarios."""
-        mock_client = Mock()
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.safe_api_call")
+    def test_discard_run(self, mock_safe_api_call):
+        """Test discard_run uses SDK runs.discard with options and returns run id."""
+        mock_adapter = Mock()
 
-        if should_raise:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.post.return_value = {
-                "status": status,
-                "data": response_data,
-            }
+        result = discard_run(mock_adapter, "run-789", comment="discard now")
 
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                discard_run(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = discard_run(mock_client, run_id)
-            assert result["status"] == status
-            if expected_result:
-                assert result["data"] == expected_result
-            else:
-                assert result["data"] == response_data
-
-        mock_client.post.assert_called_once_with(f"/runs/{run_id}/actions/discard")
+        assert result == {"data": {"id": "run-789"}}
+        mock_safe_api_call.assert_called_once()
+        args = mock_safe_api_call.call_args.args
+        assert args[0] == mock_adapter.client.runs.discard
+        assert args[1] == "run-789"
+        assert args[2].comment == "discard now"
 
 
 class TestGetRun:
-    """Test cases for get_run function."""
+    """Test cases for get_run function with SDK reads."""
 
-    @pytest.mark.parametrize(
-        "run_id,status,expected_result,should_raise,returns_tuple",
-        [
-            (
-                "run-123",
-                200,
-                {
-                    "id": "run-123",
-                    "type": "runs",
-                    "attributes": {
-                        "status": "planned",
-                        "message": "Plan completed successfully",
-                        "created-at": "2023-01-01T00:00:00.000Z",
-                    },
-                },
-                False,
-                False,
-            ),
-            ("run-123", 403, None, True, False),
-            ("run-123", 404, (404, "Run run-123 not found in the Terraform Cloud/Enterprise workspace"), False, True),
-            ("run-unicode-123", 200, {"id": "run-unicode-123", "type": "runs"}, False, False),
-            ("run-special-chars_123", 200, {"id": "run-special-chars_123", "type": "runs"}, False, False),
-        ],
-    )
-    def test_get_run_scenarios(self, run_id, status, expected_result, should_raise, returns_tuple):
-        """Test get_run with various scenarios."""
-        mock_client = Mock()
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.format_response")
+    def test_get_run_success(self, mock_format_response):
+        """Test get_run formats SDK run object."""
+        mock_adapter = Mock()
+        mock_sdk_run = Mock()
 
-        if should_raise or returns_tuple:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": expected_result,
-            }
+        mock_adapter.client.runs.read.return_value = mock_sdk_run
+        mock_format_response.return_value = {"id": "run-abc", "status": "planned"}
 
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                get_run(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        elif returns_tuple:
-            result = get_run(mock_client, run_id)
-            assert result == {}  # 404 now returns empty dict
-        else:
-            result = get_run(mock_client, run_id)
-            assert result["id"] == expected_result["id"]
+        result = get_run(mock_adapter, "run-abc")
 
-        mock_client.get.assert_called_once_with(f"/runs/{run_id}")
+        assert result == {"id": "run-abc", "status": "planned"}
+        mock_adapter.client.runs.read.assert_called_once_with("run-abc")
+        mock_format_response.assert_called_once_with(mock_sdk_run)
+
+    def test_get_run_not_found(self):
+        """Test get_run returns empty dict for missing run."""
+        mock_adapter = Mock()
+        mock_adapter.client.runs.read.side_effect = NotFound("Run not found")
+
+        result = get_run(mock_adapter, "run-missing")
+
+        assert result == {}
+        mock_adapter.client.runs.read.assert_called_once_with("run-missing")
 
 
 class TestRunEvents:
-    """Test cases for run_events function."""
+    """Test cases for run_events function with SDK iterator."""
 
-    @pytest.mark.parametrize(
-        "run_id,status,response_data,expected_result,should_raise",
-        [
-            (
-                "run-123",
-                200,
-                [
-                    {
-                        "id": "event-1",
-                        "type": "run-events",
-                        "attributes": {"action": "created", "created-at": "2023-01-01T00:00:00.000Z"},
-                    },
-                    {
-                        "id": "event-2",
-                        "type": "run-events",
-                        "attributes": {"action": "planning", "created-at": "2023-01-01T00:01:00.000Z"},
-                    },
-                ],
-                2,
-                False,
-            ),
-            ("run-123", 500, None, None, True),
-            ("run-123", 200, [], 0, False),  # Empty events list
-            ("run-123", 200, None, None, False),  # None data
-            ("run-456", 403, None, None, True),
-            ("run-789", 404, None, None, True),
-        ],
-    )
-    def test_run_events_scenarios(self, run_id, status, response_data, expected_result, should_raise):
-        """Test run_events with various scenarios."""
-        mock_client = Mock()
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.format_response")
+    def test_run_events_success(self, mock_format_response):
+        """Test run_events formats all SDK event objects from iterator."""
+        mock_adapter = Mock()
+        mock_event_1 = Mock()
+        mock_event_2 = Mock()
 
-        if should_raise:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": response_data,
-            }
+        mock_adapter.client.run_events.list.return_value = [mock_event_1, mock_event_2]
+        mock_format_response.side_effect = [
+            {"id": "event-1", "action": "created"},
+            {"id": "event-2", "action": "planning"},
+        ]
 
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                run_events(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = run_events(mock_client, run_id)
-            if expected_result is None:
-                assert result is None
-            elif isinstance(expected_result, int):
-                assert len(result) == expected_result
-                if expected_result > 0:
-                    assert result[0]["id"] == "event-1"
-                    if expected_result > 1:
-                        assert result[1]["attributes"]["action"] == "planning"
+        result = run_events(mock_adapter, "run-123")
 
-        mock_client.get.assert_called_once_with(f"/runs/{run_id}/run-events")
+        assert result == [
+            {"id": "event-1", "action": "created"},
+            {"id": "event-2", "action": "planning"},
+        ]
+        mock_adapter.client.run_events.list.assert_called_once_with("run-123")
+        assert mock_format_response.call_count == 2
 
+    @patch("ansible_collections.hashicorp.terraform.plugins.module_utils.run.format_response")
+    def test_run_events_empty(self, mock_format_response):
+        """Test run_events returns empty list for no events."""
+        mock_adapter = Mock()
+        mock_adapter.client.run_events.list.return_value = []
 
-class TestTaskStages:
-    """Test cases for task_stages function."""
+        result = run_events(mock_adapter, "run-456")
 
-    @pytest.mark.parametrize(
-        "run_id,status,response_data,expected_result,should_raise",
-        [
-            (
-                "run-123",
-                200,
-                [
-                    {
-                        "id": "task-stage-1",
-                        "type": "task-stages",
-                        "attributes": {
-                            "stage": "pre_plan",
-                            "status": "passed",
-                            "status-timestamps": {
-                                "started-at": "2023-01-01T00:00:00.000Z",
-                                "finished-at": "2023-01-01T00:01:00.000Z",
-                            },
-                        },
-                    },
-                    {
-                        "id": "task-stage-2",
-                        "type": "task-stages",
-                        "attributes": {
-                            "stage": "post_plan",
-                            "status": "running",
-                            "status-timestamps": {"started-at": "2023-01-01T00:02:00.000Z"},
-                        },
-                    },
-                ],
-                2,
-                False,
-            ),
-            ("run-123", 401, None, None, True),
-            ("run-123", 200, [], 0, False),  # Empty stages list
-            ("run-456", 403, None, None, True),
-            ("run-789", 404, None, None, True),
-        ],
-    )
-    def test_task_stages_scenarios(self, run_id, status, response_data, expected_result, should_raise):
-        """Test task_stages with various scenarios."""
-        mock_client = Mock()
-
-        if should_raise:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": {
-                    "errors": [
-                        {
-                            "detail": f"Error {status}",
-                            "status": str(status),
-                            "title": "Error",
-                        }
-                    ]
-                },
-            }
-        else:
-            mock_client.get.return_value = {
-                "status": status,
-                "data": response_data,
-            }
-
-        if should_raise:
-            with pytest.raises(TerraformError) as exc_info:
-                task_stages(mock_client, run_id)
-            assert str(status) in str(exc_info.value)
-        else:
-            result = task_stages(mock_client, run_id)
-            if isinstance(expected_result, int):
-                assert len(result) == expected_result
-                if expected_result > 0:
-                    assert result[0]["id"] == "task-stage-1"
-                    assert result[0]["attributes"]["stage"] == "pre_plan"
-                    if expected_result > 1:
-                        assert result[1]["attributes"]["status"] == "running"
-
-        mock_client.get.assert_called_once_with(f"/runs/{run_id}/task-stages")
-
-    def test_task_stages_missing_data_key(self):
-        """Test task_stages when response has no data key."""
-        mock_client = Mock()
-        mock_client.get.return_value = {
-            "status": 200,
-        }
-
-        run_id = "run-123"
-        result = task_stages(mock_client, run_id)
-
-        assert result is None
-
-
-class TestRunsModuleEdgeCases:
-    """Test edge cases and error scenarios for runs module."""
-
-    @pytest.mark.parametrize(
-        "function_name,args",
-        [
-            ("create_run", [{"data": {"type": "runs"}}]),
-            ("apply_run", ["run-123"]),
-            ("cancel_run", ["run-123"]),
-            ("discard_run", ["run-123"]),
-            ("get_run", ["run-123"]),
-            ("run_events", ["run-123"]),
-            ("task_stages", ["run-123"]),
-        ],
-    )
-    def test_all_functions_handle_client_exception(self, function_name, args):
-        """Test all functions handle client exceptions gracefully."""
-        mock_client = Mock()
-        mock_client.post.side_effect = Exception("Network error")
-        mock_client.get.side_effect = Exception("Network error")
-
-        # Get the function by name
-        func = globals()[function_name]
-
-        # Test that exceptions from client are propagated
-        with pytest.raises(Exception, match="Network error"):
-            func(mock_client, *args)
-
-    def test_terraform_error_with_complex_response(self):
-        """Test TerraformError with complex error response."""
-        mock_client = Mock()
-        complex_error_response = {
-            "status": 422,
-            "data": {
-                "errors": [
-                    {
-                        "detail": "Workspace is locked",
-                        "status": "422",
-                        "title": "Unprocessable Entity",
-                        "source": {"pointer": "/data/attributes/workspace"},
-                    }
-                ],
-                "meta": {
-                    "request-id": "req-123",
-                    "timestamp": "2023-01-01T00:00:00.000Z",
-                },
-            },
-        }
-        mock_client.post.return_value = complex_error_response
-
-        run_id = "run-123"
-
-        with pytest.raises(TerraformError) as exc_info:
-            apply_run(mock_client, run_id)
-
-        # Verify the entire response is included in the error
-        error_str = str(exc_info.value)
-        assert "422" in error_str
-        assert "Workspace is locked" in error_str
-
-    @pytest.mark.parametrize(
-        "function_name,args,method_type",
-        [
-            ("create_run", [None], "post"),
-            ("apply_run", [None], "post"),
-            ("cancel_run", [None], "post"),
-            ("discard_run", [None], "post"),
-            ("get_run", [None], "get"),
-            ("run_events", [None], "get"),
-            ("task_stages", [None], "get"),
-        ],
-    )
-    def test_functions_with_none_values(self, function_name, args, method_type):
-        """Test functions handle None values appropriately."""
-        mock_client = Mock()
-
-        # Set up mock to return error status
-        if method_type == "post":
-            mock_client.post.return_value = {"status": 400}
-        else:
-            mock_client.get.return_value = {"status": 400}
-
-        # Get the function by name
-        func = globals()[function_name]
-
-        with pytest.raises(TerraformError):
-            func(mock_client, *args)
-
-    @pytest.mark.parametrize(
-        "function_name,args,method_type,wrong_status,expected_status",
-        [
-            ("create_run", [{"data": {"type": "runs"}}], "post", 200, 201),
-            ("apply_run", ["run-123"], "post", 200, 202),
-            ("cancel_run", ["run-123"], "post", 200, 202),
-            ("discard_run", ["run-123"], "post", 200, 202),
-            ("get_run", ["run-123"], "get", 201, 200),
-            ("run_events", ["run-123"], "get", 201, 200),
-            ("task_stages", ["run-123"], "get", 201, 200),
-        ],
-    )
-    def test_response_status_edge_cases(self, function_name, args, method_type, wrong_status, expected_status):
-        """Test edge cases for status code validation."""
-        mock_client = Mock()
-
-        response = {
-            "status": wrong_status,
-            "data": {"id": "run-123", "type": "runs"},
-        }
-
-        if method_type == "post":
-            mock_client.post.return_value = response
-        else:
-            mock_client.get.return_value = response
-
-        # Get the function by name
-        func = globals()[function_name]
-
-        with pytest.raises(TerraformError):
-            func(mock_client, *args)
-
-
-class TestRunsModuleIntegration:
-    """Integration-style tests for runs module functions."""
-
-    def test_complete_run_workflow(self):
-        """Test a complete workflow using multiple runs functions."""
-        mock_client = Mock()
-
-        # Mock responses for a complete workflow
-        create_response = {
-            "status": 201,
-            "data": {
-                "id": "run-workflow-123",
-                "type": "runs",
-                "attributes": {"status": "pending"},
-            },
-        }
-
-        get_response = {
-            "status": 200,
-            "data": {
-                "id": "run-workflow-123",
-                "type": "runs",
-                "attributes": {"status": "planned"},
-            },
-        }
-
-        apply_response = {
-            "status": 202,
-            "data": {
-                "id": "run-workflow-123",
-                "type": "runs",
-                "attributes": {"status": "applying"},
-            },
-        }
-
-        events_response = {
-            "status": 200,
-            "data": [
-                {
-                    "id": "event-1",
-                    "type": "run-events",
-                    "attributes": {"action": "created"},
-                }
-            ],
-        }
-
-        tasks_response = {
-            "status": 200,
-            "data": [
-                {
-                    "id": "task-1",
-                    "type": "task-stages",
-                    "attributes": {"stage": "pre_plan", "status": "passed"},
-                }
-            ],
-        }
-
-        # Configure mock responses in order
-        mock_client.post.side_effect = [create_response, apply_response]
-        mock_client.get.side_effect = [get_response, events_response, tasks_response]
-
-        # Execute workflow
-        test_data = {"data": {"type": "runs", "attributes": {"message": "Test"}}}
-
-        # 1. Create run
-        created_run = create_run(mock_client, test_data)
-        assert created_run["id"] == "run-workflow-123"
-        assert created_run["attributes"]["status"] == "pending"
-
-        # 2. Get run details
-        run_details = get_run(mock_client, "run-workflow-123")
-        assert run_details["attributes"]["status"] == "planned"
-
-        # 3. Apply run
-        applied_run = apply_run(mock_client, "run-workflow-123")
-        assert applied_run["status"] == 202
-        assert applied_run["data"]["attributes"]["status"] == "applying"
-
-        # 4. Get run events
-        events = run_events(mock_client, "run-workflow-123")
-        assert len(events) == 1
-        assert events[0]["attributes"]["action"] == "created"
-
-        # 5. Get task stages
-        tasks = task_stages(mock_client, "run-workflow-123")
-        assert len(tasks) == 1
-        assert tasks[0]["attributes"]["stage"] == "pre_plan"
-
-        # Verify all expected calls were made
-        assert mock_client.post.call_count == 2
-        assert mock_client.get.call_count == 3
-
-    @pytest.mark.parametrize(
-        "function_name,args,method_type",
-        [
-            ("create_run", [{"data": {"type": "runs"}}], "post"),
-            ("apply_run", ["run-123"], "post"),
-            ("cancel_run", ["run-123"], "post"),
-            ("discard_run", ["run-123"], "post"),
-            ("get_run", ["run-123"], "get"),
-            ("run_events", ["run-123"], "get"),
-            ("task_stages", ["run-123"], "get"),
-        ],
-    )
-    def test_error_propagation_consistency(self, function_name, args, method_type):
-        """Test that all functions consistently handle and propagate errors."""
-        mock_client = Mock()
-        error_response = {
-            "status": 500,
-            "data": {"errors": [{"detail": "Server error"}]},
-        }
-
-        # Configure mock for this function
-        if method_type == "post":
-            mock_client.post.return_value = error_response
-        else:
-            mock_client.get.return_value = error_response
-
-        # Get the function by name
-        func = globals()[function_name]
-
-        # Test that TerraformError is raised consistently
-        with pytest.raises(TerraformError) as exc_info:
-            func(mock_client, *args)
-
-        assert "500" in str(exc_info.value)
+        assert result == []
+        mock_adapter.client.run_events.list.assert_called_once_with("run-456")
+        mock_format_response.assert_not_called()

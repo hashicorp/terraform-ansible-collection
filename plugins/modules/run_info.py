@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2025 Red Hat, Inc.
+# Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, annotations, division, print_function
-
 
 __metaclass__ = type
 
@@ -226,13 +225,11 @@ from typing import TYPE_CHECKING
 
 from ansible.module_utils._text import to_text
 
-
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, Optional
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.common import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
-    TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import get_run
 
@@ -251,15 +248,19 @@ def main() -> None:
     params["check_mode"] = module.check_mode
 
     try:
-        client = TerraformClient(**module.params)
+        with module.client() as adapter:
+            run_info_data: Optional[Dict[str, Any]] = None
 
-        run_info_data = get_run(client=client, run_id=params["run_id"])
-        if not run_info_data:
-            raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
+            if params["run_id"]:
+                run_info_data = get_run(adapter, params["run_id"])
+                if not run_info_data:
+                    raise ValueError(f"The run with ID '{params['run_id']}' was not found.")
+            else:
+                raise ValueError("Run ID is required.")
 
-        result["run"] = run_info_data.get("data", run_info_data)
+            result["run"] = run_info_data.get("data", run_info_data)
 
-        module.exit_json(**result)
+            module.exit_json(**result)
 
     except Exception as e:
         module.fail_json(msg=to_text(e))

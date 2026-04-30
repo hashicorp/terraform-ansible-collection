@@ -1,6 +1,5 @@
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
-
 HAS_PYDANTIC = False
 
 # Import pydantic components with fallbacks

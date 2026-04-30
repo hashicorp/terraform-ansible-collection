@@ -11,3 +11,12 @@ action_groups:
     - configuration_version_info
     - project
     - output
+    - organizations
+    - variable
+    - variable_sets
+    - run_trigger
+    - ssh_keys
+    - project_info
+    - promote_run
+    - workspace_bootstrap
+    - notification_configuration
