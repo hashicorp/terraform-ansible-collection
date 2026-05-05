@@ -1,0 +1,141 @@
+objects:
+  role: {}
+plugins:
+  become: {}
+  cache: {}
+  callback: {}
+  cliconf: {}
+  connection: {}
+  filter: {}
+  httpapi: {}
+  inventory:
+    tfc_inv:
+      description: Unified dynamic inventory plugin for HCP Terraform / Terraform
+        Enterprise.
+      name: tfc_inv
+      version_added: 2.0.0
+  lookup:
+    tf_output:
+      description: Retrieve Terraform Cloud/Enterprise output values
+      name: tf_output
+      version_added: 1.2.0
+    tf_policy_checks:
+      description: Retrieve Sentinel policy check outcomes for a run
+      name: tf_policy_checks
+      version_added: 2.0.0
+    tf_run_events:
+      description: Retrieve the timeline of events for a Terraform Cloud/Enterprise
+        run
+      name: tf_run_events
+      version_added: 2.0.0
+    tf_variable_set_vars:
+      description: Retrieve variables owned by a Terraform Cloud/Enterprise variable
+        set
+      name: tf_variable_set_vars
+      version_added: 2.0.0
+  module:
+    configuration_version:
+      description: Manage configuration versions in Terraform Enterprise/Cloud.
+      name: configuration_version
+      namespace: ''
+      version_added: 1.0.0
+    configuration_version_info:
+      description: Retrieve information about configuration versions in Terraform
+        Enterprise/Cloud.
+      name: configuration_version_info
+      namespace: ''
+      version_added: 1.1.0
+    notification_configuration:
+      description: Manage Terraform Cloud/Enterprise workspace notification configurations
+        (create, update, delete).
+      name: notification_configuration
+      namespace: ''
+      version_added: 2.0.0
+    organizations:
+      description: Manage Terraform Cloud/Enterprise organizations (create, update,
+        delete).
+      name: organizations
+      namespace: ''
+      version_added: 2.0.0
+    output:
+      description: Retrieve Terraform Cloud/Enterprise state version outputs
+      name: output
+      namespace: ''
+      version_added: 1.2.0
+    project:
+      description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
+      name: project
+      namespace: ''
+      version_added: 1.2.0
+    project_info:
+      description: Gather information about a project in Terraform Enterprise/Cloud.
+      name: project_info
+      namespace: ''
+      version_added: 1.2.0
+    promote_run:
+      description: Gate and apply a Terraform Cloud/Enterprise run based on policy
+        outcomes.
+      name: promote_run
+      namespace: ''
+      version_added: 2.0.0
+    run:
+      description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel,
+        discard).
+      name: run
+      namespace: ''
+      version_added: 1.0.0
+    run_info:
+      description: Retrieve information about a run in Terraform Enterprise/Cloud.
+      name: run_info
+      namespace: ''
+      version_added: 1.1.0
+    run_trigger:
+      description: Manage Terraform Cloud/Enterprise run triggers (create, delete).
+      name: run_trigger
+      namespace: ''
+      version_added: 2.0.0
+    ssh_keys:
+      description: Manage Terraform Cloud/Enterprise organization SSH keys (create,
+        update, delete).
+      name: ssh_keys
+      namespace: ''
+      version_added: 2.0.0
+    variable:
+      description: Manage Terraform Cloud/Enterprise workspace variables (create,
+        update, delete).
+      name: variable
+      namespace: ''
+      version_added: 2.0.0
+    variable_sets:
+      description: Manage Terraform Cloud/Enterprise variable sets (create, update,
+        delete, attach).
+      name: variable_sets
+      namespace: ''
+      version_added: 2.0.0
+    view_plan:
+      description: View Terraform Cloud/Enterprise plan information
+      name: view_plan
+      namespace: ''
+      version_added: 1.1.0
+    workspace:
+      description: Manage workspaces in Terraform Enterprise/Cloud.
+      name: workspace
+      namespace: ''
+      version_added: 1.1.0
+    workspace_bootstrap:
+      description: Converge a Terraform Cloud/Enterprise workspace baseline in a single
+        task.
+      name: workspace_bootstrap
+      namespace: ''
+      version_added: 2.0.0
+    workspace_info:
+      description: Gather information about a workspace in Terraform Enterprise/Cloud.
+      name: workspace_info
+      namespace: ''
+      version_added: 1.1.0
+  netconf: {}
+  shell: {}
+  strategy: {}
+  test: {}
+  vars: {}
+version: 2.0.0
