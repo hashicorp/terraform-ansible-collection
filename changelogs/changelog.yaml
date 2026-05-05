@@ -3,15 +3,15 @@ releases:
   1.0.0:
     changes:
       minor_changes:
-        - Adds a new module hashicorp.terraform.configuration_version for configuration-version
-          management on TFE/C.
-        - Adds a new module hashicorp.terraform.run for run management on TFE/C.
+      - Adds a new module hashicorp.terraform.configuration_version for configuration-version
+        management on TFE/C.
+      - Adds a new module hashicorp.terraform.run for run management on TFE/C.
       release_summary: This marks the first release of the hashicorp.terraform collection.
     fragments:
-      - client.yaml
-      - module_addition.yml
-      - release_100.yml
-      - run_module_addition.yml
+    - client.yaml
+    - module_addition.yml
+    - release_100.yml
+    - run_module_addition.yml
     modules:
       - description: Manage configuration versions in Terraform Enterprise/Cloud.
         name: configuration_version
@@ -35,29 +35,29 @@ releases:
         - Adds a new module hashicorp.terraform.workspace_info to fetch information about a
           workspace in TFE/C.
     fragments:
-      - configuration_version_info_module_addition.yml
-      - params_fix.yml
-      - plan_module_addition.yml
-      - run_info_module_addition.yml
-      - workspace_info_module_addition.yml
-      - workspace_module_addition.yml
+    - configuration_version_info_module_addition.yml
+    - params_fix.yml
+    - plan_module_addition.yml
+    - run_info_module_addition.yml
+    - workspace_info_module_addition.yml
+    - workspace_module_addition.yml
     modules:
-      - description: Retrieve information about configuration versions in Terraform
-          Enterprise/Cloud.
-        name: configuration_version_info
-        namespace: ''
-      - description: Retrieve information about a run in Terraform Enterprise/Cloud.
-        name: run_info
-        namespace: ''
-      - description: View Terraform Cloud/Enterprise plan information
-        name: view_plan
-        namespace: ''
-      - description: Manage workspaces in Terraform Enterprise/Cloud.
-        name: workspace
-        namespace: ''
-      - description: Gather information about a workspace in Terraform Enterprise/Cloud.
-        name: workspace_info
-        namespace: ''
+    - description: Retrieve information about configuration versions in Terraform
+        Enterprise/Cloud.
+      name: configuration_version_info
+      namespace: ''
+    - description: Retrieve information about a run in Terraform Enterprise/Cloud.
+      name: run_info
+      namespace: ''
+    - description: View Terraform Cloud/Enterprise plan information
+      name: view_plan
+      namespace: ''
+    - description: Manage workspaces in Terraform Enterprise/Cloud.
+      name: workspace
+      namespace: ''
+    - description: Gather information about a workspace in Terraform Enterprise/Cloud.
+      name: workspace_info
+      namespace: ''
     release_date: '2025-10-07'
   1.2.0:
     changes:
@@ -69,19 +69,19 @@ releases:
           information from TFE/C.
         - Adds a new module hashicorp.terraform.project for project management on TFE/C.
     fragments:
-      - output_module_addition.yml
-      - project_module_addition.yml
-      - run_poll_timeout_fix.yml
+    - output_module_addition.yml
+    - project_module_addition.yml
+    - run_poll_timeout_fix.yml
     modules:
-      - description: Retrieve Terraform Cloud/Enterprise state version outputs
-        name: output
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
-        name: project
-        namespace: ''
-      - description: Gather information about a project in Terraform Enterprise/Cloud.
-        name: project_info
-        namespace: ''
+    - description: Retrieve Terraform Cloud/Enterprise state version outputs
+      name: output
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
+      name: project
+      namespace: ''
+    - description: Gather information about a project in Terraform Enterprise/Cloud.
+      name: project_info
+      namespace: ''
     plugins:
       lookup:
         - description: Retrieve Terraform Cloud/Enterprise output values
