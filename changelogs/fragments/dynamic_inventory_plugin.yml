@@ -36,10 +36,3 @@ minor_changes:
     inventory outputs source - Sensitive outputs are fetched with
     ``display_sensitive=False`` and are masked by the shared output helper unless
     the API omits the value.
-breaking_changes:
-  - >-
-    inventory - The hostname resolver no longer falls back to interpreting an
-    unresolved preference as a literal hostname. Unresolved preferences now
-    return ``None`` so the next preference, or the plugin default hostname, is
-    used. This avoids collapsing hosts into a single literal name when a
-    hostname preference is misspelled.

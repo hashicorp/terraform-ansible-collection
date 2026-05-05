@@ -189,19 +189,39 @@ if TYPE_CHECKING:
     from typing import Any, Dict, List, Optional, Tuple, Union
 
 from copy import deepcopy
+from dataclasses import dataclass
 
 from ansible.module_utils._text import to_text
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.models.plan import (
-    SensitiveValueData,
-    ViewPlanResourceData,
-)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.plan import (
     get_plan_data,
 )
+
+
+@dataclass
+class SensitiveValueData:
+    """Data structure for handling sensitive value processing."""
+
+    before_item: Any
+    after_item: Any
+    is_before_sensitive: bool
+    is_after_sensitive: bool
+    before_raw_item: Any
+    after_raw_item: Any
+
+
+@dataclass
+class ViewPlanResourceData:
+    """Unified resource data structure."""
+
+    address: str
+    resource_changes: Optional[Dict]
+    resource_drift: Optional[Dict]
+    has_drift: bool
+
 
 # Action mapping constants
 ACTION_MAPPING = {

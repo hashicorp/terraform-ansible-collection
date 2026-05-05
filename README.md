@@ -12,7 +12,7 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 
 ## Requirements
 
-This collection requires `pytfe>=0.1.2` and `pydantic>=2.0.0` libraries to be installed.
+This collection requires the `pytfe>=0.1.5` Python library to be installed.
 
 Some modules and plugins may require other external libraries. Please check the
 requirements for each plugin or module you use in the documentation to check the
@@ -275,7 +275,7 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 ## Release Notes and Roadmap
 
 See the
-[changelog](https://github.com/ansible-collections/hashicorp.terraform/tree/main/CHANGELOG.rst).
+[changelog](https://github.com/hashicorp/terraform-ansible-collection/tree/main/CHANGELOG.rst).
 
 
 ## Related Information

@@ -10,4 +10,4 @@ tox
 black
 flake8
 isort
-pytfe>=0.1.4
+pytfe>=0.1.5
