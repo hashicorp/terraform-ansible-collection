@@ -107,11 +107,6 @@ releases:
           ``tf_timeout``, and ``tf_max_retries`` are not supported by the pytfe-backed
           client. The primary environment variables also move to ``TFE_TOKEN``
           and ``TFE_ADDRESS``.
-        - inventory - The hostname resolver no longer falls back to interpreting
-          an unresolved preference as a literal hostname. Unresolved preferences
-          now return ``None`` so the next preference, or the plugin default hostname,
-          is used. This avoids collapsing hosts into a single literal name when
-          a hostname preference is misspelled.
       bugfixes:
         - run - Increased the default run polling timeout to 120 seconds to avoid
           premature timeout failures on normal Terraform Cloud/Enterprise runs.
@@ -130,6 +125,12 @@ releases:
           apply a run based on Sentinel policy-check outcomes, and ``hashicorp.terraform.workspace_bootstrap``
           to converge workspace settings, variables, variable-set attachments, run
           triggers, and notification configurations in one idempotent task.
+        - modules - The previously released modules (``configuration_version``,
+          ``configuration_version_info``, ``output``, ``project``, ``project_info``,
+          ``run``, ``run_info``, ``view_plan``, ``workspace``, ``workspace_info``)
+          have been re-implemented on the pytfe SDK. Public module parameters are
+          unchanged apart from the shared authentication surface migration noted
+          in breaking_changes.
         - inventory - Added the ``hashicorp.terraform.tfc_inv`` dynamic inventory
           plugin for HCP Terraform and Terraform Enterprise. The plugin supports
           ``source=outputs`` and ``source=statefile``, targets a single workspace

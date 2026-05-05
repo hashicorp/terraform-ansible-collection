@@ -26,3 +26,11 @@ major_changes:
     module_utils - Removed the collection's custom request/session and local
     response-model layer in favor of the first-class pytfe SDK and pytfe's
     response models.
+minor_changes:
+  - >-
+    modules - The previously released modules (``configuration_version``,
+    ``configuration_version_info``, ``output``, ``project``, ``project_info``,
+    ``run``, ``run_info``, ``view_plan``, ``workspace``, ``workspace_info``)
+    have been re-implemented on the pytfe SDK. Public module parameters are
+    unchanged apart from the shared authentication surface migration noted
+    in breaking_changes.
