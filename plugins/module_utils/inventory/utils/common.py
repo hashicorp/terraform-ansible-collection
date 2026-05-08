@@ -10,7 +10,6 @@ wrappers (workspace resolution, output fetching) are kept here so every
 source backend can import from a single location without circular dependencies.
 """
 
-import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
