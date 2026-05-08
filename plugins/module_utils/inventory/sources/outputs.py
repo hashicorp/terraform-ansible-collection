@@ -470,7 +470,17 @@ class OutputsSource(BaseInventorySource):
         compose_active = bool(compose_opt)
 
         resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
-        outputs = fetch_outputs(self.client, resolved_id)
+
+        # Cache-aware fetch: the inventory plugin may set ``_cached_payload`` to
+        # a previously fetched outputs list to skip the download. After a live
+        # fetch we expose the payload via ``_fetched_payload`` so the plugin
+        # can write it to the cache.
+        cached_payload = getattr(self, "_cached_payload", None)
+        if cached_payload is not None:
+            outputs = cached_payload
+        else:
+            outputs = fetch_outputs(self.client, resolved_id)
+            self._fetched_payload = outputs
 
         if hosts_from_opt:
             outputs_map: Dict[str, Any] = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}

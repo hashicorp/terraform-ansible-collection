@@ -88,6 +88,8 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
+        # Cache options (inventory_cache doc fragment defaults).
+        "cache": False,
     }
     defaults.update(overrides)
     return defaults
@@ -2689,3 +2691,325 @@ class TestInventoryModuleParseErrors:
         with _parse_ctx(plugin):
             with pytest.raises(AnsibleParserError, match="Unknown source"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+
+# ---------------------------------------------------------------------------
+# InventoryModule cache behavior — Cacheable mixin + state-version-anchored key
+# ---------------------------------------------------------------------------
+
+
+def _make_cache_plugin(options: dict) -> InventoryModule:
+    """Build a plugin with a dict-backed _cache attr (matches CachePluginAdjudicator's
+    KeyError-on-miss / __setitem__-on-write contract well enough for unit tests)."""
+    plugin = _make_plugin(options)
+    plugin._cache = {}
+    return plugin
+
+
+class TestInventoryCacheStatefile:
+    """Caching behavior with source=statefile."""
+
+    def _state(self, ip="10.0.0.1"):
+        return _make_resource_state([_aws_resource("web", [{"attributes": {"public_ip": ip}}])])
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_disabled_skips_read_and_write(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=False))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_download.assert_called_once()
+        # cache.disabled -> no key was ever resolved or stored
+        mock_inv_sv.assert_not_called()
+        assert plugin._cache == {}
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_miss_fetches_live_and_writes_payload(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_download.assert_called_once()
+        # Payload was written to cache under the expected inner key.
+        expected_key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        assert expected_key in plugin._cache
+        assert plugin._cache[expected_key] == self._state()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_hit_skips_download(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        cached_state = self._state(ip="10.9.9.9")
+        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        plugin._cache[key] = cached_state
+
+        with _parse_ctx(plugin):
+            # Ansible passes cache=True at runtime; --flush-cache flips it to False.
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        # No download, but inventory was still produced from the cached payload.
+        mock_download.assert_not_called()
+        plugin.inventory.set_variable.assert_any_call("aws_instance_web", "public_ip", "10.9.9.9")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_flush_cache_runtime_skips_read_but_writes(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download):
+        """``--flush-cache`` passes ``cache=False`` to parse() while user opt-in
+        remains True. Read must be skipped but a fresh write is expected."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        # Pre-seed a stale entry that should be overwritten.
+        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        plugin._cache[key] = {"stale": "payload"}
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=False)
+
+        # Read was skipped -> live download happened.
+        mock_download.assert_called_once()
+        # And the stale entry was overwritten with the fresh payload.
+        assert plugin._cache[key] == self._state()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_state_version_resolution_failure_falls_back_to_live_no_cache(
+        self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download
+    ):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = None  # Resolution failed
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        # Live fetch happened, but nothing was written to cache (correctness > stale).
+        mock_download.assert_called_once()
+        assert plugin._cache == {}
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cached_payload_honors_changed_provider_mapping(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_download):
+        """Cache holds raw state JSON; provider_mapping is re-applied on every
+        parse, so a config change must reshape the inventory even on cache hit."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+
+        # Cached state contains a null_resource which is NOT in the default mapping.
+        null_state = _make_resource_state(
+            [
+                {
+                    "mode": "managed",
+                    "type": "null_resource",
+                    "name": "marker",
+                    "provider": 'provider["registry.terraform.io/hashicorp/null"]',
+                    "instances": [{"attributes": {"triggers": {"server_ip": "10.0.0.1"}}}],
+                }
+            ]
+        )
+        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+
+        # Run 1: default provider_mapping -> null_resource filtered out.
+        plugin1 = _make_cache_plugin(_base_options(cache=True))
+        plugin1._cache[key] = null_state
+        with _parse_ctx(plugin1):
+            plugin1.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin1.inventory.add_host.assert_not_called()
+
+        # Run 2: explicit provider_mapping -> null_resource picked up.
+        plugin2 = _make_cache_plugin(
+            _base_options(
+                cache=True,
+                provider_mapping=[
+                    {
+                        "provider_name": "registry.terraform.io/hashicorp/null",
+                        "types": ["null_resource"],
+                    }
+                ],
+            )
+        )
+        plugin2._cache[key] = null_state
+        with _parse_ctx(plugin2):
+            plugin2.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin2.inventory.add_host.assert_called_once()
+        # Neither parse fetched live data — both used the cached payload.
+        mock_download.assert_not_called()
+
+
+class TestInventoryCacheOutputs:
+    """Caching behavior with source=outputs."""
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_disabled_skips_read_and_write(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [{"name": "ansible_host", "value": "1.2.3.4", "sensitive": False}]
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=False))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_fetch.assert_called_once()
+        mock_inv_sv.assert_not_called()
+        assert plugin._cache == {}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_miss_writes_payload(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-7"
+        outputs = [{"name": "ansible_host", "value": "1.2.3.4", "sensitive": False}]
+        mock_fetch.return_value = outputs
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_fetch.assert_called_once()
+        expected_key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+        assert plugin._cache[expected_key] == outputs
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_hit_skips_fetch(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-7"
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        cached_outputs = [{"name": "ansible_host", "value": "9.9.9.9", "sensitive": False}]
+        key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+        plugin._cache[key] = cached_outputs
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_fetch.assert_not_called()
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host", "ansible_host", "9.9.9.9")
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cached_payload_honors_changed_hosts_from(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_src_resolve, mock_fetch):
+        """Cache holds raw outputs list; hosts_from is re-applied per parse."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-7"
+
+        cached_outputs = [
+            {"name": "ips", "value": ["10.0.0.1", "10.0.0.2"], "sensitive": False},
+        ]
+        key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+
+        # Run 1: no hosts_from -> default mode looks for ``ansible_host`` only -> 0 hosts.
+        plugin1 = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        plugin1._cache[key] = cached_outputs
+        with _parse_ctx(plugin1):
+            plugin1.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin1.inventory.add_host.assert_not_called()
+
+        # Run 2: explicit hosts_from points at ``ips`` -> 2 hosts.
+        plugin2 = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                cache=True,
+                hosts_from={"output": "ips", "type": "list(string)"},
+            )
+        )
+        plugin2._cache[key] = cached_outputs
+        with _parse_ctx(plugin2):
+            plugin2.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        assert plugin2.inventory.add_host.call_count == 2
+
+        mock_fetch.assert_not_called()
+
+
+class TestInventoryCacheKey:
+    """Cache key composition — exercising _cache_key directly."""
+
+    def _key(self, plugin, source, addr, ws, sv):
+        return plugin._cache_key(source, addr, ws, sv)
+
+    def test_source_changes_key(self):
+        p = InventoryModule()
+        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "statefile", "https://app.terraform.io", "ws-1", "sv-1")
+
+    def test_workspace_changes_key(self):
+        p = InventoryModule()
+        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://app.terraform.io", "ws-2", "sv-1")
+
+    def test_state_version_changes_key(self):
+        p = InventoryModule()
+        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-2")
+
+    def test_trailing_slash_in_address_normalized(self):
+        p = InventoryModule()
+        a = self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1")
+        b = self._key(p, "outputs", "https://app.terraform.io/", "ws-1", "sv-1")
+        assert a == b
+
+    def test_address_difference_changes_key(self):
+        p = InventoryModule()
+        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://tfe.example.com", "ws-1", "sv-1")

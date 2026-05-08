@@ -1,0 +1,19 @@
+---
+minor_changes:
+  - >-
+    inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin
+    now supports Ansible-standard caching via the ``Cacheable`` mixin and the
+    ``inventory_cache`` documentation fragment. All five standard options are
+    exposed (``cache``, ``cache_plugin``, ``cache_connection``, ``cache_prefix``,
+    ``cache_timeout``), matching the ``aws_ec2`` / ``azure_rm`` /
+    ``kubernetes.core.k8s`` convention.
+  - >-
+    inventory - Cache entries are keyed by the current Terraform state version
+    ID. Every new apply produces a new state version ID, so cached inventory
+    is automatically refreshed when state changes — independent of
+    ``cache_timeout``. ``cache_timeout`` still bounds how long an unchanged
+    state version may reuse the cached payload. Only the upstream source
+    payload is cached (state JSON for ``source=statefile``, outputs for
+    ``source=outputs``); filters, ``compose``, ``hostnames``, ``provider_mapping``,
+    ``hosts_from``, ``groups``, and ``keyed_groups`` are re-applied on every
+    parse so local config changes always take effect.

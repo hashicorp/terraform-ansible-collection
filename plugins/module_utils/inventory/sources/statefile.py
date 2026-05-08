@@ -438,7 +438,16 @@ class StatefileSource(BaseInventorySource):
 
         resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
 
-        state_data = _download_statefile(self.client, resolved_id)
+        # Cache-aware fetch: the inventory plugin may set ``_cached_payload`` to
+        # a previously fetched state body to skip the download. After a live
+        # fetch we expose the payload via ``_fetched_payload`` so the plugin
+        # can write it to the cache.
+        cached_payload = getattr(self, "_cached_payload", None)
+        if cached_payload is not None:
+            state_data = cached_payload
+        else:
+            state_data = _download_statefile(self.client, resolved_id)
+            self._fetched_payload = state_data
         provider_configs = _build_provider_configs(provider_mapping)
 
         records: List[HostRecord] = []

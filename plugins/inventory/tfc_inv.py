@@ -21,6 +21,7 @@ description:
   - Does not support caching.
 extends_documentation_fragment:
   - constructed
+  - inventory_cache
 version_added: "2.0.0"
 options:
   plugin:
@@ -593,20 +594,49 @@ EXAMPLES = r"""
       type: string             # ansible_host = value via compose
   compose:
     ansible_host: public_ip | default(value)
+
+# Per-run in-memory cache (no persistence across ansible-inventory invocations).
+# Cache entries are keyed by the current Terraform state version ID, so a new
+# apply automatically refreshes inventory even if cache_timeout has not expired.
+- name: Inventory with in-memory cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  cache: true
+  cache_timeout: 300
+
+# Persistent cross-run cache via the jsonfile cache plugin. Setting
+# cache_prefix lets multiple tfc_inv inventories share a backend without
+# colliding (mirrors aws_ec2 / azure_rm / k8s convention).
+- name: Inventory with persistent jsonfile cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: statefile
+  workspace_id: ws-abc123
+  cache: true
+  cache_plugin: jsonfile
+  cache_connection: ~/.ansible/cache/tfc_inv
+  cache_prefix: tfc_inv
+  cache_timeout: 300
 """
 
 from typing import Any, Dict, Iterable, List, Optional
 
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
-from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.plugins.inventory import BaseInventoryPlugin, Cacheable, Constructable
 from ansible.utils.display import Display
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import (
+    get_preferred_hostname,
+    passes_filters,
+    resolve_current_state_version_id,
+    resolve_workspace,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
 
 
@@ -621,7 +651,7 @@ def _wire_outputs_display() -> None:
 _wire_outputs_display()
 
 
-class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
+class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: ignore[misc]
     NAME = "hashicorp.terraform.tfc_inv"
 
     _VALID_SUFFIXES = (
@@ -768,6 +798,11 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # Entry point
     # ------------------------------------------------------------------
 
+    def _cache_key(self, source: str, tfe_address: str, workspace_id: str, sv_id: str) -> str:
+        """Build the inner cache key. The cache plugin layer prepends ``cache_prefix``."""
+        parts = [self.NAME, source, (tfe_address or "").rstrip("/"), workspace_id, sv_id]
+        return "|".join(parts)
+
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
         super().parse(inventory, loader, path, cache=cache)
         raw = self._read_config_data(path)
@@ -807,12 +842,58 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         if not tfe_token:
             raise AnsibleParserError("A Terraform API token is required. Set 'tfe_token' in the inventory config or the TFE_TOKEN environment variable.")
 
+        # Cache contract:
+        # ``self.get_option("cache")`` reflects the user's inventory YAML opt-in.
+        # ``cache`` (parameter) reflects the runtime gate — Ansible passes ``False``
+        # when ``--flush-cache`` is in effect, so reads must be skipped that run.
+        # Writes are still allowed to refresh the entry.
+        user_cache_opt = bool(self.get_option("cache"))
+        cache_read_ok = user_cache_opt and bool(cache)
+        cache_write_ok = user_cache_opt
+
         try:
             source_cls = get_source_backend(source)
             source_cls.validate_options(source_options)
 
             with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
-                records = source_cls(client, source_options).collect_hosts()
+                cache_key: Optional[str] = None
+                cached_payload: Any = None
+
+                # Resolving the workspace + state version up front lets us
+                # build a cache key that changes whenever a new apply runs,
+                # giving apply-aware cache invalidation independent of
+                # ``cache_timeout``.
+                if user_cache_opt:
+                    resolved_id, _ = resolve_workspace(
+                        client,
+                        source_options.get("workspace_id"),
+                        source_options.get("organization"),
+                        source_options.get("workspace"),
+                    )
+                    sv_id = resolve_current_state_version_id(client, resolved_id)
+                    if sv_id is not None:
+                        cache_key = self._cache_key(source, tfe_address, resolved_id, sv_id)
+                        if cache_read_ok:
+                            try:
+                                cached_payload = self._cache[cache_key]
+                            except KeyError:
+                                cached_payload = None
+                    else:
+                        # State version ID not resolvable (network blip, no
+                        # applied runs, etc.). Prefer correctness: live fetch,
+                        # do not write a cache entry that could be served
+                        # stale next run.
+                        cache_key = None
+
+                source_instance = source_cls(client, source_options)
+                if cached_payload is not None:
+                    source_instance._cached_payload = cached_payload  # type: ignore[attr-defined]
+                records = source_instance.collect_hosts()
+
+                if cache_key is not None and cache_write_ok and cached_payload is None:
+                    payload = getattr(source_instance, "_fetched_payload", None)
+                    if payload is not None:
+                        self._cache[cache_key] = payload
 
                 self._populate_from_host_records(
                     records,

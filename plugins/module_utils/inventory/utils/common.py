@@ -10,6 +10,7 @@ wrappers (workspace resolution, output fetching) are kept here so every
 source backend can import from a single location without circular dependencies.
 """
 
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
@@ -182,3 +183,41 @@ def fetch_outputs(client: TerraformClient, workspace_id: str) -> List[Dict[str, 
         raise TerraformError(str(exc)) from exc
     except TerraformError as exc:
         raise TerraformError(f"Failed to fetch workspace outputs: {exc}") from exc
+
+
+def resolve_current_state_version_id(client: TerraformClient, workspace_id: str) -> Optional[str]:
+    """Return the current state version ID for *workspace_id* or ``None``.
+
+    Used as a freshness anchor for inventory caching: the ID changes on every
+    new apply, so cache entries keyed by it are automatically invalidated when
+    Terraform state changes — independent of ``cache_timeout``.
+
+    Returns ``None`` (instead of raising) on any error so callers can gracefully
+    fall back to a non-cached live fetch rather than failing the inventory run.
+    """
+    try:
+        sv = client.client.state_versions.read_current(workspace_id)
+        return getattr(sv, "id", None)
+    except Exception:
+        return None
+
+
+def fetch_state(client: TerraformClient, state_version_id: str) -> Dict[str, Any]:
+    """Download and JSON-decode a specific state version body.
+
+    Used by the cache-aware fetch path: once the current state version ID has
+    been resolved (see :func:`resolve_current_state_version_id`), this helper
+    downloads exactly that version. Pinning to an explicit ID keeps the cache
+    key and the downloaded payload referring to the same state.
+
+    Raises ``TerraformError`` on download / decode failures.
+    """
+    try:
+        raw: bytes = client.client.state_versions.download(state_version_id)
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise TerraformError(f"Failed to parse state version '{state_version_id}': {exc}") from exc
+    except TerraformError as exc:
+        raise TerraformError(f"Failed to download state version '{state_version_id}': {exc}") from exc
+    except Exception as exc:
+        raise TerraformError(f"Failed to download state version '{state_version_id}': {exc}") from exc
