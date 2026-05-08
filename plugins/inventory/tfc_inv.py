@@ -620,6 +620,7 @@ EXAMPLES = r"""
   cache_timeout: 300
 """
 
+import re
 from typing import Any, Dict, Iterable, List, Optional
 
 from ansible.errors import AnsibleParserError
@@ -798,10 +799,18 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
     # Entry point
     # ------------------------------------------------------------------
 
-    def _cache_key(self, source: str, tfe_address: str, workspace_id: str, sv_id: str) -> str:
-        """Build the inner cache key. The cache plugin layer prepends ``cache_prefix``."""
-        parts = [self.NAME, source, (tfe_address or "").rstrip("/"), workspace_id, sv_id]
-        return "|".join(parts)
+    def _cache_key(self, source: str, workspace_id: str, sv_id: str) -> str:
+        """Build the inner cache key. The cache plugin layer prepends ``cache_prefix``.
+
+        Components are restricted to filesystem-safe characters (letters,
+        digits, ``.``, ``-``, ``_``) so file-backed cache plugins like
+        ``jsonfile`` can use the key directly as a filename. Cross-endpoint
+        isolation is left to the user-facing ``cache_prefix`` /
+        ``cache_connection`` options rather than encoded in the key.
+        """
+        parts = [self.NAME, source, workspace_id, sv_id]
+        raw = "_".join(parts)
+        return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
 
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
         super().parse(inventory, loader, path, cache=cache)
@@ -872,7 +881,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                     )
                     sv_id = resolve_current_state_version_id(client, resolved_id)
                     if sv_id is not None:
-                        cache_key = self._cache_key(source, tfe_address, resolved_id, sv_id)
+                        cache_key = self._cache_key(source, resolved_id, sv_id)
                         if cache_read_ok:
                             try:
                                 cached_payload = self._cache[cache_key]

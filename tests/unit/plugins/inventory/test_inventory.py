@@ -2750,7 +2750,7 @@ class TestInventoryCacheStatefile:
 
         mock_download.assert_called_once()
         # Payload was written to cache under the expected inner key.
-        expected_key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        expected_key = "_".join(["hashicorp.terraform.tfc_inv", "statefile", "ws-abc", "sv-1"])
         assert expected_key in plugin._cache
         assert plugin._cache[expected_key] == self._state()
 
@@ -2767,7 +2767,7 @@ class TestInventoryCacheStatefile:
 
         plugin = _make_cache_plugin(_base_options(cache=True))
         cached_state = self._state(ip="10.9.9.9")
-        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        key = "_".join(["hashicorp.terraform.tfc_inv", "statefile", "ws-abc", "sv-1"])
         plugin._cache[key] = cached_state
 
         with _parse_ctx(plugin):
@@ -2794,7 +2794,7 @@ class TestInventoryCacheStatefile:
 
         plugin = _make_cache_plugin(_base_options(cache=True))
         # Pre-seed a stale entry that should be overwritten.
-        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        key = "_".join(["hashicorp.terraform.tfc_inv", "statefile", "ws-abc", "sv-1"])
         plugin._cache[key] = {"stale": "payload"}
 
         with _parse_ctx(plugin):
@@ -2852,7 +2852,7 @@ class TestInventoryCacheStatefile:
                 }
             ]
         )
-        key = "|".join(["hashicorp.terraform.tfc_inv", "statefile", "https://app.terraform.io", "ws-abc", "sv-1"])
+        key = "_".join(["hashicorp.terraform.tfc_inv", "statefile", "ws-abc", "sv-1"])
 
         # Run 1: default provider_mapping -> null_resource filtered out.
         plugin1 = _make_cache_plugin(_base_options(cache=True))
@@ -2921,7 +2921,7 @@ class TestInventoryCacheOutputs:
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
         mock_fetch.assert_called_once()
-        expected_key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+        expected_key = "_".join(["hashicorp.terraform.tfc_inv", "outputs", "ws-abc", "sv-7"])
         assert plugin._cache[expected_key] == outputs
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
@@ -2937,7 +2937,7 @@ class TestInventoryCacheOutputs:
 
         plugin = _make_cache_plugin(_base_options(source="outputs", cache=True))
         cached_outputs = [{"name": "ansible_host", "value": "9.9.9.9", "sensitive": False}]
-        key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+        key = "_".join(["hashicorp.terraform.tfc_inv", "outputs", "ws-abc", "sv-7"])
         plugin._cache[key] = cached_outputs
 
         with _parse_ctx(plugin):
@@ -2961,7 +2961,7 @@ class TestInventoryCacheOutputs:
         cached_outputs = [
             {"name": "ips", "value": ["10.0.0.1", "10.0.0.2"], "sensitive": False},
         ]
-        key = "|".join(["hashicorp.terraform.tfc_inv", "outputs", "https://app.terraform.io", "ws-abc", "sv-7"])
+        key = "_".join(["hashicorp.terraform.tfc_inv", "outputs", "ws-abc", "sv-7"])
 
         # Run 1: no hosts_from -> default mode looks for ``ansible_host`` only -> 0 hosts.
         plugin1 = _make_cache_plugin(_base_options(source="outputs", cache=True))
@@ -2987,29 +2987,43 @@ class TestInventoryCacheOutputs:
 
 
 class TestInventoryCacheKey:
-    """Cache key composition — exercising _cache_key directly."""
+    """Cache key composition — exercising _cache_key directly.
 
-    def _key(self, plugin, source, addr, ws, sv):
-        return plugin._cache_key(source, addr, ws, sv)
+    The address is intentionally not part of the key — cross-endpoint isolation
+    is the user's job via ``cache_prefix`` / ``cache_connection``. The key only
+    needs to be unique per (source, workspace, state version) and use chars
+    safe for filesystem-backed cache plugins (jsonfile etc.).
+    """
+
+    def _key(self, plugin, source, ws, sv):
+        return plugin._cache_key(source, ws, sv)
 
     def test_source_changes_key(self):
         p = InventoryModule()
-        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "statefile", "https://app.terraform.io", "ws-1", "sv-1")
+        assert self._key(p, "outputs", "ws-1", "sv-1") != self._key(p, "statefile", "ws-1", "sv-1")
 
     def test_workspace_changes_key(self):
         p = InventoryModule()
-        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://app.terraform.io", "ws-2", "sv-1")
+        assert self._key(p, "outputs", "ws-1", "sv-1") != self._key(p, "outputs", "ws-2", "sv-1")
 
     def test_state_version_changes_key(self):
         p = InventoryModule()
-        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-2")
+        assert self._key(p, "outputs", "ws-1", "sv-1") != self._key(p, "outputs", "ws-1", "sv-2")
 
-    def test_trailing_slash_in_address_normalized(self):
+    def test_key_is_filesystem_safe(self):
+        """No characters that file-backed cache plugins (jsonfile etc.) treat
+        as path separators or otherwise mangle."""
         p = InventoryModule()
-        a = self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1")
-        b = self._key(p, "outputs", "https://app.terraform.io/", "ws-1", "sv-1")
-        assert a == b
+        key = self._key(p, "outputs", "ws-abc123", "sv-xyz789")
+        # Allowed: A-Za-z0-9 plus . - _
+        assert all(c.isalnum() or c in "._-" for c in key), f"unsafe char in key: {key!r}"
+        # And contains all the discriminator parts.
+        assert "outputs" in key and "ws-abc123" in key and "sv-xyz789" in key
 
-    def test_address_difference_changes_key(self):
+    def test_unsafe_chars_get_sanitized(self):
+        """Defensive: even if a workspace/state-version ID contained a special
+        character, the key must remain filesystem-safe."""
         p = InventoryModule()
-        assert self._key(p, "outputs", "https://app.terraform.io", "ws-1", "sv-1") != self._key(p, "outputs", "https://tfe.example.com", "ws-1", "sv-1")
+        key = self._key(p, "outputs", "ws/with/slashes", "sv:with:colons")
+        assert "/" not in key
+        assert ":" not in key
