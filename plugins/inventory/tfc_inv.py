@@ -983,11 +983,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                             candidate = self._cache[cache_key]
                         except KeyError:
                             candidate = None
-                        if (
-                            isinstance(candidate, dict)
-                            and candidate.get("schema") == _CACHE_SCHEMA
-                            and candidate.get("state_version_id") == current_sv_id
-                        ):
+                        if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA and candidate.get("state_version_id") == current_sv_id:
                             cached_blob = candidate
                         # else: stale / shape mismatch / missing sv_id → fetch fresh
 
