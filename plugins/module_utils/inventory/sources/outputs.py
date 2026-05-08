@@ -469,18 +469,38 @@ class OutputsSource(BaseInventorySource):
         compose_opt = self.options.get("compose") or {}
         compose_active = bool(compose_opt)
 
-        resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
-
-        # Cache-aware fetch: the inventory plugin may set ``_cached_payload`` to
-        # a previously fetched outputs list to skip the download. After a live
-        # fetch we expose the payload via ``_fetched_payload`` so the plugin
-        # can write it to the cache.
-        cached_payload = getattr(self, "_cached_payload", None)
-        if cached_payload is not None:
-            outputs = cached_payload
+        # Cache-aware fetch.
+        # ``_cached_blob`` (if set) carries a v1 blob whose ``data`` is the
+        # outputs list — cache hits never touch the network.
+        # ``_validation_ctx`` (if set) carries a pre-resolved workspace + the
+        # current state version ID, so on a validation-mode cache miss the
+        # source skips its own ``resolve_workspace`` call and writes a blob
+        # tagged with the state version that produced it.
+        cached_blob = getattr(self, "_cached_blob", None)
+        if cached_blob is not None:
+            workspace_name = cached_blob["workspace_name"]
+            outputs = cached_blob["data"]
         else:
+            ctx = getattr(self, "_validation_ctx", None)
+            if ctx is not None:
+                resolved_id = ctx["workspace_id"]
+                workspace_name = ctx["workspace_name"]
+                pre_sv_id: Optional[str] = ctx.get("state_version_id")
+            else:
+                resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
+                pre_sv_id = None
             outputs = fetch_outputs(self.client, resolved_id)
-            self._fetched_payload = outputs
+            # ``fetch_outputs`` already calls ``get_workspace_outputs`` with
+            # ``display_sensitive=False``, so the persisted blob carries the
+            # masked-by-API form — safe to write to the Ansible cache.
+            self._fetched_blob = {
+                "schema": "tfc_inv_cache_v1",
+                "source": "outputs",
+                "workspace_name": workspace_name,
+                "workspace_id": resolved_id,
+                "state_version_id": pre_sv_id,
+                "data": outputs,
+            }
 
         if hosts_from_opt:
             outputs_map: Dict[str, Any] = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}

@@ -8,12 +8,23 @@ minor_changes:
     ``cache_timeout``), matching the ``aws_ec2`` / ``azure_rm`` /
     ``kubernetes.core.k8s`` convention.
   - >-
-    inventory - Cache entries are keyed by the current Terraform state version
-    ID. Every new apply produces a new state version ID, so cached inventory
-    is automatically refreshed when state changes — independent of
-    ``cache_timeout``. ``cache_timeout`` still bounds how long an unchanged
-    state version may reuse the cached payload. Only the upstream source
-    payload is cached (state JSON for ``source=statefile``, outputs for
-    ``source=outputs``); filters, ``compose``, ``hostnames``, ``provider_mapping``,
-    ``hosts_from``, ``groups``, and ``keyed_groups`` are re-applied on every
-    parse so local config changes always take effect.
+    inventory - Default cache hits skip all upstream API calls — workspace
+    resolution, state download, and outputs fetch are all bypassed, so
+    subsequent ``ansible-inventory`` invocations within the
+    ``cache_timeout`` window are fast and offline-capable. Use
+    ``--flush-cache`` to force a refresh after a Terraform apply if you do
+    not want to wait for the timeout.
+  - >-
+    inventory - Added an opt-in ``cache_validate_current_state_version``
+    option (default ``false``). When enabled, each run resolves the
+    workspace's current Terraform state version ID and reuses cached data
+    only when the IDs match, otherwise the cache is overwritten with fresh
+    data. This trades the offline-friendliness of the default mode for
+    apply-aware freshness; if the validation API call fails, the plugin
+    raises rather than serve stale cache.
+  - >-
+    inventory statefile source - Sensitive Terraform attributes (paths
+    flagged in the state's ``sensitive_attributes``) are stripped from the
+    state body before it is written to the Ansible cache. Persistent cache
+    files (e.g. under ``~/.ansible/cache/``) therefore never contain values
+    Terraform marked sensitive.
