@@ -89,16 +89,6 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
-<<<<<<< HEAD
-=======
-        # Cache options (inventory_cache doc fragment defaults).
-        "cache": False,
-        "cache_validate_current_state_version": False,
-        # Multi-workspace options.
-        "workspace_filters": {},
-        "enable_parallel_processing": False,
-        "concurrency": 5,
->>>>>>> b65d3b7 (Add concurency and multi workspace support)
     }
     defaults.update(overrides)
     return defaults
@@ -2701,8 +2691,6 @@ class TestInventoryModuleParseErrors:
         with _parse_ctx(plugin):
             with pytest.raises(AnsibleParserError, match="Unknown source"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
-<<<<<<< HEAD
-=======
 
 
 # ---------------------------------------------------------------------------
@@ -3684,4 +3672,3 @@ class TestMultiWorkspaceValidationMode:
         # Only the good workspace got fetched; the bad one was skipped.
         mock_fetch.assert_called_once()
         assert mock_fetch.call_args.args[1] == "ws-good"
->>>>>>> b65d3b7 (Add concurency and multi workspace support)
