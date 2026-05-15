@@ -3,6 +3,7 @@
 # Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+import re
 from contextlib import contextmanager
 from unittest.mock import Mock, patch
 
@@ -88,6 +89,9 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
+        # Cache options (inventory_cache doc fragment defaults).
+        "cache": False,
+        "cache_validate_current_state_version": False,
     }
     defaults.update(overrides)
     return defaults
@@ -2689,3 +2693,543 @@ class TestInventoryModuleParseErrors:
         with _parse_ctx(plugin):
             with pytest.raises(AnsibleParserError, match="Unknown source"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+
+# ---------------------------------------------------------------------------
+# InventoryModule cache behavior — Cacheable mixin, timeout-based caching
+# ---------------------------------------------------------------------------
+
+
+def _make_cache_plugin(options: dict) -> InventoryModule:
+    """Build a plugin with a dict-backed _cache attr (matches CachePluginAdjudicator's
+    KeyError-on-miss / __setitem__-on-write contract well enough for unit tests)."""
+    plugin = _make_plugin(options)
+    plugin._cache = {}
+    return plugin
+
+
+def _v1_blob(source: str, *, data, workspace_id="ws-abc", workspace_name="my-ws", state_version_id=None) -> dict:
+    """Build the v1 cache blob shape for tests."""
+    return {
+        "schema": "tfc_inv_cache_v1",
+        "source": source,
+        "workspace_name": workspace_name,
+        "workspace_id": workspace_id,
+        "state_version_id": state_version_id,
+        "data": data,
+    }
+
+
+def _cache_key_for(source: str, ws="my-ws", org="my-org") -> str:
+    """Compute the inner cache key the plugin would generate for org/workspace config."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", "_".join(["hashicorp.terraform.tfc_inv", source, f"{org}/{ws}"]))
+
+
+class TestInventoryCacheStatefile:
+    """Caching behavior with source=statefile."""
+
+    def _state(self, ip="10.0.0.1"):
+        return _make_resource_state([_aws_resource("web", [{"attributes": {"public_ip": ip}}])])
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_disabled_skips_read_and_write(self, mock_client_cls, mock_src_resolve, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=False))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_download.assert_called_once()
+        assert plugin._cache == {}
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_miss_writes_blob(self, mock_client_cls, mock_src_resolve, mock_download):
+        """On miss, the source fetches live and the plugin stores
+        ``{workspace_name, state}`` so subsequent runs can serve fully offline."""
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_download.assert_called_once()
+        # Static key derived purely from inventory config (no API calls).
+        # The inner regex sanitizer maps "/" -> "_" so the org/ws separator
+        # ends up as "_" in the stored key.
+        expected_key = _cache_key_for("statefile")
+        assert expected_key in plugin._cache
+        assert plugin._cache[expected_key] == _v1_blob("statefile", data=self._state())
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_hit_skips_client_construction(self, mock_client_cls, mock_src_resolve, mock_download):
+        """The strongest assertion: on cache hit, no TerraformClient is built
+        and no API helper is invoked. This is what makes the cache offline-capable."""
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        # Inner key is built from raw config (workspace_id absent → org/ws form),
+        # then sanitized to filesystem-safe chars.
+        key = _cache_key_for("statefile")
+        plugin._cache[key] = _v1_blob("statefile", data=self._state(ip="10.9.9.9"))
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        # No client built, no source-level resolve, no download. Pure offline path.
+        mock_client_cls.assert_not_called()
+        mock_src_resolve.assert_not_called()
+        mock_download.assert_not_called()
+        # And inventory was still produced from the cached blob.
+        plugin.inventory.set_variable.assert_any_call("aws_instance_web", "public_ip", "10.9.9.9")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_flush_cache_runtime_skips_read_but_writes(self, mock_client_cls, mock_src_resolve, mock_download):
+        """``--flush-cache`` passes ``cache=False`` to parse() while user opt-in
+        remains True. Read must be skipped but a fresh write is expected."""
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        # Pre-seed a stale entry that should be overwritten.
+        key = _cache_key_for("statefile")
+        plugin._cache[key] = _v1_blob("statefile", data={"stale": "payload"})
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=False)
+
+        # Read was skipped -> live download happened.
+        mock_download.assert_called_once()
+        # And the stale entry was overwritten with the fresh blob.
+        assert plugin._cache[key] == _v1_blob("statefile", data=self._state())
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cached_blob_honors_changed_provider_mapping(self, mock_client_cls, mock_src_resolve, mock_download):
+        """Cache holds raw state JSON; provider_mapping is re-applied on every
+        parse, so a config change must reshape the inventory even on cache hit."""
+        # Cached state contains a null_resource which is NOT in the default mapping.
+        null_state = _make_resource_state(
+            [
+                {
+                    "mode": "managed",
+                    "type": "null_resource",
+                    "name": "marker",
+                    "provider": 'provider["registry.terraform.io/hashicorp/null"]',
+                    "instances": [{"attributes": {"triggers": {"server_ip": "10.0.0.1"}}}],
+                }
+            ]
+        )
+        key = _cache_key_for("statefile")
+        cached_blob = _v1_blob("statefile", data=null_state)
+
+        # Run 1: default provider_mapping -> null_resource filtered out.
+        plugin1 = _make_cache_plugin(_base_options(cache=True))
+        plugin1._cache[key] = cached_blob
+        with _parse_ctx(plugin1):
+            plugin1.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin1.inventory.add_host.assert_not_called()
+
+        # Run 2: explicit provider_mapping -> null_resource picked up.
+        plugin2 = _make_cache_plugin(
+            _base_options(
+                cache=True,
+                provider_mapping=[
+                    {
+                        "provider_name": "registry.terraform.io/hashicorp/null",
+                        "types": ["null_resource"],
+                    }
+                ],
+            )
+        )
+        plugin2._cache[key] = cached_blob
+        with _parse_ctx(plugin2):
+            plugin2.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin2.inventory.add_host.assert_called_once()
+        # Both runs were pure cache hits.
+        mock_client_cls.assert_not_called()
+        mock_download.assert_not_called()
+
+
+class TestInventoryCacheOutputs:
+    """Caching behavior with source=outputs."""
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_disabled_skips_read_and_write(self, mock_client_cls, mock_src_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [{"name": "ansible_host", "value": "1.2.3.4", "sensitive": False}]
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=False))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_fetch.assert_called_once()
+        assert plugin._cache == {}
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_miss_writes_blob(self, mock_client_cls, mock_src_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        outputs = [{"name": "ansible_host", "value": "1.2.3.4", "sensitive": False}]
+        mock_fetch.return_value = outputs
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        mock_fetch.assert_called_once()
+        expected_key = _cache_key_for("outputs")
+        assert plugin._cache[expected_key] == _v1_blob("outputs", data=outputs)
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_hit_skips_client_construction(self, mock_client_cls, mock_src_resolve, mock_fetch):
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        cached_outputs = [{"name": "ansible_host", "value": "9.9.9.9", "sensitive": False}]
+        key = _cache_key_for("outputs")
+        plugin._cache[key] = _v1_blob("outputs", data=cached_outputs)
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_client_cls.assert_not_called()
+        mock_src_resolve.assert_not_called()
+        mock_fetch.assert_not_called()
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host", "ansible_host", "9.9.9.9")
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cached_blob_honors_changed_hosts_from(self, mock_client_cls, mock_src_resolve, mock_fetch):
+        """Cache holds raw outputs list; hosts_from is re-applied per parse."""
+        cached_outputs = [
+            {"name": "ips", "value": ["10.0.0.1", "10.0.0.2"], "sensitive": False},
+        ]
+        key = _cache_key_for("outputs")
+        cached_blob = _v1_blob("outputs", data=cached_outputs)
+
+        # Run 1: no hosts_from -> default mode looks for ``ansible_host`` only -> 0 hosts.
+        plugin1 = _make_cache_plugin(_base_options(source="outputs", cache=True))
+        plugin1._cache[key] = cached_blob
+        with _parse_ctx(plugin1):
+            plugin1.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        plugin1.inventory.add_host.assert_not_called()
+
+        # Run 2: explicit hosts_from points at ``ips`` -> 2 hosts.
+        plugin2 = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                cache=True,
+                hosts_from={"output": "ips", "type": "list(string)"},
+            )
+        )
+        plugin2._cache[key] = cached_blob
+        with _parse_ctx(plugin2):
+            plugin2.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+        assert plugin2.inventory.add_host.call_count == 2
+
+        # Both runs were pure cache hits.
+        mock_client_cls.assert_not_called()
+        mock_fetch.assert_not_called()
+
+
+class TestInventoryCacheKey:
+    """Cache key composition — exercising _cache_key directly.
+
+    The key is built from STATIC config only (no API calls). The address is
+    intentionally not part of the key — cross-endpoint isolation is the user's
+    job via ``cache_prefix`` / ``cache_connection``. The key uses chars safe
+    for filesystem-backed cache plugins (jsonfile etc.).
+    """
+
+    def _key(self, plugin, source, ws_id=None, organization=None, workspace=None):
+        return plugin._cache_key(source, ws_id, organization, workspace)
+
+    def test_source_changes_key(self):
+        p = InventoryModule()
+        a = self._key(p, "outputs", organization="o", workspace="w")
+        b = self._key(p, "statefile", organization="o", workspace="w")
+        assert a != b
+
+    def test_workspace_changes_key(self):
+        p = InventoryModule()
+        a = self._key(p, "outputs", organization="o", workspace="w1")
+        b = self._key(p, "outputs", organization="o", workspace="w2")
+        assert a != b
+
+    def test_organization_changes_key(self):
+        """Same workspace name in different orgs must NOT collide."""
+        p = InventoryModule()
+        a = self._key(p, "outputs", organization="org-a", workspace="w")
+        b = self._key(p, "outputs", organization="org-b", workspace="w")
+        assert a != b
+
+    def test_workspace_id_path_differs_from_org_workspace_path(self):
+        """Two ways of pointing at the same workspace produce different keys
+        (we don't try to canonicalize — they'd be different inventory configs)."""
+        p = InventoryModule()
+        a = self._key(p, "outputs", ws_id="ws-abc")
+        b = self._key(p, "outputs", organization="o", workspace="w")
+        assert a != b
+
+    def test_key_is_filesystem_safe(self):
+        """No characters that file-backed cache plugins (jsonfile etc.) treat
+        as path separators or otherwise mangle."""
+        p = InventoryModule()
+        key = self._key(p, "outputs", organization="my-org", workspace="my-ws")
+        assert all(c.isalnum() or c in "._-" for c in key), f"unsafe char in key: {key!r}"
+        # And carries all the discriminator parts.
+        assert "outputs" in key and "my-org" in key and "my-ws" in key
+
+    def test_unsafe_chars_get_sanitized(self):
+        """Defensive: even if a workspace/org name contained a special
+        character, the key must remain filesystem-safe."""
+        p = InventoryModule()
+        key = self._key(p, "outputs", organization="org/with/slashes", workspace="ws:with:colons")
+        assert "/" not in key
+        assert ":" not in key
+
+
+# ---------------------------------------------------------------------------
+# InventoryModule cache validation mode (cache_validate_current_state_version)
+# ---------------------------------------------------------------------------
+
+
+class TestInventoryCacheValidationStatefile:
+    """Apply-aware cache validation for source=statefile.
+
+    Opt-in via ``cache_validate_current_state_version: true``. Each run
+    resolves the workspace and the current state version ID; the cached
+    blob is reused only when its recorded ``state_version_id`` matches.
+    Trade-off: not offline-capable.
+    """
+
+    def _state(self, ip="10.0.0.1"):
+        return _make_resource_state([_aws_resource("web", [{"attributes": {"public_ip": ip}}])])
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_hit_with_matching_sv_id_skips_download(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+
+        plugin = _make_cache_plugin(_base_options(cache=True, cache_validate_current_state_version=True))
+        key = _cache_key_for("statefile")
+        plugin._cache[key] = _v1_blob("statefile", data=self._state(ip="10.9.9.9"), state_version_id="sv-1")
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        # Validation API calls happened (this is the trade-off vs. default mode):
+        mock_inv_resolve.assert_called_once()
+        mock_inv_sv.assert_called_once()
+        # But the heavy download was skipped — that's the freshness-validated win.
+        mock_download.assert_not_called()
+        # And inventory came from the cached blob.
+        plugin.inventory.set_variable.assert_any_call("aws_instance_web", "public_ip", "10.9.9.9")
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_changed_sv_id_refreshes_cache(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_download):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-NEW"
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True, cache_validate_current_state_version=True))
+        key = _cache_key_for("statefile")
+        # Cached blob from a previous apply (older sv_id):
+        plugin._cache[key] = _v1_blob("statefile", data={"stale": "payload"}, state_version_id="sv-OLD")
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        # Validation noticed the mismatch and pulled fresh data.
+        mock_download.assert_called_once()
+        # And the cache is now tagged with the new sv_id.
+        assert plugin._cache[key]["state_version_id"] == "sv-NEW"
+        assert plugin._cache[key]["data"] == self._state()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_missing_sv_id_in_blob_treated_as_miss(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_download):
+        """A blob written by a default-mode (validation=False) run lacks an
+        ``state_version_id`` value — validation mode must treat that as a
+        miss rather than reuse it."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True, cache_validate_current_state_version=True))
+        key = _cache_key_for("statefile")
+        # Default-mode shape: state_version_id=None
+        plugin._cache[key] = _v1_blob("statefile", data=self._state(), state_version_id=None)
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_download.assert_called_once()
+        assert plugin._cache[key]["state_version_id"] == "sv-1"
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_api_failure_raises_parser_error(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_download):
+        """When validation cannot run (e.g., HCP/TFE unreachable),
+        cache_validate_current_state_version=true refuses to silently serve
+        cached data — it raises so the operator notices."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = None  # API call failed inside resolve_current_state_version_id
+
+        plugin = _make_cache_plugin(_base_options(cache=True, cache_validate_current_state_version=True))
+        # Even with fresh-looking cached data, raise rather than serve it stale.
+        plugin._cache[_cache_key_for("statefile")] = _v1_blob("statefile", data=self._state(), state_version_id="sv-1")
+
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="cache_validate_current_state_version"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_download.assert_not_called()
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_miss_writes_blob_with_current_sv_id(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_download):
+        """A first-run cache miss in validation mode writes a blob whose
+        ``state_version_id`` equals the resolved current sv_id."""
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-FIRST"
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options(cache=True, cache_validate_current_state_version=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        key = _cache_key_for("statefile")
+        assert plugin._cache[key] == _v1_blob("statefile", data=self._state(), state_version_id="sv-FIRST")
+
+
+class TestInventoryCacheValidationOutputs:
+    """Apply-aware cache validation for source=outputs."""
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_hit_with_matching_sv_id_skips_fetch(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-1"
+
+        cached_outputs = [{"name": "ansible_host", "value": "9.9.9.9", "sensitive": False}]
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True, cache_validate_current_state_version=True))
+        plugin._cache[_cache_key_for("outputs")] = _v1_blob("outputs", data=cached_outputs, state_version_id="sv-1")
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_inv_sv.assert_called_once()
+        mock_fetch.assert_not_called()
+        plugin.inventory.set_variable.assert_any_call("my-ws_ansible_host", "ansible_host", "9.9.9.9")
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_INV_MODULE}.resolve_current_state_version_id")
+    @patch(f"{_INV_MODULE}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_validation_changed_sv_id_refreshes_outputs(self, mock_client_cls, mock_inv_resolve, mock_inv_sv, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_inv_resolve.return_value = ("ws-abc", "my-ws")
+        mock_inv_sv.return_value = "sv-NEW"
+        fresh_outputs = [{"name": "ansible_host", "value": "1.2.3.4", "sensitive": False}]
+        mock_fetch.return_value = fresh_outputs
+
+        plugin = _make_cache_plugin(_base_options(source="outputs", cache=True, cache_validate_current_state_version=True))
+        key = _cache_key_for("outputs")
+        plugin._cache[key] = _v1_blob("outputs", data=[{"name": "ansible_host", "value": "old"}], state_version_id="sv-OLD")
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        mock_fetch.assert_called_once()
+        assert plugin._cache[key] == _v1_blob("outputs", data=fresh_outputs, state_version_id="sv-NEW")
+
+
+class TestStatefileSensitiveSanitizationForCache:
+    """Sanitization happens BEFORE the blob lands in cache.
+
+    Persisted cache entries must never contain values Terraform flagged as
+    sensitive — those would otherwise be written to disk under
+    ~/.ansible/cache/.
+    """
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_cache_miss_writes_sanitized_state_only(self, mock_client_cls, mock_src_resolve, mock_download):
+        """Live state with sensitive_attributes -> cached state has them stripped."""
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        # Raw state from TFC includes a sensitive password attribute.
+        raw_state = _make_resource_state(
+            [
+                {
+                    "mode": "managed",
+                    "type": "aws_instance",
+                    "name": "web",
+                    "provider": 'provider["registry.terraform.io/hashicorp/aws"]',
+                    "instances": [
+                        {
+                            "attributes": {
+                                "public_ip": "1.2.3.4",
+                                "password": "VERY-SECRET",
+                            },
+                            "sensitive_attributes": [[{"type": "get_attr", "value": "password"}]],
+                        }
+                    ],
+                }
+            ]
+        )
+        mock_download.return_value = raw_state
+
+        plugin = _make_cache_plugin(_base_options(cache=True))
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        key = _cache_key_for("statefile")
+        cached_state = plugin._cache[key]["data"]
+        instance = cached_state["resources"][0]["instances"][0]
+        # Sensitive value gone; non-sensitive value preserved.
+        assert "password" not in instance["attributes"]
+        assert instance["attributes"]["public_ip"] == "1.2.3.4"
+        # And the marker was dropped — its referent is gone, so future
+        # second-pass sanitization on the cached blob is a no-op.
+        assert "sensitive_attributes" not in instance

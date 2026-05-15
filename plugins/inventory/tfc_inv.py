@@ -21,6 +21,7 @@ description:
   - Does not support caching.
 extends_documentation_fragment:
   - constructed
+  - inventory_cache
 version_added: "2.0.0"
 options:
   plugin:
@@ -273,6 +274,27 @@ options:
         with the same scope and exclusions as O(hostvars_prefix).
     type: str
     default: ""
+  cache_validate_current_state_version:
+    description:
+      - Opt-in cache-freshness mode that validates a cache entry against the
+        workspace's current Terraform state version ID before reusing it.
+      - When V(false) (default), caching is the standard Ansible
+        timeout-based contract from O(inventory_cache#cache) — cache hits
+        make zero API calls and are fully offline-capable within
+        O(inventory_cache#cache_timeout). Use V(--flush-cache) to force a
+        refresh after a Terraform apply.
+      - When V(true), each cache hit triggers a lightweight
+        C(state-versions/current) lookup. If the cached entry's recorded
+        state version ID matches the workspace's current state version ID,
+        the heavy state download or outputs fetch is skipped. If they
+        differ, fresh data is fetched and the cache entry is overwritten.
+      - This mode is not offline-friendly. It requires HCP/TFE
+        connectivity on every run; if the validation API call fails the
+        plugin raises a parser error rather than serve potentially stale
+        cache.
+      - Has no effect when O(inventory_cache#cache) is V(false).
+    type: bool
+    default: false
 """
 
 EXAMPLES = r"""
@@ -593,21 +615,69 @@ EXAMPLES = r"""
       type: string             # ansible_host = value via compose
   compose:
     ansible_host: public_ip | default(value)
+
+# Per-run in-memory cache (no persistence across ansible-inventory invocations).
+# Cache entries are keyed by the current Terraform state version ID, so a new
+# apply automatically refreshes inventory even if cache_timeout has not expired.
+- name: Inventory with in-memory cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  cache: true
+  cache_timeout: 300
+
+# Persistent cross-run cache via the jsonfile cache plugin. Setting
+# cache_prefix lets multiple tfc_inv inventories share a backend without
+# colliding (mirrors aws_ec2 / azure_rm / k8s convention).
+- name: Inventory with persistent jsonfile cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: statefile
+  workspace_id: ws-abc123
+  cache: true
+  cache_plugin: jsonfile
+  cache_connection: ~/.ansible/cache/tfc_inv
+  cache_prefix: tfc_inv
+  cache_timeout: 300
+
+# Freshness-validated cache (apply-aware): each run resolves the workspace's
+# current Terraform state version and only reuses cached data whose recorded
+# state_version_id matches. Heavy state download / outputs fetch is skipped
+# when validated. NOT offline-friendly — requires HCP/TFE connectivity on
+# every run; a failed validation API call raises rather than serving stale
+# cache.
+- name: Inventory with apply-aware freshness validation
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  cache: true
+  cache_timeout: 3600
+  cache_validate_current_state_version: true
 """
 
+import re
 from typing import Any, Dict, Iterable, List, Optional
 
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
-from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.plugins.inventory import BaseInventoryPlugin, Cacheable, Constructable
 from ansible.utils.display import Display
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import (
+    get_preferred_hostname,
+    passes_filters,
+    resolve_current_state_version_id,
+    resolve_workspace,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
+
+# Bumped whenever the cache blob shape changes; older entries are ignored.
+_CACHE_SCHEMA = "tfc_inv_cache_v1"
 
 
 def _wire_outputs_display() -> None:
@@ -621,7 +691,7 @@ def _wire_outputs_display() -> None:
 _wire_outputs_display()
 
 
-class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
+class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: ignore[misc]
     NAME = "hashicorp.terraform.tfc_inv"
 
     _VALID_SUFFIXES = (
@@ -768,6 +838,28 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # Entry point
     # ------------------------------------------------------------------
 
+    def _cache_key(
+        self,
+        source: str,
+        workspace_id: Optional[str],
+        organization: Optional[str],
+        workspace: Optional[str],
+    ) -> str:
+        """Build a static cache key from inventory config — no API calls.
+
+        Keys differ for different ``(source, workspace)`` tuples; a single
+        inventory config keeps a stable key so subsequent runs hit the cache
+        cleanly. Components are restricted to filesystem-safe characters
+        (letters, digits, ``.``, ``-``, ``_``) so file-backed cache plugins
+        like ``jsonfile`` can use the key directly as a filename.
+
+        Cross-endpoint isolation is the user's job via ``cache_prefix`` /
+        ``cache_connection`` rather than encoded in the key.
+        """
+        ws_part = workspace_id or "{0}/{1}".format(organization or "", workspace or "")
+        raw = "_".join([self.NAME, source, ws_part])
+        return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
+
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
         super().parse(inventory, loader, path, cache=cache)
         raw = self._read_config_data(path)
@@ -807,25 +899,126 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         if not tfe_token:
             raise AnsibleParserError("A Terraform API token is required. Set 'tfe_token' in the inventory config or the TFE_TOKEN environment variable.")
 
+        # Cache contract:
+        # ``self.get_option("cache")`` reflects the user's inventory YAML opt-in.
+        # ``cache`` (parameter) reflects the runtime gate — Ansible passes ``False``
+        # when ``--flush-cache`` is in effect, so reads must be skipped that run.
+        # Writes are still allowed to refresh the entry.
+        user_cache_opt = bool(self.get_option("cache"))
+        cache_read_ok = user_cache_opt and bool(cache)
+        cache_write_ok = user_cache_opt
+        # Opt-in apply-aware freshness mode. When True, every run resolves the
+        # workspace's current state version and only reuses cached data whose
+        # ``state_version_id`` matches. Not offline-friendly — see option docs.
+        validate_sv = user_cache_opt and bool(self.get_option("cache_validate_current_state_version"))
+
         try:
             source_cls = get_source_backend(source)
             source_cls.validate_options(source_options)
 
-            with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
-                records = source_cls(client, source_options).collect_hosts()
-
-                self._populate_from_host_records(
-                    records,
-                    hostnames,
-                    compose,
-                    keyed_groups,
-                    groups,
-                    strict,
-                    include_filters,
-                    exclude_filters,
-                    hostvars_prefix=hostvars_prefix,
-                    hostvars_suffix=hostvars_suffix,
+            cache_key: Optional[str] = None
+            if user_cache_opt:
+                cache_key = self._cache_key(
+                    source,
+                    source_options.get("workspace_id"),
+                    source_options.get("organization"),
+                    source_options.get("workspace"),
                 )
+
+            if not validate_sv:
+                # ── Default mode ────────────────────────────────────────
+                # Static cache key, no API calls on hit. Cache hit serves
+                # entirely from the persisted blob without constructing a
+                # TerraformClient — fully offline-capable within
+                # ``cache_timeout``.
+                cached_blob: Any = None
+                if cache_read_ok and cache_key is not None:
+                    try:
+                        candidate = self._cache[cache_key]
+                    except KeyError:
+                        candidate = None
+                    if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA:
+                        cached_blob = candidate
+                    # else: incompatible (older shape, foreign blob) → treat as miss
+
+                if cached_blob is not None:
+                    source_instance = source_cls(None, source_options)  # type: ignore[arg-type]
+                    source_instance._cached_blob = cached_blob  # type: ignore[attr-defined]
+                    records = source_instance.collect_hosts()
+                else:
+                    with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+                        source_instance = source_cls(client, source_options)
+                        records = source_instance.collect_hosts()
+                        if cache_write_ok and cache_key is not None:
+                            blob = getattr(source_instance, "_fetched_blob", None)
+                            if blob is not None:
+                                self._cache[cache_key] = blob
+            else:
+                # ── Validation mode ─────────────────────────────────────
+                # Resolve workspace + current state version on every run, then
+                # use the cached blob iff its ``state_version_id`` matches.
+                # Heavy fetch (state download / outputs fetch) is skipped on a
+                # validated hit. Refusing to silently serve stale: if the
+                # validation API call fails, we raise.
+                with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+                    resolved_id, workspace_name = resolve_workspace(
+                        client,
+                        source_options.get("workspace_id"),
+                        source_options.get("organization"),
+                        source_options.get("workspace"),
+                    )
+                    current_sv_id = resolve_current_state_version_id(client, resolved_id)
+                    if current_sv_id is None:
+                        raise AnsibleParserError(
+                            "cache_validate_current_state_version=true requires HCP/TFE "
+                            "connectivity to validate the cache. Could not resolve the "
+                            f"current state version ID for workspace '{workspace_name}' "
+                            f"({resolved_id}). Disable validation mode to serve cached "
+                            "data offline within cache_timeout."
+                        )
+
+                    cached_blob = None
+                    if cache_read_ok and cache_key is not None:
+                        try:
+                            candidate = self._cache[cache_key]
+                        except KeyError:
+                            candidate = None
+                        if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA and candidate.get("state_version_id") == current_sv_id:
+                            cached_blob = candidate
+                        # else: stale / shape mismatch / missing sv_id → fetch fresh
+
+                    source_instance = source_cls(client, source_options)
+                    if cached_blob is not None:
+                        source_instance._cached_blob = cached_blob  # type: ignore[attr-defined]
+                    else:
+                        # Hand the source the resolved workspace and current
+                        # sv_id so it can skip its own ``resolve_workspace``
+                        # call and write a blob tagged with the current
+                        # state version that produced it.
+                        source_instance._validation_ctx = {  # type: ignore[attr-defined]
+                            "workspace_id": resolved_id,
+                            "workspace_name": workspace_name,
+                            "state_version_id": current_sv_id,
+                        }
+                    records = source_instance.collect_hosts()
+
+                    if cache_write_ok and cache_key is not None and cached_blob is None:
+                        blob = getattr(source_instance, "_fetched_blob", None)
+                        if blob is not None:
+                            self._cache[cache_key] = blob
+
+            self._populate_from_host_records(
+                records,
+                hostnames,
+                compose,
+                keyed_groups,
+                groups,
+                strict,
+                include_filters,
+                exclude_filters,
+                hostvars_prefix=hostvars_prefix,
+                hostvars_suffix=hostvars_suffix,
+            )
         except TerraformError as exc:
             raise AnsibleParserError(str(exc)) from exc
         except TerraformTokenNotFoundError as exc:

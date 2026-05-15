@@ -182,3 +182,18 @@ def fetch_outputs(client: TerraformClient, workspace_id: str) -> List[Dict[str, 
         raise TerraformError(str(exc)) from exc
     except TerraformError as exc:
         raise TerraformError(f"Failed to fetch workspace outputs: {exc}") from exc
+
+
+def resolve_current_state_version_id(client: TerraformClient, workspace_id: str) -> Optional[str]:
+    """Return the current state version ID for *workspace_id* or ``None`` on failure.
+
+    Used by the optional cache validation mode (``cache_validate_current_state_version``)
+    to confirm a cached blob still reflects the workspace's latest applied state.
+    Returns ``None`` instead of raising so the caller can decide whether to
+    raise (validation mode) or fall back to a non-validated cache hit.
+    """
+    try:
+        sv = client.client.state_versions.read_current(workspace_id)
+        return getattr(sv, "id", None)
+    except Exception:
+        return None
