@@ -470,6 +470,7 @@ class StatefileSource(BaseInventorySource):
         cached_blob = getattr(self, "_cached_blob", None)
         if cached_blob is not None:
             workspace_name = cached_blob["workspace_name"]
+            resolved_id = cached_blob.get("workspace_id")
             state_data = cached_blob["data"]
         else:
             ctx = getattr(self, "_validation_ctx", None)
@@ -531,6 +532,7 @@ class StatefileSource(BaseInventorySource):
                         "host_vars": attributes,
                         "index": effective_index,
                         "resolved_hostname": resolved_hostname,
+                        "workspace_id": resolved_id,
                     }
                 )
 

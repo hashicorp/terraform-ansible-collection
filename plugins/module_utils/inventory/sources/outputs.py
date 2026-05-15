@@ -286,6 +286,19 @@ def _record(output_name: str, workspace_name: str, host_vars: Dict[str, Any], **
     return record
 
 
+def _stamp_workspace_id(records: List[HostRecord], workspace_id: Optional[str]) -> List[HostRecord]:
+    """Add ``workspace_id`` to every record so the dispatcher can inject
+    ``tfc_workspace_id`` host vars in multi-workspace mode. The single-workspace
+    path doesn't use the value, but stamping unconditionally keeps the record
+    shape uniform and the dispatcher logic simple.
+    """
+    if workspace_id is None:
+        return records
+    for rec in records:
+        rec["workspace_id"] = workspace_id
+    return records
+
+
 def _primitive_host_vars(scalar: Any, auto_ansible_host: bool) -> Dict[str, Any]:
     host_vars: Dict[str, Any] = {"value": scalar}
     if auto_ansible_host:
@@ -479,6 +492,7 @@ class OutputsSource(BaseInventorySource):
         cached_blob = getattr(self, "_cached_blob", None)
         if cached_blob is not None:
             workspace_name = cached_blob["workspace_name"]
+            resolved_id = cached_blob.get("workspace_id")
             outputs = cached_blob["data"]
         else:
             ctx = getattr(self, "_validation_ctx", None)
@@ -507,7 +521,7 @@ class OutputsSource(BaseInventorySource):
             records: List[HostRecord] = []
             for spec in hosts_from_opt:
                 records.extend(_collect_hosts_from_spec(spec, outputs_map, workspace_name, compose_active))
-            return records
+            return _stamp_workspace_id(records, resolved_id)
 
         # Default mode is intentionally narrow: only a Terraform output named
         # ``ansible_host`` is treated as inventory. A dict of primitives is
@@ -517,15 +531,21 @@ class OutputsSource(BaseInventorySource):
         outputs_map = {o.get("name", ""): o.get("value") for o in outputs if isinstance(o, dict)}
         ansible_host_value = outputs_map.get("ansible_host")
         if isinstance(ansible_host_value, dict) and ansible_host_value and all(isinstance(v, (str, int, float, bool)) for v in ansible_host_value.values()):
-            return _collect_hosts_from_spec(
-                {"output": "ansible_host", "type": "map(string)"},
+            return _stamp_workspace_id(
+                _collect_hosts_from_spec(
+                    {"output": "ansible_host", "type": "map(string)"},
+                    outputs_map,
+                    workspace_name,
+                    compose_active,
+                ),
+                resolved_id,
+            )
+        return _stamp_workspace_id(
+            _collect_hosts_from_spec(
+                {"output": "ansible_host", "type": "dynamic"},
                 outputs_map,
                 workspace_name,
                 compose_active,
-            )
-        return _collect_hosts_from_spec(
-            {"output": "ansible_host", "type": "dynamic"},
-            outputs_map,
-            workspace_name,
-            compose_active,
+            ),
+            resolved_id,
         )
