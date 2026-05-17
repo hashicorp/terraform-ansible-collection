@@ -89,9 +89,6 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
-        # Cache options (inventory_cache doc fragment defaults).
-        "cache": False,
-        "cache_validate_current_state_version": False,
     }
     defaults.update(overrides)
     return defaults
@@ -1217,6 +1214,7 @@ class TestOutputsSourceCollectHosts:
             "workspace_name": "my-ws",
             "host_vars": {"ip": "1.2.3.4", "metadata": {"env": "prod"}},
             "index": None,
+            "workspace_id": "ws-abc",
         }
 
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
@@ -3233,3 +3231,444 @@ class TestStatefileSensitiveSanitizationForCache:
         # And the marker was dropped — its referent is gone, so future
         # second-pass sanitization on the cached blob is a no-op.
         assert "sensitive_attributes" not in instance
+
+
+# ---------------------------------------------------------------------------
+# Multi-workspace mode (workspace_filters)
+# ---------------------------------------------------------------------------
+
+
+def _per_ws_key(source: str, ws_id: str) -> str:
+    """Per-workspace cache key produced by _cache_key(source, workspace_id, None, None)."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", "_".join(["hashicorp.terraform.tfc_inv", source, ws_id]))
+
+
+def _selector_key(source: str, org: str, filters: dict) -> str:
+    """Mirror _selector_cache_key()."""
+    import json as _json
+
+    normalized = _json.dumps(filters or {}, sort_keys=True, default=str)
+    raw = "_".join(["hashicorp.terraform.tfc_inv", "selector", source, org or "", normalized])
+    return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
+
+
+class TestMultiWorkspaceOptionValidation:
+    """Mutex / required-together / range checks happen before any API call."""
+
+    def test_workspace_filters_with_workspace_id_fails(self):
+        plugin = _make_plugin(
+            _base_options(
+                workspace_id="ws-abc",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+            )
+        )
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="mutually exclusive"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+    def test_workspace_filters_with_workspace_name_fails(self):
+        plugin = _make_plugin(
+            _base_options(
+                workspace_filters={"project_id": "prj-x"},
+            )
+        )
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="mutually exclusive"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+    def test_workspace_filters_requires_organization(self):
+        plugin = _make_plugin(
+            _base_options(
+                workspace=None,
+                organization=None,
+                workspace_filters={"project_id": "prj-x"},
+            )
+        )
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="requires 'organization'"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+    def test_concurrency_too_low_fails(self):
+        plugin = _make_plugin(_base_options(concurrency=0))
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="concurrency must be between"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+    def test_concurrency_above_max_fails(self):
+        plugin = _make_plugin(_base_options(concurrency=6))
+        with _parse_ctx(plugin):
+            with pytest.raises(AnsibleParserError, match="concurrency must be between"):
+                plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+
+class TestListWorkspaces:
+    """The list_workspaces() helper maps YAML keys → WorkspaceListOptions."""
+
+    def _client_returning(self, workspaces):
+        client = Mock()
+        client.client.workspaces.list.return_value = iter(workspaces)
+        return client
+
+    def test_project_id_must_start_with_prj_prefix(self):
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import list_workspaces
+
+        client = self._client_returning([])
+        with pytest.raises(TerraformError, match="must be a project ID starting with 'prj-'"):
+            list_workspaces(client, "my-org", {"project_id": "Finance_Prod"})
+
+    def test_unsupported_filter_keys_fail(self):
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import list_workspaces
+
+        client = self._client_returning([])
+        with pytest.raises(TerraformError, match="unsupported keys"):
+            list_workspaces(client, "my-org", {"unknown_key": "x"})
+
+    def test_empty_filter_values_dropped(self):
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import list_workspaces
+
+        client = self._client_returning([])
+        list_workspaces(client, "my-org", {"name_search": "", "tags": "prod"})
+        opts = client.client.workspaces.list.call_args.args[1]
+        # tags forwarded, empty name_search dropped.
+        assert getattr(opts, "tags", None) == "prod"
+        # search field corresponds to name_search; empty value means unset/None.
+        assert getattr(opts, "search", None) in (None, "")
+
+    def test_filter_field_mapping_via_attributes(self):
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import list_workspaces
+
+        client = self._client_returning([])
+        list_workspaces(
+            client,
+            "my-org",
+            {
+                "project_id": "prj-abc",
+                "name_search": "web",
+                "tags": "prod,linux",
+                "exclude_tags": "deprecated",
+                "wildcard_name": "*prod*",
+                "current_run_status": "applied",
+                "sort": "name",
+                "page_size": 50,
+            },
+        )
+        opts = client.client.workspaces.list.call_args.args[1]
+        assert opts.project_id == "prj-abc"
+        assert opts.search == "web"
+        assert opts.tags == "prod,linux"
+        assert opts.exclude_tags == "deprecated"
+        assert opts.wildcard_name == "*prod*"
+        assert opts.current_run_status == "applied"
+        assert opts.sort == "name"
+        assert opts.page_size == 50
+
+    def test_returns_id_name_tuples(self):
+        """Matches pytfe's actual Workspace model: id / name at the top level."""
+        from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import list_workspaces
+
+        ws_a = Mock()
+        ws_a.id = "ws-a"
+        ws_a.name = "alpha"
+        ws_b = Mock()
+        ws_b.id = "ws-b"
+        ws_b.name = "beta"
+        client = self._client_returning([ws_a, ws_b])
+
+        targets = list_workspaces(client, "my-org", {})
+        assert targets == [("ws-a", "alpha"), ("ws-b", "beta")]
+
+
+class TestSelectorCacheKey:
+    """The selector cache key must be order-independent and filesystem-safe."""
+
+    def test_filter_order_does_not_change_key(self):
+        plugin = _make_plugin(_base_options())
+        k1 = plugin._selector_cache_key("outputs", "my-org", {"project_id": "prj-x", "tags": "prod"})
+        k2 = plugin._selector_cache_key("outputs", "my-org", {"tags": "prod", "project_id": "prj-x"})
+        assert k1 == k2
+
+    def test_different_filters_produce_different_keys(self):
+        plugin = _make_plugin(_base_options())
+        k1 = plugin._selector_cache_key("outputs", "my-org", {"project_id": "prj-x"})
+        k2 = plugin._selector_cache_key("outputs", "my-org", {"project_id": "prj-y"})
+        assert k1 != k2
+
+    def test_key_is_filesystem_safe(self):
+        plugin = _make_plugin(_base_options())
+        k = plugin._selector_cache_key("outputs", "my org/x", {"name_search": "a/b:c?d"})
+        assert re.match(r"^[A-Za-z0-9._-]+$", k) is not None
+
+
+class TestMultiWorkspaceFlow:
+    """End-to-end multi-workspace dispatch (sequential and parallel)."""
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_outputs_two_workspaces_merge_with_workspace_vars(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        """Two workspaces matched by filters merge their outputs, and every
+        host gets ``tfc_workspace_id`` / ``tfc_workspace_name`` stamped."""
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = [("ws-a", "alpha"), ("ws-b", "beta")]
+        # Source-level resolve must not be called — the dispatcher hands the
+        # workspace identity to the source via _validation_ctx.
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+
+        def _fetch(client, workspace_id):
+            return [{"name": "ansible_host", "value": f"{workspace_id}-host", "sensitive": False}]
+
+        mock_fetch.side_effect = _fetch
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        # Both workspaces produced one host each.
+        assert mock_fetch.call_count == 2
+        # Hosts were registered with the per-workspace stamp.
+        calls = plugin.inventory.set_variable.call_args_list
+        recorded = {(c.args[0], c.args[1]): c.args[2] for c in calls if len(c.args) >= 3}
+        # Whatever the hostname, tfc_workspace_id / tfc_workspace_name keys
+        # appear paired with their respective workspace ids.
+        ws_ids = {v for (h, k), v in recorded.items() if k == "tfc_workspace_id"}
+        ws_names = {v for (h, k), v in recorded.items() if k == "tfc_workspace_name"}
+        assert ws_ids == {"ws-a", "ws-b"}
+        assert ws_names == {"alpha", "beta"}
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_statefile_two_workspaces_merge(self, mock_client_cls, mock_src_resolve, mock_download, mock_list):
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = [("ws-a", "alpha"), ("ws-b", "beta")]
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+        mock_download.side_effect = lambda client, ws_id: _make_resource_state([_aws_resource("web", [{"attributes": {"public_ip": f"{ws_id}-ip"}}])])
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="statefile",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        assert mock_download.call_count == 2
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_parallel_mode_same_result_as_sequential(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = [("ws-a", "alpha"), ("ws-b", "beta"), ("ws-c", "gamma")]
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+        mock_fetch.side_effect = lambda c, ws: [{"name": "ansible_host", "value": f"{ws}-h", "sensitive": False}]
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+                enable_parallel_processing=True,
+                concurrency=3,
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        assert mock_fetch.call_count == 3
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_zero_matched_workspaces_warns_and_returns_empty(self, mock_client_cls, mock_list):
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = []
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-empty"},
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        # No hosts added — set_variable never called.
+        plugin.inventory.set_variable.assert_not_called()
+
+
+class TestMultiWorkspaceCaching:
+    """Selector and per-workspace caching, default (offline-friendly) mode."""
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_selector_cache_miss_writes_selector_and_per_workspace_blobs(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = [("ws-a", "alpha"), ("ws-b", "beta")]
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+        mock_fetch.side_effect = lambda c, ws: [{"name": "ansible_host", "value": f"{ws}-h", "sensitive": False}]
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+                cache=True,
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        sel_key = _selector_key("outputs", "my-org", {"project_id": "prj-x"})
+        assert sel_key in plugin._cache
+        assert plugin._cache[sel_key]["schema"] == "tfc_inv_selector_v1"
+        assert _per_ws_key("outputs", "ws-a") in plugin._cache
+        assert _per_ws_key("outputs", "ws-b") in plugin._cache
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_selector_and_per_workspace_cache_hit_skips_all_api_calls(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        """The offline-friendly contract: with both layers warm, ZERO API
+        calls happen and no TerraformClient is constructed in the workers."""
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+                cache=True,
+            )
+        )
+        # Pre-seed selector + per-workspace blobs.
+        plugin._cache[_selector_key("outputs", "my-org", {"project_id": "prj-x"})] = {
+            "schema": "tfc_inv_selector_v1",
+            "targets": [["ws-a", "alpha"], ["ws-b", "beta"]],
+        }
+        plugin._cache[_per_ws_key("outputs", "ws-a")] = _v1_blob(
+            "outputs",
+            data=[{"name": "ansible_host", "value": "alpha-h", "sensitive": False}],
+            workspace_id="ws-a",
+            workspace_name="alpha",
+        )
+        plugin._cache[_per_ws_key("outputs", "ws-b")] = _v1_blob(
+            "outputs",
+            data=[{"name": "ansible_host", "value": "beta-h", "sensitive": False}],
+            workspace_id="ws-b",
+            workspace_name="beta",
+        )
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=True)
+
+        # No workspace listing, no per-workspace fetch, no client construction.
+        mock_list.assert_not_called()
+        mock_fetch.assert_not_called()
+        mock_client_cls.assert_not_called()
+        mock_src_resolve.assert_not_called()
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_flush_cache_skips_reads_writes_fresh_layers(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        """--flush-cache (cache=False at runtime) must skip both layers' reads
+        but still write fresh data into both."""
+        mock_client_cls.return_value = Mock()
+        mock_list.return_value = [("ws-a", "alpha")]
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+        mock_fetch.return_value = [{"name": "ansible_host", "value": "fresh", "sensitive": False}]
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+                cache=True,
+            )
+        )
+        # Pre-seed stale entries that should be overwritten.
+        plugin._cache[_selector_key("outputs", "my-org", {"project_id": "prj-x"})] = {
+            "schema": "tfc_inv_selector_v1",
+            "targets": [["ws-STALE", "stale"]],
+        }
+        plugin._cache[_per_ws_key("outputs", "ws-a")] = _v1_blob(
+            "outputs",
+            data=[{"name": "ansible_host", "value": "stale", "sensitive": False}],
+            workspace_id="ws-a",
+            workspace_name="alpha",
+        )
+
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml", cache=False)
+
+        # Reads skipped → live list + live fetch.
+        mock_list.assert_called_once()
+        mock_fetch.assert_called_once()
+        # Both layers refreshed.
+        assert plugin._cache[_selector_key("outputs", "my-org", {"project_id": "prj-x"})]["targets"] == [["ws-a", "alpha"]]
+        assert plugin._cache[_per_ws_key("outputs", "ws-a")]["data"] == [{"name": "ansible_host", "value": "fresh", "sensitive": False}]
+
+
+class TestMultiWorkspaceValidationMode:
+    """cache_validate_current_state_version with multiple workspaces."""
+
+    @patch(f"{_INV_MODULE}.list_workspaces")
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_sv_id_failure_skips_one_workspace_others_continue(self, mock_client_cls, mock_src_resolve, mock_fetch, mock_list):
+        """One workspace's read_current() raises → that workspace is excluded
+        with a warning; the other workspace's inventory still appears."""
+        mock_list.return_value = [("ws-good", "good"), ("ws-bad", "bad")]
+        mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
+        mock_fetch.return_value = [{"name": "ansible_host", "value": "good-h", "sensitive": False}]
+
+        # The TerraformClient context manager returns a client whose
+        # state_versions.read_current succeeds for ws-good but fails for ws-bad.
+        def _build_client(_options):
+            cm = Mock()
+            client = Mock()
+
+            def _read_current(ws_id):
+                if ws_id == "ws-good":
+                    return Mock(id="sv-1")
+                raise RuntimeError("network error")
+
+            client.client.state_versions.read_current.side_effect = _read_current
+            cm.__enter__ = Mock(return_value=client)
+            cm.__exit__ = Mock(return_value=False)
+            return cm
+
+        mock_client_cls.from_mapping.side_effect = _build_client
+        mock_client_cls.return_value = Mock()  # selector-cache miss path also constructs the client
+
+        plugin = _make_cache_plugin(
+            _base_options(
+                source="outputs",
+                workspace=None,
+                workspace_filters={"project_id": "prj-x"},
+                cache=True,
+                cache_validate_current_state_version=True,
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        # Only the good workspace got fetched; the bad one was skipped.
+        mock_fetch.assert_called_once()
+        assert mock_fetch.call_args.args[1] == "ws-good"
