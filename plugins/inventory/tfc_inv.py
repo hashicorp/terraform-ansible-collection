@@ -147,8 +147,8 @@ options:
     description:
       - Maximum number of concurrent workspace fetches when
         O(enable_parallel_processing) is V(true).
-      - Hard capped at V(5) to keep memory and API rate-limit pressure
-        bounded. Values outside V([1, 5]) raise a parser error.
+      - Hard capped at V(10) to keep memory and API rate-limit pressure
+        bounded. Values outside V([1, 10]) raise a parser error.
     type: int
     default: 5
   search_child_modules:
