@@ -74,7 +74,6 @@ SUPPORTED_STATE_VERSION = 4
 PROVIDER_RESOURCE_TYPES: Dict[str, List[str]] = {
     "registry.terraform.io/hashicorp/aws": [
         "aws_instance",
-        "aws_network_interface",
     ],
     "registry.terraform.io/hashicorp/azurerm": [
         "azurerm_linux_virtual_machine",
