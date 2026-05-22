@@ -1,0 +1,95 @@
+---
+# Integration tests against a custom pytfe branch.
+#
+#
+# Use this to validate the collection against an unreleased pytfe version
+
+name: Integration (custom pytfe branch)
+
+on: # yamllint disable-line rule:truthy
+  workflow_dispatch:
+    inputs:
+      pytfe_branch:
+        description: "pytfe branch to install from hashicorp/python-tfe (commit SHA or tag also accepted)"
+        required: true
+        default: "main"
+      pytfe_repo:
+        description: "pytfe repo (override only when testing a fork)"
+        required: true
+        default: "hashicorp/python-tfe"
+      collection_branch:
+        description: "Collection branch / ref to test (commit SHA or tag also accepted)"
+        required: true
+        default: "main"
+
+jobs:
+  run-integration-tests:
+    name: Run Tests (ansible-${{ matrix.ansible-version }}, py${{ matrix.python-version }}, pytfe@${{ inputs.pytfe_branch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible-version: stable-2.16
+            python-version: "3.12"
+          - ansible-version: stable-2.19
+            python-version: "3.13"
+          - ansible-version: devel
+            python-version: "3.13"
+    steps:
+      - name: Check out collection at chosen ref
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          ref: ${{ inputs.collection_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "${{ matrix.python-version }}"
+
+      - name: Install ansible-core (${{ matrix.ansible-version }})
+        run: python3 -m pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible-version }}.tar.gz --disable-pip-version-check
+
+      - name: Install collection test dependencies (without PyPI pytfe)
+        # test-requirements.txt pins pytfe>=0.1.5 from PyPI. Strip that line
+        # before installing so the next step's git checkout is what's used.
+        run: |
+          grep -ivE '^[[:space:]]*pytfe([[:space:]]|$|[<>=!~])' test-requirements.txt > /tmp/test-requirements.no-pytfe.txt
+          echo "---- test deps actually installed: ----"
+          cat /tmp/test-requirements.no-pytfe.txt
+          python3 -m pip install -r /tmp/test-requirements.no-pytfe.txt
+
+      - name: Install pytfe from ${{ inputs.pytfe_repo }}@${{ inputs.pytfe_branch }}
+        run: |
+          python3 -m pip install --upgrade \
+            "git+https://github.com/${{ inputs.pytfe_repo }}.git@${{ inputs.pytfe_branch }}#egg=pytfe"
+          python3 -c "import pytfe, sys; print('pytfe location :', pytfe.__file__); print('pytfe version  :', getattr(pytfe, '__version__', 'n/a'))"
+
+      - name: Build and install the collection
+        run: ansible-galaxy collection install . --force
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install --pre -r tests/integration/requirements.yml
+
+      - name: Generate integration_config.yml
+        run: ansible-playbook tools/ci/playbooks/render_integration_config.yml
+        env:
+          HCP_CI_TOKEN: "${{ secrets.HCP_CI_TOKEN }}"
+          HCP_CI_ORGANIZATION: "${{ secrets.HCP_CI_ORGANIZATION }}"
+
+      - name: List all integration test targets
+        run: |
+          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform
+          ansible-test integration --list-targets
+
+      - name: Run integration tests (${{ matrix.ansible-version }})
+        run: |
+          cd ~/.ansible/collections/ansible_collections/hashicorp/terraform
+          ansible-test integration --python ${{ matrix.python-version }} --continue-on-error -vvvv
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Re-confirm pytfe used by the tests
+        if: always()
+        run: |
+          python3 -c "import pytfe; print('pytfe was loaded from:', pytfe.__file__)"
