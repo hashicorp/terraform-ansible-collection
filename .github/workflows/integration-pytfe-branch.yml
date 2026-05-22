@@ -13,14 +13,14 @@ on: # yamllint disable-line rule:truthy
         description: "pytfe branch to install from hashicorp/python-tfe (commit SHA or tag also accepted)"
         required: true
         default: "main"
-      pytfe_repo:
-        description: "pytfe repo (override only when testing a fork)"
-        required: true
-        default: "hashicorp/python-tfe"
       collection_branch:
         description: "Collection branch / ref to test (commit SHA or tag also accepted)"
         required: true
         default: "main"
+
+# pytfe source repo is hardcoded to the upstream hashicorp org.
+env:
+  PYTFE_REPO: "hashicorp/python-tfe"
 
 jobs:
   run-integration-tests:
@@ -59,10 +59,10 @@ jobs:
           cat /tmp/test-requirements.no-pytfe.txt
           python3 -m pip install -r /tmp/test-requirements.no-pytfe.txt
 
-      - name: Install pytfe from ${{ inputs.pytfe_repo }}@${{ inputs.pytfe_branch }}
+      - name: Install pytfe from ${{ env.PYTFE_REPO }}@${{ inputs.pytfe_branch }}
         run: |
           python3 -m pip install --upgrade \
-            "git+https://github.com/${{ inputs.pytfe_repo }}.git@${{ inputs.pytfe_branch }}#egg=pytfe"
+            "git+https://github.com/${PYTFE_REPO}.git@${{ inputs.pytfe_branch }}#egg=pytfe"
           python3 -c "import pytfe, sys; print('pytfe location :', pytfe.__file__); print('pytfe version  :', getattr(pytfe, '__version__', 'n/a'))"
 
       - name: Build and install the collection
