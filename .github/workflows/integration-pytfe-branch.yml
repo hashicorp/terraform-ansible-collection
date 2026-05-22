@@ -37,6 +37,32 @@ jobs:
           - ansible-version: devel
             python-version: "3.13"
     steps:
+      - name: Validate workflow inputs
+        # Inputs flow into shell `run:` blocks and into actions/checkout's
+        # `ref:` parameter. Reject anything that could break out of those
+        # contexts (shell metacharacters, leading dash for option-injection,
+        # path-segments). Whitelist matches the character set allowed in git
+        # refs and short SHAs.
+        env:
+          PYTFE_BRANCH: ${{ inputs.pytfe_branch }}
+          COLLECTION_BRANCH: ${{ inputs.collection_branch }}
+        run: |
+          set -euo pipefail
+          allowed='^[A-Za-z0-9._/-]+$'
+          for name in PYTFE_BRANCH COLLECTION_BRANCH; do
+            value="${!name}"
+            if [[ -z "$value" ]]; then
+              echo "::error::$name is empty"; exit 1
+            fi
+            if [[ ! "$value" =~ $allowed ]]; then
+              echo "::error::$name=$value contains characters outside [A-Za-z0-9._/-]"; exit 1
+            fi
+            if [[ "$value" == -* ]]; then
+              echo "::error::$name=$value must not start with '-'"; exit 1
+            fi
+          done
+          echo "Inputs OK: pytfe_branch='$PYTFE_BRANCH', collection_branch='$COLLECTION_BRANCH'"
+
       - name: Check out collection at chosen ref
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
@@ -60,10 +86,16 @@ jobs:
           python3 -m pip install -r /tmp/test-requirements.no-pytfe.txt
 
       - name: Install pytfe from ${{ env.PYTFE_REPO }}@${{ inputs.pytfe_branch }}
+        # Pass user inputs via env: rather than `${{ }}` interpolation into the
+        # shell — the validation step above guarantees both values are in the
+        # allowed character set, and env passing protects against future drift.
+        env:
+          PYTFE_BRANCH: ${{ inputs.pytfe_branch }}
         run: |
+          set -euo pipefail
           python3 -m pip install --upgrade \
-            "git+https://github.com/${PYTFE_REPO}.git@${{ inputs.pytfe_branch }}#egg=pytfe"
-          python3 -c "import pytfe, sys; print('pytfe location :', pytfe.__file__); print('pytfe version  :', getattr(pytfe, '__version__', 'n/a'))"
+            "git+https://github.com/${PYTFE_REPO}.git@${PYTFE_BRANCH}#egg=pytfe"
+          python3 -c "import pytfe; print('pytfe location :', pytfe.__file__); print('pytfe version  :', getattr(pytfe, '__version__', 'n/a'))"
 
       - name: Build and install the collection
         run: ansible-galaxy collection install . --force
