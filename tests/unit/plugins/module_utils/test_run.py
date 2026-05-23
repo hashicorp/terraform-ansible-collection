@@ -62,6 +62,8 @@ class TestCreateRun:
         assert "workspace_id" not in validated_payload
         assert "configuration_version" in validated_payload
         assert validated_payload["workspace"] == "workspace-model"
+        assert "run_message" not in validated_payload
+        assert validated_payload["message"] == "plan run"
 
         mock_safe_api_call.assert_called_once_with(mock_adapter.client.runs.create, mock_options)
         mock_format_response.assert_called_once_with(mock_sdk_response)
