@@ -124,4 +124,4 @@ jobs:
       - name: Re-confirm pytfe used by the tests
         if: always()
         run: |
-          python3 -c "import pytfe; print('pytfe was loaded from:', pytfe.__file__)"
+          python3 -c "import pytfe; print('pytfe was loaded from:', pytfe.__file__); print('pytfe version  :', getattr(pytfe, '__version__', 'n/a'))"
