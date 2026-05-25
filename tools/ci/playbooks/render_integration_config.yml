@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2025, 2026
+
 ---
 - name: Generate temp AWS keys and render integration_config.yml
   hosts: localhost
