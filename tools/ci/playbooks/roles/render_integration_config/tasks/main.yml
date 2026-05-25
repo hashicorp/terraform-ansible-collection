@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2025, 2026
+
 ---
 - name: Set required Core CI variables
   ansible.builtin.set_fact:
