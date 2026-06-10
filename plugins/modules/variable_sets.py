@@ -54,6 +54,31 @@ options:
       - Whether values in this set override values defined on the workspace or by other
         (non-priority) variable sets.
     type: bool
+  parent_project_id:
+    description:
+      - The ID of a project to set as the parent of the variable set on creation.
+      - When set, the variable set is owned by the project rather than the organization.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_organization_id).
+    type: str
+  parent_organization_id:
+    description:
+      - The ID (name) of an organization to set as the parent of the variable set on creation.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_project_id).
+    type: str
+  workspace_id:
+    description:
+      - ID of a single workspace to scope the listing when C(state=list).
+      - Returns all variable sets currently attached to this workspace.
+      - Mutually exclusive with C(organization) and C(project_id) when C(state=list).
+    type: str
+  project_id:
+    description:
+      - ID of a single project to scope the listing when C(state=list).
+      - Returns all variable sets currently attached to this project.
+      - Mutually exclusive with C(organization) and C(workspace_id) when C(state=list).
+    type: str
   workspace_ids:
     description:
       - List of workspace IDs the variable set should be attached to.
@@ -61,7 +86,7 @@ options:
         currently attached but not listed will be detached, and any listed but not attached
         will be attached.
       - Pass an empty list C([]) to detach from all workspaces. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   project_ids:
@@ -69,15 +94,16 @@ options:
       - List of project IDs the variable set should be attached to.
       - When provided, the module converges attachments to exactly this list.
       - Pass an empty list C([]) to detach from all projects. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   state:
     description:
       - Desired state of the variable set.
-      - C(present) creates or updates; C(absent) deletes.
+      - C(present) creates or updates; C(absent) deletes; C(list) returns matching variable sets
+        without making any changes.
     type: str
-    choices: ["present", "absent"]
+    choices: ["present", "absent", "list"]
     default: "present"
 """
 
@@ -132,6 +158,24 @@ EXAMPLES = r"""
   hashicorp.terraform.variable_sets:
     variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
     state: absent
+
+- name: List all variable sets in an organization
+  hashicorp.terraform.variable_sets:
+    organization: "my-org"
+    state: list
+  register: result
+
+- name: List variable sets attached to a workspace
+  hashicorp.terraform.variable_sets:
+    workspace_id: "ws-abc123"
+    state: list
+  register: result
+
+- name: List variable sets attached to a project
+  hashicorp.terraform.variable_sets:
+    project_id: "prj-abc123"
+    state: list
+  register: result
 """
 
 RETURN = r"""
@@ -182,6 +226,28 @@ msg:
   returned: when relevant
   type: str
   sample: "Variable set varset-7tRVyqGbvrF1RmWQ has been deleted successfully"
+variable_sets:
+  description: List of variable sets matching the requested scope. Only returned when C(state=list).
+  returned: when state is list
+  type: list
+  elements: dict
+  contains:
+    id:
+      description: Variable set identifier.
+      type: str
+      sample: "varset-7tRVyqGbvrF1RmWQ"
+    name:
+      description: Variable set name.
+      type: str
+      sample: "shared-platform-defaults"
+    global:
+      description: Whether the variable set applies to all workspaces.
+      type: bool
+      sample: false
+    priority:
+      description: Whether values override workspace-level values.
+      type: bool
+      sample: false
 """
 
 from copy import deepcopy
@@ -198,6 +264,9 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_sets 
     delete_variable_set,
     get_variable_set,
     get_variable_set_by_name,
+    list_variable_sets,
+    list_variable_sets_for_project,
+    list_variable_sets_for_workspace,
     remove_from_projects,
     remove_from_workspaces,
     update_variable_set,
@@ -224,6 +293,20 @@ def _resolve_variable_set(adapter: TerraformClient, params: Dict[str, Any]) -> O
 def _build_desired_attrs(params: Dict[str, Any]) -> Dict[str, Any]:
     """Pick the variable-set scalar attributes from params, dropping Nones."""
     return {k: v for k, v in params.items() if k in _ATTR_KEYS and v is not None}
+
+
+def _build_parent(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Build the SDK ``parent`` relationship payload from params, if requested.
+
+    Returns ``None`` when neither parent identifier is provided.
+    """
+    project_id = params.get("parent_project_id")
+    if project_id:
+        return {"project": {"id": project_id}}
+    organization_id = params.get("parent_organization_id")
+    if organization_id:
+        return {"organization": {"id": organization_id}}
+    return None
 
 
 def _filter_current_attrs(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[str, Any]:
@@ -283,6 +366,9 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             raise ValueError("'organization' is required when creating a new variable set.")
         # pytfe requires `global` on create — default to False if the user didn't specify.
         create_payload = {"global": False, **want_attrs}
+        parent = _build_parent(params)
+        if parent:
+            create_payload["parent"] = parent
         if check_mode:
             return {
                 "changed": True,
@@ -389,6 +475,28 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     return {"changed": True, "msg": f"Variable set {variable_set_id} has been deleted successfully"}
 
 
+def state_list(adapter: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return variable sets for the requested scope without mutating any state."""
+    workspace_id = params.get("workspace_id")
+    project_id = params.get("project_id")
+    organization = params.get("organization")
+
+    scopes = [s for s in (workspace_id, project_id, organization) if s]
+    if len(scopes) > 1:
+        raise ValueError("Only one of 'workspace_id', 'project_id', or 'organization' may be provided for state 'list'.")
+    if not scopes:
+        raise ValueError("One of 'workspace_id', 'project_id', or 'organization' is required for state 'list'.")
+
+    if workspace_id:
+        variable_sets = list_variable_sets_for_workspace(adapter, workspace_id)
+    elif project_id:
+        variable_sets = list_variable_sets_for_project(adapter, project_id)
+    else:
+        variable_sets = list_variable_sets(adapter, organization)
+
+    return {"changed": False, "variable_sets": variable_sets}
+
+
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
@@ -398,12 +506,15 @@ def main() -> None:
             "description": {"type": "str"},
             "global": {"type": "bool"},
             "priority": {"type": "bool"},
+            "parent_project_id": {"type": "str"},
+            "parent_organization_id": {"type": "str"},
+            "workspace_id": {"type": "str"},
+            "project_id": {"type": "str"},
             "workspace_ids": {"type": "list", "elements": "str"},
             "project_ids": {"type": "list", "elements": "str"},
-            "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
+            "state": {"type": "str", "default": "present", "choices": ["present", "absent", "list"]},
         },
-        mutually_exclusive=[("variable_set_id", "name")],
-        required_one_of=[("variable_set_id", "name")],
+        mutually_exclusive=[("variable_set_id", "name"), ("parent_project_id", "parent_organization_id")],
         required_by={"name": ("organization",)},
         supports_check_mode=True,
     )
@@ -414,6 +525,11 @@ def main() -> None:
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
+    # required_one_of for variable_set_id/name only applies to present/absent.
+    if params["state"] in ("present", "absent"):
+        if not params.get("variable_set_id") and not params.get("name"):
+            module.fail_json(msg="One of 'variable_set_id' or 'name' is required when state is 'present' or 'absent'.")
+
     try:
         with module.client() as adapter:
             match params["state"]:
@@ -421,6 +537,8 @@ def main() -> None:
                     action_result = state_present(adapter, params, params["check_mode"])
                 case "absent":
                     action_result = state_absent(adapter, params, params["check_mode"])
+                case "list":
+                    action_result = state_list(adapter, params)
 
             if action_result:
                 result.update(action_result)

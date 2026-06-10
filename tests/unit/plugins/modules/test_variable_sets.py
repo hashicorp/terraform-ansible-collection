@@ -11,6 +11,7 @@ import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.variable_sets import (
     _build_desired_attrs,
+    _build_parent,
     _extract_ids,
     _filter_current_attrs,
     _reconcile_attachments,
@@ -18,6 +19,7 @@ from ansible_collections.hashicorp.terraform.plugins.modules.variable_sets impor
     _validate_attachment_scope,
     main,
     state_absent,
+    state_list,
     state_present,
 )
 
@@ -76,6 +78,18 @@ class TestHelpers:
 
     def test_validate_attachment_scope_non_global_passes(self):
         _validate_attachment_scope({"global": False, "workspace_ids": ["ws-1"]}, current_global=False)
+
+    def test_build_parent_project(self):
+        assert _build_parent({"parent_project_id": "prj-1"}) == {"project": {"id": "prj-1"}}
+
+    def test_build_parent_organization(self):
+        assert _build_parent({"parent_organization_id": "org-1"}) == {"organization": {"id": "org-1"}}
+
+    def test_build_parent_project_takes_precedence(self):
+        assert _build_parent({"parent_project_id": "prj-1", "parent_organization_id": "org-1"}) == {"project": {"id": "prj-1"}}
+
+    def test_build_parent_none(self):
+        assert _build_parent({}) is None
 
 
 class TestResolveVariableSet:
@@ -137,6 +151,18 @@ class TestStatePresent:
         assert args[2]["global"] is False
         assert result["changed"] is True
         assert result["id"] == "varset-1"
+
+    def test_create_with_parent_project(self, adapter):
+        params = self._base_params(parent_project_id="prj-1")
+        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(
+            f"{MODULE}.create_variable_set",
+            return_value={"id": "varset-1", "name": "shared-aws", "global": False},
+        ) as mock_create:
+            result = state_present(adapter, params, check_mode=False)
+
+        args = mock_create.call_args.args
+        assert args[2]["parent"] == {"project": {"id": "prj-1"}}
+        assert result["changed"] is True
 
     def test_create_requires_name(self, adapter):
         params = self._base_params(name=None)
@@ -326,6 +352,55 @@ class TestStateAbsent:
         assert "check mode" in result["msg"]
 
 
+class TestStateList:
+    _VARSET_A = {"id": "varset-1", "name": "platform-defaults", "global": False}
+    _VARSET_B = {"id": "varset-2", "name": "env-secrets", "global": False}
+
+    @pytest.fixture
+    def adapter(self):
+        return Mock()
+
+    def test_list_by_organization(self, adapter):
+        params = {"organization": "my-org", "workspace_id": None, "project_id": None}
+        with patch(f"{MODULE}.list_variable_sets", return_value=[self._VARSET_A]) as mock_list:
+            result = state_list(adapter, params)
+        mock_list.assert_called_once_with(adapter, "my-org")
+        assert result["changed"] is False
+        assert result["variable_sets"] == [self._VARSET_A]
+
+    def test_list_by_workspace_id(self, adapter):
+        params = {"organization": None, "workspace_id": "ws-abc", "project_id": None}
+        with patch(f"{MODULE}.list_variable_sets_for_workspace", return_value=[self._VARSET_A]) as mock_list:
+            result = state_list(adapter, params)
+        mock_list.assert_called_once_with(adapter, "ws-abc")
+        assert result["changed"] is False
+        assert result["variable_sets"] == [self._VARSET_A]
+
+    def test_list_by_project_id(self, adapter):
+        params = {"organization": None, "workspace_id": None, "project_id": "prj-xyz"}
+        with patch(f"{MODULE}.list_variable_sets_for_project", return_value=[self._VARSET_B]) as mock_list:
+            result = state_list(adapter, params)
+        mock_list.assert_called_once_with(adapter, "prj-xyz")
+        assert result["changed"] is False
+        assert result["variable_sets"] == [self._VARSET_B]
+
+    def test_list_empty_result(self, adapter):
+        params = {"organization": "empty-org", "workspace_id": None, "project_id": None}
+        with patch(f"{MODULE}.list_variable_sets", return_value=[]):
+            result = state_list(adapter, params)
+        assert result["variable_sets"] == []
+
+    def test_list_rejects_multiple_scopes(self, adapter):
+        params = {"organization": "my-org", "workspace_id": "ws-1", "project_id": None}
+        with pytest.raises(ValueError, match="Only one"):
+            state_list(adapter, params)
+
+    def test_list_rejects_no_scope(self, adapter):
+        params = {"organization": None, "workspace_id": None, "project_id": None}
+        with pytest.raises(ValueError, match="required"):
+            state_list(adapter, params)
+
+
 class TestMain:
     @patch(f"{MODULE}.AnsibleTerraformModule")
     def test_argument_spec(self, mock_ansible_module, enhanced_dummy_module):
@@ -340,12 +415,16 @@ class TestMain:
 
         call_kwargs = mock_ansible_module.call_args[1]
         argument_spec = call_kwargs["argument_spec"]
-        assert argument_spec["state"]["choices"] == ["present", "absent"]
+        assert argument_spec["state"]["choices"] == ["present", "absent", "list"]
         assert argument_spec["global"]["type"] == "bool"
         assert argument_spec["workspace_ids"]["type"] == "list"
         assert argument_spec["workspace_ids"]["elements"] == "str"
+        assert argument_spec["workspace_id"]["type"] == "str"
+        assert argument_spec["project_id"]["type"] == "str"
         assert ("variable_set_id", "name") in call_kwargs["mutually_exclusive"]
         assert call_kwargs["supports_check_mode"] is True
+        # required_one_of is no longer set at the module level
+        assert call_kwargs.get("required_one_of") is None
 
     @patch(f"{MODULE}.AnsibleTerraformModule")
     def test_main_present_dispatch(self, mock_ansible_module, enhanced_dummy_module):
@@ -378,6 +457,24 @@ class TestMain:
 
         mock_absent.assert_called_once()
         assert mock_module.exit_args["changed"] is True
+
+    @patch(f"{MODULE}.AnsibleTerraformModule")
+    def test_main_list_dispatch(self, mock_ansible_module, enhanced_dummy_module):
+        mock_module = enhanced_dummy_module
+        mock_module.params = {"organization": "my-org", "workspace_id": None, "project_id": None, "state": "list"}
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(
+            f"{MODULE}.state_list",
+            return_value={"changed": False, "variable_sets": [{"id": "varset-1"}]},
+        ) as mock_list:
+            with pytest.raises(SystemExit):
+                main()
+
+        mock_list.assert_called_once()
+        assert mock_module.exit_args["changed"] is False
+        assert mock_module.exit_args["variable_sets"] == [{"id": "varset-1"}]
 
     @patch(f"{MODULE}.AnsibleTerraformModule")
     def test_main_propagates_errors_via_fail_json(self, mock_ansible_module, enhanced_dummy_module):

@@ -189,3 +189,19 @@ def remove_from_projects(adapter: TerraformClient, variable_set_id: str, project
         options,
         error_context=f"Failed to detach variable set {variable_set_id} from projects {project_ids}",
     )
+
+
+def list_variable_sets_for_workspace(adapter: TerraformClient, workspace_id: str) -> List[Dict[str, Any]]:
+    """List variable sets associated with a workspace."""
+    try:
+        return [format_response(vs) for vs in adapter.client.variable_sets.list_for_workspace(workspace_id)]
+    except NotFound:
+        return []
+
+
+def list_variable_sets_for_project(adapter: TerraformClient, project_id: str) -> List[Dict[str, Any]]:
+    """List variable sets associated with a project."""
+    try:
+        return [format_response(vs) for vs in adapter.client.variable_sets.list_for_project(project_id)]
+    except NotFound:
+        return []
