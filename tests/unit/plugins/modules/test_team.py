@@ -86,9 +86,7 @@ class TestTeamStateCreate:
             "allow_member_token_management": True,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.create_team"
-        ) as mock_create:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.create_team") as mock_create:
             mock_create.return_value = mock_team_response
 
             result = state_create(mock_adapter, params, check_mode=False)
@@ -162,9 +160,7 @@ class TestTeamStateUpdate:
             "allow_member_token_management": True,
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.update_team"
-        ) as mock_update:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.update_team") as mock_update:
             mock_update.return_value = mock_updated_team
 
             result = state_update(mock_adapter, params, current_team, check_mode=False)
@@ -228,9 +224,7 @@ class TestTeamStateAbsent:
             "team_id": "team-123",
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.delete_team"
-        ) as mock_delete:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.delete_team") as mock_delete:
             result = state_absent(mock_adapter, params, current_team, check_mode=False)
 
             assert result["changed"] is True
@@ -274,16 +268,12 @@ class TestTeamMembership:
             "add_users": ["user1", "user2"],
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.add_users_to_team"
-        ) as mock_add:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.add_users_to_team") as mock_add:
             result = manage_membership(mock_adapter, params, check_mode=False)
 
             assert result["changed"] is True
             assert "Added users" in result["msg"]
-            mock_add.assert_called_once_with(
-                mock_adapter, "team-123", ["user1", "user2"]
-            )
+            mock_add.assert_called_once_with(mock_adapter, "team-123", ["user1", "user2"])
 
     def test_remove_users_from_team(self, mock_adapter):
         """Test removing users from team."""
@@ -292,9 +282,7 @@ class TestTeamMembership:
             "remove_users": ["user1"],
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.remove_users_from_team"
-        ) as mock_remove:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.remove_users_from_team") as mock_remove:
             result = manage_membership(mock_adapter, params, check_mode=False)
 
             assert result["changed"] is True
@@ -308,9 +296,7 @@ class TestTeamMembership:
             "add_organization_memberships": ["ou-123", "ou-456"],
         }
 
-        with patch(
-            "ansible_collections.hashicorp.terraform.plugins.modules.team.add_organization_memberships_to_team"
-        ) as mock_add:
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.add_organization_memberships_to_team") as mock_add:
             result = manage_membership(mock_adapter, params, check_mode=False)
 
             assert result["changed"] is True

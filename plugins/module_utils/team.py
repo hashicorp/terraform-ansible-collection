@@ -23,9 +23,9 @@ from typing import Any, Dict, Optional
 try:
     from pytfe.errors import NotFound
     from pytfe.models import (
+        TeamCreateOptions,
         TeamIncludeOpt,
         TeamListOptions,
-        TeamCreateOptions,
         TeamUpdateOptions,
     )
     from pytfe.models.team import OrganizationAccessOptions
@@ -59,9 +59,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
 )
 
 
-def get_team(
-    adapter: TerraformClient, team_id: str, include: Optional[list[str]] = None
-) -> Dict[str, Any] | None:
+def get_team(adapter: TerraformClient, team_id: str, include: Optional[list[str]] = None) -> Dict[str, Any] | None:
     """
     Retrieves a specified team from Terraform Cloud/Enterprise by its ID.
 
@@ -157,9 +155,7 @@ def _build_team_options(option_class, payload: Dict[str, Any]):
     payload = dict(payload)
 
     # Build organization access object safely
-    if "organization_access" in payload and isinstance(
-        payload["organization_access"], dict
-    ):
+    if "organization_access" in payload and isinstance(payload["organization_access"], dict):
         org_payload = payload["organization_access"]
 
         try:
@@ -300,9 +296,7 @@ def delete_team(adapter: TerraformClient, team_id: str) -> None:
     )
 
 
-def add_users_to_team(
-    adapter: TerraformClient, team_id: str, usernames: list[str]
-) -> None:
+def add_users_to_team(adapter: TerraformClient, team_id: str, usernames: list[str]) -> None:
     """
     Add users to a team by their usernames.
 
@@ -322,9 +316,7 @@ def add_users_to_team(
     )
 
 
-def remove_users_from_team(
-    adapter: TerraformClient, team_id: str, usernames: list[str]
-) -> None:
+def remove_users_from_team(adapter: TerraformClient, team_id: str, usernames: list[str]) -> None:
     """
     Remove users from a team by their usernames.
 
@@ -362,9 +354,7 @@ def list_team_users(adapter: TerraformClient, team_id: str) -> list[Dict[str, An
         return []
 
 
-def add_organization_memberships_to_team(
-    adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]
-) -> None:
+def add_organization_memberships_to_team(adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]) -> None:
     """
     Add organization memberships to a team.
 
@@ -384,9 +374,7 @@ def add_organization_memberships_to_team(
     )
 
 
-def remove_organization_memberships_from_team(
-    adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]
-) -> None:
+def remove_organization_memberships_from_team(adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]) -> None:
     """
     Remove organization memberships from a team.
 
@@ -406,9 +394,7 @@ def remove_organization_memberships_from_team(
     )
 
 
-def list_team_organization_memberships(
-    adapter: TerraformClient, team_id: str
-) -> list[Dict[str, Any]]:
+def list_team_organization_memberships(adapter: TerraformClient, team_id: str) -> list[Dict[str, Any]]:
     """
     List all organization memberships in a team.
 

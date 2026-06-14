@@ -185,6 +185,7 @@ team:
       type: list
 """
 
+
 def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize team response data.
@@ -268,9 +269,7 @@ def main():
             else:
                 # List teams in organization
                 if not organization:
-                    module.fail_json(
-                        msg="organization is required when team_id is not specified"
-                    )
+                    module.fail_json(msg="organization is required when team_id is not specified")
 
                 teams = list_teams(
                     adapter,

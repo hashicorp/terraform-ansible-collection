@@ -358,9 +358,7 @@ def extract_comparable_attributes(team_data: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in comparable.items() if v is not None}
 
 
-def state_create(
-    adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False
-) -> Dict[str, Any]:
+def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Creates a new team in the specified organization.
 
@@ -554,9 +552,7 @@ def state_absent(
     return action_result
 
 
-def manage_membership(
-    adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False
-) -> Dict[str, Any]:
+def manage_membership(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """
     Manage team membership operations (add/remove users and organization memberships).
 
@@ -594,22 +590,14 @@ def manage_membership(
         if add_org_memberships:
             add_organization_memberships_to_team(adapter, team_id, add_org_memberships)
             action_result["changed"] = True
-            messages.append(
-                f"Added organization memberships: {', '.join(add_org_memberships)}"
-            )
+            messages.append(f"Added organization memberships: {', '.join(add_org_memberships)}")
 
         if remove_org_memberships:
-            remove_organization_memberships_from_team(
-                adapter, team_id, remove_org_memberships
-            )
+            remove_organization_memberships_from_team(adapter, team_id, remove_org_memberships)
             action_result["changed"] = True
-            messages.append(
-                f"Removed organization memberships: {', '.join(remove_org_memberships)}"
-            )
+            messages.append(f"Removed organization memberships: {', '.join(remove_org_memberships)}")
 
-        action_result["msg"] = (
-            "; ".join(messages) if messages else "Membership operations completed."
-        )
+        action_result["msg"] = "; ".join(messages) if messages else "Membership operations completed."
     else:
         action_result["changed"] = True
         if add_users:
@@ -617,13 +605,9 @@ def manage_membership(
         if remove_users:
             messages.append(f"Would remove users: {', '.join(remove_users)}")
         if add_org_memberships:
-            messages.append(
-                f"Would add organization memberships: {', '.join(add_org_memberships)}"
-            )
+            messages.append(f"Would add organization memberships: {', '.join(add_org_memberships)}")
         if remove_org_memberships:
-            messages.append(
-                f"Would remove organization memberships: {', '.join(remove_org_memberships)}"
-            )
+            messages.append(f"Would remove organization memberships: {', '.join(remove_org_memberships)}")
         action_result["msg"] = "; ".join(messages) + ". Skipped due to check mode."
 
     return action_result
@@ -701,31 +685,23 @@ def main():
                     current_team = get_team(adapter, module.params["team_id"])
 
                     if not current_team:
-                        module.fail_json(
-                            msg=f"Team {module.params['team_id']} not found"
-                        )
+                        module.fail_json(msg=f"Team {module.params['team_id']} not found")
 
                     # Handle membership operations first
-                    membership_result = manage_membership(
-                        adapter, module.params, check_mode
-                    )
+                    membership_result = manage_membership(adapter, module.params, check_mode)
 
                     if membership_result.get("changed"):
                         result.update(membership_result)
 
                     # Then handle team updates
-                    update_result = state_update(
-                        adapter, module.params, current_team, check_mode
-                    )
+                    update_result = state_update(adapter, module.params, current_team, check_mode)
 
                     result.update(update_result)
 
                 else:
                     # Create new team
                     if not module.params.get("organization"):
-                        module.fail_json(
-                            msg="organization is required when creating a team"
-                        )
+                        module.fail_json(msg="organization is required when creating a team")
 
                     if not module.params.get("name"):
                         module.fail_json(msg="name is required when creating a team")
