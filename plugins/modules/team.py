@@ -238,11 +238,6 @@ visibility:
   returned: when state is 'present'
   type: str
   sample: "secret"
-organization_id:
-  description: The ID of the organization.
-  returned: when state is 'present'
-  type: str
-  sample: "org-abc123"
 sso_team_id:
   description: The SAML Group ID for the team.
   returned: when state is 'present'
@@ -661,21 +656,14 @@ def main():
                 "elements": "str",
             },
         },
+        supports_check_mode=True,
     )
 
     state = module.params["state"]
     check_mode = module.check_mode
 
     try:
-        with TerraformClient(
-            token=module.params.get("tfe_token"),
-            address=module.params.get("tfe_address"),
-            verify=module.params.get("tfe_verify_tls"),
-            timeout=module.params.get("tfe_timeout"),
-            retries=module.params.get("tfe_max_retries"),
-            ca_bundle=module.params.get("tfe_ca_bundle"),
-            proxies=module.params.get("tfe_proxies"),
-        ) as adapter:
+        with module.client() as adapter:
             result = {}
 
             if state == "present":
@@ -696,7 +684,21 @@ def main():
                     # Then handle team updates
                     update_result = state_update(adapter, module.params, current_team, check_mode)
 
-                    result.update(update_result)
+                    # Preserve changed=True if either operation changed
+                    if update_result.get("changed"):
+                        result["changed"] = True
+
+                    # Merge messages if both have messages
+                    if "msg" in update_result:
+                        if "msg" in result and result["msg"]:
+                            result["msg"] = f"{result['msg']}; {update_result['msg']}"
+                        else:
+                            result["msg"] = update_result["msg"]
+
+                    # Merge other fields from update_result
+                    for key, value in update_result.items():
+                        if key not in ("changed", "msg"):
+                            result[key] = value
 
                 else:
                     # Create new team
