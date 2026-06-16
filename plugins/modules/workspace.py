@@ -781,6 +781,7 @@ def state_update(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
         action_result.update(
             {
                 "changed": False,
+                **workspace_response,
             },
         )
         return action_result
