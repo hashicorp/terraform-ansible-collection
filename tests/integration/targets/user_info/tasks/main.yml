@@ -1,0 +1,151 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    # Test 1: Get current authenticated user
+    - name: Get current authenticated user
+      hashicorp.terraform.user_info:
+        current: true
+        tf_token: "{{ tfc_token }}"
+      register: current_user_result
+
+    - name: Debug current user result
+      ansible.builtin.debug:
+        var: current_user_result
+
+    - name: Assert current user retrieval success
+      ansible.builtin.assert:
+        that:
+          - not current_user_result.changed
+          - current_user_result.user.id is defined
+          - current_user_result.user.username is defined
+          - current_user_result.user.is_service_account is defined
+          - current_user_result.user.permissions is defined
+          - current_user_result.user.permissions.can_create_organizations is defined
+          - current_user_result.user.permissions.can_change_email is defined
+          - current_user_result.user.permissions.can_change_username is defined
+
+    - name: Set fact for current user ID
+      ansible.builtin.set_fact:
+        current_user_id: "{{ current_user_result.user.id }}"
+
+    # Test 2: Get user by ID (using current user's ID)
+    - name: Get user by ID
+      hashicorp.terraform.user_info:
+        user_id: "{{ current_user_id }}"
+        tf_token: "{{ tfc_token }}"
+      register: user_by_id_result
+
+    - name: Debug user by ID result
+      ansible.builtin.debug:
+        var: user_by_id_result
+
+    - name: Assert user by ID retrieval success
+      ansible.builtin.assert:
+        that:
+          - not user_by_id_result.changed
+          - user_by_id_result.user.id == current_user_id
+          - user_by_id_result.user.username is defined
+
+    # Test 3: Verify both methods return the same user
+    - name: Assert both methods return identical user data
+      ansible.builtin.assert:
+        that:
+          - current_user_result.user.id == user_by_id_result.user.id
+          - current_user_result.user.username == user_by_id_result.user.username
+
+    # Test 4: Test error handling - invalid user ID
+    - name: Test invalid user ID
+      hashicorp.terraform.user_info:
+        user_id: "user-invalid-user-id"
+        tf_token: "{{ tfc_token }}"
+      register: result_invalid_id
+      ignore_errors: true
+
+    - name: Assert invalid user ID fails appropriately
+      ansible.builtin.assert:
+        that:
+          - result_invalid_id.failed
+          - '"not found" in result_invalid_id.msg | lower'
+
+    # Test 5: Test check mode with current user
+    - name: Test check mode with current user
+      hashicorp.terraform.user_info:
+        current: true
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      register: result_check_mode_current
+
+    - name: Assert check mode works correctly with current user
+      ansible.builtin.assert:
+        that:
+          - not result_check_mode_current.changed
+          - result_check_mode_current.user.id == current_user_id
+          - result_check_mode_current.user.username is defined
+
+    # Test 6: Test check mode with user ID
+    - name: Test check mode with user ID
+      hashicorp.terraform.user_info:
+        user_id: "{{ current_user_id }}"
+        tf_token: "{{ tfc_token }}"
+      check_mode: true
+      register: result_check_mode_id
+
+    - name: Assert check mode works correctly with user ID
+      ansible.builtin.assert:
+        that:
+          - not result_check_mode_id.changed
+          - result_check_mode_id.user.id == current_user_id
+          - result_check_mode_id.user.username is defined
+
+    # Test 7: Verify user permissions structure
+    - name: Verify user permissions are properly structured
+      ansible.builtin.assert:
+        that:
+          - current_user_result.user.permissions is mapping
+          - current_user_result.user.permissions.can_create_organizations is boolean or current_user_result.user.permissions.can_create_organizations is none
+          - current_user_result.user.permissions.can_change_email is boolean or current_user_result.user.permissions.can_change_email is none
+          - current_user_result.user.permissions.can_change_username is boolean or current_user_result.user.permissions.can_change_username is none
+
+    # Test 8: Verify user attributes
+    - name: Verify user attributes are present
+      ansible.builtin.assert:
+        that:
+          - current_user_result.user.id is string
+          - current_user_result.user.id is match("^user-")
+          - current_user_result.user.username is string
+          - current_user_result.user.username | length > 0
+          - current_user_result.user.is_service_account is boolean
+
+    # Test 9: Display user information for verification
+    - name: Display user information
+      ansible.builtin.debug:
+        msg: |
+          User Information:
+          - ID: {{ current_user_result.user.id }}
+          - Username: {{ current_user_result.user.username }}
+          - Email: {{ current_user_result.user.email | default('Not available') }}
+          - Service Account: {{ current_user_result.user.is_service_account }}
+          - Auth Method: {{ current_user_result.user.auth_method | default('Not available') }}
+          - Can Create Organizations: {{ current_user_result.user.permissions.can_create_organizations | default(false) }}
+          - Can Change Email: {{ current_user_result.user.permissions.can_change_email | default(false) }}
+          - Can Change Username: {{ current_user_result.user.permissions.can_change_username | default(false) }}
+
+    # Test 10: Test idempotency - multiple calls should return same data
+    - name: Get current user again
+      hashicorp.terraform.user_info:
+        current: true
+        tf_token: "{{ tfc_token }}"
+      register: current_user_result_2
+
+    - name: Assert idempotency
+      ansible.builtin.assert:
+        that:
+          - not current_user_result_2.changed
+          - current_user_result_2.user.id == current_user_result.user.id
+          - current_user_result_2.user.username == current_user_result.user.username
+
+
