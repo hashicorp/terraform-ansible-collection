@@ -1,7 +1,9 @@
 ---
 - name: Set module defaults
   module_defaults:
-    group/hashicorp.terraform.terraform:
+    hashicorp.terraform.variable_sets:
+      tfe_token: "{{ tfc_token }}"
+    hashicorp.terraform.variable_set_variable:
       tfe_token: "{{ tfc_token }}"
 
   block:

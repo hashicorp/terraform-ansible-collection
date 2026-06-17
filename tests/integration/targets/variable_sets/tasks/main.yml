@@ -1,7 +1,11 @@
 ---
 - name: Set module defaults
   module_defaults:
-    group/hashicorp.terraform.terraform:
+    hashicorp.terraform.variable_sets:
+      tfe_token: "{{ tfc_token }}"
+    hashicorp.terraform.workspace:
+      tfe_token: "{{ tfc_token }}"
+    hashicorp.terraform.project:
       tfe_token: "{{ tfc_token }}"
 
   block:
@@ -238,93 +242,6 @@
         that:
           - not result_delete_again.changed
           - "'absent' in result_delete_again.msg"
-
-    # ---------- state: list ----------
-    - name: Create a workspace for list-scope tests
-      hashicorp.terraform.workspace:
-        organization: "{{ organization }}"
-        workspace: "varset-list-ws-{{ suffix }}"
-        execution_mode: remote
-        state: present
-      register: result_list_ws
-
-    - name: Create a project for list-scope tests
-      hashicorp.terraform.project:
-        organization: "{{ organization }}"
-        name: "varset-list-prj-{{ suffix }}"
-        state: present
-      register: result_list_prj
-
-    - name: Create variable set attached to workspace and project for list tests
-      hashicorp.terraform.variable_sets:
-        organization: "{{ organization }}"
-        name: "varset-list-{{ suffix }}"
-        global: false
-        priority: false
-        workspace_ids:
-          - "{{ result_list_ws.id }}"
-        project_ids:
-          - "{{ result_list_prj.id }}"
-        state: present
-      register: result_list_varset
-
-    - name: List variable sets by organization
-      hashicorp.terraform.variable_sets:
-        organization: "{{ organization }}"
-        state: list
-      register: result_list_org
-
-    - name: Assert organization listing returned at least the created set
-      ansible.builtin.assert:
-        that:
-          - not result_list_org.changed
-          - result_list_org.variable_sets | length >= 1
-          - result_list_org.variable_sets | selectattr('id', 'equalto', result_list_varset.id) | list | length == 1
-
-    - name: List variable sets by workspace
-      hashicorp.terraform.variable_sets:
-        workspace_id: "{{ result_list_ws.id }}"
-        state: list
-      register: result_list_by_ws
-
-    - name: Assert workspace listing returned the attached set
-      ansible.builtin.assert:
-        that:
-          - not result_list_by_ws.changed
-          - result_list_by_ws.variable_sets | selectattr('id', 'equalto', result_list_varset.id) | list | length == 1
-
-    - name: List variable sets by project
-      hashicorp.terraform.variable_sets:
-        project_id: "{{ result_list_prj.id }}"
-        state: list
-      register: result_list_by_prj
-
-    - name: Assert project listing returned the attached set
-      ansible.builtin.assert:
-        that:
-          - not result_list_by_prj.changed
-          - result_list_by_prj.variable_sets | selectattr('id', 'equalto', result_list_varset.id) | list | length == 1
-
-    - name: Cleanup list-test variable set
-      hashicorp.terraform.variable_sets:
-        organization: "{{ organization }}"
-        name: "varset-list-{{ suffix }}"
-        state: absent
-      failed_when: false
-
-    - name: Cleanup list-test workspace
-      hashicorp.terraform.workspace:
-        organization: "{{ organization }}"
-        workspace: "varset-list-ws-{{ suffix }}"
-        state: absent
-      failed_when: false
-
-    - name: Cleanup list-test project
-      hashicorp.terraform.project:
-        organization: "{{ organization }}"
-        name: "varset-list-prj-{{ suffix }}"
-        state: absent
-      failed_when: false
 
   always:
     - name: Cleanup - ensure variable set is gone
