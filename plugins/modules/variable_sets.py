@@ -67,18 +67,6 @@ options:
       - Only honored when the variable set is created; ignored on updates.
       - Mutually exclusive with C(parent_project_id).
     type: str
-  workspace_id:
-    description:
-      - ID of a single workspace to scope the listing when C(state=list).
-      - Returns all variable sets currently attached to this workspace.
-      - Mutually exclusive with C(organization) and C(project_id) when C(state=list).
-    type: str
-  project_id:
-    description:
-      - ID of a single project to scope the listing when C(state=list).
-      - Returns all variable sets currently attached to this project.
-      - Mutually exclusive with C(organization) and C(workspace_id) when C(state=list).
-    type: str
   workspace_ids:
     description:
       - List of workspace IDs the variable set should be attached to.
@@ -100,10 +88,9 @@ options:
   state:
     description:
       - Desired state of the variable set.
-      - C(present) creates or updates; C(absent) deletes; C(list) returns matching variable sets
-        without making any changes.
+      - C(present) creates or updates; C(absent) deletes.
     type: str
-    choices: ["present", "absent", "list"]
+    choices: ["present", "absent"]
     default: "present"
 """
 
@@ -158,24 +145,6 @@ EXAMPLES = r"""
   hashicorp.terraform.variable_sets:
     variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
     state: absent
-
-- name: List all variable sets in an organization
-  hashicorp.terraform.variable_sets:
-    organization: "my-org"
-    state: list
-  register: result
-
-- name: List variable sets attached to a workspace
-  hashicorp.terraform.variable_sets:
-    workspace_id: "ws-abc123"
-    state: list
-  register: result
-
-- name: List variable sets attached to a project
-  hashicorp.terraform.variable_sets:
-    project_id: "prj-abc123"
-    state: list
-  register: result
 """
 
 RETURN = r"""
@@ -226,28 +195,6 @@ msg:
   returned: when relevant
   type: str
   sample: "Variable set varset-7tRVyqGbvrF1RmWQ has been deleted successfully"
-variable_sets:
-  description: List of variable sets matching the requested scope. Only returned when C(state=list).
-  returned: when state is list
-  type: list
-  elements: dict
-  contains:
-    id:
-      description: Variable set identifier.
-      type: str
-      sample: "varset-7tRVyqGbvrF1RmWQ"
-    name:
-      description: Variable set name.
-      type: str
-      sample: "shared-platform-defaults"
-    global:
-      description: Whether the variable set applies to all workspaces.
-      type: bool
-      sample: false
-    priority:
-      description: Whether values override workspace-level values.
-      type: bool
-      sample: false
 """
 
 from copy import deepcopy
@@ -264,9 +211,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_sets 
     delete_variable_set,
     get_variable_set,
     get_variable_set_by_name,
-    list_variable_sets,
-    list_variable_sets_for_project,
-    list_variable_sets_for_workspace,
     remove_from_projects,
     remove_from_workspaces,
     update_variable_set,
@@ -475,28 +419,6 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     return {"changed": True, "msg": f"Variable set {variable_set_id} has been deleted successfully"}
 
 
-def state_list(adapter: TerraformClient, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Return variable sets for the requested scope without mutating any state."""
-    workspace_id = params.get("workspace_id")
-    project_id = params.get("project_id")
-    organization = params.get("organization")
-
-    scopes = [s for s in (workspace_id, project_id, organization) if s]
-    if len(scopes) > 1:
-        raise ValueError("Only one of 'workspace_id', 'project_id', or 'organization' may be provided for state 'list'.")
-    if not scopes:
-        raise ValueError("One of 'workspace_id', 'project_id', or 'organization' is required for state 'list'.")
-
-    if workspace_id:
-        variable_sets = list_variable_sets_for_workspace(adapter, workspace_id)
-    elif project_id:
-        variable_sets = list_variable_sets_for_project(adapter, project_id)
-    else:
-        variable_sets = list_variable_sets(adapter, organization)
-
-    return {"changed": False, "variable_sets": variable_sets}
-
-
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
@@ -508,14 +430,13 @@ def main() -> None:
             "priority": {"type": "bool"},
             "parent_project_id": {"type": "str"},
             "parent_organization_id": {"type": "str"},
-            "workspace_id": {"type": "str"},
-            "project_id": {"type": "str"},
             "workspace_ids": {"type": "list", "elements": "str"},
             "project_ids": {"type": "list", "elements": "str"},
-            "state": {"type": "str", "default": "present", "choices": ["present", "absent", "list"]},
+            "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
         mutually_exclusive=[("variable_set_id", "name"), ("parent_project_id", "parent_organization_id")],
         required_by={"name": ("organization",)},
+        required_one_of=[("variable_set_id", "name")],
         supports_check_mode=True,
     )
 
@@ -525,11 +446,6 @@ def main() -> None:
     params: Dict[str, Any] = deepcopy(module.params)
     params["check_mode"] = module.check_mode
 
-    # required_one_of for variable_set_id/name only applies to present/absent.
-    if params["state"] in ("present", "absent"):
-        if not params.get("variable_set_id") and not params.get("name"):
-            module.fail_json(msg="One of 'variable_set_id' or 'name' is required when state is 'present' or 'absent'.")
-
     try:
         with module.client() as adapter:
             match params["state"]:
@@ -537,8 +453,6 @@ def main() -> None:
                     action_result = state_present(adapter, params, params["check_mode"])
                 case "absent":
                     action_result = state_absent(adapter, params, params["check_mode"])
-                case "list":
-                    action_result = state_list(adapter, params)
 
             if action_result:
                 result.update(action_result)

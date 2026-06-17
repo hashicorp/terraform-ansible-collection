@@ -17,8 +17,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_sets 
     get_variable_set,
     get_variable_set_by_name,
     list_variable_sets,
-    list_variable_sets_for_project,
-    list_variable_sets_for_workspace,
     remove_from_projects,
     remove_from_workspaces,
     update_variable_set,
@@ -185,40 +183,3 @@ class TestAttachments:
         remove_from_projects(adapter, "varset-1", ["prj-a"])
         args = mock_safe_call.call_args.args
         assert args[0] is adapter.client.variable_sets.remove_from_projects
-
-
-class TestListForWorkspace:
-    def test_success(self):
-        adapter = Mock()
-        adapter.client.variable_sets.list_for_workspace.return_value = iter(
-            [
-                _make_model({"id": "varset-1", "name": "a"}),
-                _make_model({"id": "varset-2", "name": "b"}),
-            ]
-        )
-        result = list_variable_sets_for_workspace(adapter, "ws-abc")
-        assert result == [{"id": "varset-1", "name": "a"}, {"id": "varset-2", "name": "b"}]
-        adapter.client.variable_sets.list_for_workspace.assert_called_once_with("ws-abc")
-
-    def test_not_found_returns_empty(self):
-        adapter = Mock()
-        adapter.client.variable_sets.list_for_workspace.side_effect = NotFound("gone")
-        assert list_variable_sets_for_workspace(adapter, "ws-missing") == []
-
-
-class TestListForProject:
-    def test_success(self):
-        adapter = Mock()
-        adapter.client.variable_sets.list_for_project.return_value = iter(
-            [
-                _make_model({"id": "varset-3", "name": "c"}),
-            ]
-        )
-        result = list_variable_sets_for_project(adapter, "prj-xyz")
-        assert result == [{"id": "varset-3", "name": "c"}]
-        adapter.client.variable_sets.list_for_project.assert_called_once_with("prj-xyz")
-
-    def test_not_found_returns_empty(self):
-        adapter = Mock()
-        adapter.client.variable_sets.list_for_project.side_effect = NotFound("gone")
-        assert list_variable_sets_for_project(adapter, "prj-missing") == []
