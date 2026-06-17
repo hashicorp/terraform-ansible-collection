@@ -1,0 +1,115 @@
+---
+- name: Set module defaults
+  module_defaults:
+    hashicorp.terraform.organization_tags:
+      tfe_token: "{{ tfc_token }}"
+    hashicorp.terraform.workspace:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate unique suffix
+      ansible.builtin.set_fact:
+        suffix: "{{ lookup('pipe', 'uuidgen')[:8] | lower }}"
+
+    - name: Set fact for resource names
+      ansible.builtin.set_fact:
+        tag_name: "tag-{{ suffix }}"
+        workspace_a: "tag-ws-a-{{ suffix }}"
+        workspace_b: "tag-ws-b-{{ suffix }}"
+
+    - name: Create two supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        execution_mode: remote
+        description: "integration workspace for organization_tags tests"
+        state: present
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      register: workspace_create
+
+    - name: Pin workspace IDs
+      ansible.builtin.set_fact:
+        ws_a_id: "{{ workspace_create.results[0].id }}"
+        ws_b_id: "{{ workspace_create.results[1].id }}"
+
+    # ---------- associate workspaces with a tag ----------
+    - name: Associate workspaces with a tag by name
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        name: "{{ tag_name }}"
+        workspace_ids:
+          - "{{ ws_a_id }}"
+          - "{{ ws_b_id }}"
+        state: present
+      register: result_associate
+
+    - name: Assert association was successful
+      ansible.builtin.assert:
+        that:
+          - result_associate.changed
+          - ws_a_id in result_associate.workspace_ids
+          - ws_b_id in result_associate.workspace_ids
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete of the tag
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        name: "{{ tag_name }}"
+        state: absent
+      check_mode: true
+      register: result_check_delete
+
+    - name: Assert check-mode reports change without mutating
+      ansible.builtin.assert:
+        that:
+          - result_check_delete.changed
+          - "'check mode' in result_check_delete.msg"
+
+    # ---------- delete ----------
+    - name: Delete the tag by name
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        name: "{{ tag_name }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the tag again (no-op)
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        name: "{{ tag_name }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert repeated delete is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - ensure tag is gone
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        name: "{{ tag_name }}"
+        state: absent
+      when: tag_name is defined
+      failed_when: false
+
+    - name: Cleanup - delete supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      when: workspace_a is defined
+      failed_when: false
