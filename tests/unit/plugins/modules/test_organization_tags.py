@@ -42,9 +42,7 @@ class TestSdkHelpers:
         )
         result = list_organization_tags(adapter, "my-org")
         assert result == [{"id": "tag-1", "name": "prod"}, {"id": "tag-2", "name": "dev"}]
-        adapter.client._transport.request.assert_called_with(
-            "GET", "/api/v2/organizations/my-org/tags", params={"page[number]": 1, "page[size]": 100}
-        )
+        adapter.client._transport.request.assert_called_with("GET", "/api/v2/organizations/my-org/tags", params={"page[number]": 1, "page[size]": 100})
 
     def test_list_not_found_returns_empty(self):
         from pytfe.errors import NotFound
@@ -67,9 +65,7 @@ class TestSdkHelpers:
 
     def test_get_by_name_is_case_insensitive(self):
         adapter = Mock()
-        adapter.client._transport.request.return_value = _mock_list_response(
-            [{"id": "tag-1", "attributes": {"name": "prod"}}]
-        )
+        adapter.client._transport.request.return_value = _mock_list_response([{"id": "tag-1", "attributes": {"name": "prod"}}])
         # TFC stores lowercase; a mixed-case query should still resolve.
         assert get_organization_tag_by_name(adapter, "my-org", "PROD") == {"id": "tag-1", "name": "prod"}
 
@@ -153,9 +149,7 @@ class TestStatePresent:
 
     def test_associate_by_name_resolves_id(self, adapter):
         params = {"organization": "org", "name": "prod", "tag_id": None, "workspace_ids": ["ws-b", "ws-a"]}
-        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(
-            f"{MODULE}._add_workspaces_to_tag_by_id"
-        ) as mock_add:
+        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(f"{MODULE}._add_workspaces_to_tag_by_id") as mock_add:
             result = state_present(adapter, params, check_mode=False)
 
         mock_add.assert_called_once_with(adapter, "tag-9", ["ws-a", "ws-b"])
@@ -166,9 +160,7 @@ class TestStatePresent:
 
     def test_associate_by_tag_id_when_tag_not_listed(self, adapter):
         params = {"organization": "org", "name": None, "tag_id": "tag-5", "workspace_ids": ["ws-a"]}
-        with patch(f"{MODULE}._resolve_tag", return_value=None), patch(
-            f"{MODULE}._add_workspaces_to_tag_by_id"
-        ) as mock_add:
+        with patch(f"{MODULE}._resolve_tag", return_value=None), patch(f"{MODULE}._add_workspaces_to_tag_by_id") as mock_add:
             result = state_present(adapter, params, check_mode=False)
 
         mock_add.assert_called_once_with(adapter, "tag-5", ["ws-a"])
@@ -176,9 +168,7 @@ class TestStatePresent:
 
     def test_associate_by_name_tag_not_found_uses_workspace_api(self, adapter):
         params = {"organization": "org", "name": "new-tag", "tag_id": None, "workspace_ids": ["ws-a"]}
-        with patch(f"{MODULE}._resolve_tag", return_value=None), patch(
-            f"{MODULE}._add_tag_to_workspaces_by_name"
-        ) as mock_add:
+        with patch(f"{MODULE}._resolve_tag", return_value=None), patch(f"{MODULE}._add_tag_to_workspaces_by_name") as mock_add:
             result = state_present(adapter, params, check_mode=False)
 
         mock_add.assert_called_once_with(adapter, "new-tag", ["ws-a"])
@@ -193,9 +183,7 @@ class TestStatePresent:
 
     def test_check_mode_does_not_mutate(self, adapter):
         params = {"organization": "org", "name": "prod", "tag_id": None, "workspace_ids": ["ws-a"]}
-        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(
-            f"{MODULE}._add_workspaces_to_tag_by_id"
-        ) as mock_add:
+        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(f"{MODULE}._add_workspaces_to_tag_by_id") as mock_add:
             result = state_present(adapter, params, check_mode=True)
 
         mock_add.assert_not_called()
@@ -210,9 +198,7 @@ class TestStateAbsent:
 
     def test_delete_by_name(self, adapter):
         params = {"organization": "org", "name": "prod", "tag_id": None, "ids": None}
-        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(
-            f"{MODULE}.delete_organization_tags"
-        ) as mock_del:
+        with patch(f"{MODULE}._resolve_tag", return_value={"id": "tag-9", "name": "prod"}), patch(f"{MODULE}.delete_organization_tags") as mock_del:
             result = state_absent(adapter, params, check_mode=False)
 
         mock_del.assert_called_once_with(adapter, "org", ["tag-9"])
