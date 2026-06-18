@@ -37,7 +37,7 @@ version_added: 1.4.0
 short_description: Manage teams in Terraform Cloud/Enterprise.
 author: "Terraform Ansible Collection Contributors"
 description:
-  - Create, Read, Update, Delete, or List teams in Terraform Cloud/Enterprise.
+  - Create, update, and delete teams in Terraform Cloud/Enterprise.
   - Manage team membership including adding/removing users and organization memberships.
   - Configure organization access permissions and team visibility.
   - Support for SSO team ID and member token management settings.
@@ -54,12 +54,12 @@ options:
   organization:
     description:
       - The name of the organization that owns the team.
-      - Required when creating a new team or listing teams.
+      - Required when creating a new team.
     type: str
   team_id:
     description:
       - The unique identifier of the team.
-      - Required when reading, updating, or deleting an existing team.
+      - Required when updating or deleting an existing team.
     type: str
   name:
     description:
@@ -286,19 +286,6 @@ msg:
   sample: "Team 'platform-team' created successfully."
 """
 
-IGNORE_LIST = [
-    "tfe_token",
-    "tf_token",
-    "tfe_address",
-    "tfe_timeout",
-    "tfe_verify_tls",
-    "tfe_max_retries",
-    "tfe_ca_bundle",
-    "tfe_proxies",
-    "check_mode",
-    "state",
-]
-
 
 def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -402,7 +389,6 @@ def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
             {
                 "changed": True,
                 "msg": f"Team '{name}' would be created. Skipped due to check mode.",
-                "id": "team-XXXXXXXXXXXX",  # placeholder
                 "name": name,
                 "visibility": visibility,
             }

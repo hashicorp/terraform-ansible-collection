@@ -59,7 +59,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
 )
 
 
-def get_team(adapter: TerraformClient, team_id: str, include: Optional[list[str]] = None) -> Dict[str, Any] | None:
+def get_team(adapter: TerraformClient, team_id: str) -> Dict[str, Any] | None:
     """
     Retrieves a specified team from Terraform Cloud/Enterprise by its ID.
 
@@ -70,16 +70,12 @@ def get_team(adapter: TerraformClient, team_id: str, include: Optional[list[str]
     Args:
         adapter (TerraformClient): An authenticated client used to interact with the Terraform API.
         team_id (str): The unique ID of the team to retrieve.
-        include (Optional[list[str]]): List of relations to include (e.g., ['users', 'organization-memberships']).
 
     Returns:
         dict: A dictionary containing the team data if found, or None if the team is not found.
     """
     try:
-        if include:
-            team = adapter.client.teams.read(team_id, include=include)
-        else:
-            team = adapter.client.teams.read(team_id)
+        team = adapter.client.teams.read(team_id)
         return format_response(team)
     except NotFound:
         # team was not found
@@ -149,42 +145,21 @@ def list_teams(
 
 def _build_team_options(option_class, payload: Dict[str, Any]):
     """
-    Build pytfe options object safely across pytfe versions.
+    Build pytfe options object from payload dict.
+    
+    Args:
+        option_class: The options class to instantiate (TeamCreateOptions, TeamUpdateOptions, etc.)
+        payload: Dictionary of parameters
+        
+    Returns:
+        Instance of option_class with parameters set
     """
-
-    payload = dict(payload)
-
-    # Build organization access object safely
+    # Convert organization_access dict to OrganizationAccessOptions if present
     if "organization_access" in payload and isinstance(payload["organization_access"], dict):
-        org_payload = payload["organization_access"]
-
-        try:
-            payload["organization_access"] = OrganizationAccessOptions(**org_payload)
-        except TypeError:
-            org_obj = OrganizationAccessOptions()
-
-            for key, value in org_payload.items():
-                try:
-                    setattr(org_obj, key, value)
-                except Exception:
-                    pass
-
-            payload["organization_access"] = org_obj
-
-    # Build main options object safely
-    try:
-        return option_class(**payload)
-
-    except TypeError:
-        obj = option_class()
-
-        for key, value in payload.items():
-            try:
-                setattr(obj, key, value)
-            except Exception:
-                pass
-
-        return obj
+        payload = dict(payload)  # Make a copy to avoid mutating input
+        payload["organization_access"] = OrganizationAccessOptions(**payload["organization_access"])
+    
+    return option_class(**payload)
 
 
 def create_team(

@@ -26,7 +26,7 @@
           - membership_team_result.id is defined
         fail_msg: "Failed to create membership test team"
 
-    - name: Get team info with users included
+    - name: Get membership test team info
       hashicorp.terraform.team_info:
         tfe_token: "{{ tfc_token }}"
         team_id: "{{ membership_team_id }}"

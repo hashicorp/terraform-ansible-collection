@@ -1,11 +1,4 @@
 ---
-- name: Debug - Check variables
-  ansible.builtin.debug:
-    msg:
-      - "tfc_token defined: {{ tfc_token is defined }}"
-      - "organization defined: {{ organization is defined }}"
-      - "organization value: {{ organization | default('NOT SET') }}"
-
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
@@ -99,21 +92,9 @@
         that:
           - team_info_result.team.id == created_team_id
           - team_info_result.team.name == created_team_name
+          - team_info_result.team.visibility == "organization"
+          - team_info_result.team.allow_member_token_management
         fail_msg: "Failed to retrieve team info"
-
-    - name: List teams in organization
-      hashicorp.terraform.team_info:
-        tfe_token: "{{ tfc_token }}"
-        organization: "{{ organization }}"
-        query: "{{ created_team_name }}"
-      register: teams_list_result
-
-    - name: Verify teams list
-      ansible.builtin.assert:
-        that:
-          - teams_list_result.teams | length > 0
-          - created_team_id in (teams_list_result.teams | map(attribute='id') | list)
-        fail_msg: "Failed to list teams"
 
   always:
 

@@ -5,10 +5,6 @@
 
 """Unit tests for the team_info module."""
 
-from unittest.mock import Mock
-
-import pytest
-
 from ansible_collections.hashicorp.terraform.plugins.modules.team_info import (
     normalize_team_response,
 )
@@ -35,13 +31,6 @@ class TestTeamInfoHelpers:
                 "can_destroy": True,
                 "can_update_membership": True,
             },
-            "users": [
-                {"id": "user-1", "username": "john"},
-                {"id": "user-2", "username": "jane"},
-            ],
-            "organization_memberships": [
-                {"id": "ou-1", "email": "john@example.com"},
-            ],
         }
 
         result = normalize_team_response(team_data)
@@ -50,8 +39,11 @@ class TestTeamInfoHelpers:
         assert result["name"] == "platform-team"
         assert result["visibility"] == "secret"
         assert result["user_count"] == 5
-        assert len(result["users"]) == 2
-        assert len(result["organization_memberships"]) == 1
+        assert result["sso_team_id"] == "sso-123"
+        assert result["allow_member_token_management"] is True
+        assert result["is_unified"] is False
+        assert result["organization_access"]["manage_workspaces"] is True
+        assert result["permissions"]["can_destroy"] is True
 
     def test_normalize_team_response_minimal_fields(self):
         """Test normalization with minimal fields."""
@@ -64,19 +56,17 @@ class TestTeamInfoHelpers:
 
         assert result["id"] == "team-123"
         assert result["name"] == "minimal-team"
-        assert "users" not in result
-        assert "organization_memberships" not in result
+        assert result["visibility"] is None
+        assert result["sso_team_id"] is None
+        assert "organization_access" not in result
+        assert "permissions" not in result
 
 
-class TestTeamInfoModuleIntegration:
-    """Test team_info module integration tests."""
+class TestTeamInfoNormalization:
+    """Test team_info response normalization."""
 
-    @pytest.fixture
-    def mock_adapter(self):
-        return Mock()
-
-    def test_list_teams_response_format(self):
-        """Test response format for listing teams."""
+    def test_normalize_multiple_team_objects(self):
+        """Test normalization of multiple team objects."""
         teams_data = [
             {
                 "id": "team-123",
