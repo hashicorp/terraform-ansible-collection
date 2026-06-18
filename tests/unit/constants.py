@@ -22,6 +22,9 @@ TEST_ORGANIZATION_ID = "org-test123"
 TEST_CONFIGURATION_VERSION_ID = "cv-test123"
 TEST_PLAN_ID = "plan-test123"
 TEST_PROJECT_ID = "prj-test123"
+TEST_TEAM_ID = "team-test123"
+TEST_TEAM_WORKSPACE_ACCESS_ID = "tws-test123"
+TEST_TEAM_PROJECT_ACCESS_ID = "tpa-test123"
 
 # Common test attributes
 TEST_WORKSPACE_NAME = "test-workspace"
@@ -355,6 +358,81 @@ SAMPLE_CONFIGURATION_VERSION_RESPONSE = create_configuration_version_response()
 SAMPLE_ERROR_RESPONSE = create_error_response()
 SAMPLE_PLAN_RESPONSE = create_plan_response()
 SAMPLE_PROJECT_RESPONSE = create_project_response()
+
+
+def create_team_workspace_access_response(
+    twa_id: str = TEST_TEAM_WORKSPACE_ACCESS_ID,
+    team_id: str = TEST_TEAM_ID,
+    workspace_id: str = TEST_WORKSPACE_ID,
+    access: str = "read",
+    runs: str = "read",
+    variables: str = "read",
+    state_versions: str = "read",
+    sentinel_mocks: str = "none",
+    workspace_locking: bool = False,
+    run_tasks: bool = False,
+    policy_overrides: bool = False,
+) -> dict:
+    """Create a normalized team-workspace access response (as returned by format_response + _normalize_response)."""
+    return {
+        "id": twa_id,
+        "access": access,
+        "runs": runs,
+        "variables": variables,
+        "state_versions": state_versions,
+        "sentinel_mocks": sentinel_mocks,
+        "workspace_locking": workspace_locking,
+        "run_tasks": run_tasks,
+        "policy_overrides": policy_overrides,
+        "team_id": team_id,
+        "workspace_id": workspace_id,
+    }
+
+
+def create_team_project_access_response(
+    tpa_id: str = TEST_TEAM_PROJECT_ACCESS_ID,
+    team_id: str = TEST_TEAM_ID,
+    project_id: str = TEST_PROJECT_ID,
+    access: str = "read",
+    project_settings: Optional[str] = None,
+    project_teams: Optional[str] = None,
+    project_variable_sets: Optional[str] = None,
+    workspace_runs: Optional[str] = None,
+    workspace_sentinel_mocks: Optional[str] = None,
+    workspace_state_versions: Optional[str] = None,
+    workspace_variables: Optional[str] = None,
+    workspace_create: Optional[bool] = None,
+    workspace_delete: Optional[bool] = None,
+    workspace_locking: Optional[bool] = None,
+    workspace_move: Optional[bool] = None,
+    workspace_run_tasks: Optional[bool] = None,
+) -> dict:
+    """Create a normalized team-project access response (as returned by format_response + _normalize_response)."""
+    result: Dict[str, Any] = {
+        "id": tpa_id,
+        "access": access,
+        "team_id": team_id,
+        "project_id": project_id,
+    }
+    optional_fields = {
+        "project_settings": project_settings,
+        "project_teams": project_teams,
+        "project_variable_sets": project_variable_sets,
+        "workspace_runs": workspace_runs,
+        "workspace_sentinel_mocks": workspace_sentinel_mocks,
+        "workspace_state_versions": workspace_state_versions,
+        "workspace_variables": workspace_variables,
+        "workspace_create": workspace_create,
+        "workspace_delete": workspace_delete,
+        "workspace_locking": workspace_locking,
+        "workspace_move": workspace_move,
+        "workspace_run_tasks": workspace_run_tasks,
+    }
+    for key, value in optional_fields.items():
+        if value is not None:
+            result[key] = value
+    return result
+
 
 # Consolidated dictionary for easy access
 SAMPLE_TERRAFORM_RESPONSES = {
