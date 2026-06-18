@@ -22,10 +22,6 @@ TEST_ORGANIZATION_ID = "org-test123"
 TEST_CONFIGURATION_VERSION_ID = "cv-test123"
 TEST_PLAN_ID = "plan-test123"
 TEST_PROJECT_ID = "prj-test123"
-TEST_TEAM_ID = "team-test123"
-TEST_TEAM_WORKSPACE_ACCESS_ID = "tws-test123"
-TEST_TEAM_PROJECT_ACCESS_ID = "tpa-test123"
-
 # Common test attributes
 TEST_WORKSPACE_NAME = "test-workspace"
 TEST_ORGANIZATION_NAME = "test-org"
@@ -352,159 +348,12 @@ def create_project_response(
     return response
 
 
-TEST_TEAM_ID = "team-test123"
-TEST_TEAM_WORKSPACE_ACCESS_ID = "tws-test123"
-
-
-def create_team_workspace_access_response(
-    twa_id: str = TEST_TEAM_WORKSPACE_ACCESS_ID,
-    access: str = "read",
-    team_id: str = TEST_TEAM_ID,
-    workspace_id: str = TEST_WORKSPACE_ID,
-    runs: Optional[str] = None,
-    variables: Optional[str] = None,
-    state_versions: Optional[str] = None,
-    sentinel_mocks: Optional[str] = None,
-    workspace_locking: Optional[bool] = None,
-    run_tasks: Optional[bool] = None,
-    policy_overrides: Optional[bool] = None,
-    **extra_attributes
-) -> Dict[str, Any]:
-    """Create a team-workspace access API response payload.
-
-    Args:
-        twa_id: The team-workspace access identifier (e.g. ``tws-xxx``).
-        access: Access level (``read``, ``plan``, ``write``, ``admin``, ``custom``).
-        team_id: The team identifier.
-        workspace_id: The workspace identifier.
-        runs: Runs permission for custom access.
-        variables: Variables permission for custom access.
-        state_versions: State versions permission for custom access.
-        sentinel_mocks: Sentinel mocks permission for custom access.
-        workspace_locking: Workspace locking permission for custom access.
-        run_tasks: Run tasks permission for custom access.
-        policy_overrides: Policy overrides permission for custom access.
-        **extra_attributes: Additional attributes to merge into the response.
-
-    Returns:
-        Dictionary representing a team-workspace access API response.
-
-    Example:
-        >>> response = create_team_workspace_access_response(access="write")
-        >>> response = create_team_workspace_access_response(
-        ...     access="custom", runs="apply", variables="write"
-        ... )
-    """
-    attributes: Dict[str, Any] = {"access": access}
-    if runs is not None:
-        attributes["runs"] = runs
-    if variables is not None:
-        attributes["variables"] = variables
-    if state_versions is not None:
-        attributes["state-versions"] = state_versions
-    if sentinel_mocks is not None:
-        attributes["sentinel-mocks"] = sentinel_mocks
-    if workspace_locking is not None:
-        attributes["workspace-locking"] = workspace_locking
-    if run_tasks is not None:
-        attributes["run-tasks"] = run_tasks
-    if policy_overrides is not None:
-        attributes["policy-overrides"] = policy_overrides
-    attributes.update(extra_attributes)
-
-    return {
-        "data": {
-            "id": twa_id,
-            "type": "team-workspaces",
-            "attributes": attributes,
-            "relationships": {
-                "team": {"data": {"id": team_id, "type": "teams"}},
-                "workspace": {"data": {"id": workspace_id, "type": "workspaces"}},
-            },
-        }
-    }
-
-
 SAMPLE_RUN_RESPONSE = create_run_response()
 SAMPLE_WORKSPACE_RESPONSE = create_workspace_response()
 SAMPLE_CONFIGURATION_VERSION_RESPONSE = create_configuration_version_response()
 SAMPLE_ERROR_RESPONSE = create_error_response()
 SAMPLE_PLAN_RESPONSE = create_plan_response()
 SAMPLE_PROJECT_RESPONSE = create_project_response()
-
-
-def create_team_workspace_access_response(
-    twa_id: str = TEST_TEAM_WORKSPACE_ACCESS_ID,
-    team_id: str = TEST_TEAM_ID,
-    workspace_id: str = TEST_WORKSPACE_ID,
-    access: str = "read",
-    runs: str = "read",
-    variables: str = "read",
-    state_versions: str = "read",
-    sentinel_mocks: str = "none",
-    workspace_locking: bool = False,
-    run_tasks: bool = False,
-    policy_overrides: bool = False,
-) -> dict:
-    """Create a normalized team-workspace access response (as returned by format_response + _normalize_response)."""
-    return {
-        "id": twa_id,
-        "access": access,
-        "runs": runs,
-        "variables": variables,
-        "state_versions": state_versions,
-        "sentinel_mocks": sentinel_mocks,
-        "workspace_locking": workspace_locking,
-        "run_tasks": run_tasks,
-        "policy_overrides": policy_overrides,
-        "team_id": team_id,
-        "workspace_id": workspace_id,
-    }
-
-
-def create_team_project_access_response(
-    tpa_id: str = TEST_TEAM_PROJECT_ACCESS_ID,
-    team_id: str = TEST_TEAM_ID,
-    project_id: str = TEST_PROJECT_ID,
-    access: str = "read",
-    project_settings: Optional[str] = None,
-    project_teams: Optional[str] = None,
-    project_variable_sets: Optional[str] = None,
-    workspace_runs: Optional[str] = None,
-    workspace_sentinel_mocks: Optional[str] = None,
-    workspace_state_versions: Optional[str] = None,
-    workspace_variables: Optional[str] = None,
-    workspace_create: Optional[bool] = None,
-    workspace_delete: Optional[bool] = None,
-    workspace_locking: Optional[bool] = None,
-    workspace_move: Optional[bool] = None,
-    workspace_run_tasks: Optional[bool] = None,
-) -> dict:
-    """Create a normalized team-project access response (as returned by format_response + _normalize_response)."""
-    result: Dict[str, Any] = {
-        "id": tpa_id,
-        "access": access,
-        "team_id": team_id,
-        "project_id": project_id,
-    }
-    optional_fields = {
-        "project_settings": project_settings,
-        "project_teams": project_teams,
-        "project_variable_sets": project_variable_sets,
-        "workspace_runs": workspace_runs,
-        "workspace_sentinel_mocks": workspace_sentinel_mocks,
-        "workspace_state_versions": workspace_state_versions,
-        "workspace_variables": workspace_variables,
-        "workspace_create": workspace_create,
-        "workspace_delete": workspace_delete,
-        "workspace_locking": workspace_locking,
-        "workspace_move": workspace_move,
-        "workspace_run_tasks": workspace_run_tasks,
-    }
-    for key, value in optional_fields.items():
-        if value is not None:
-            result[key] = value
-    return result
 
 
 # Consolidated dictionary for easy access
