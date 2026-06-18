@@ -3,27 +3,25 @@ requires_ansible: ">=2.16.0"
 action_groups:
   terraform:
     - configuration_version
-    - configuration_version_info
-    - notification_configuration
-    - organizations
-    - output
-    - project
-    - project_info
-    - promote_run
+    - workspace_info
     - run
+    - workspace
+    - view_plan
     - run_info
+    - configuration_version_info
+    - project
+    - output
+    - organizations
+    - variable
+    - variable_sets
     - run_trigger
     - ssh_keys
+    - project_info
+    - promote_run
+    - workspace_bootstrap
+    - notification_configuration
     - team
     - team_info
     - user_info
-    - variable
-    - variable_sets
-    - view_plan
-    - workspace
-    - workspace_bootstrap
-    - workspace_info
-    - notification_configuration
     - team_project_access
     - team_workspace_access
-
