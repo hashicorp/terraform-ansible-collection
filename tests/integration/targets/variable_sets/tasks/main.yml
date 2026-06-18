@@ -1,11 +1,7 @@
 ---
 - name: Set module defaults
   module_defaults:
-    hashicorp.terraform.variable_sets:
-      tfe_token: "{{ tfc_token }}"
-    hashicorp.terraform.workspace:
-      tfe_token: "{{ tfc_token }}"
-    hashicorp.terraform.project:
+    group/hashicorp.terraform.terraform:
       tfe_token: "{{ tfc_token }}"
 
   block:
@@ -203,6 +199,8 @@
           - result_parented.changed
           - result_parented.id is defined
           - result_parented.name == parent_varset_name
+          - result_parented.parent is defined
+          - result_parented.parent.project.id == parent_project_id
 
     - name: Delete the project-scoped variable set
       hashicorp.terraform.variable_sets:
