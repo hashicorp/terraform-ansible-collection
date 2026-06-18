@@ -19,7 +19,7 @@ options:
       - The user should ensure that token being used has the correct permissions to perform the operations requested through the Ansible task.
       - The C(tf_token) alias is kept for compatibility with older collection releases.
     type: str
-    required: true
+    required: False
     aliases:
       - tf_token
   tfe_address:

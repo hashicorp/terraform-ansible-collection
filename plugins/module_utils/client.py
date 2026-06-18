@@ -39,7 +39,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 AUTH_ARGSPEC = {
     "tfe_token": {
         "type": "str",
-        "required": True,
+        "required": False,
         "aliases": ["tf_token"],
         "fallback": (env_fallback, ["TFE_TOKEN"]),
         "no_log": True,

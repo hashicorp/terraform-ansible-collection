@@ -1,0 +1,4 @@
+minor_changes:
+  - "Added new ``team_project_access`` module to manage team access grants on Terraform Cloud/Enterprise projects,
+    supporting read, write, maintain, admin, and custom access levels with fine-grained project and workspace
+    permissions (https://developer.hashicorp.com/terraform/cloud-docs/api-docs/team-project-access)."
