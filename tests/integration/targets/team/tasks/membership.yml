@@ -8,7 +8,6 @@
 
     - name: Create test team for membership operations
       hashicorp.terraform.team:
-        tfe_token: "{{ tfc_token }}"
         name: "membership-test-team-{{ ansible_date_time.epoch }}"
         organization: "{{ organization }}"
         visibility: "secret"
@@ -28,7 +27,6 @@
 
     - name: Get membership test team info
       hashicorp.terraform.team_info:
-        tfe_token: "{{ tfc_token }}"
         team_id: "{{ membership_team_id }}"
       register: team_members_result
 
@@ -42,7 +40,6 @@
 
     - name: Delete membership test team
       hashicorp.terraform.team:
-        tfe_token: "{{ tfc_token }}"
         team_id: "{{ membership_team_id }}"
         state: absent
       register: membership_team_delete
