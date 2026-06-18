@@ -69,6 +69,16 @@
       ansible.builtin.assert:
         that:
           - not result_update.changed
+          - result_update.id == workspace_id
+          - result_update.name == workspace_name
+          - result_update.execution_mode == "remote"
+          - result_update.auto_apply == true
+          - result_update.auto_apply_run_trigger == true
+          - result_update.assessments_enabled == true
+          - result_update.auto_destroy_activity_duration == "12d"
+          - result_update.auto_destroy_at == "2027-08-10T15:00:00Z"
+          - result_update.terraform_version == "1.12.2"
+          - result_update.description == "integration test workspace"
 
     - name: Generate unique project name
       ansible.builtin.set_fact:
@@ -195,6 +205,8 @@
       ansible.builtin.assert:
         that:
           - not result_update.changed
+          - result_update.id == workspace_id
+          - result_update.execution_mode == "agent"
 
     - name: Lock workspace
       hashicorp.terraform.workspace:

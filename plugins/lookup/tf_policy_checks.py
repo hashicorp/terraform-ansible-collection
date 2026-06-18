@@ -40,7 +40,7 @@ options:
       - Falls back to the C(TFE_TOKEN) environment variable when not set.
       - The C(tf_token) alias is kept for compatibility with older collection releases.
     type: str
-    required: true
+    required: False
     aliases: ['tf_token']
   tfe_timeout:
     description:
