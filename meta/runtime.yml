@@ -21,3 +21,4 @@ action_groups:
     - workspace_bootstrap
     - notification_configuration
     - team_project_access
+    - team_workspace_access

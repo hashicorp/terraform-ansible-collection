@@ -352,6 +352,79 @@ def create_project_response(
     return response
 
 
+TEST_TEAM_ID = "team-test123"
+TEST_TEAM_WORKSPACE_ACCESS_ID = "tws-test123"
+
+
+def create_team_workspace_access_response(
+    twa_id: str = TEST_TEAM_WORKSPACE_ACCESS_ID,
+    access: str = "read",
+    team_id: str = TEST_TEAM_ID,
+    workspace_id: str = TEST_WORKSPACE_ID,
+    runs: Optional[str] = None,
+    variables: Optional[str] = None,
+    state_versions: Optional[str] = None,
+    sentinel_mocks: Optional[str] = None,
+    workspace_locking: Optional[bool] = None,
+    run_tasks: Optional[bool] = None,
+    policy_overrides: Optional[bool] = None,
+    **extra_attributes
+) -> Dict[str, Any]:
+    """Create a team-workspace access API response payload.
+
+    Args:
+        twa_id: The team-workspace access identifier (e.g. ``tws-xxx``).
+        access: Access level (``read``, ``plan``, ``write``, ``admin``, ``custom``).
+        team_id: The team identifier.
+        workspace_id: The workspace identifier.
+        runs: Runs permission for custom access.
+        variables: Variables permission for custom access.
+        state_versions: State versions permission for custom access.
+        sentinel_mocks: Sentinel mocks permission for custom access.
+        workspace_locking: Workspace locking permission for custom access.
+        run_tasks: Run tasks permission for custom access.
+        policy_overrides: Policy overrides permission for custom access.
+        **extra_attributes: Additional attributes to merge into the response.
+
+    Returns:
+        Dictionary representing a team-workspace access API response.
+
+    Example:
+        >>> response = create_team_workspace_access_response(access="write")
+        >>> response = create_team_workspace_access_response(
+        ...     access="custom", runs="apply", variables="write"
+        ... )
+    """
+    attributes: Dict[str, Any] = {"access": access}
+    if runs is not None:
+        attributes["runs"] = runs
+    if variables is not None:
+        attributes["variables"] = variables
+    if state_versions is not None:
+        attributes["state-versions"] = state_versions
+    if sentinel_mocks is not None:
+        attributes["sentinel-mocks"] = sentinel_mocks
+    if workspace_locking is not None:
+        attributes["workspace-locking"] = workspace_locking
+    if run_tasks is not None:
+        attributes["run-tasks"] = run_tasks
+    if policy_overrides is not None:
+        attributes["policy-overrides"] = policy_overrides
+    attributes.update(extra_attributes)
+
+    return {
+        "data": {
+            "id": twa_id,
+            "type": "team-workspaces",
+            "attributes": attributes,
+            "relationships": {
+                "team": {"data": {"id": team_id, "type": "teams"}},
+                "workspace": {"data": {"id": workspace_id, "type": "workspaces"}},
+            },
+        }
+    }
+
+
 SAMPLE_RUN_RESPONSE = create_run_response()
 SAMPLE_WORKSPACE_RESPONSE = create_workspace_response()
 SAMPLE_CONFIGURATION_VERSION_RESPONSE = create_configuration_version_response()
