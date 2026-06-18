@@ -146,11 +146,11 @@ def list_teams(
 def _build_team_options(option_class, payload: Dict[str, Any]):
     """
     Build pytfe options object from payload dict.
-    
+
     Args:
         option_class: The options class to instantiate (TeamCreateOptions, TeamUpdateOptions, etc.)
         payload: Dictionary of parameters
-        
+
     Returns:
         Instance of option_class with parameters set
     """
@@ -158,7 +158,7 @@ def _build_team_options(option_class, payload: Dict[str, Any]):
     if "organization_access" in payload and isinstance(payload["organization_access"], dict):
         payload = dict(payload)  # Make a copy to avoid mutating input
         payload["organization_access"] = OrganizationAccessOptions(**payload["organization_access"])
-    
+
     return option_class(**payload)
 
 
