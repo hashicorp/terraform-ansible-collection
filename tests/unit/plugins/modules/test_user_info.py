@@ -19,9 +19,9 @@ class TestUserInfo:
     def sample_user_data(self):
         """Sample user data response."""
         return {
-            "id": "user-MA4GL63FmYRpSFxa",
-            "username": "admin",
-            "email": "admin@example.com",
+            "id": "user-XXXXXXXXXXXX",
+            "username": "example-user",
+            "email": "user@example.com",
             "is_service_account": False,
             "auth_method": "hcp_sso",
             "avatar_url": "https://example.com/avatar.png",
@@ -43,7 +43,7 @@ class TestUserInfo:
         # Setup mock module
         mock_module = Mock()
         mock_module.params = {
-            "user_id": "user-MA4GL63FmYRpSFxa",
+            "user_id": "user-XXXXXXXXXXXX",
             "current": False,
         }
         mock_module.check_mode = False
@@ -63,7 +63,7 @@ class TestUserInfo:
         main()
 
         # Verify
-        mock_get_user.assert_called_once_with(mock_adapter, "user-MA4GL63FmYRpSFxa")
+        mock_get_user.assert_called_once_with(mock_adapter, "user-XXXXXXXXXXXX")
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
         assert call_args["changed"] is False
@@ -142,7 +142,7 @@ class TestUserInfo:
         # Setup mock module
         mock_module = Mock()
         mock_module.params = {
-            "user_id": "user-MA4GL63FmYRpSFxa",
+            "user_id": "user-XXXXXXXXXXXX",
             "current": False,
         }
         mock_module.check_mode = True
@@ -162,7 +162,7 @@ class TestUserInfo:
         main()
 
         # Verify - check mode should still retrieve the user
-        mock_get_user.assert_called_once_with(mock_adapter, "user-MA4GL63FmYRpSFxa")
+        mock_get_user.assert_called_once_with(mock_adapter, "user-XXXXXXXXXXXX")
         mock_module.exit_json.assert_called_once()
         call_args = mock_module.exit_json.call_args[1]
         assert call_args["changed"] is False
@@ -208,7 +208,7 @@ class TestUserInfo:
         # Setup mock module
         mock_module = Mock()
         mock_module.params = {
-            "user_id": "user-MA4GL63FmYRpSFxa",
+            "user_id": "user-XXXXXXXXXXXX",
             "current": False,
         }
         mock_module.check_mode = False

@@ -9,7 +9,6 @@
     - name: Get current authenticated user
       hashicorp.terraform.user_info:
         current: true
-        tf_token: "{{ tfc_token }}"
       register: current_user_result
 
     - name: Debug current user result
@@ -36,7 +35,6 @@
     - name: Get user by ID
       hashicorp.terraform.user_info:
         user_id: "{{ current_user_id }}"
-        tf_token: "{{ tfc_token }}"
       register: user_by_id_result
 
     - name: Debug user by ID result
@@ -61,7 +59,6 @@
     - name: Test invalid user ID
       hashicorp.terraform.user_info:
         user_id: "user-invalid-user-id"
-        tf_token: "{{ tfc_token }}"
       register: result_invalid_id
       ignore_errors: true
 
@@ -75,7 +72,6 @@
     - name: Test check mode with current user
       hashicorp.terraform.user_info:
         current: true
-        tf_token: "{{ tfc_token }}"
       check_mode: true
       register: result_check_mode_current
 
@@ -90,7 +86,6 @@
     - name: Test check mode with user ID
       hashicorp.terraform.user_info:
         user_id: "{{ current_user_id }}"
-        tf_token: "{{ tfc_token }}"
       check_mode: true
       register: result_check_mode_id
 
@@ -138,7 +133,6 @@
     - name: Get current user again
       hashicorp.terraform.user_info:
         current: true
-        tf_token: "{{ tfc_token }}"
       register: current_user_result_2
 
     - name: Assert idempotency

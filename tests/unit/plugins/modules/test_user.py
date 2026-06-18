@@ -32,9 +32,9 @@ class TestUserModuleUtils:
     def sample_user_response(self):
         """Sample user response matching pytfe format."""
         return {
-            "id": "user-MA4GL63FmYRpSFxa",
-            "username": "admin",
-            "email": "admin@example.com",
+            "id": "user-XXXXXXXXXXXX",
+            "username": "example-user",
+            "email": "user@example.com",
             "is_service_account": False,
             "auth_method": "hcp_sso",
             "avatar_url": "https://example.com/avatar.png",
@@ -51,7 +51,7 @@ class TestUserModuleUtils:
 
     def test_get_user_success(self, mock_adapter, sample_user_response):
         """Test reading a specific user by ID."""
-        user_id = "user-MA4GL63FmYRpSFxa"
+        user_id = "user-XXXXXXXXXXXX"
 
         # Mock the user object
         mock_user = Mock()
@@ -63,8 +63,8 @@ class TestUserModuleUtils:
         mock_adapter.client.users.read.assert_called_once_with(user_id)
         assert result == sample_user_response
         assert result["id"] == user_id
-        assert result["username"] == "admin"
-        assert result["email"] == "admin@example.com"
+        assert result["username"] == "example-user"
+        assert result["email"] == "user@example.com"
         assert result["is_service_account"] is False
         assert result["auth_method"] == "hcp_sso"
         assert result["avatar_url"] == "https://example.com/avatar.png"
@@ -99,7 +99,7 @@ class TestUserModuleUtils:
         mock_user.model_dump.return_value = modified_response
         mock_adapter.client.users.read.return_value = mock_user
 
-        result = get_user(mock_adapter, "user-MA4GL63FmYRpSFxa")
+        result = get_user(mock_adapter, "user-XXXXXXXXXXXX")
 
         assert result["unconfirmed_email"] is None
 
@@ -115,7 +115,7 @@ class TestUserModuleUtils:
         mock_user.model_dump.return_value = modified_response
         mock_adapter.client.users.read.return_value = mock_user
 
-        result = get_user(mock_adapter, "user-MA4GL63FmYRpSFxa")
+        result = get_user(mock_adapter, "user-XXXXXXXXXXXX")
 
         assert result["two_factor"] is not None
         assert result["two_factor"]["enabled"] is True
@@ -132,7 +132,7 @@ class TestUserModuleUtils:
         mock_user.model_dump.return_value = modified_response
         mock_adapter.client.users.read.return_value = mock_user
 
-        result = get_user(mock_adapter, "user-MA4GL63FmYRpSFxa")
+        result = get_user(mock_adapter, "user-XXXXXXXXXXXX")
 
         assert result["is_site_admin"] is None
         assert result["is_admin"] is None
@@ -148,20 +148,20 @@ class TestUserModuleUtils:
 
         mock_adapter.client.users.read_current.assert_called_once()
         assert result == sample_user_response
-        assert result["id"] == "user-MA4GL63FmYRpSFxa"
-        assert result["username"] == "admin"
-        assert result["email"] == "admin@example.com"
+        assert result["id"] == "user-XXXXXXXXXXXX"
+        assert result["username"] == "example-user"
+        assert result["email"] == "user@example.com"
 
     def test_update_current_user(self, mock_adapter, sample_user_response):
         """Test updating the currently authenticated user."""
         update_data = {
-            "username": "new-admin",
-            "email": "new-admin@example.com",
+            "username": "new-example-user",
+            "email": "new-user@example.com",
         }
 
         updated_response = copy.deepcopy(sample_user_response)
-        updated_response["username"] = "new-admin"
-        updated_response["email"] = "new-admin@example.com"
+        updated_response["username"] = "new-example-user"
+        updated_response["email"] = "new-user@example.com"
 
         mock_user = Mock()
         mock_user.model_dump.return_value = updated_response
@@ -170,8 +170,8 @@ class TestUserModuleUtils:
         result = update_current_user(mock_adapter, update_data)
 
         mock_adapter.client.users.update_current.assert_called_once()
-        assert result["username"] == "new-admin"
-        assert result["email"] == "new-admin@example.com"
+        assert result["username"] == "new-example-user"
+        assert result["email"] == "new-user@example.com"
 
     def test_get_current_user_exception(self, mock_adapter):
         """Test exception handling when getting current user fails."""

@@ -37,7 +37,7 @@ options:
 EXAMPLES = r"""
 - name: Gather information about a user by ID
   hashicorp.terraform.user_info:
-    user_id: "user-MA4GL63FmYRpSFxa"
+    user_id: "user-XXXXXXXXXXXX"
   register: user_info
 
 # Task output:
@@ -46,9 +46,9 @@ EXAMPLES = r"""
 #     "changed": false,
 #     "failed": false,
 #     "user": {
-#         "id": "user-MA4GL63FmYRpSFxa",
-#         "username": "admin",
-#         "email": "admin@example.com",
+#         "id": "user-XXXXXXXXXXXX",
+#         "username": "example-user",
+#         "email": "user@example.com",
 #         "is_service_account": false,
 #         "auth_method": "hcp_sso",
 #         "avatar_url": "https://www.gravatar.com/avatar/...",
@@ -72,9 +72,9 @@ EXAMPLES = r"""
 #     "changed": false,
 #     "failed": false,
 #     "user": {
-#         "id": "user-MA4GL63FmYRpSFxa",
-#         "username": "admin",
-#         "email": "admin@example.com",
+#         "id": "user-XXXXXXXXXXXX",
+#         "username": "example-user",
+#         "email": "user@example.com",
 #         "is_service_account": false,
 #         "auth_method": "hcp_sso",
 #         "avatar_url": "https://www.gravatar.com/avatar/...",
@@ -103,7 +103,7 @@ EXAMPLES = r"""
 
 - name: Use user information in subsequent tasks
   hashicorp.terraform.user_info:
-    user_id: "user-MA4GL63FmYRpSFxa"
+    user_id: "user-XXXXXXXXXXXX"
   register: user_info
 
 - name: Display user details
@@ -138,17 +138,17 @@ user:
       type: str
       returned: always
       description: The unique identifier of the user.
-      sample: "user-MA4GL63FmYRpSFxa"
+      sample: "user-XXXXXXXXXXXX"
     username:
       type: str
       returned: always
       description: The username of the user.
-      sample: "admin"
+      sample: "example-user"
     email:
       type: str
       returned: when available
       description: The email address of the user.
-      sample: "admin@example.com"
+      sample: "user@example.com"
     is_service_account:
       type: bool
       returned: always
