@@ -1,0 +1,245 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    # ------------------------------------------------------------------
+    # Setup: unique names and IDs
+    # ------------------------------------------------------------------
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique project name
+      ansible.builtin.set_fact:
+        project_name: "{{ unique_id[:30] }}-tpa-test"
+
+    - name: Create a project for the test
+      hashicorp.terraform.project:
+        name: "{{ project_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: project_create_response
+
+    - name: Set project_id fact
+      ansible.builtin.set_fact:
+        project_id: "{{ project_create_response.id }}"
+
+    - name: Fetch the first team in the organization
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/teams"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        return_content: true
+        status_code: 200
+      no_log: true
+      register: teams_response
+
+    - name: Set team_id fact
+      ansible.builtin.set_fact:
+        team_id: "{{ teams_response.json.data[0].id }}"
+
+    # ------------------------------------------------------------------
+    # 1. Grant read access
+    # ------------------------------------------------------------------
+    - name: Grant team read access to project
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: read
+        state: present
+      register: result_create
+
+    - name: Set tpa_id fact
+      ansible.builtin.set_fact:
+        tpa_id: "{{ result_create.id }}"
+
+    - name: Assert grant was created
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.access == "read"
+          - result_create.team_id == team_id
+          - result_create.project_id == project_id
+
+    # ------------------------------------------------------------------
+    # 2. Idempotency — same params, no change (issue #142 regression check)
+    # ------------------------------------------------------------------
+    - name: Re-grant same read access (idempotency check)
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: read
+        state: present
+      register: result_idempotent
+
+    - name: Assert idempotent — not changed AND full resource data returned (issue #142)
+      ansible.builtin.assert:
+        that:
+          - not result_idempotent.changed
+          - result_idempotent.id == tpa_id
+          - result_idempotent.access == "read"
+          - result_idempotent.team_id == team_id
+          - result_idempotent.project_id == project_id
+
+    # ------------------------------------------------------------------
+    # 3. Update to maintain access
+    # ------------------------------------------------------------------
+    - name: Update team access to maintain
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: maintain
+        state: present
+      register: result_update
+
+    - name: Assert access was updated to maintain
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.id == tpa_id
+          - result_update.access == "maintain"
+
+    # ------------------------------------------------------------------
+    # 4. Idempotency after update
+    # ------------------------------------------------------------------
+    - name: Re-update to maintain access (idempotency check)
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: maintain
+        state: present
+      register: result_update_idem
+
+    - name: Assert update idempotent — not changed AND full resource data returned (issue #142)
+      ansible.builtin.assert:
+        that:
+          - not result_update_idem.changed
+          - result_update_idem.id == tpa_id
+          - result_update_idem.access == "maintain"
+
+    # ------------------------------------------------------------------
+    # 5. Update directly by team_project_access_id
+    # ------------------------------------------------------------------
+    - name: Update access to admin using grant ID
+      hashicorp.terraform.team_project_access:
+        team_project_access_id: "{{ tpa_id }}"
+        access: admin
+        state: present
+      register: result_update_by_id
+
+    - name: Assert update by ID was successful
+      ansible.builtin.assert:
+        that:
+          - result_update_by_id.changed
+          - result_update_by_id.id == tpa_id
+          - result_update_by_id.access == "admin"
+
+    # ------------------------------------------------------------------
+    # 6. Custom access type
+    # ------------------------------------------------------------------
+    - name: Grant custom access with fine-grained permissions
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: custom
+        project_settings: read
+        project_teams: none
+        project_variable_sets: read
+        workspace_runs: apply
+        workspace_variables: write
+        workspace_state_versions: read-outputs
+        workspace_sentinel_mocks: none
+        workspace_locking: true
+        workspace_create: false
+        workspace_delete: false
+        workspace_move: false
+        workspace_run_tasks: false
+        state: present
+      register: result_custom
+
+    - name: Assert custom access was set
+      ansible.builtin.assert:
+        that:
+          - result_custom.changed
+          - result_custom.id == tpa_id
+          - result_custom.access == "custom"
+          - result_custom.project_settings == "read"
+          - result_custom.workspace_runs == "apply"
+          - result_custom.workspace_locking == true
+
+    - name: Re-grant same custom access (idempotency)
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        access: custom
+        project_settings: read
+        project_teams: none
+        project_variable_sets: read
+        workspace_runs: apply
+        workspace_variables: write
+        workspace_state_versions: read-outputs
+        workspace_sentinel_mocks: none
+        workspace_locking: true
+        workspace_create: false
+        workspace_delete: false
+        workspace_move: false
+        workspace_run_tasks: false
+        state: present
+      register: result_custom_idem
+
+    - name: Assert custom access idempotent — full data returned (issue #142)
+      ansible.builtin.assert:
+        that:
+          - not result_custom_idem.changed
+          - result_custom_idem.id == tpa_id
+          - result_custom_idem.access == "custom"
+          - result_custom_idem.workspace_runs == "apply"
+          - result_custom_idem.workspace_locking == true
+
+    # ------------------------------------------------------------------
+    # 7. Remove the grant
+    # ------------------------------------------------------------------
+    - name: Remove team access grant
+      hashicorp.terraform.team_project_access:
+        team_id: "{{ team_id }}"
+        project_id: "{{ project_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert grant was removed
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - tpa_id in result_delete.msg
+
+    # ------------------------------------------------------------------
+    # 8. Idempotency for absent
+    # ------------------------------------------------------------------
+    - name: Re-run absent (idempotency check)
+      hashicorp.terraform.team_project_access:
+        team_project_access_id: "{{ tpa_id }}"
+        state: absent
+      register: result_delete_idem
+
+    - name: Assert absent is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_delete_idem.changed
+          - "'not found' in result_delete_idem.msg"
+
+  always:
+    # ------------------------------------------------------------------
+    # Cleanup: delete the project created for this test
+    # ------------------------------------------------------------------
+    - name: Delete test project
+      when: project_id is defined
+      hashicorp.terraform.project:
+        project_id: "{{ project_id }}"
+        state: absent
+      ignore_errors: true

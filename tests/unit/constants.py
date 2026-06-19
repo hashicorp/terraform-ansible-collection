@@ -22,7 +22,6 @@ TEST_ORGANIZATION_ID = "org-test123"
 TEST_CONFIGURATION_VERSION_ID = "cv-test123"
 TEST_PLAN_ID = "plan-test123"
 TEST_PROJECT_ID = "prj-test123"
-
 # Common test attributes
 TEST_WORKSPACE_NAME = "test-workspace"
 TEST_ORGANIZATION_NAME = "test-org"
@@ -355,6 +354,7 @@ SAMPLE_CONFIGURATION_VERSION_RESPONSE = create_configuration_version_response()
 SAMPLE_ERROR_RESPONSE = create_error_response()
 SAMPLE_PLAN_RESPONSE = create_plan_response()
 SAMPLE_PROJECT_RESPONSE = create_project_response()
+
 
 # Consolidated dictionary for easy access
 SAMPLE_TERRAFORM_RESPONSES = {

@@ -188,7 +188,10 @@ class TestProjectStatePresentAndUpdate:
             mock_tags.return_value = []
             result = state_update(mock_adapter, params, existing, check_mode=False)
 
-        assert result == {"changed": False}
+        assert result["changed"] is False
+        assert result["id"] == "prj-1"
+        assert result["name"] == "demo-project"
+        assert result["description"] == "same"
 
     def test_state_update_with_changes(self, mock_adapter):
         params = {

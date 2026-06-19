@@ -317,6 +317,8 @@ class TestWorkspaceUpdate:
 
             mock_get.assert_called_once()
             assert result["changed"] is False
+            assert result["id"] == "ws-123"
+            assert result["name"] == "test-workspace"
 
     def test_workspace_update_not_found(self, mock_adapter, params):
         """Test updating a workspace that doesn't exist."""

@@ -172,3 +172,6 @@ cython_debug/
 .nopush
 collections/
 .claude/
+
+# Integration test configuration (contains secrets)
+tests/integration/integration_config.yml

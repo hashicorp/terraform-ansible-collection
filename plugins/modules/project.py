@@ -562,7 +562,7 @@ def state_update(adapter: TerraformClient, params: Dict[str, Any], project: Dict
     updates_response = _filter_tag_binding_updates(updates_response, have)
 
     if not updates_response:
-        return {"changed": False}
+        return {"changed": False, **project}
 
     return _create_update_response(adapter, project_id, project_params, params, check_mode)
 

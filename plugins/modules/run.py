@@ -76,8 +76,25 @@ options:
         description: Whether to destroy all provisioned resources managed by this configuration.
         type: bool
         required: false
+    refresh_only:
+        description:
+          - Whether to perform a refresh-only run, which updates Terraform state to match
+            real infrastructure without making any changes.
+          - Mutually exclusive with I(is_destroy), I(plan_only), and I(save_plan).
+        type: bool
+        required: false
     target_addrs:
         description: A list of resource addresses to target for this run operation.
+        type: list
+        elements: str
+        required: false
+    invoke_action_addrs:
+        description:
+          - A list of action addresses to invoke for this run (e.g., C(action.aws_lambda_invoke.api_handler)).
+          - Used to trigger Terraform Actions — ephemeral provider operations that do not create,
+            change, or destroy managed resources.
+          - Produces a run with operation type C(action_only).
+          - This parameter requires Terraform Actions support on the HCP Terraform organization.
         type: list
         elements: str
         required: false
@@ -188,6 +205,30 @@ EXAMPLES = r"""
 #     "variables": []
 # }
 
+- name: Invoke a Terraform action (ephemeral provider operation)
+  hashicorp.terraform.run:
+    workspace_id: "ws-abc123def456"
+    invoke_action_addrs:
+      - "action.aws_lambda_invoke.api_handler"
+    auto_apply: true
+    run_message: "Invoke Lambda action via Terraform Actions"
+
+# The resulting run has operation type 'action_only' — it updates state
+# but does not create, change, or destroy managed resources.
+# Task output (with poll: true - default):
+# ------------
+# "result": {
+#     "changed": true,
+#     "id": "run-pqr789stu999",
+#     "auto_apply": true,
+#     "invoke_action_addrs": ["action.aws_lambda_invoke.api_handler"],
+#     "is_destroy": false,
+#     "plan_only": false,
+#     "refresh_only": false,
+#     "source": "tfe-api",
+#     "status": "planned_and_finished",
+# }
+
 - name: Create a plan-only run without polling
   hashicorp.terraform.run:
     workspace_id: "ws-abc123def456"
@@ -252,6 +293,36 @@ EXAMPLES = r"""
 #         "plan_queueable_at": "2026-03-26T10:15:05Z",
 #         "planning_at": "2026-03-26T10:15:08Z",
 #         "planned_at": "2026-03-26T10:15:12Z",
+#     },
+# }
+
+- name: Refresh Terraform state to match real infrastructure (drift remediation)
+  hashicorp.terraform.run:
+    workspace: "my-workspace"
+    organization: "my-org"
+    refresh_only: true
+    auto_apply: true
+    run_message: "Refresh state after configuration drift"
+
+# Task output:
+# ------------
+# "result": {
+#     "changed": true,
+#     "id": "run-pqr789stu012",
+#     "auto_apply": true,
+#     "created_at": "2026-06-19T09:00:00.000Z",
+#     "has_changes": false,
+#     "is_destroy": false,
+#     "message": "Refresh state after configuration drift",
+#     "plan_only": false,
+#     "refresh_only": true,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "plan_queueable_at": "2026-06-19T09:00:01Z",
+#         "planning_at": "2026-06-19T09:00:05Z",
+#         "planned_at": "2026-06-19T09:00:12Z",
+#         "applied_at": "2026-06-19T09:00:18Z",
 #     },
 # }
 
@@ -432,6 +503,11 @@ plan_only:
     returned: when run data is returned
     type: bool
     sample: false
+refresh_only:
+    description: Whether the run is a refresh-only run.
+    returned: when run data is returned
+    type: bool
+    sample: false
 source:
     description: Source of the run trigger.
     returned: when run data is returned
@@ -452,6 +528,13 @@ variables:
     sample:
         - key: env
           value: production
+invoke_action_addrs:
+    description: Action addresses that were invoked in this run.
+    returned: when run data is returned
+    type: list
+    elements: str
+    sample:
+        - "action.aws_lambda_invoke.api_handler"
 """
 
 import time
@@ -696,7 +779,9 @@ def main():
             "variables": {"type": "list", "elements": "dict"},
             "plan_only": {"type": "bool"},
             "is_destroy": {"type": "bool"},
+            "refresh_only": {"type": "bool"},
             "target_addrs": {"type": "list", "elements": "str"},
+            "invoke_action_addrs": {"type": "list", "elements": "str"},
             "state": {"type": "str", "choices": ["present", "applied", "discarded", "canceled"], "default": "present"},
             "run_id": {"type": "str"},
         },
@@ -713,6 +798,9 @@ def main():
             ("plan_only", "save_plan"),
             ("plan_only", "auto_apply"),
             ("save_plan", "auto_apply"),
+            ("refresh_only", "is_destroy"),
+            ("refresh_only", "plan_only"),
+            ("refresh_only", "save_plan"),
         ],
     )
     warnings = []
