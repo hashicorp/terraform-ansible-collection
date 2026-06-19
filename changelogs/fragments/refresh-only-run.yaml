@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - >-
+    run - Added refresh_only option to trigger a Terraform refresh-only run that
+    syncs state to match real infrastructure without making any changes. Compatible
+    with auto_apply; mutually exclusive with is_destroy, plan_only, and save_plan
+    (https://github.com/hashicorp/terraform-ansible-collection/issues/133).
