@@ -9,10 +9,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
+    normalize_team_response,
+)
 from ansible_collections.hashicorp.terraform.plugins.modules.team import (
     extract_comparable_attributes,
-    manage_membership,
-    normalize_team_response,
     state_absent,
     state_create,
     state_update,
@@ -101,7 +102,7 @@ class TestTeamStateCreate:
             "name": "platform-team",
         }
 
-        with pytest.raises(ValueError, match="organization is required"):
+        with pytest.raises(ValueError, match="Both 'organization' and 'name' are required"):
             state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_missing_name(self, mock_adapter):
@@ -110,7 +111,7 @@ class TestTeamStateCreate:
             "organization": "my-org",
         }
 
-        with pytest.raises(ValueError, match="name is required"):
+        with pytest.raises(ValueError, match="Both 'organization' and 'name' are required"):
             state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_check_mode(self, mock_adapter):
@@ -254,81 +255,6 @@ class TestTeamStateAbsent:
         assert "would be deleted" in result["msg"]
 
 
-class TestTeamMembership:
-    """Test team membership management functions."""
-
-    @pytest.fixture
-    def mock_adapter(self):
-        return Mock()
-
-    def test_add_users_to_team(self, mock_adapter):
-        """Test adding users to team."""
-        params = {
-            "team_id": "team-123",
-            "add_users": ["user1", "user2"],
-        }
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.add_users_to_team") as mock_add:
-            result = manage_membership(mock_adapter, params, check_mode=False)
-
-            assert result["changed"] is True
-            assert "Added users" in result["msg"]
-            mock_add.assert_called_once_with(mock_adapter, "team-123", ["user1", "user2"])
-
-    def test_remove_users_from_team(self, mock_adapter):
-        """Test removing users from team."""
-        params = {
-            "team_id": "team-123",
-            "remove_users": ["user1"],
-        }
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.remove_users_from_team") as mock_remove:
-            result = manage_membership(mock_adapter, params, check_mode=False)
-
-            assert result["changed"] is True
-            assert "Removed users" in result["msg"]
-            mock_remove.assert_called_once_with(mock_adapter, "team-123", ["user1"])
-
-    def test_add_organization_memberships(self, mock_adapter):
-        """Test adding organization memberships to team."""
-        params = {
-            "team_id": "team-123",
-            "add_organization_memberships": ["ou-123", "ou-456"],
-        }
-
-        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.add_organization_memberships_to_team") as mock_add:
-            result = manage_membership(mock_adapter, params, check_mode=False)
-
-            assert result["changed"] is True
-            assert "Added organization memberships" in result["msg"]
-            mock_add.assert_called_once()
-
-    def test_no_membership_changes(self, mock_adapter):
-        """Test when no membership changes requested."""
-        params = {
-            "team_id": "team-123",
-        }
-
-        result = manage_membership(mock_adapter, params, check_mode=False)
-
-        assert result["changed"] is False
-
-    def test_membership_check_mode(self, mock_adapter):
-        """Test membership management in check mode."""
-        params = {
-            "team_id": "team-123",
-            "add_users": ["user1"],
-            "remove_organization_memberships": ["ou-123"],
-        }
-
-        result = manage_membership(mock_adapter, params, check_mode=True)
-
-        assert result["changed"] is True
-        assert "Would add users" in result["msg"]
-        assert "Would remove organization memberships" in result["msg"]
-        assert "check mode" in result["msg"]
-
-
 class TestTeamInfoModule:
     """Test team_info module integration."""
 
@@ -338,10 +264,6 @@ class TestTeamInfoModule:
 
     def test_get_specific_team(self, mock_adapter):
         """Test retrieving specific team."""
-        from ansible_collections.hashicorp.terraform.plugins.modules.team_info import (
-            normalize_team_response,
-        )
-
         team_data = {
             "id": "team-123",
             "name": "platform-team",
@@ -355,10 +277,6 @@ class TestTeamInfoModule:
 
     def test_list_teams_response(self, mock_adapter):
         """Test list teams response normalization."""
-        from ansible_collections.hashicorp.terraform.plugins.modules.team_info import (
-            normalize_team_response,
-        )
-
         teams = [
             {
                 "id": "team-123",

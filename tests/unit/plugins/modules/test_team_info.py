@@ -5,7 +5,7 @@
 
 """Unit tests for the team_info module."""
 
-from ansible_collections.hashicorp.terraform.plugins.modules.team_info import (
+from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     normalize_team_response,
 )
 

@@ -17,13 +17,10 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
     TerraformClient,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
-    add_organization_memberships_to_team,
-    add_users_to_team,
     create_team,
     delete_team,
     get_team,
-    remove_organization_memberships_from_team,
-    remove_users_from_team,
+    normalize_team_response,
     update_team,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
@@ -38,7 +35,6 @@ short_description: Manage teams in Terraform Cloud/Enterprise.
 author: "Terraform Ansible Collection Contributors"
 description:
   - Create, update, and delete teams in Terraform Cloud/Enterprise.
-  - Manage team membership including adding/removing users and organization memberships.
   - Configure organization access permissions and team visibility.
   - Support for SSO team ID and member token management settings.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -74,7 +70,6 @@ options:
       - C(organization) - visible to all organization members.
     type: str
     choices: ["secret", "organization"]
-    default: secret
   sso_team_id:
     description:
       - The SAML Group ID that controls membership via SAML.
@@ -134,30 +129,6 @@ options:
       manage_agent_pools:
         description: Can manage agent pools.
         type: bool
-  add_users:
-    description:
-      - List of usernames to add to the team.
-      - Only applicable with state C(present).
-    type: list
-    elements: str
-  remove_users:
-    description:
-      - List of usernames to remove from the team.
-      - Only applicable with state C(present).
-    type: list
-    elements: str
-  add_organization_memberships:
-    description:
-      - List of organization membership IDs (ou-xxx format) to add to the team.
-      - Only applicable with state C(present).
-    type: list
-    elements: str
-  remove_organization_memberships:
-    description:
-      - List of organization membership IDs to remove from the team.
-      - Only applicable with state C(present).
-    type: list
-    elements: str
 """
 
 EXAMPLES = r"""
@@ -191,29 +162,6 @@ EXAMPLES = r"""
     organization_access:
       manage_workspaces: true
       manage_projects: true
-    state: present
-
-- name: Add users to team
-  hashicorp.terraform.team:
-    team_id: "team-abc123xyz"
-    add_users:
-      - "user1"
-      - "user2"
-    state: present
-
-- name: Remove users from team
-  hashicorp.terraform.team:
-    team_id: "team-abc123xyz"
-    remove_users:
-      - "user3"
-    state: present
-
-- name: Add organization memberships to team
-  hashicorp.terraform.team:
-    team_id: "team-abc123xyz"
-    add_organization_memberships:
-      - "ou-xxx123"
-      - "ou-yyy456"
     state: present
 
 - name: Delete a team
@@ -287,35 +235,6 @@ msg:
 """
 
 
-def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize team response data to Ansible output format.
-
-    Args:
-        team_data: Team data from SDK response
-
-    Returns:
-        Normalized team data dictionary
-    """
-    normalized = {
-        "id": team_data.get("id"),
-        "name": team_data.get("name"),
-        "visibility": team_data.get("visibility"),
-        "sso_team_id": team_data.get("sso_team_id"),
-        "allow_member_token_management": team_data.get("allow_member_token_management"),
-        "user_count": team_data.get("user_count"),
-        "is_unified": team_data.get("is_unified"),
-    }
-
-    if team_data.get("organization_access"):
-        normalized["organization_access"] = team_data["organization_access"]
-
-    if team_data.get("permissions"):
-        normalized["permissions"] = team_data["permissions"]
-
-    return normalized
-
-
 def extract_comparable_attributes(team_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract comparable attributes from team SDK response for idempotency checking.
@@ -354,15 +273,12 @@ def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     """
     action_result = {}
 
-    if not params.get("organization"):
-        raise ValueError("organization is required when creating a team")
+    organization = params.get("organization")
+    name = params.get("name")
 
-    if not params.get("name"):
-        raise ValueError("name is required when creating a team")
-
-    organization = params["organization"]
-    name = params["name"]
-    visibility = params.get("visibility", "secret")
+    if not organization or not name:
+        raise ValueError("Both 'organization' and 'name' are required when creating a team")
+    visibility = params.get("visibility")
     sso_team_id = params.get("sso_team_id")
     allow_member_token_management = params.get("allow_member_token_management")
     organization_access = params.get("organization_access")
@@ -533,68 +449,7 @@ def state_absent(
     return action_result
 
 
-def manage_membership(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
-    """
-    Manage team membership operations (add/remove users and organization memberships).
-
-    Args:
-        adapter: TerraformClient instance
-        params: Module parameters
-        check_mode: Whether in check mode
-
-    Returns:
-        Dictionary with operation result
-    """
-    action_result = {"changed": False}
-    team_id = params.get("team_id")
-    messages = []
-
-    add_users = params.get("add_users") or []
-    remove_users = params.get("remove_users") or []
-    add_org_memberships = params.get("add_organization_memberships") or []
-    remove_org_memberships = params.get("remove_organization_memberships") or []
-
-    if not any([add_users, remove_users, add_org_memberships, remove_org_memberships]):
-        return action_result
-
-    if not check_mode:
-        if add_users:
-            add_users_to_team(adapter, team_id, add_users)
-            action_result["changed"] = True
-            messages.append(f"Added users: {', '.join(add_users)}")
-
-        if remove_users:
-            remove_users_from_team(adapter, team_id, remove_users)
-            action_result["changed"] = True
-            messages.append(f"Removed users: {', '.join(remove_users)}")
-
-        if add_org_memberships:
-            add_organization_memberships_to_team(adapter, team_id, add_org_memberships)
-            action_result["changed"] = True
-            messages.append(f"Added organization memberships: {', '.join(add_org_memberships)}")
-
-        if remove_org_memberships:
-            remove_organization_memberships_from_team(adapter, team_id, remove_org_memberships)
-            action_result["changed"] = True
-            messages.append(f"Removed organization memberships: {', '.join(remove_org_memberships)}")
-
-        action_result["msg"] = "; ".join(messages) if messages else "Membership operations completed."
-    else:
-        action_result["changed"] = True
-        if add_users:
-            messages.append(f"Would add users: {', '.join(add_users)}")
-        if remove_users:
-            messages.append(f"Would remove users: {', '.join(remove_users)}")
-        if add_org_memberships:
-            messages.append(f"Would add organization memberships: {', '.join(add_org_memberships)}")
-        if remove_org_memberships:
-            messages.append(f"Would remove organization memberships: {', '.join(remove_org_memberships)}")
-        action_result["msg"] = "; ".join(messages) + ". Skipped due to check mode."
-
-    return action_result
-
-
-def main():
+def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
             "state": {
@@ -614,7 +469,6 @@ def main():
             "visibility": {
                 "type": "str",
                 "choices": ["secret", "organization"],
-                "default": "secret",
             },
             "sso_team_id": {
                 "type": "str",
@@ -625,23 +479,10 @@ def main():
             "organization_access": {
                 "type": "dict",
             },
-            "add_users": {
-                "type": "list",
-                "elements": "str",
-            },
-            "remove_users": {
-                "type": "list",
-                "elements": "str",
-            },
-            "add_organization_memberships": {
-                "type": "list",
-                "elements": "str",
-            },
-            "remove_organization_memberships": {
-                "type": "list",
-                "elements": "str",
-            },
         },
+        required_if=[
+            ("state", "absent", ["team_id"]),
+        ],
         supports_check_mode=True,
     )
 
@@ -655,51 +496,19 @@ def main():
             if state == "present":
                 # Check if this is a create or update operation
                 if module.params.get("team_id"):
-                    # Update or membership management
+                    # Update team
                     current_team = get_team(adapter, module.params["team_id"])
 
                     if not current_team:
                         module.fail_json(msg=f"Team {module.params['team_id']} not found")
 
-                    # Handle membership operations first
-                    membership_result = manage_membership(adapter, module.params, check_mode)
-
-                    if membership_result.get("changed"):
-                        result.update(membership_result)
-
-                    # Then handle team updates
-                    update_result = state_update(adapter, module.params, current_team, check_mode)
-
-                    # Preserve changed=True if either operation changed
-                    if update_result.get("changed"):
-                        result["changed"] = True
-
-                    # Merge messages if both have messages
-                    if "msg" in update_result:
-                        if "msg" in result and result["msg"]:
-                            result["msg"] = f"{result['msg']}; {update_result['msg']}"
-                        else:
-                            result["msg"] = update_result["msg"]
-
-                    # Merge other fields from update_result
-                    for key, value in update_result.items():
-                        if key not in ("changed", "msg"):
-                            result[key] = value
+                    result = state_update(adapter, module.params, current_team, check_mode)
 
                 else:
                     # Create new team
-                    if not module.params.get("organization"):
-                        module.fail_json(msg="organization is required when creating a team")
-
-                    if not module.params.get("name"):
-                        module.fail_json(msg="name is required when creating a team")
-
                     result = state_create(adapter, module.params, check_mode)
 
             elif state == "absent":
-                if not module.params.get("team_id"):
-                    module.fail_json(msg="team_id is required when deleting a team")
-
                 current_team = get_team(adapter, module.params["team_id"])
 
                 result = state_absent(adapter, module.params, current_team, check_mode)

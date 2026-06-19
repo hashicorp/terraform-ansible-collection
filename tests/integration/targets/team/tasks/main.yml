@@ -109,6 +109,3 @@
       when:
         - team_delete_result is defined
         - not team_delete_result.skipped | default(false)
-
-- name: Include membership tests
-  ansible.builtin.include_tasks: membership.yml

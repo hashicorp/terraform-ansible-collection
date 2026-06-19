@@ -16,13 +16,12 @@ action_groups:
     - ssh_keys
     - team
     - team_info
+    - team_project_access
+    - team_workspace_access
     - variable
     - variable_sets
     - view_plan
     - workspace
     - workspace_bootstrap
     - workspace_info
-    - notification_configuration
-    - team_project_access
-    - team_workspace_access
 

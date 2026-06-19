@@ -6,14 +6,12 @@
 """Team adapter for pytfe SDK integration.
 
 This module provides functions that handle team-specific
-operations using the pytfe SDK, including create, read, update, delete, list,
-and membership management operations (add/remove users and organization memberships).
+operations using the pytfe SDK, including create, read, update, and delete operations.
 
 Example:
     adapter = TerraformClient(tfe_token="my-token", tfe_address="https://app.terraform.io")
     with adapter:
         team = get_team(adapter, 'team-123')
-        teams = list_teams(adapter, 'my-org')
 """
 
 from __future__ import annotations
@@ -24,20 +22,12 @@ try:
     from pytfe.errors import NotFound
     from pytfe.models import (
         TeamCreateOptions,
-        TeamIncludeOpt,
-        TeamListOptions,
         TeamUpdateOptions,
     )
     from pytfe.models.team import OrganizationAccessOptions
 except ImportError:
 
     class NotFound(Exception):  # type: ignore[no-redef]
-        pass
-
-    class TeamIncludeOpt:  # type: ignore[no-redef]
-        pass
-
-    class TeamListOptions:  # type: ignore[no-redef]
         pass
 
     class TeamCreateOptions:  # type: ignore[no-redef]
@@ -59,13 +49,41 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
 )
 
 
+def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize team response data to Ansible output format.
+
+    Args:
+        team_data: Team data from SDK response
+
+    Returns:
+        Normalized team data dictionary
+    """
+    normalized = {
+        "id": team_data.get("id"),
+        "name": team_data.get("name"),
+        "visibility": team_data.get("visibility"),
+        "sso_team_id": team_data.get("sso_team_id"),
+        "allow_member_token_management": team_data.get("allow_member_token_management"),
+        "user_count": team_data.get("user_count"),
+        "is_unified": team_data.get("is_unified"),
+    }
+
+    if team_data.get("organization_access"):
+        normalized["organization_access"] = team_data["organization_access"]
+
+    if team_data.get("permissions"):
+        normalized["permissions"] = team_data["permissions"]
+
+    return normalized
+
+
 def get_team(adapter: TerraformClient, team_id: str) -> Dict[str, Any] | None:
     """
     Retrieves a specified team from Terraform Cloud/Enterprise by its ID.
 
     Sends a GET request using the pytfe SDK to fetch details of a team identified by its unique ID.
-    If the team is not found, returns None. If successful, returns the team data with an added
-    "status" field. For any other error, raises a TerraformError.
+    If the team is not found, returns None. For any other error, raises a TerraformError.
 
     Args:
         adapter (TerraformClient): An authenticated client used to interact with the Terraform API.
@@ -81,66 +99,6 @@ def get_team(adapter: TerraformClient, team_id: str) -> Dict[str, Any] | None:
         # team was not found
         # This should not raise an exception
         return None
-
-
-def list_teams(
-    adapter: TerraformClient,
-    organization: str,
-    page_size: Optional[int] = None,
-    query: Optional[str] = None,
-    names: Optional[list[str]] = None,
-    include: Optional[list[str]] = None,
-) -> list[Dict[str, Any]]:
-    """
-    Lists all teams in the given organization.
-
-    Sends a GET request using the pytfe SDK to fetch teams from the organization.
-    Supports filtering and pagination options.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        organization (str): The name of the Terraform organization.
-        page_size (Optional[int]): Number of items per page.
-        query (Optional[str]): Search query string to filter teams by name.
-        names (Optional[list[str]]): List of team names to filter by.
-        include (Optional[list[str]]): List of relations to include.
-
-    Returns:
-        list: A list of team dictionaries.
-    """
-    try:
-        payload: dict[str, Any] = {}
-
-        if page_size is not None:
-            payload["page_size"] = page_size
-
-        if query is not None:
-            payload["query"] = query
-
-        if names is not None:
-            payload["names"] = names
-
-        if include is not None:
-            payload["include"] = include
-
-        options = _build_team_options(
-            TeamListOptions,
-            payload,
-        )
-
-        teams = list(
-            safe_api_call(
-                adapter.client.teams.list,
-                organization,
-                options,
-            )
-        )
-
-        return [format_response(team) for team in teams]
-
-    except NotFound:
-        # No teams found
-        return []
 
 
 def _build_team_options(option_class, payload: Dict[str, Any]):
@@ -269,119 +227,3 @@ def delete_team(adapter: TerraformClient, team_id: str) -> None:
         team_id,
         error_context=f"Failed to delete team with ID {team_id}",
     )
-
-
-def add_users_to_team(adapter: TerraformClient, team_id: str, usernames: list[str]) -> None:
-    """
-    Add users to a team by their usernames.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-        usernames (list[str]): List of usernames to add.
-
-    Returns:
-        None
-    """
-    safe_api_call(
-        adapter.client.teams.add_users,
-        team_id,
-        usernames,
-        error_context=f"Failed to add users to team {team_id}",
-    )
-
-
-def remove_users_from_team(adapter: TerraformClient, team_id: str, usernames: list[str]) -> None:
-    """
-    Remove users from a team by their usernames.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-        usernames (list[str]): List of usernames to remove.
-
-    Returns:
-        None
-    """
-    safe_api_call(
-        adapter.client.teams.remove_users,
-        team_id,
-        usernames,
-        error_context=f"Failed to remove users from team {team_id}",
-    )
-
-
-def list_team_users(adapter: TerraformClient, team_id: str) -> list[Dict[str, Any]]:
-    """
-    List all users in a team.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-
-    Returns:
-        list: A list of user dictionaries.
-    """
-    try:
-        users = list(adapter.client.teams.list_users(team_id))
-        return [format_response(user) for user in users]
-    except NotFound:
-        return []
-
-
-def add_organization_memberships_to_team(adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]) -> None:
-    """
-    Add organization memberships to a team.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-        organization_membership_ids (list[str]): List of organization membership IDs to add.
-
-    Returns:
-        None
-    """
-    safe_api_call(
-        adapter.client.teams.add_organization_memberships,
-        team_id,
-        organization_membership_ids,
-        error_context=f"Failed to add organization memberships to team {team_id}",
-    )
-
-
-def remove_organization_memberships_from_team(adapter: TerraformClient, team_id: str, organization_membership_ids: list[str]) -> None:
-    """
-    Remove organization memberships from a team.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-        organization_membership_ids (list[str]): List of organization membership IDs to remove.
-
-    Returns:
-        None
-    """
-    safe_api_call(
-        adapter.client.teams.remove_organization_memberships,
-        team_id,
-        organization_membership_ids,
-        error_context=f"Failed to remove organization memberships from team {team_id}",
-    )
-
-
-def list_team_organization_memberships(adapter: TerraformClient, team_id: str) -> list[Dict[str, Any]]:
-    """
-    List all organization memberships in a team.
-
-    Args:
-        adapter (TerraformClient): An authenticated client.
-        team_id (str): The ID of the team.
-
-    Returns:
-        list: A list of organization membership dictionaries.
-    """
-    try:
-        memberships = list(adapter.client.teams.list_organization_memberships(team_id))
-        return [format_response(membership) for membership in memberships]
-    except NotFound:
-        return []

@@ -147,36 +147,8 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     get_team,
+    normalize_team_response,
 )
-
-
-def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize team response data.
-
-    Args:
-        team_data: Team data from SDK response
-
-    Returns:
-        Normalized team data dictionary
-    """
-    normalized = {
-        "id": team_data.get("id"),
-        "name": team_data.get("name"),
-        "visibility": team_data.get("visibility"),
-        "sso_team_id": team_data.get("sso_team_id"),
-        "allow_member_token_management": team_data.get("allow_member_token_management"),
-        "user_count": team_data.get("user_count"),
-        "is_unified": team_data.get("is_unified"),
-    }
-
-    if team_data.get("organization_access"):
-        normalized["organization_access"] = team_data["organization_access"]
-
-    if team_data.get("permissions"):
-        normalized["permissions"] = team_data["permissions"]
-
-    return normalized
 
 
 def main() -> None:
