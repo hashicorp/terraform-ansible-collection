@@ -1,0 +1,111 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+
+    - name: Create a test team
+      hashicorp.terraform.team:
+        name: "test-team-{{ ansible_date_time.epoch }}"
+        organization: "{{ organization }}"
+        visibility: "secret"
+        allow_member_token_management: false
+        organization_access:
+          manage_workspaces: true
+          read_workspaces: true
+        state: present
+      register: team_create_result
+
+    - name: Verify team was created
+      ansible.builtin.assert:
+        that:
+          - team_create_result.changed
+          - team_create_result.id is defined
+          - team_create_result.name is defined
+          - team_create_result.visibility == "secret"
+          - not team_create_result.allow_member_token_management
+        fail_msg: "Failed to create team"
+
+    - name: Set team facts
+      ansible.builtin.set_fact:
+        created_team_id: "{{ team_create_result.id }}"
+        created_team_name: "{{ team_create_result.name }}"
+
+    - name: Update team with same settings (idempotency test)
+      hashicorp.terraform.team:
+        team_id: "{{ created_team_id }}"
+        visibility: "secret"
+        allow_member_token_management: false
+        state: present
+      register: team_no_change_result
+
+    - name: Verify no changes when settings are the same
+      ansible.builtin.assert:
+        that:
+          - not team_no_change_result.changed
+        fail_msg: "Team should not change when settings are the same"
+
+    - name: Update team settings
+      hashicorp.terraform.team:
+        team_id: "{{ created_team_id }}"
+        visibility: "organization"
+        allow_member_token_management: true
+        state: present
+      register: team_update_result
+
+    - name: Verify team was updated
+      ansible.builtin.assert:
+        that:
+          - team_update_result.changed
+          - team_update_result.visibility == "organization"
+          - team_update_result.allow_member_token_management
+        fail_msg: "Failed to update team"
+
+    - name: Update team again with same settings (idempotency test)
+      hashicorp.terraform.team:
+        team_id: "{{ created_team_id }}"
+        visibility: "organization"
+        allow_member_token_management: true
+        state: present
+      register: team_update_idempotent
+
+    - name: Verify team update is idempotent
+      ansible.builtin.assert:
+        that:
+          - not team_update_idempotent.changed
+        fail_msg: "Team update should be idempotent"
+
+    - name: Get team info
+      hashicorp.terraform.team_info:
+        team_id: "{{ created_team_id }}"
+      register: team_info_result
+
+    - name: Verify team info retrieval
+      ansible.builtin.assert:
+        that:
+          - team_info_result.team.id == created_team_id
+          - team_info_result.team.name == created_team_name
+          - team_info_result.team.visibility == "organization"
+          - team_info_result.team.allow_member_token_management
+        fail_msg: "Failed to retrieve team info"
+
+  always:
+
+    - name: Delete team
+      hashicorp.terraform.team:
+        team_id: "{{ created_team_id }}"
+        state: absent
+      register: team_delete_result
+      when: created_team_id is defined
+      ignore_errors: true
+
+    - name: Verify team deleted
+      ansible.builtin.assert:
+        that:
+          - team_delete_result.changed
+        fail_msg: "Failed to delete team"
+      when:
+        - team_delete_result is defined
+        - not team_delete_result.skipped | default(false)
