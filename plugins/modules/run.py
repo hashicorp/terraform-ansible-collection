@@ -76,6 +76,13 @@ options:
         description: Whether to destroy all provisioned resources managed by this configuration.
         type: bool
         required: false
+    refresh_only:
+        description:
+          - Whether to perform a refresh-only run, which updates Terraform state to match
+            real infrastructure without making any changes.
+          - Mutually exclusive with I(is_destroy), I(plan_only), and I(save_plan).
+        type: bool
+        required: false
     target_addrs:
         description: A list of resource addresses to target for this run operation.
         type: list
@@ -255,6 +262,36 @@ EXAMPLES = r"""
 #     },
 # }
 
+- name: Refresh Terraform state to match real infrastructure (drift remediation)
+  hashicorp.terraform.run:
+    workspace: "my-workspace"
+    organization: "my-org"
+    refresh_only: true
+    auto_apply: true
+    run_message: "Refresh state after configuration drift"
+
+# Task output:
+# ------------
+# "result": {
+#     "changed": true,
+#     "id": "run-pqr789stu012",
+#     "auto_apply": true,
+#     "created_at": "2026-06-19T09:00:00.000Z",
+#     "has_changes": false,
+#     "is_destroy": false,
+#     "message": "Refresh state after configuration drift",
+#     "plan_only": false,
+#     "refresh_only": true,
+#     "source": "tfe-api",
+#     "status": "applied",
+#     "status_timestamps": {
+#         "plan_queueable_at": "2026-06-19T09:00:01Z",
+#         "planning_at": "2026-06-19T09:00:05Z",
+#         "planned_at": "2026-06-19T09:00:12Z",
+#         "applied_at": "2026-06-19T09:00:18Z",
+#     },
+# }
+
 - name: Apply an existing run
   hashicorp.terraform.run:
     run_id: "run-abc123def456"
@@ -429,6 +466,11 @@ message:
     sample: Triggered via API
 plan_only:
     description: Whether the run is plan-only.
+    returned: when run data is returned
+    type: bool
+    sample: false
+refresh_only:
+    description: Whether the run is a refresh-only run.
     returned: when run data is returned
     type: bool
     sample: false
@@ -696,6 +738,7 @@ def main():
             "variables": {"type": "list", "elements": "dict"},
             "plan_only": {"type": "bool"},
             "is_destroy": {"type": "bool"},
+            "refresh_only": {"type": "bool"},
             "target_addrs": {"type": "list", "elements": "str"},
             "state": {"type": "str", "choices": ["present", "applied", "discarded", "canceled"], "default": "present"},
             "run_id": {"type": "str"},
@@ -713,6 +756,9 @@ def main():
             ("plan_only", "save_plan"),
             ("plan_only", "auto_apply"),
             ("save_plan", "auto_apply"),
+            ("refresh_only", "is_destroy"),
+            ("refresh_only", "plan_only"),
+            ("refresh_only", "save_plan"),
         ],
     )
     warnings = []
