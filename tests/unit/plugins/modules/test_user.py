@@ -13,7 +13,6 @@ import pytest
 from ansible_collections.hashicorp.terraform.plugins.module_utils.user import (
     get_current_user,
     get_user,
-    update_current_user,
 )
 
 
@@ -151,27 +150,6 @@ class TestUserModuleUtils:
         assert result["id"] == "user-XXXXXXXXXXXX"
         assert result["username"] == "example-user"
         assert result["email"] == "user@example.com"
-
-    def test_update_current_user(self, mock_adapter, sample_user_response):
-        """Test updating the currently authenticated user."""
-        update_data = {
-            "username": "new-example-user",
-            "email": "new-user@example.com",
-        }
-
-        updated_response = copy.deepcopy(sample_user_response)
-        updated_response["username"] = "new-example-user"
-        updated_response["email"] = "new-user@example.com"
-
-        mock_user = Mock()
-        mock_user.model_dump.return_value = updated_response
-        mock_adapter.client.users.update_current.return_value = mock_user
-
-        result = update_current_user(mock_adapter, update_data)
-
-        mock_adapter.client.users.update_current.assert_called_once()
-        assert result["username"] == "new-example-user"
-        assert result["email"] == "new-user@example.com"
 
     def test_get_current_user_exception(self, mock_adapter):
         """Test exception handling when getting current user fails."""

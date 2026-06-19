@@ -2,7 +2,7 @@
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
-      tf_token: "{{ tfc_token }}"
+      tfe_token: "{{ tfc_token }}"
 
   block:
     # Test 1: Get current authenticated user
@@ -141,5 +141,3 @@
           - not current_user_result_2.changed
           - current_user_result_2.user.id == current_user_result.user.id
           - current_user_result_2.user.username == current_user_result.user.username
-
-
