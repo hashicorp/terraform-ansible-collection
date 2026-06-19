@@ -28,5 +28,7 @@ action_groups:
     - view_plan
     - workspace
     - workspace_bootstrap
+    - notification_configuration
+    - organization_tags
     - workspace_info
 
