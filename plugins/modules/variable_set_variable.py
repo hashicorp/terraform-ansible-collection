@@ -7,15 +7,14 @@
 DOCUMENTATION = r"""
 ---
 module: variable_set_variable
-version_added: "2.0.0"
+version_added: "2.1.0"
 short_description: Manage variables within a Terraform Cloud/Enterprise variable set (create, update, delete).
-author: "Prabuddha Chakraborty (@iam404)"
+author: "Nimisha Srivastava (@nimishasrivastava)"
 description:
   - Manages the individual variables contained in a variable set on Terraform Cloud and Terraform Enterprise.
   - These variables are scoped to the variable set itself and are distinct from workspace-scoped variables.
   - Supports both Terraform input variables (C(category=terraform)) and environment variables (C(category=env)).
-  - The variable set may be identified directly by C(variable_set_id), or by the combination of
-    C(organization) and C(variable_set_name).
+  - The variable set is identified by its C(variable_set_id).
   - A variable within the set may be looked up either directly by its C(variable_id), or by its C(key).
   - The C(present) state creates the variable if it does not exist, or updates it in place on drift.
   - The C(absent) state deletes the variable if it exists.
@@ -26,18 +25,8 @@ options:
   variable_set_id:
     description:
       - The unique identifier of the variable set (e.g. C(varset-...)).
-      - Mutually exclusive with C(variable_set_name).
     type: str
-  variable_set_name:
-    description:
-      - The name of the variable set, used together with C(organization) to locate the set.
-      - Mutually exclusive with C(variable_set_id).
-    type: str
-  organization:
-    description:
-      - The name of the organization that owns the variable set.
-      - Required when identifying the variable set by C(variable_set_name).
-    type: str
+    required: true
   variable_id:
     description:
       - The unique identifier of the variable (e.g. C(var-...)).
@@ -93,8 +82,7 @@ options:
 EXAMPLES = r"""
 - name: Create a Terraform input variable in a variable set
   hashicorp.terraform.variable_set_variable:
-    organization: "my-org"
-    variable_set_name: "shared-platform-defaults"
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
     key: "region"
     value: "us-east-1"
     category: "terraform"
@@ -103,8 +91,7 @@ EXAMPLES = r"""
 
 - name: Idempotent re-run with identical input
   hashicorp.terraform.variable_set_variable:
-    organization: "my-org"
-    variable_set_name: "shared-platform-defaults"
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
     key: "region"
     value: "us-east-1"
     category: "terraform"
@@ -139,8 +126,7 @@ EXAMPLES = r"""
 
 - name: Delete a variable by key
   hashicorp.terraform.variable_set_variable:
-    organization: "my-org"
-    variable_set_name: "shared-platform-defaults"
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
     key: "region"
     state: absent
 """
@@ -209,23 +195,9 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_set_v
     get_variable_set_variable_by_key,
     update_variable_set_variable,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_sets import get_variable_set_by_name
 
 # Keys that belong to the SDK option models and participate in drift detection.
 _SDK_KEYS = {"key", "value", "description", "category", "hcl", "sensitive"}
-
-
-def _resolve_variable_set_id(adapter: TerraformClient, params: Dict[str, Any]) -> Optional[str]:
-    """Return the variable_set_id, resolving by name+organization when necessary."""
-    if params.get("variable_set_id"):
-        return params["variable_set_id"]
-    name = params.get("variable_set_name")
-    organization = params.get("organization")
-    if name and organization:
-        variable_set = get_variable_set_by_name(adapter, organization, name)
-        if variable_set:
-            return variable_set.get("id")
-    return None
 
 
 def _fetch_variable(adapter: TerraformClient, variable_set_id: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -265,9 +237,7 @@ def _strip_unverifiable_sensitive_value(have: Dict[str, Any], want: Dict[str, An
 
 def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """Create or update a variable-set variable to match the desired state."""
-    variable_set_id = _resolve_variable_set_id(adapter, params)
-    if not variable_set_id:
-        raise ValueError("Unable to resolve variable set: provide 'variable_set_id' or both 'variable_set_name' and 'organization'.")
+    variable_set_id = params["variable_set_id"]
 
     current = _fetch_variable(adapter, variable_set_id, params)
     want = _build_desired_state(params)
@@ -311,9 +281,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
 
 def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """Delete the variable if present; no-op otherwise."""
-    variable_set_id = _resolve_variable_set_id(adapter, params)
-    if not variable_set_id:
-        return {"changed": False, "msg": "Variable set not found; variable is already absent."}
+    variable_set_id = params["variable_set_id"]
 
     current = _fetch_variable(adapter, variable_set_id, params)
     if current is None:
@@ -330,9 +298,7 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "variable_set_id": {"type": "str"},
-            "variable_set_name": {"type": "str"},
-            "organization": {"type": "str"},
+            "variable_set_id": {"type": "str", "required": True},
             "variable_id": {"type": "str"},
             "key": {"type": "str", "no_log": False},
             "value": {"type": "str", "no_log": True},
@@ -342,25 +308,22 @@ def main() -> None:
             "sensitive": {"type": "bool"},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
-        required_by={"variable_set_name": ("organization",)},
-        mutually_exclusive=[("variable_set_id", "variable_set_name"), ("variable_id", "key")],
-        required_one_of=[("variable_set_id", "variable_set_name"), ("variable_id", "key")],
+        mutually_exclusive=[("variable_id", "key")],
+        required_one_of=[("variable_id", "key")],
         supports_check_mode=True,
     )
 
-    warnings: list = []
-    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+    result: Dict[str, Any] = {"changed": False}
     action_result: Optional[Dict[str, Any]] = None
     params: Dict[str, Any] = deepcopy(module.params)
-    params["check_mode"] = module.check_mode
 
     try:
         with module.client() as adapter:
             match params["state"]:
                 case "present":
-                    action_result = state_present(adapter, params, params["check_mode"])
+                    action_result = state_present(adapter, params, module.check_mode)
                 case "absent":
-                    action_result = state_absent(adapter, params, params["check_mode"])
+                    action_result = state_absent(adapter, params, module.check_mode)
 
             if action_result:
                 result.update(action_result)

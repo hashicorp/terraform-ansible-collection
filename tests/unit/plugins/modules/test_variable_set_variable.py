@@ -12,8 +12,8 @@ import pytest
 from ansible_collections.hashicorp.terraform.plugins.modules.variable_set_variable import (
     _build_desired_state,
     _filter_current_state,
-    _resolve_variable_set_id,
     _strip_unverifiable_sensitive_value,
+    main,
     state_absent,
     state_present,
 )
@@ -56,22 +56,6 @@ class TestHelpers:
         assert want["value"] == "new"
 
 
-class TestResolveVariableSetId:
-    def test_by_id(self):
-        adapter = Mock()
-        assert _resolve_variable_set_id(adapter, {"variable_set_id": "varset-1"}) == "varset-1"
-
-    def test_by_name(self):
-        adapter = Mock()
-        with patch(f"{MODULE}.get_variable_set_by_name", return_value={"id": "varset-9", "name": "n"}):
-            assert _resolve_variable_set_id(adapter, {"variable_set_name": "n", "organization": "my-org"}) == "varset-9"
-
-    def test_missing(self):
-        adapter = Mock()
-        with patch(f"{MODULE}.get_variable_set_by_name", return_value=None):
-            assert _resolve_variable_set_id(adapter, {"variable_set_name": "n", "organization": "my-org"}) is None
-
-
 class TestStatePresent:
     @pytest.fixture
     def adapter(self):
@@ -80,8 +64,6 @@ class TestStatePresent:
     def _base_params(self, **overrides):
         params = {
             "variable_set_id": "varset-1",
-            "variable_set_name": None,
-            "organization": None,
             "variable_id": None,
             "key": "region",
             "value": "us-east-1",
@@ -90,15 +72,9 @@ class TestStatePresent:
             "hcl": None,
             "sensitive": None,
             "state": "present",
-            "check_mode": False,
         }
         params.update(overrides)
         return params
-
-    def test_unresolvable_variable_set_raises(self, adapter):
-        params = self._base_params(variable_set_id=None, variable_set_name=None)
-        with pytest.raises(ValueError, match="variable set"):
-            state_present(adapter, params, check_mode=False)
 
     def test_create_when_missing(self, adapter):
         params = self._base_params()
@@ -192,7 +168,7 @@ class TestStateAbsent:
         return Mock()
 
     def test_delete_existing(self, adapter):
-        params = {"variable_set_id": "varset-1", "variable_id": "var-1", "key": None, "state": "absent", "check_mode": False}
+        params = {"variable_set_id": "varset-1", "variable_id": "var-1", "key": None, "state": "absent"}
         with patch(f"{MODULE}._fetch_variable", return_value={"id": "var-1"}), patch(f"{MODULE}.delete_variable_set_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
         mock_delete.assert_called_once_with(adapter, "varset-1", "var-1")
@@ -200,25 +176,112 @@ class TestStateAbsent:
         assert "deleted" in result["msg"]
 
     def test_delete_absent_is_noop(self, adapter):
-        params = {"variable_set_id": "varset-1", "variable_id": "var-ghost", "key": None, "state": "absent", "check_mode": False}
+        params = {"variable_set_id": "varset-1", "variable_id": "var-ghost", "key": None, "state": "absent"}
         with patch(f"{MODULE}._fetch_variable", return_value=None), patch(f"{MODULE}.delete_variable_set_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
         mock_delete.assert_not_called()
         assert result["changed"] is False
         assert "absent" in result["msg"]
 
-    def test_unresolvable_variable_set_is_noop(self, adapter):
-        params = {"variable_set_id": None, "variable_set_name": "n", "organization": "my-org", "variable_id": "var-1", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE}.get_variable_set_by_name", return_value=None), patch(f"{MODULE}.delete_variable_set_variable") as mock_delete:
-            result = state_absent(adapter, params, check_mode=False)
-        mock_delete.assert_not_called()
-        assert result["changed"] is False
-        assert "absent" in result["msg"]
-
     def test_delete_check_mode(self, adapter):
-        params = {"variable_set_id": "varset-1", "variable_id": "var-1", "key": None, "state": "absent", "check_mode": True}
+        params = {"variable_set_id": "varset-1", "variable_id": "var-1", "key": None, "state": "absent"}
         with patch(f"{MODULE}._fetch_variable", return_value={"id": "var-1"}), patch(f"{MODULE}.delete_variable_set_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=True)
         mock_delete.assert_not_called()
         assert result["changed"] is True
         assert "check mode" in result["msg"]
+
+
+class TestMain:
+    @patch(f"{MODULE}.AnsibleTerraformModule")
+    def test_argument_specification(self, mock_ansible_module, enhanced_dummy_module):
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "variable_set_id": "varset-1",
+            "variable_id": None,
+            "key": "region",
+            "value": "us-east-1",
+            "description": None,
+            "category": "terraform",
+            "hcl": None,
+            "sensitive": None,
+            "state": "present",
+        }
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(f"{MODULE}.state_present", return_value={"changed": True}):
+            with pytest.raises(SystemExit):
+                main()
+
+        call_kwargs = mock_ansible_module.call_args[1]
+        argument_spec = call_kwargs["argument_spec"]
+        assert argument_spec["variable_set_id"] == {"type": "str", "required": True}
+        assert "variable_set_name" not in argument_spec
+        assert "organization" not in argument_spec
+        assert argument_spec["key"] == {"type": "str", "no_log": False}
+        assert argument_spec["value"] == {"type": "str", "no_log": True}
+        assert argument_spec["category"]["choices"] == ["terraform", "env"]
+        assert argument_spec["state"]["choices"] == ["present", "absent"]
+        assert "required_by" not in call_kwargs
+        assert ("variable_id", "key") in call_kwargs["mutually_exclusive"]
+        assert ("variable_id", "key") in call_kwargs["required_one_of"]
+        assert call_kwargs["supports_check_mode"] is True
+
+    @patch(f"{MODULE}.AnsibleTerraformModule")
+    def test_present_dispatch(self, mock_ansible_module, enhanced_dummy_module):
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "us-east-1",
+            "category": "terraform",
+            "state": "present",
+        }
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(f"{MODULE}.state_present", return_value={"changed": True, "id": "var-1"}) as mock_present:
+            with pytest.raises(SystemExit):
+                main()
+
+        mock_present.assert_called_once()
+        assert mock_module.exit_args["changed"] is True
+        assert mock_module.exit_args["id"] == "var-1"
+
+    @patch(f"{MODULE}.AnsibleTerraformModule")
+    def test_absent_dispatch(self, mock_ansible_module, enhanced_dummy_module):
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "variable_set_id": "varset-1",
+            "variable_id": "var-1",
+            "key": None,
+            "state": "absent",
+        }
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(f"{MODULE}.state_absent", return_value={"changed": True, "msg": "Variable var-1 has been deleted successfully"}) as mock_absent:
+            with pytest.raises(SystemExit):
+                main()
+
+        mock_absent.assert_called_once()
+        assert mock_module.exit_args["changed"] is True
+
+    @patch(f"{MODULE}.AnsibleTerraformModule")
+    def test_failure_calls_fail_json(self, mock_ansible_module, enhanced_dummy_module):
+        mock_module = enhanced_dummy_module
+        mock_module.params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "state": "present",
+        }
+        mock_module.check_mode = False
+        mock_ansible_module.return_value = mock_module
+
+        with patch(f"{MODULE}.state_present", side_effect=ValueError("boom")):
+            with pytest.raises(AssertionError):
+                main()
+
+        assert mock_module.failed is True
+        assert "boom" in mock_module.fail_args["msg"]

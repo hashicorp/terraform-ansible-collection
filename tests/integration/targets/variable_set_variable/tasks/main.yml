@@ -90,11 +90,10 @@
         that:
           - not result_update_again.changed
 
-    # ---------- resolve variable set by name ----------
-    - name: Create an environment variable resolving the set by name
+    # ---------- sensitive variable ----------
+    - name: Create a sensitive variable (write-only value)
       hashicorp.terraform.variable_set_variable:
-        organization: "{{ organization }}"
-        variable_set_name: "{{ varset_name }}"
+        variable_set_id: "{{ varset_id }}"
         key: "APP_ENV"
         value: "production"
         category: "env"
@@ -108,7 +107,6 @@
           - result_env_create.key == "APP_ENV"
           - result_env_create.category == "env"
 
-    # ---------- sensitive variable ----------
     - name: Create a sensitive variable (write-only value)
       hashicorp.terraform.variable_set_variable:
         variable_set_id: "{{ varset_id }}"
@@ -193,10 +191,9 @@
           - not result_delete_again.changed
           - "'absent' in result_delete_again.msg"
 
-    - name: Delete a variable by (variable_set_name, key)
+    - name: Delete a variable by key
       hashicorp.terraform.variable_set_variable:
-        organization: "{{ organization }}"
-        variable_set_name: "{{ varset_name }}"
+        variable_set_id: "{{ varset_id }}"
         key: "APP_ENV"
         state: absent
       register: result_delete_by_key

@@ -8,66 +8,56 @@ from __future__ import absolute_import, annotations, division, print_function
 
 __metaclass__ = type
 
-from typing import Any, Dict
-
-from ansible.module_utils._text import to_text
-
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
-    AnsibleTerraformModule,
-    TerraformClient,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
-    create_team,
-    delete_team,
-    get_team,
-    normalize_team_response,
-    update_team,
-)
-from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
-    dict_diff,
-)
-
 DOCUMENTATION = r"""
 ---
 module: team
-version_added: 1.4.0
+version_added: 2.1.0
 short_description: Manage teams in Terraform Cloud/Enterprise.
-author: "Terraform Ansible Collection Contributors"
+author: "Tanya Singh (@tanyasingh)"
 description:
   - Create, update, and delete teams in Terraform Cloud/Enterprise.
   - Configure organization access permissions and team visibility.
-  - Support for SSO team ID and member token management settings.
+  - Supports SSO team ID and member token management settings.
+  - When O(state=present) with O(organization) and O(name), the module looks up
+    the team by name first and updates it if it exists, making the create operation
+    idempotent without needing to know the team ID in advance.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   state:
     description:
       - The desired state of the team.
-      - C(present) - creates or updates a team.
-      - C(absent) - deletes a team.
+      - V(present) - creates or updates a team.
+      - V(absent) - deletes a team.
     type: str
     choices: ["present", "absent"]
     default: present
   organization:
     description:
       - The name of the organization that owns the team.
-      - Required when creating a new team.
+      - Required when O(team_id) is not provided.
+      - Mutually exclusive with O(team_id).
+      - Must be supplied together with O(name).
     type: str
   team_id:
     description:
       - The unique identifier of the team.
-      - Required when updating or deleting an existing team.
+      - Required when updating or deleting an existing team by ID.
+      - Required when O(state=absent).
+      - Mutually exclusive with O(organization).
     type: str
   name:
     description:
       - The name of the team.
       - Must be between 1 and 90 characters.
-      - Required when creating a new team.
+      - Required together with O(organization) when O(team_id) is not provided.
+      - When supplied with O(organization) and the team already exists, the module
+        updates it instead of creating a duplicate.
     type: str
   visibility:
     description:
       - The visibility of the team.
-      - C(secret) - only visible to organization members with appropriate permissions.
-      - C(organization) - visible to all organization members.
+      - V(secret) - only visible to organization members with appropriate permissions.
+      - V(organization) - visible to all organization members.
     type: str
     choices: ["secret", "organization"]
   sso_team_id:
@@ -132,7 +122,7 @@ options:
 """
 
 EXAMPLES = r"""
-- name: Create a new team
+- name: Create a new team (idempotent - updates if team name already exists)
   hashicorp.terraform.team:
     name: "platform-team"
     organization: "my-org"
@@ -154,7 +144,7 @@ EXAMPLES = r"""
       manage_policies: true
     state: present
 
-- name: Update team settings
+- name: Update team settings by team ID
   hashicorp.terraform.team:
     team_id: "team-abc123xyz"
     name: "platform-team-updated"
@@ -173,47 +163,47 @@ EXAMPLES = r"""
 RETURN = r"""
 id:
   description: The unique identifier of the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: str
   sample: "team-abc123xyz"
 name:
   description: The name of the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: str
   sample: "platform-team"
 visibility:
   description: The visibility of the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: str
   sample: "secret"
 sso_team_id:
   description: The SAML Group ID for the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: str
   sample: "team-123-sso"
 allow_member_token_management:
   description: Whether team members can manage tokens.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: bool
   sample: true
 user_count:
   description: The number of users in the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: int
   sample: 5
 is_unified:
   description: Whether the team is a unified team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: bool
   sample: false
 organization_access:
   description: The organization access permissions for the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: dict
   sample: {"manage_workspaces": true, "read_projects": true}
 permissions:
   description: The current user's permissions for the team.
-  returned: when state is 'present'
+  returned: when state is present and team exists
   type: dict
   contains:
     can_destroy:
@@ -234,17 +224,29 @@ msg:
   sample: "Team 'platform-team' created successfully."
 """
 
+from typing import Any, Dict
+
+from ansible.module_utils._text import to_text
+
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
+    AnsibleTerraformModule,
+    TerraformClient,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
+    create_team,
+    delete_team,
+    get_team,
+    get_team_by_name,
+    normalize_team_response,
+    update_team,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import (
+    dict_diff,
+)
+
 
 def extract_comparable_attributes(team_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extract comparable attributes from team SDK response for idempotency checking.
-
-    Args:
-        team_data: Team data from SDK adapter
-
-    Returns:
-        Dictionary of comparable attributes
-    """
+    """Return the subset of team attributes used for idempotency comparison."""
     comparable = {
         "name": team_data.get("name"),
         "visibility": team_data.get("visibility"),
@@ -255,29 +257,15 @@ def extract_comparable_attributes(team_data: Dict[str, Any]) -> Dict[str, Any]:
     if team_data.get("organization_access"):
         comparable["organization_access"] = team_data["organization_access"]
 
-    # Remove None values
     return {k: v for k, v in comparable.items() if v is not None}
 
 
 def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
-    """
-    Creates a new team in the specified organization.
-
-    Args:
-        adapter: TerraformClient instance
-        params: Module parameters
-        check_mode: Whether in check mode
-
-    Returns:
-        Dictionary with operation result
-    """
+    """Create a new team in the specified organization."""
     action_result = {}
 
     organization = params.get("organization")
     name = params.get("name")
-
-    if not organization or not name:
-        raise ValueError("Both 'organization' and 'name' are required when creating a team")
     visibility = params.get("visibility")
     sso_team_id = params.get("sso_team_id")
     allow_member_token_management = params.get("allow_member_token_management")
@@ -319,30 +307,17 @@ def state_update(
     current_team: Dict[str, Any],
     check_mode: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Updates an existing team.
-
-    Args:
-        adapter: TerraformClient instance
-        params: Module parameters
-        current_team: Current team data
-        check_mode: Whether in check mode
-
-    Returns:
-        Dictionary with operation result
-    """
+    """Update an existing team, skipping the API call when nothing has changed."""
     action_result = {}
 
     if not current_team:
-        raise ValueError(f"Team {params.get('team_id')} was not found")
+        raise ValueError(f"Team '{params.get('team_id')}' was not found")
 
     team_id = params["team_id"]
 
-    # Extract comparable attributes for idempotency checking
     have = extract_comparable_attributes(current_team)
     want = {}
 
-    # Build desired state
     if params.get("name") is not None:
         want["name"] = params["name"]
     if params.get("visibility") is not None:
@@ -357,7 +332,6 @@ def state_update(
     # Filter have to only keys in want
     have = {k: v for k, v in have.items() if k in want}
 
-    # Check for changes
     updates_response = dict_diff(have, want)
 
     if not updates_response:
@@ -405,18 +379,7 @@ def state_absent(
     current_team: Dict[str, Any],
     check_mode: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Deletes a team.
-
-    Args:
-        adapter: TerraformClient instance
-        params: Module parameters
-        current_team: Current team data
-        check_mode: Whether in check mode
-
-    Returns:
-        Dictionary with operation result
-    """
+    """Delete a team. No-op (changed=False) if the team does not exist."""
     action_result = {}
 
     if not current_team:
@@ -452,61 +415,53 @@ def state_absent(
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "state": {
-                "type": "str",
-                "choices": ["present", "absent"],
-                "default": "present",
-            },
-            "organization": {
-                "type": "str",
-            },
-            "team_id": {
-                "type": "str",
-            },
-            "name": {
-                "type": "str",
-            },
-            "visibility": {
-                "type": "str",
-                "choices": ["secret", "organization"],
-            },
-            "sso_team_id": {
-                "type": "str",
-            },
-            "allow_member_token_management": {
-                "type": "bool",
-            },
-            "organization_access": {
-                "type": "dict",
-            },
+            "state": {"type": "str", "choices": ["present", "absent"], "default": "present"},
+            "organization": {"type": "str"},
+            "team_id": {"type": "str"},
+            "name": {"type": "str"},
+            "visibility": {"type": "str", "choices": ["secret", "organization"]},
+            "sso_team_id": {"type": "str"},
+            "allow_member_token_management": {"type": "bool"},
+            "organization_access": {"type": "dict"},
         },
+        mutually_exclusive=[
+            ["team_id", "organization"],
+        ],
+        required_one_of=[
+            ["team_id", "organization"],
+        ],
+        required_together=[
+            ["organization", "name"],
+        ],
         required_if=[
             ("state", "absent", ["team_id"]),
         ],
         supports_check_mode=True,
     )
+    warnings = []
 
     state = module.params["state"]
     check_mode = module.check_mode
 
     try:
         with module.client() as adapter:
-            result = {}
+            result = {"changed": False, "warnings": warnings}
 
             if state == "present":
-                # Check if this is a create or update operation
                 if module.params.get("team_id"):
-                    # Update team
                     current_team = get_team(adapter, module.params["team_id"])
-
-                    if not current_team:
-                        module.fail_json(msg=f"Team {module.params['team_id']} not found")
-
                     result = state_update(adapter, module.params, current_team, check_mode)
 
                 else:
-                    # Create new team
-                    result = state_create(adapter, module.params, check_mode)
+                    organization = module.params["organization"]
+                    name = module.params.get("name")
+                    current_team = get_team_by_name(adapter, organization, name) if name else None
+                    if current_team:
+                        params = dict(module.params)
+                        params["team_id"] = current_team["id"]
+                        result = state_update(adapter, params, current_team, check_mode)
+                    else:
+                        result = state_create(adapter, module.params, check_mode)
 
             elif state == "absent":
                 current_team = get_team(adapter, module.params["team_id"])

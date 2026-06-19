@@ -20,13 +20,9 @@ from typing import Any, Dict, Optional
 
 try:
     from pytfe.errors import NotFound
-    from pytfe.models import UserUpdateCurrentOptions
 except ImportError:
 
     class NotFound(Exception):  # type: ignore[no-redef]
-        pass
-
-    class UserUpdateCurrentOptions:  # type: ignore[no-redef]
         pass
 
 
@@ -66,24 +62,5 @@ def get_current_user(adapter: TerraformClient) -> Dict[str, Any]:
     user = safe_api_call(
         adapter.client.users.read_current,
         error_context="Failed to read current user",
-    )
-    return format_response(user)
-
-
-def update_current_user(adapter: TerraformClient, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Update the currently authenticated user.
-
-    Args:
-        adapter: Authenticated TerraformClient.
-        data: User attributes to update (username, email).
-
-    Returns:
-        Formatted dict of the updated user.
-    """
-    options = UserUpdateCurrentOptions.model_validate(data)
-    user = safe_api_call(
-        adapter.client.users.update_current,
-        options,
-        error_context="Failed to update current user",
     )
     return format_response(user)
