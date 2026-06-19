@@ -249,6 +249,30 @@ class TestStateHandlers:
         assert call_data["auto_apply"] is True
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.create_run")
+    def test_state_present_invoke_action_addrs(self, mock_create_run, mock_handle):
+        mock_adapter = Mock()
+        mock_create_run.return_value = {"id": "run-action1", "invoke_action_addrs": ["action.aws_lambda_invoke.api_handler"]}
+        mock_handle.return_value = {"changed": True, "id": "run-action1"}
+
+        result = state_present(
+            mock_adapter,
+            workspace_id="ws-1",
+            invoke_action_addrs=["action.aws_lambda_invoke.api_handler"],
+            state="present",
+            organization="org-1",
+            workspace="ws-name",
+            poll=True,
+            poll_timeout=120,
+            poll_interval=5,
+            check_mode=False,
+        )
+
+        assert result["changed"] is True
+        call_data = mock_create_run.call_args.kwargs["data"]
+        assert call_data["invoke_action_addrs"] == ["action.aws_lambda_invoke.api_handler"]
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.apply_run")
     def test_state_applied(self, mock_apply_run, mock_handle):
         mock_apply_run.return_value = {"data": {"id": "run-1"}}

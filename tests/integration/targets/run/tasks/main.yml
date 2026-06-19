@@ -150,6 +150,21 @@
           - result_refresh_only.changed
           - result_refresh_only.refresh_only
 
+    - name: Create a run invoking a Terraform action
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        invoke_action_addrs:
+          - "action.null.test"
+        run_message: "Test invoke_action_addrs param"
+        poll: false
+      register: result_invoke_action
+
+    - name: Assert invoke_action_addrs was accepted and returned in the run response
+      ansible.builtin.assert:
+        that:
+          - result_invoke_action.changed
+          - result_invoke_action.invoke_action_addrs == ["action.null.test"]
+
     - name: Create a destroy run with auto_apply
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"

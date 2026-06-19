@@ -88,6 +88,16 @@ options:
         type: list
         elements: str
         required: false
+    invoke_action_addrs:
+        description:
+          - A list of action addresses to invoke for this run (e.g., C(action.aws_lambda_invoke.api_handler)).
+          - Used to trigger Terraform Actions — ephemeral provider operations that do not create,
+            change, or destroy managed resources.
+          - Produces a run with operation type C(action_only).
+          - This parameter requires Terraform Actions support on the HCP Terraform organization.
+        type: list
+        elements: str
+        required: false
     state:
         description:
         - The desired state of the run to manage.
@@ -193,6 +203,30 @@ EXAMPLES = r"""
 #         "is_force_cancelable": false
 #     },
 #     "variables": []
+# }
+
+- name: Invoke a Terraform action (ephemeral provider operation)
+  hashicorp.terraform.run:
+    workspace_id: "ws-abc123def456"
+    invoke_action_addrs:
+      - "action.aws_lambda_invoke.api_handler"
+    auto_apply: true
+    run_message: "Invoke Lambda action via Terraform Actions"
+
+# The resulting run has operation type 'action_only' — it updates state
+# but does not create, change, or destroy managed resources.
+# Task output (with poll: true - default):
+# ------------
+# "result": {
+#     "changed": true,
+#     "id": "run-pqr789stu999",
+#     "auto_apply": true,
+#     "invoke_action_addrs": ["action.aws_lambda_invoke.api_handler"],
+#     "is_destroy": false,
+#     "plan_only": false,
+#     "refresh_only": false,
+#     "source": "tfe-api",
+#     "status": "planned_and_finished",
 # }
 
 - name: Create a plan-only run without polling
@@ -494,6 +528,13 @@ variables:
     sample:
         - key: env
           value: production
+invoke_action_addrs:
+    description: Action addresses that were invoked in this run.
+    returned: when run data is returned
+    type: list
+    elements: str
+    sample:
+        - "action.aws_lambda_invoke.api_handler"
 """
 
 import time
@@ -740,6 +781,7 @@ def main():
             "is_destroy": {"type": "bool"},
             "refresh_only": {"type": "bool"},
             "target_addrs": {"type": "list", "elements": "str"},
+            "invoke_action_addrs": {"type": "list", "elements": "str"},
             "state": {"type": "str", "choices": ["present", "applied", "discarded", "canceled"], "default": "present"},
             "run_id": {"type": "str"},
         },
