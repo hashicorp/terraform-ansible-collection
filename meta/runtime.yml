@@ -6,6 +6,11 @@ action_groups:
     - configuration_version_info
     - notification_configuration
     - organizations
+    - variable
+    - variable_sets
+    - variable_set_variable
+    - run_trigger
+    - ssh_keys
     - output
     - project
     - project_info

@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - >-
+    variable_set_variable - New module to manage the variables contained within a
+    Terraform Cloud/Enterprise variable set (create, update, delete), identifying
+    the set by ``variable_set_id`` or by ``organization`` + ``variable_set_name``
+    and the variable by ``variable_id`` or ``key``.
+  - >-
+    variable_sets - The ``variable_sets`` module now supports setting a parent
+    relationship on creation via the new ``parent_project_id`` and
+    ``parent_organization_id`` options.

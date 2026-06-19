@@ -54,6 +54,19 @@ options:
       - Whether values in this set override values defined on the workspace or by other
         (non-priority) variable sets.
     type: bool
+  parent_project_id:
+    description:
+      - The ID of a project to set as the parent of the variable set on creation.
+      - When set, the variable set is owned by the project rather than the organization.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_organization_id).
+    type: str
+  parent_organization_id:
+    description:
+      - The ID (name) of an organization to set as the parent of the variable set on creation.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_project_id).
+    type: str
   workspace_ids:
     description:
       - List of workspace IDs the variable set should be attached to.
@@ -61,7 +74,7 @@ options:
         currently attached but not listed will be detached, and any listed but not attached
         will be attached.
       - Pass an empty list C([]) to detach from all workspaces. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   project_ids:
@@ -69,7 +82,7 @@ options:
       - List of project IDs the variable set should be attached to.
       - When provided, the module converges attachments to exactly this list.
       - Pass an empty list C([]) to detach from all projects. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   state:
@@ -226,6 +239,20 @@ def _build_desired_attrs(params: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in params.items() if k in _ATTR_KEYS and v is not None}
 
 
+def _build_parent(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Build the SDK ``parent`` relationship payload from params, if requested.
+
+    Returns ``None`` when neither parent identifier is provided.
+    """
+    project_id = params.get("parent_project_id")
+    if project_id:
+        return {"project": {"id": project_id}}
+    organization_id = params.get("parent_organization_id")
+    if organization_id:
+        return {"organization": {"id": organization_id}}
+    return None
+
+
 def _filter_current_attrs(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[str, Any]:
     """Project the server view down to the keys the user specified."""
     return {k: have.get(k) for k in want.keys() if k in have}
@@ -283,6 +310,9 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             raise ValueError("'organization' is required when creating a new variable set.")
         # pytfe requires `global` on create — default to False if the user didn't specify.
         create_payload = {"global": False, **want_attrs}
+        parent = _build_parent(params)
+        if parent:
+            create_payload["parent"] = parent
         if check_mode:
             return {
                 "changed": True,
@@ -398,13 +428,15 @@ def main() -> None:
             "description": {"type": "str"},
             "global": {"type": "bool"},
             "priority": {"type": "bool"},
+            "parent_project_id": {"type": "str"},
+            "parent_organization_id": {"type": "str"},
             "workspace_ids": {"type": "list", "elements": "str"},
             "project_ids": {"type": "list", "elements": "str"},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
-        mutually_exclusive=[("variable_set_id", "name")],
-        required_one_of=[("variable_set_id", "name")],
+        mutually_exclusive=[("variable_set_id", "name"), ("parent_project_id", "parent_organization_id")],
         required_by={"name": ("organization",)},
+        required_one_of=[("variable_set_id", "name")],
         supports_check_mode=True,
     )
 
