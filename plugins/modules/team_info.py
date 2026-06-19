@@ -11,18 +11,17 @@ __metaclass__ = type
 DOCUMENTATION = r"""
 ---
 module: team_info
-version_added: 1.4.0
+version_added: 2.1.0
 short_description: Retrieve information about a team in Terraform Cloud/Enterprise.
-author: "Terraform Ansible Collection Contributors"
+author: "Tanya Singh (@tanyasingh)"
 description:
-  - This module retrieves information about a given team in Terraform Cloud/Enterprise.
-  - If I(team_id) is provided, the module will return information about that specific team.
-  - If the team does not exist, the module will fail with an error message.
+  - Retrieves information about a team in Terraform Cloud/Enterprise by its unique ID.
+  - Fails if the team does not exist.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   team_id:
     description:
-      - The unique identifier of the team to retrieve information about.
+      - The unique identifier of the team to retrieve.
     type: str
     required: true
 """
@@ -42,7 +41,6 @@ EXAMPLES = r"""
 #         "id": "team-abc123xyz",
 #         "name": "platform-team",
 #         "visibility": "secret",
-#         "sso_team_id": null,
 #         "allow_member_token_management": false,
 #         "user_count": 5,
 #         "is_unified": false,
@@ -73,74 +71,76 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
+changed:
+  description: Always false - this module never modifies state.
+  returned: always
+  type: bool
+  sample: false
 team:
-  type: dict
   description: A dictionary containing the team information.
   returned: on success
+  type: dict
   contains:
     id:
-      type: str
-      returned: always
       description: The unique identifier of the team.
+      returned: always
+      type: str
       sample: "team-abc123xyz"
     name:
-      type: str
-      returned: always
       description: The name of the team.
+      returned: always
+      type: str
       sample: "platform-team"
     visibility:
-      type: str
+      description: The visibility of the team.
       returned: always
-      description: The visibility of the team (secret or organization).
+      type: str
       sample: "secret"
     sso_team_id:
-      type: str
-      returned: always
       description: The SAML Group ID for the team.
-      sample: null
+      returned: when configured
+      type: str
+      sample: "sso-group-123"
     allow_member_token_management:
-      type: bool
-      returned: always
       description: Whether team members can manage tokens.
+      returned: always
+      type: bool
       sample: false
     user_count:
-      type: int
-      returned: always
       description: The number of users in the team.
+      returned: always
+      type: int
       sample: 5
     is_unified:
-      type: bool
-      returned: always
       description: Whether the team is unified.
+      returned: always
+      type: bool
       sample: false
     organization_access:
-      type: dict
-      returned: when available
       description: Organization access permissions for the team.
+      returned: when configured
+      type: dict
       sample: {"manage_workspaces": true, "read_projects": true}
     permissions:
-      type: dict
-      returned: when available
       description: Current user's permissions on the team.
+      returned: when available
+      type: dict
       contains:
         can_destroy:
-          type: bool
-          returned: always
           description: Whether the user can destroy the team.
-        can_update_membership:
-          type: bool
           returned: always
+          type: bool
+        can_update_membership:
           description: Whether the user can update team membership.
+          returned: always
+          type: bool
 """
 
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict
+from typing import Any, Dict
 
 from ansible.module_utils._text import to_text
-
-if TYPE_CHECKING:
-    from typing import Optional
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import (
     AnsibleTerraformModule,
@@ -167,8 +167,6 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            team_data: Optional[Dict[str, Any]] = None
-
             team_data = get_team(adapter, params["team_id"])
 
             if not team_data:
