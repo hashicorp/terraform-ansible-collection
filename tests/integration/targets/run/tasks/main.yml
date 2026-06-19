@@ -131,6 +131,25 @@
           - result_plan_only_variables.changed
           - result_plan_only_variables.variables != []
 
+    - name: Create a refresh-only run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "refresh state after drift"
+        state: "present"
+        tf_token: "{{ tfc_token }}"
+        refresh_only: true
+        auto_apply: true
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: result_refresh_only
+
+    - name: Assert refresh-only run succeeded
+      ansible.builtin.assert:
+        that:
+          - result_refresh_only.changed
+          - result_refresh_only.refresh_only
+
     - name: Create a destroy run with auto_apply
       hashicorp.terraform.run:
         workspace_id: "{{ workspace_id }}"
