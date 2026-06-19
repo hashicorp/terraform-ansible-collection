@@ -10,6 +10,11 @@ action_groups:
     - project
     - project_info
     - promote_run
+    - workspace_bootstrap
+    - notification_configuration
+    - team
+    - team_info
+    - user_info
     - run
     - run_info
     - run_trigger
