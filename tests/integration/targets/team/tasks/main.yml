@@ -91,6 +91,20 @@
           - team_info_result.team.allow_member_token_management
         fail_msg: "Failed to retrieve team info"
 
+    - name: Create team again by name (idempotency via name lookup)
+      hashicorp.terraform.team:
+        name: "{{ created_team_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: team_create_idempotent
+
+    - name: Verify create by name is idempotent (no new team created)
+      ansible.builtin.assert:
+        that:
+          - not team_create_idempotent.changed
+          - team_create_idempotent.id == created_team_id
+        fail_msg: "Team create by name should be idempotent when team already exists"
+
   always:
 
     - name: Delete team

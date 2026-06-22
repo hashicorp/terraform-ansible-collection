@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
+    get_team_by_name,
     normalize_team_response,
 )
 from ansible_collections.hashicorp.terraform.plugins.modules.team import (
@@ -102,7 +103,7 @@ class TestTeamStateCreate:
             "name": "platform-team",
         }
 
-        with pytest.raises(ValueError, match="Both 'organization' and 'name' are required"):
+        with pytest.raises(ValueError, match="'organization' is required"):
             state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_missing_name(self, mock_adapter):
@@ -111,7 +112,17 @@ class TestTeamStateCreate:
             "organization": "my-org",
         }
 
-        with pytest.raises(ValueError, match="Both 'organization' and 'name' are required"):
+        with pytest.raises(ValueError, match="'name' is required"):
+            state_create(mock_adapter, params, check_mode=False)
+
+    def test_create_team_name_too_long(self, mock_adapter):
+        """Test team creation with name exceeding 90 characters."""
+        params = {
+            "organization": "my-org",
+            "name": "a" * 91,
+        }
+
+        with pytest.raises(ValueError, match="between 1 and 90 characters"):
             state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_check_mode(self, mock_adapter):
@@ -192,6 +203,16 @@ class TestTeamStateUpdate:
         with pytest.raises(ValueError, match="was not found"):
             state_update(mock_adapter, params, None, check_mode=False)
 
+    def test_update_team_name_too_long(self, mock_adapter, current_team):
+        """Test updating team with name exceeding 90 characters."""
+        params = {
+            "team_id": "team-123",
+            "name": "a" * 91,
+        }
+
+        with pytest.raises(ValueError, match="between 1 and 90 characters"):
+            state_update(mock_adapter, params, current_team, check_mode=False)
+
     def test_update_team_check_mode(self, mock_adapter, current_team):
         """Test team update in check mode."""
         params = {
@@ -255,43 +276,38 @@ class TestTeamStateAbsent:
         assert "would be deleted" in result["msg"]
 
 
-class TestTeamInfoModule:
-    """Test team_info module integration."""
+class TestGetTeamByName:
+    """Test get_team_by_name utility function."""
 
     @pytest.fixture
     def mock_adapter(self):
         return Mock()
 
-    def test_get_specific_team(self, mock_adapter):
-        """Test retrieving specific team."""
-        team_data = {
-            "id": "team-123",
-            "name": "platform-team",
-            "visibility": "secret",
-        }
+    def test_get_team_by_name_found(self, mock_adapter):
+        """Test that the first result is returned when the server-side filter matches."""
+        mock_team = Mock()
+        mock_team.model_dump.return_value = {"id": "team-123", "name": "platform-team"}
+        mock_adapter.client.teams.list.return_value = iter([mock_team])
 
-        result = normalize_team_response(team_data)
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
 
+        assert result is not None
         assert result["id"] == "team-123"
         assert result["name"] == "platform-team"
+        mock_adapter.client.teams.list.assert_called_once()
 
-    def test_list_teams_response(self, mock_adapter):
-        """Test list teams response normalization."""
-        teams = [
-            {
-                "id": "team-123",
-                "name": "platform-team",
-                "visibility": "secret",
-            },
-            {
-                "id": "team-456",
-                "name": "admin-team",
-                "visibility": "organization",
-            },
-        ]
+    def test_get_team_by_name_not_found(self, mock_adapter):
+        """Test that None is returned when the server-side filter returns no results."""
+        mock_adapter.client.teams.list.return_value = iter([])
 
-        result = [normalize_team_response(team) for team in teams]
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
 
-        assert len(result) == 2
-        assert result[0]["name"] == "platform-team"
-        assert result[1]["name"] == "admin-team"
+        assert result is None
+
+    def test_get_team_by_name_empty_org(self, mock_adapter):
+        """Test that None is returned when the org has no teams."""
+        mock_adapter.client.teams.list.return_value = iter([])
+
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
+
+        assert result is None

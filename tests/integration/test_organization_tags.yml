@@ -1,0 +1,12 @@
+---
+- name: Test organization_tags integration target locally
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Prepare Terraform Cloud credentials
+      ansible.builtin.include_tasks:
+        file: targets/prepare_tfc/tasks/main.yml
+
+    - name: Run organization tags integration tests
+      ansible.builtin.include_tasks:
+        file: targets/organization_tags/tasks/main.yml

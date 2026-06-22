@@ -169,6 +169,51 @@
       hashicorp.terraform.variable_sets: *update_varset
       register: result_post_check
 
+    # ---------- parent project ----------
+    - name: Create a project to act as the variable set parent
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        name: "varset-parent-{{ suffix }}"
+        state: present
+      register: result_project
+
+    - name: Set parent_project_id fact
+      ansible.builtin.set_fact:
+        parent_project_id: "{{ result_project.id }}"
+        parent_varset_name: "varset-parented-{{ suffix }}"
+
+    - name: Create a variable set owned by the project
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ parent_varset_name }}"
+        description: "project-scoped variable set"
+        global: false
+        priority: false
+        parent_project_id: "{{ parent_project_id }}"
+        state: present
+      register: result_parented
+
+    - name: Assert parent-scoped variable set was created
+      ansible.builtin.assert:
+        that:
+          - result_parented.changed
+          - result_parented.id is defined
+          - result_parented.name == parent_varset_name
+          - result_parented.parent is defined
+          - result_parented.parent.project.id == parent_project_id
+
+    - name: Delete the project-scoped variable set
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ parent_varset_name }}"
+        state: absent
+      register: result_parented_delete
+
+    - name: Assert parent-scoped variable set delete succeeded
+      ansible.builtin.assert:
+        that:
+          - result_parented_delete.changed
+
     # ---------- delete ----------
     - name: Delete the variable set by (organization, name)
       hashicorp.terraform.variable_sets:
@@ -203,6 +248,22 @@
         name: "{{ varset_name }}"
         state: absent
       when: varset_name is defined
+      failed_when: false
+
+    - name: Cleanup - ensure project-scoped variable set is gone
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ parent_varset_name }}"
+        state: absent
+      when: parent_varset_name is defined
+      failed_when: false
+
+    - name: Cleanup - delete parent project
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        name: "varset-parent-{{ suffix }}"
+        state: absent
+      when: parent_project_id is defined
       failed_when: false
 
     - name: Cleanup - delete supporting workspaces

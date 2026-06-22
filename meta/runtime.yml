@@ -4,24 +4,26 @@ action_groups:
   terraform:
     - configuration_version
     - configuration_version_info
-    - notification_configuration
     - organizations
+    - variable
+    - variable_sets
+    - variable_set_variable
+    - run_trigger
+    - ssh_keys
     - output
     - project
     - project_info
     - promote_run
-    - run
-    - run_info
-    - run_trigger
-    - ssh_keys
     - team
     - team_info
+    - user_info
+    - run
+    - run_info
     - team_project_access
     - team_workspace_access
-    - variable
-    - variable_sets
     - view_plan
     - workspace
     - workspace_bootstrap
+    - notification_configuration
+    - organization_tags
     - workspace_info
-

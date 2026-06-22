@@ -1,0 +1,194 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate unique suffix
+      ansible.builtin.set_fact:
+        suffix: "{{ lookup('pipe', 'uuidgen')[:8] | lower }}"
+
+    - name: Set fact for resource names
+      ansible.builtin.set_fact:
+        tag_name: "tag-{{ suffix }}"
+        workspace_a: "tag-ws-a-{{ suffix }}"
+        workspace_b: "tag-ws-b-{{ suffix }}"
+
+    - name: Create two supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        execution_mode: remote
+        description: "integration workspace for organization_tags tests"
+        state: present
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      register: workspace_create
+
+    - name: Pin workspace IDs
+      ansible.builtin.set_fact:
+        ws_a_id: "{{ workspace_create.results[0].id }}"
+        ws_b_id: "{{ workspace_create.results[1].id }}"
+
+    # ---------- bootstrap: create the org tag by adding it to ws_a ----------
+    - name: Add tag to ws_a (creates the org-level tag)
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ ws_a_id }}/relationships/tags"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            - type: tags
+              attributes:
+                name: "{{ tag_name }}"
+        status_code: 204
+      no_log: true
+
+    - name: List tags on ws_a to resolve the tag ID
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/workspaces/{{ ws_a_id }}/relationships/tags"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+        return_content: true
+        status_code: 200
+      no_log: true
+      register: ws_a_tags_response
+
+    - name: Pin the tag ID
+      ansible.builtin.set_fact:
+        tag_id: >-
+          {{ (ws_a_tags_response.json.data
+              | selectattr('attributes.name', 'equalto', tag_name)
+              | map(attribute='id')
+              | list)[0] }}
+
+    # ---------- present: associate ws_b with the tag ----------
+    - name: Associate ws_b with the tag
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        tag_id: "{{ tag_id }}"
+        workspace_ids:
+          - "{{ ws_b_id }}"
+        state: present
+      register: result_associate
+
+    - name: Assert association was successful
+      ansible.builtin.assert:
+        that:
+          - result_associate.changed
+          - ws_b_id in result_associate.workspace_ids
+          - result_associate.id == tag_id
+
+    # ---------- present (idempotency) ----------
+    - name: Associate ws_b again (idempotency)
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        tag_id: "{{ tag_id }}"
+        workspace_ids:
+          - "{{ ws_b_id }}"
+        state: present
+      register: result_associate_again
+
+    - name: Assert re-association is a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_associate_again.changed
+          - result_associate_again.workspace_ids | length == 0
+        fail_msg: "Re-association of an already-associated workspace must not report changed"
+
+    # ---------- check-mode absent: verify the tag is not actually deleted ----------
+    - name: Check-mode delete of the tag (must not mutate)
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        tag_id: "{{ tag_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_delete
+
+    - name: Assert check-mode reports a would-be change
+      ansible.builtin.assert:
+        that:
+          - result_check_delete.changed
+          - "'check mode' in result_check_delete.msg"
+
+    - name: Verify tag still exists after check-mode delete
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/tags"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+        return_content: true
+        status_code: 200
+      no_log: true
+      register: org_tags_after_check
+
+    - name: Assert the tag was not deleted by check mode
+      ansible.builtin.assert:
+        that:
+          - org_tags_after_check.json.data | selectattr('id', 'equalto', tag_id) | list | length == 1
+        fail_msg: "Tag {{ tag_id }} should still exist after a check-mode delete"
+
+    # ---------- absent: delete the tag ----------
+    - name: Delete the tag
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        tag_id: "{{ tag_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - tag_id in result_delete.ids
+          - "'deleted successfully' in result_delete.msg"
+
+    # ---------- absent (idempotency) ----------
+    - name: Delete the tag again (idempotency)
+      hashicorp.terraform.organization_tags:
+        organization: "{{ organization }}"
+        tag_id: "{{ tag_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert repeated delete is a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+        fail_msg: "Deleting an already-absent tag must not report changed"
+
+  always:
+    - name: Cleanup - remove tag from org via API (avoids module delete)
+      ansible.builtin.uri:
+        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/tags"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ tfc_token }}"
+          Content-Type: "application/vnd.api+json"
+        body_format: json
+        body:
+          data:
+            - type: tags
+              id: "{{ tag_id }}"
+        status_code: 204
+      no_log: true
+      when: tag_id is defined
+      failed_when: false
+
+    - name: Cleanup - delete supporting workspaces
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ workspace_a }}"
+        - "{{ workspace_b }}"
+      when: workspace_a is defined
+      failed_when: false

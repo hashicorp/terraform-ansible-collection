@@ -22,6 +22,7 @@ try:
     from pytfe.errors import NotFound
     from pytfe.models import (
         TeamCreateOptions,
+        TeamListOptions,
         TeamUpdateOptions,
     )
     from pytfe.models.team import OrganizationAccessOptions
@@ -31,6 +32,9 @@ except ImportError:
         pass
 
     class TeamCreateOptions:  # type: ignore[no-redef]
+        pass
+
+    class TeamListOptions:  # type: ignore[no-redef]
         pass
 
     class TeamUpdateOptions:  # type: ignore[no-redef]
@@ -76,6 +80,17 @@ def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
         normalized["permissions"] = team_data.get("permissions")
 
     return normalized
+
+
+def get_team_by_name(adapter: TerraformClient, organization: str, name: str) -> Dict[str, Any] | None:
+    """Look up a team by name within the given organization using a server-side name filter."""
+    try:
+        options = TeamListOptions(names=[name])
+        for team in adapter.client.teams.list(organization, options=options):
+            return format_response(team)
+        return None
+    except NotFound:
+        return None
 
 
 def get_team(adapter: TerraformClient, team_id: str) -> Dict[str, Any] | None:
