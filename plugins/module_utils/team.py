@@ -70,10 +70,10 @@ def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if team_data.get("organization_access"):
-        normalized["organization_access"] = team_data["organization_access"]
+        normalized["organization_access"] = team_data.get("organization_access")
 
     if team_data.get("permissions"):
-        normalized["permissions"] = team_data["permissions"]
+        normalized["permissions"] = team_data.get("permissions")
 
     return normalized
 
