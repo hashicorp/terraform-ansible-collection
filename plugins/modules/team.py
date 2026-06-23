@@ -267,12 +267,6 @@ def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     organization = params.get("organization")
     name = params.get("name")
 
-    # Validate required parameters
-    if not organization or not name:
-        raise ValueError("Both 'organization' and 'name' are required when creating a team")
-    if len(name) < 1 or len(name) > 90:
-        raise ValueError("Team name must be between 1 and 90 characters")
-
     visibility = params.get("visibility")
     sso_team_id = params.get("sso_team_id")
     allow_member_token_management = params.get("allow_member_token_management")
@@ -326,10 +320,7 @@ def state_update(
     want = {}
 
     if params.get("name") is not None:
-        name = params["name"]
-        if len(name) < 1 or len(name) > 90:
-            raise ValueError("Team name must be between 1 and 90 characters")
-        want["name"] = name
+        want["name"] = params["name"]
     if params.get("visibility") is not None:
         want["visibility"] = params["visibility"]
     if params.get("sso_team_id") is not None:
