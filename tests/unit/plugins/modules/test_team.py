@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
+    get_team_by_name,
     normalize_team_response,
 )
 from ansible_collections.hashicorp.terraform.plugins.modules.team import (
@@ -269,3 +270,40 @@ class TestTeamStateAbsent:
 
         assert result["changed"] is True
         assert "would be deleted" in result["msg"]
+
+
+class TestGetTeamByName:
+    """Test get_team_by_name utility function."""
+
+    @pytest.fixture
+    def mock_adapter(self):
+        return Mock()
+
+    def test_get_team_by_name_found(self, mock_adapter):
+        """Test that the first result is returned when the server-side filter matches."""
+        mock_team = Mock()
+        mock_team.model_dump.return_value = {"id": "team-123", "name": "platform-team"}
+        mock_adapter.client.teams.list.return_value = iter([mock_team])
+
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
+
+        assert result is not None
+        assert result["id"] == "team-123"
+        assert result["name"] == "platform-team"
+        mock_adapter.client.teams.list.assert_called_once()
+
+    def test_get_team_by_name_not_found(self, mock_adapter):
+        """Test that None is returned when the server-side filter returns no results."""
+        mock_adapter.client.teams.list.return_value = iter([])
+
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
+
+        assert result is None
+
+    def test_get_team_by_name_empty_org(self, mock_adapter):
+        """Test that None is returned when the org has no teams."""
+        mock_adapter.client.teams.list.return_value = iter([])
+
+        result = get_team_by_name(mock_adapter, "my-org", "platform-team")
+
+        assert result is None
