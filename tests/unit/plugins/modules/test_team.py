@@ -269,5 +269,3 @@ class TestTeamStateAbsent:
 
         assert result["changed"] is True
         assert "would be deleted" in result["msg"]
-
-
