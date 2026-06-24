@@ -27,21 +27,31 @@
       ansible.builtin.set_fact:
         project_id: "{{ project_create_response.id }}"
 
-    - name: Fetch the first team in the organization
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/teams"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        return_content: true
-        status_code: 200
-      no_log: true
-      register: teams_response
+    - name: Generate unique team name
+      ansible.builtin.set_fact:
+        team_name: "{{ unique_id[:30] }}-tpa-team"
+
+    - name: Create a team for the test
+      hashicorp.terraform.team:
+        organization: "{{ organization }}"
+        name: "{{ team_name }}"
+        visibility: secret
+        state: present
+      register: team_create_response
+
+    - name: Set created team ID fact
+      ansible.builtin.set_fact:
+        created_team_id: "{{ team_create_response.id }}"
+
+    - name: Look up the team by organization and name
+      hashicorp.terraform.team_info:
+        organization: "{{ organization }}"
+        name: "{{ team_name }}"
+      register: team_info_response
 
     - name: Set team_id fact
       ansible.builtin.set_fact:
-        team_id: "{{ teams_response.json.data[0].id }}"
+        team_id: "{{ team_info_response.team.id }}"
 
     # ------------------------------------------------------------------
     # 1. Grant read access
@@ -235,8 +245,28 @@
 
   always:
     # ------------------------------------------------------------------
-    # Cleanup: delete the project created for this test
+    # Cleanup: delete resources created for this test
     # ------------------------------------------------------------------
+    - name: Delete test team project access grant
+      when: tpa_id is defined
+      hashicorp.terraform.team_project_access:
+        team_project_access_id: "{{ tpa_id }}"
+        state: absent
+      register: cleanup_tpa
+      failed_when: >-
+        cleanup_tpa.failed | default(false)
+        and 'not found' not in (cleanup_tpa.msg | default('') | lower)
+
+    - name: Delete test team
+      when: team_id is defined or created_team_id is defined
+      hashicorp.terraform.team:
+        team_id: "{{ team_id | default(created_team_id) }}"
+        state: absent
+      register: cleanup_team
+      failed_when: >-
+        cleanup_team.failed | default(false)
+        and 'not found' not in (cleanup_team.msg | default('') | lower)
+
     - name: Delete test project
       when: project_id is defined
       hashicorp.terraform.project:

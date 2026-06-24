@@ -18,7 +18,6 @@ description:
   - Uses a YAML configuration file whose name ends with C(inventory.yml),
     C(inventory.yaml), C(terraform_inventory.yml), or
     C(terraform_inventory.yaml).
-  - Does not support caching.
 extends_documentation_fragment:
   - constructed
   - inventory_cache
@@ -107,6 +106,7 @@ options:
         the HCP Terraform UI or projects API."
     type: dict
     default: {}
+    version_added: "2.1.0"
     suboptions:
       project_id:
         description:
@@ -143,6 +143,7 @@ options:
         the main thread.
     type: bool
     default: false
+    version_added: "2.1.0"
   concurrency:
     description:
       - Maximum number of concurrent workspace fetches when
@@ -151,6 +152,7 @@ options:
         bounded. Values outside V([1, 10]) raise a parser error.
     type: int
     default: 5
+    version_added: "2.1.0"
   search_child_modules:
     description:
       - When V(source=statefile), include resources defined inside Terraform
@@ -338,9 +340,9 @@ options:
       - Opt-in cache-freshness mode that validates a cache entry against the
         workspace's current Terraform state version ID before reusing it.
       - When V(false) (default), caching is the standard Ansible
-        timeout-based contract from O(inventory_cache#cache) — cache hits
+        timeout-based contract from O(cache) — cache hits
         make zero API calls and are fully offline-capable within
-        O(inventory_cache#cache_timeout). Use V(--flush-cache) to force a
+        O(cache_timeout). Use V(--flush-cache) to force a
         refresh after a Terraform apply.
       - When V(true), each cache hit triggers a lightweight
         C(state-versions/current) lookup. If the cached entry's recorded
@@ -351,9 +353,10 @@ options:
         connectivity on every run; if the validation API call fails the
         plugin raises a parser error rather than serve potentially stale
         cache.
-      - Has no effect when O(inventory_cache#cache) is V(false).
+      - Has no effect when O(cache) is V(false).
     type: bool
     default: false
+    version_added: "2.1.0"
 """
 
 EXAMPLES = r"""
@@ -1030,12 +1033,19 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         vars sourced from the record's metadata. These names live in
         ``_PLUGIN_INJECTED_VARS`` so they survive ``hostvars_prefix`` /
         ``hostvars_suffix`` renaming.
+
+        Hostname resolution and registration run in two passes so that, in
+        multi-workspace mode, a hostname produced by more than one workspace can
+        be disambiguated (by appending the workspace name) instead of silently
+        collapsing onto a single Ansible host.
         """
+        resolved: List[Dict[str, Any]] = []
+        hostname_workspaces: Dict[str, set] = {}
         for record in records:
             host_vars: Dict[str, Any] = dict(record["host_vars"])
+            ws_id = record.get("workspace_id")
+            ws_name = record.get("workspace_name")
             if stamp_workspace_vars:
-                ws_id = record.get("workspace_id")
-                ws_name = record.get("workspace_name")
                 if ws_id:
                     host_vars["tfc_workspace_id"] = ws_id
                 if ws_name:
@@ -1054,18 +1064,49 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 index = record.get("index")
                 hostname = get_preferred_hostname(output_name, workspace_name, resolution_view, hostnames, index)
 
-            if hostname:
-                self._add_host(
-                    hostname,
-                    host_vars,
-                    resolution_view,
-                    compose,
-                    keyed_groups,
-                    groups,
-                    strict,
-                    hostvars_prefix=hostvars_prefix,
-                    hostvars_suffix=hostvars_suffix,
-                )
+            if not hostname:
+                continue
+
+            resolved.append(
+                {
+                    "hostname": hostname,
+                    "host_vars": host_vars,
+                    "resolution_view": resolution_view,
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                }
+            )
+            if stamp_workspace_vars:
+                hostname_workspaces.setdefault(hostname, set()).add(ws_id)
+
+        # Hostnames claimed by more than one distinct workspace would otherwise
+        # collapse onto a single Ansible host (last writer wins), silently
+        # dropping hosts and overwriting their ``tfc_workspace_*`` stamps.
+        colliding = {h for h, workspaces in hostname_workspaces.items() if len(workspaces) > 1}
+        if colliding:
+            Display().warning(
+                f"Multi-workspace inventory: hostname(s) {', '.join(sorted(colliding))} are produced by "
+                "more than one workspace; disambiguating by appending the workspace name. Set 'hostnames' "
+                "or 'compose' to control inventory hostnames deterministically."
+            )
+
+        for item in resolved:
+            hostname = item["hostname"]
+            if hostname in colliding:
+                suffix = item["ws_name"] or item["ws_id"]
+                if suffix:
+                    hostname = f"{hostname}_{suffix}"
+            self._add_host(
+                hostname,
+                item["host_vars"],
+                item["resolution_view"],
+                compose,
+                keyed_groups,
+                groups,
+                strict,
+                hostvars_prefix=hostvars_prefix,
+                hostvars_suffix=hostvars_suffix,
+            )
 
     # ------------------------------------------------------------------
     # Entry point

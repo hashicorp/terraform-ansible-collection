@@ -82,10 +82,10 @@ class TestHelpers:
         assert _build_parent({"parent_project_id": "prj-1"}) == {"project": {"id": "prj-1"}}
 
     def test_build_parent_organization(self):
-        assert _build_parent({"parent_organization_id": "org-1"}) == {"organization": {"id": "org-1"}}
+        assert _build_parent({"parent_organization_name": "my-org"}) == {"organization": {"name": "my-org"}}
 
     def test_build_parent_project_takes_precedence(self):
-        assert _build_parent({"parent_project_id": "prj-1", "parent_organization_id": "org-1"}) == {"project": {"id": "prj-1"}}
+        assert _build_parent({"parent_project_id": "prj-1", "parent_organization_name": "my-org"}) == {"project": {"id": "prj-1"}}
 
     def test_build_parent_none(self):
         assert _build_parent({}) is None

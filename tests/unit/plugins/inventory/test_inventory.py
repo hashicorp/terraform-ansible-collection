@@ -51,6 +51,10 @@ _COMMON = "ansible_collections.hashicorp.terraform.plugins.module_utils.inventor
 
 def _make_plugin(options: dict) -> InventoryModule:
     plugin = InventoryModule()
+    # The plugin loader normally sets ``_load_name`` after instantiation; set it
+    # here so option lookups that fall through to Ansible config raise a clear
+    # config error instead of ``AttributeError`` under plain ``pytest``.
+    plugin._load_name = "hashicorp.terraform.tfc_inv"
     plugin.inventory = Mock()
     loader = Mock()
     loader.get_basedir.return_value = "/"
@@ -89,6 +93,14 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
+        # Multi-workspace + caching options. Seeded here so option lookups in
+        # parse() resolve from _options directly instead of falling through to
+        # Ansible config (which requires the full plugin loader).
+        "workspace_filters": {},
+        "enable_parallel_processing": False,
+        "concurrency": 5,
+        "cache": False,
+        "cache_validate_current_state_version": False,
     }
     defaults.update(overrides)
     return defaults
@@ -3296,7 +3308,7 @@ class TestMultiWorkspaceOptionValidation:
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
     def test_concurrency_above_max_fails(self):
-        plugin = _make_plugin(_base_options(concurrency=6))
+        plugin = _make_plugin(_base_options(concurrency=11))
         with _parse_ctx(plugin):
             with pytest.raises(AnsibleParserError, match="concurrency must be between"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
@@ -3464,6 +3476,11 @@ class TestMultiWorkspaceFlow:
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
 
         assert mock_download.call_count == 2
+        # Both workspaces own aws_instance.web. Without cross-workspace
+        # disambiguation the two would collapse onto a single Ansible host;
+        # assert two distinct hosts, each suffixed with its workspace name.
+        added_hosts = {c.args[0] for c in plugin.inventory.add_host.call_args_list}
+        assert added_hosts == {"aws_instance_web_alpha", "aws_instance_web_beta"}
 
     @patch(f"{_INV_MODULE}.list_workspaces")
     @patch(f"{_OUTPUTS_SRC}.fetch_outputs")

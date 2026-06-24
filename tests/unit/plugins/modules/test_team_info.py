@@ -5,9 +5,25 @@
 
 """Unit tests for the team_info module."""
 
+from unittest.mock import Mock, patch
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     normalize_team_response,
 )
+from ansible_collections.hashicorp.terraform.plugins.modules.team_info import main
+
+
+def _mock_module(params, check_mode=False):
+    mock_module = Mock()
+    mock_module.params = params
+    mock_module.check_mode = check_mode
+
+    mock_adapter = Mock()
+    mock_context = Mock()
+    mock_context.__enter__ = Mock(return_value=mock_adapter)
+    mock_context.__exit__ = Mock(return_value=False)
+    mock_module.client.return_value = mock_context
+    return mock_module, mock_adapter
 
 
 class TestTeamInfoHelpers:
@@ -123,3 +139,93 @@ class TestTeamInfoNormalization:
 
         assert result["permissions"]["can_destroy"] is True
         assert result["permissions"]["can_update_membership"] is False
+
+
+class TestTeamInfoModule:
+    """Test team_info module execution paths."""
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.get_team")
+    def test_get_team_by_id_success(self, mock_get_team, mock_module_class):
+        mock_module, mock_adapter = _mock_module(
+            {
+                "team_id": "team-123",
+                "organization": None,
+                "name": None,
+            }
+        )
+        mock_module_class.return_value = mock_module
+        mock_get_team.return_value = {"id": "team-123", "name": "platform-team"}
+
+        main()
+
+        mock_get_team.assert_called_once_with(mock_adapter, "team-123")
+        mock_module.exit_json.assert_called_once()
+        result = mock_module.exit_json.call_args[1]
+        assert result["changed"] is False
+        assert result["team"]["id"] == "team-123"
+        assert "teams" not in result
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.get_team_by_name")
+    def test_get_team_by_organization_and_name_success(self, mock_get_team_by_name, mock_module_class):
+        mock_module, mock_adapter = _mock_module(
+            {
+                "team_id": None,
+                "organization": "my-org",
+                "name": "platform-team",
+            }
+        )
+        mock_module_class.return_value = mock_module
+        mock_get_team_by_name.return_value = {"id": "team-123", "name": "platform-team"}
+
+        main()
+
+        mock_get_team_by_name.assert_called_once_with(mock_adapter, "my-org", "platform-team")
+        mock_module.exit_json.assert_called_once()
+        result = mock_module.exit_json.call_args[1]
+        assert result["team"]["id"] == "team-123"
+        assert result["teams"] == [result["team"]]
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.list_teams")
+    def test_list_teams_by_organization_success(self, mock_list_teams, mock_module_class):
+        mock_module, mock_adapter = _mock_module(
+            {
+                "team_id": None,
+                "organization": "my-org",
+                "name": None,
+            }
+        )
+        mock_module_class.return_value = mock_module
+        mock_list_teams.return_value = [
+            {"id": "team-123", "name": "platform-team"},
+            {"id": "team-456", "name": "ops-team"},
+        ]
+
+        main()
+
+        mock_list_teams.assert_called_once_with(mock_adapter, "my-org")
+        mock_module.exit_json.assert_called_once()
+        result = mock_module.exit_json.call_args[1]
+        assert "team" not in result
+        assert [team["id"] for team in result["teams"]] == ["team-123", "team-456"]
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.AnsibleTerraformModule")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.team_info.get_team_by_name")
+    def test_get_team_by_organization_and_name_not_found(self, mock_get_team_by_name, mock_module_class):
+        mock_module, mock_adapter = _mock_module(
+            {
+                "team_id": None,
+                "organization": "my-org",
+                "name": "missing-team",
+            }
+        )
+        mock_module_class.return_value = mock_module
+        mock_get_team_by_name.return_value = None
+
+        main()
+
+        mock_get_team_by_name.assert_called_once_with(mock_adapter, "my-org", "missing-team")
+        mock_module.fail_json.assert_called_once()
+        assert "missing-team" in mock_module.fail_json.call_args[1]["msg"]

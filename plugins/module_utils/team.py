@@ -16,7 +16,7 @@ Example:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from pytfe.errors import NotFound
@@ -82,15 +82,19 @@ def normalize_team_response(team_data: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def list_teams(adapter: TerraformClient, organization: str, name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List teams in an organization, optionally filtered by exact name."""
+    try:
+        options = TeamListOptions(names=[name]) if name else None
+        return [format_response(team) for team in adapter.client.teams.list(organization, options=options)]
+    except NotFound:
+        return []
+
+
 def get_team_by_name(adapter: TerraformClient, organization: str, name: str) -> Dict[str, Any] | None:
     """Look up a team by name within the given organization using a server-side name filter."""
-    try:
-        options = TeamListOptions(names=[name])
-        for team in adapter.client.teams.list(organization, options=options):
-            return format_response(team)
-        return None
-    except NotFound:
-        return None
+    teams = list_teams(adapter, organization, name=name)
+    return teams[0] if teams else None
 
 
 def get_team(adapter: TerraformClient, team_id: str) -> Dict[str, Any] | None:

@@ -11,6 +11,7 @@ import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     get_team_by_name,
+    list_teams,
     normalize_team_response,
 )
 from ansible_collections.hashicorp.terraform.plugins.modules.team import (
@@ -307,3 +308,21 @@ class TestGetTeamByName:
         result = get_team_by_name(mock_adapter, "my-org", "platform-team")
 
         assert result is None
+
+
+class TestListTeams:
+    """Test list_teams utility function."""
+
+    @pytest.fixture
+    def mock_adapter(self):
+        return Mock()
+
+    def test_list_teams_returns_formatted_results(self, mock_adapter):
+        mock_team = Mock()
+        mock_team.model_dump.return_value = {"id": "team-123", "name": "platform-team"}
+        mock_adapter.client.teams.list.return_value = iter([mock_team])
+
+        result = list_teams(mock_adapter, "my-org")
+
+        assert result == [{"id": "team-123", "name": "platform-team"}]
+        mock_adapter.client.teams.list.assert_called_once_with("my-org", options=None)
