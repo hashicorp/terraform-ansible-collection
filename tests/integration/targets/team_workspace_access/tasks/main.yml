@@ -232,4 +232,7 @@
       hashicorp.terraform.workspace:
         workspace_id: "{{ workspace_id }}"
         state: absent
-      ignore_errors: true
+      register: cleanup_workspace
+      failed_when: >-
+        cleanup_workspace.failed | default(false)
+        and 'not found' not in (cleanup_workspace.msg | default('') | lower)

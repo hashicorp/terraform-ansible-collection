@@ -78,7 +78,7 @@
         state: present
       register: result_idempotent
 
-    - name: Assert idempotent — not changed AND full resource data returned (issue #142)
+    - name: "Assert idempotent - not changed and full resource data returned (issue #142)"
       ansible.builtin.assert:
         that:
           - not result_idempotent.changed
@@ -116,7 +116,7 @@
         state: present
       register: result_update_idem
 
-    - name: Assert update idempotent — not changed AND full resource data returned (issue #142)
+    - name: "Assert update idempotent - not changed and full resource data returned (issue #142)"
       ansible.builtin.assert:
         that:
           - not result_update_idem.changed
@@ -193,7 +193,7 @@
         state: present
       register: result_custom_idem
 
-    - name: Assert custom access idempotent — full data returned (issue #142)
+    - name: "Assert custom access idempotent - full data returned (issue #142)"
       ansible.builtin.assert:
         that:
           - not result_custom_idem.changed
@@ -242,4 +242,7 @@
       hashicorp.terraform.project:
         project_id: "{{ project_id }}"
         state: absent
-      ignore_errors: true
+      register: cleanup_project
+      failed_when: >-
+        cleanup_project.failed | default(false)
+        and 'not found' not in (cleanup_project.msg | default('') | lower)
