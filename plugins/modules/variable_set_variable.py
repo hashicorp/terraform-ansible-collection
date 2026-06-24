@@ -67,8 +67,10 @@ options:
       - Once a variable is marked sensitive, the stored value is write-only; the API will not
         return it. When C(sensitive=true), the module cannot detect drift on C(value) alone
         and will treat re-runs with the same input as idempotent.
-      - To rotate a sensitive value, change another field (for example, C(description)) alongside
-        C(value), or pass C(variable_id) and rely on the update explicitly.
+      - To rotate a sensitive value, change another field (for example, C(description))
+        alongside C(value), or delete and recreate the variable. A value-only change to a
+        sensitive variable cannot be detected and is reported as C(changed=false), regardless
+        of whether the variable is identified by C(key) or C(variable_id).
     type: bool
   state:
     description:
