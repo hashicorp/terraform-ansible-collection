@@ -12,6 +12,7 @@ import pytest
 from ansible_collections.hashicorp.terraform.plugins.modules.variable import (
     _build_desired_state,
     _filter_current_state,
+    _resolve_scope,
     _resolve_workspace_id,
     _strip_unverifiable_sensitive_value,
     main,
@@ -332,6 +333,12 @@ class TestMain:
         assert ("variable_id", "key") in call_kwargs["mutually_exclusive"]
         assert ("workspace_id", "workspace") in call_kwargs["mutually_exclusive"]
         assert ["workspace", "organization"] in call_kwargs["required_together"]
+        # Variable-set scope wiring (merged tfe_variable-style scope handling).
+        assert "variable_set_id" in argument_spec
+        assert ("variable_set_id", "workspace_id") in call_kwargs["mutually_exclusive"]
+        assert ("variable_set_id", "workspace") in call_kwargs["mutually_exclusive"]
+        assert ("variable_set_id", "organization") in call_kwargs["mutually_exclusive"]
+        assert ("variable_set_id", "workspace_id", "workspace") in call_kwargs["required_one_of"]
 
     @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
     def test_main_present_dispatch(self, mock_ansible_module, enhanced_dummy_module):
@@ -378,3 +385,214 @@ class TestMain:
 
         assert mock_module.failed is True
         assert "boom" in mock_module.fail_args["msg"]
+
+
+class TestResolveScope:
+    """The merged module dispatches by parent scope (workspace vs variable set)."""
+
+    def test_variable_set_scope(self):
+        kind, scope_id = _resolve_scope(Mock(), {"variable_set_id": "varset-1"})
+        assert kind == "variable_set"
+        assert scope_id == "varset-1"
+
+    def test_workspace_scope_direct_id(self):
+        kind, scope_id = _resolve_scope(Mock(), {"workspace_id": "ws-1"})
+        assert kind == "workspace"
+        assert scope_id == "ws-1"
+
+    def test_workspace_scope_by_name(self):
+        adapter = Mock()
+        with patch(f"{MODULE_PATH}.get_workspace", return_value={"id": "ws-resolved"}):
+            kind, scope_id = _resolve_scope(adapter, {"workspace": "my-ws", "organization": "my-org"})
+        assert kind == "workspace"
+        assert scope_id == "ws-resolved"
+
+    def test_unresolvable_workspace_scope(self):
+        kind, scope_id = _resolve_scope(Mock(), {})
+        assert kind == "workspace"
+        assert scope_id is None
+
+    def test_variable_set_takes_precedence_over_workspace(self):
+        # Defense in depth: argument validation forbids mixing, but the resolver
+        # must deterministically prefer the variable-set scope if both arrive.
+        kind, scope_id = _resolve_scope(Mock(), {"variable_set_id": "varset-1", "workspace_id": "ws-1"})
+        assert (kind, scope_id) == ("variable_set", "varset-1")
+
+
+class TestVariableSetScope:
+    """state_present/state_absent routed to the variable-set backend."""
+
+    @pytest.fixture
+    def adapter(self):
+        return Mock()
+
+    def test_create_in_variable_set(self, adapter):
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "us-east-1",
+            "category": "terraform",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(
+            f"{MODULE_PATH}.create_variable_set_variable",
+            return_value={"id": "var-9", "key": "region", "value": "us-east-1", "category": "terraform"},
+        ) as mock_create, patch(f"{MODULE_PATH}.create_variable") as mock_ws_create:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_create.assert_called_once_with(adapter, "varset-1", {"key": "region", "value": "us-east-1", "category": "terraform"})
+        mock_ws_create.assert_not_called()  # workspace backend must not be touched
+        assert result["changed"] is True
+        assert result["id"] == "var-9"
+
+    def test_idempotent_in_variable_set(self, adapter):
+        current = {"id": "var-9", "key": "region", "value": "us-east-1", "category": "terraform"}
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "us-east-1",
+            "category": "terraform",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=current), patch(
+            f"{MODULE_PATH}.update_variable_set_variable"
+        ) as mock_update:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_update.assert_not_called()
+        assert result["changed"] is False
+
+    def test_update_in_variable_set(self, adapter):
+        current = {"id": "var-9", "key": "region", "value": "us-east-1", "category": "terraform"}
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "eu-west-1",
+            "category": "terraform",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=current), patch(
+            f"{MODULE_PATH}.update_variable_set_variable",
+            return_value={"id": "var-9", "key": "region", "value": "eu-west-1", "category": "terraform"},
+        ) as mock_update:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_update.assert_called_once_with(adapter, "varset-1", "var-9", {"key": "region", "value": "eu-west-1", "category": "terraform"})
+        assert result["changed"] is True
+        assert result["value"] == "eu-west-1"
+
+    def test_category_change_raises(self, adapter):
+        current = {"id": "var-9", "key": "region", "value": "x", "category": "terraform"}
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "x",
+            "category": "env",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=current):
+            with pytest.raises(ValueError, match="Cannot change variable category"):
+                state_present(adapter, params, check_mode=False)
+
+    def test_sensitive_value_change_is_idempotent(self, adapter):
+        current = {"id": "var-9", "key": "secret", "value": "", "category": "env", "sensitive": True}
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "secret",
+            "value": "rotated",
+            "category": "env",
+            "sensitive": True,
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=current), patch(
+            f"{MODULE_PATH}.update_variable_set_variable"
+        ) as mock_update:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_update.assert_not_called()
+        assert result["changed"] is False
+
+    def test_create_without_category_raises(self, adapter):
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "x",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None):
+            with pytest.raises(ValueError, match="category"):
+                state_present(adapter, params, check_mode=False)
+
+    def test_create_check_mode(self, adapter):
+        params = {
+            "variable_set_id": "varset-1",
+            "key": "region",
+            "value": "us-east-1",
+            "category": "terraform",
+            "state": "present",
+            "check_mode": True,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(
+            f"{MODULE_PATH}.create_variable_set_variable"
+        ) as mock_create:
+            result = state_present(adapter, params, check_mode=True)
+
+        mock_create.assert_not_called()
+        assert result["changed"] is True
+        assert "check mode" in result["msg"]
+
+    def test_lookup_by_variable_id(self, adapter):
+        current = {"id": "var-9", "key": "region", "value": "us-east-1", "category": "terraform"}
+        params = {
+            "variable_set_id": "varset-1",
+            "variable_id": "var-9",
+            "value": "us-east-1",
+            "state": "present",
+            "check_mode": False,
+        }
+        with patch(f"{MODULE_PATH}.get_variable_set_variable", return_value=current) as mock_get, patch(
+            f"{MODULE_PATH}.update_variable_set_variable"
+        ) as mock_update:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_get.assert_called_once_with(adapter, "varset-1", "var-9")
+        mock_update.assert_not_called()
+        assert result["changed"] is False
+
+    def test_delete_by_id(self, adapter):
+        params = {"variable_set_id": "varset-1", "variable_id": "var-9", "state": "absent", "check_mode": False}
+        with patch(f"{MODULE_PATH}.get_variable_set_variable", return_value={"id": "var-9"}), patch(
+            f"{MODULE_PATH}.delete_variable_set_variable"
+        ) as mock_delete:
+            result = state_absent(adapter, params, check_mode=False)
+
+        mock_delete.assert_called_once_with(adapter, "varset-1", "var-9")
+        assert result["changed"] is True
+        assert "deleted" in result["msg"]
+
+    def test_delete_by_key(self, adapter):
+        params = {"variable_set_id": "varset-1", "key": "region", "state": "absent", "check_mode": False}
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value={"id": "var-9"}), patch(
+            f"{MODULE_PATH}.delete_variable_set_variable"
+        ) as mock_delete:
+            result = state_absent(adapter, params, check_mode=False)
+
+        mock_delete.assert_called_once_with(adapter, "varset-1", "var-9")
+        assert result["changed"] is True
+
+    def test_delete_absent_is_noop(self, adapter):
+        params = {"variable_set_id": "varset-1", "key": "ghost", "state": "absent", "check_mode": False}
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(
+            f"{MODULE_PATH}.delete_variable_set_variable"
+        ) as mock_delete:
+            result = state_absent(adapter, params, check_mode=False)
+
+        mock_delete.assert_not_called()
+        assert result["changed"] is False
+        assert "absent" in result["msg"]
