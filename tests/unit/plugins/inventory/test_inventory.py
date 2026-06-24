@@ -3542,9 +3542,7 @@ class TestMultiWorkspaceFlow:
         mock_src_resolve.side_effect = AssertionError("resolve_workspace should not run on multi-mode")
         mock_fetch.side_effect = TerraformError("unauthorized")
 
-        plugin = _make_cache_plugin(
-            _base_options(source="outputs", workspace=None, workspace_filters={"project_id": "prj-x"})
-        )
+        plugin = _make_cache_plugin(_base_options(source="outputs", workspace=None, workspace_filters={"project_id": "prj-x"}))
         with _parse_ctx(plugin):
             with pytest.raises(AnsibleParserError, match="All 2 workspace"):
                 plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
@@ -3565,9 +3563,7 @@ class TestMultiWorkspaceFlow:
             return [{"name": "ansible_host", "value": f"{workspace_id}-host", "sensitive": False}]
 
         mock_fetch.side_effect = _fetch
-        plugin = _make_cache_plugin(
-            _base_options(source="outputs", workspace=None, workspace_filters={"project_id": "prj-x"})
-        )
+        plugin = _make_cache_plugin(_base_options(source="outputs", workspace=None, workspace_filters={"project_id": "prj-x"}))
         with _parse_ctx(plugin):
             plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
         # ws-b still produced a host (no raise).

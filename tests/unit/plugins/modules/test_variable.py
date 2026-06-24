@@ -538,9 +538,7 @@ class TestVariableSetScope:
             "state": "present",
             "check_mode": True,
         }
-        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(
-            f"{MODULE_PATH}.create_variable_set_variable"
-        ) as mock_create:
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(f"{MODULE_PATH}.create_variable_set_variable") as mock_create:
             result = state_present(adapter, params, check_mode=True)
 
         mock_create.assert_not_called()
@@ -588,9 +586,7 @@ class TestVariableSetScope:
 
     def test_delete_absent_is_noop(self, adapter):
         params = {"variable_set_id": "varset-1", "key": "ghost", "state": "absent", "check_mode": False}
-        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(
-            f"{MODULE_PATH}.delete_variable_set_variable"
-        ) as mock_delete:
+        with patch(f"{MODULE_PATH}.get_variable_set_variable_by_key", return_value=None), patch(f"{MODULE_PATH}.delete_variable_set_variable") as mock_delete:
             result = state_absent(adapter, params, check_mode=False)
 
         mock_delete.assert_not_called()
