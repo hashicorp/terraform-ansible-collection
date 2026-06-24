@@ -95,6 +95,20 @@ class TestGetByKey:
         adapter.client.variable_set_variables.list.return_value = iter([])
         assert get_variable_set_variable_by_key(adapter, "varset-1", "ghost") is None
 
+    def test_category_disambiguates_duplicate_key(self):
+        # A variable set can hold the same key under both env and terraform.
+        adapter = Mock()
+        adapter.client.variable_set_variables.list.side_effect = lambda *a, **k: iter(
+            [
+                _make_model({"id": "var-tf", "key": "FOO", "category": "terraform"}),
+                _make_model({"id": "var-env", "key": "FOO", "category": "env"}),
+            ]
+        )
+        assert get_variable_set_variable_by_key(adapter, "varset-1", "FOO", category="env")["id"] == "var-env"
+        assert get_variable_set_variable_by_key(adapter, "varset-1", "FOO", category="terraform")["id"] == "var-tf"
+        # No category falls back to first match (back-compatible).
+        assert get_variable_set_variable_by_key(adapter, "varset-1", "FOO")["id"] == "var-tf"
+
 
 class TestCreateVariableSetVariable:
     @patch(f"{ADAPTER_PATH}.safe_api_call")

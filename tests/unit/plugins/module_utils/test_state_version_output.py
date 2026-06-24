@@ -247,7 +247,7 @@ class TestGetWorkspaceOutputs:
     def test_get_workspace_outputs_not_found(self, mock_adapter):
         mock_adapter.client.state_version_outputs.read_current.side_effect = NotFound("not found")
 
-        with pytest.raises(ValueError, match="Workspace with ID 'ws-missing' was not found"):
+        with pytest.raises(ValueError, match="No current state version found for workspace 'ws-missing'"):
             get_workspace_outputs(mock_adapter, "ws-missing")
 
 

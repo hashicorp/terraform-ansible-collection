@@ -85,26 +85,15 @@
         project_name: "{{ unique_id[:30] }}-project"
 
     - name: Create a Terraform project with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/projects"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ project_name }}"
-            type: "projects"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.project:
+        name: "{{ project_name }}"
+        organization: "{{ organization }}"
+        state: present
       register: project_create_response
 
     - name: Set a fact for 'project_id'
       ansible.builtin.set_fact:
-        project_id: "{{ project_create_response.json.data.id }}"
+        project_id: "{{ project_create_response.id }}"
 
     - name: Generate unique agent pool name
       ansible.builtin.set_fact:
@@ -305,16 +294,13 @@
 
     - name: Force delete project
       when: project_id is defined
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/projects/{{ project_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
+      hashicorp.terraform.project:
+        project_id: "{{ project_id }}"
+        state: absent
       register: project_delete_response
+      failed_when: >-
+        project_delete_response.failed | default(false)
+        and 'not found' not in (project_delete_response.msg | default('') | lower)
 
     - name: Force delete agent pool
       when: agent_pool_id is defined

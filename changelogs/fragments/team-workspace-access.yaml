@@ -1,4 +1,0 @@
-minor_changes:
-  - modules - Added ``hashicorp.terraform.team_workspace_access`` to grant, update, or revoke
-    a team's access to a workspace. Supports ``read``, ``plan``, ``write``, ``admin``, and
-    ``custom`` access types, with fine-grained permission fields for custom access.

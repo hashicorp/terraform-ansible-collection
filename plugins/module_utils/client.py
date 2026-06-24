@@ -100,7 +100,7 @@ _ARGSPEC_TO_SDK = {
 # Identifier attached to every HCP API request originating from this collection,
 # forwarded to pytfe via TFEConfig.user_agent_suffix. Enables attribution and
 # support triage for collection-sourced traffic.
-COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.0"
+COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.1.0"
 
 
 def _resolve_argspec_fallback(key: str) -> Any:

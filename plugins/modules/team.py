@@ -431,9 +431,9 @@ def main() -> None:
         required_one_of=[
             ["team_id", "organization"],
         ],
-        required_together=[
-            ["organization", "name"],
-        ],
+        required_by={
+            "organization": ("name",),
+        },
         required_if=[
             ("state", "absent", ["team_id"]),
         ],

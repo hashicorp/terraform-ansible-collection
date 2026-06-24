@@ -1,3 +1,11 @@
 bugfixes:
-  - project - Fixed idempotent runs returning only ``changed=false`` with no resource data; the module now returns the full project attributes (including ``id``, ``name``, ``description``, etc.) even when no changes are made.
-  - workspace - Fixed idempotent runs returning only ``changed=false`` with no resource data; the module now returns the full workspace attributes (including ``id``, ``name``, ``execution_mode``, etc.) even when no changes are made.
+  - >-
+    project - Fixed idempotent runs returning only ``changed=false`` with no
+    resource data; the module now returns the full project attributes
+    (including ``id``, ``name``, ``description``, etc.) even when no changes
+    are made.
+  - >-
+    workspace - Fixed idempotent runs returning only ``changed=false`` with no
+    resource data; the module now returns the full workspace attributes
+    (including ``id``, ``name``, ``execution_mode``, etc.) even when no changes
+    are made.

@@ -170,6 +170,15 @@ class TestStatePresent:
         assert result["changed"] is True
         assert "check mode" in result["msg"]
 
+    def test_present_missing_ids_raises_clear_error(self, adapter):
+        # Regression: present with only a (nonexistent) grant id must fail with a
+        # clear message instead of creating with team_id/workspace_id = None.
+        params = {"access": "read", "team_workspace_access_id": "tws-missing", "team_id": None, "workspace_id": None}
+        with patch(f"{MODULE_PATH}.add_team_workspace_access") as mock_add:
+            with pytest.raises(ValueError, match="was not found"):
+                state_present(adapter, params, existing=None, check_mode=False)
+        mock_add.assert_not_called()
+
     def test_idempotent_no_diff_returns_existing(self, adapter, base_params, existing_read):
         """No diff → changed=False AND full existing data returned (issue #142 pattern)."""
         with patch(f"{MODULE_PATH}.update_team_workspace_access") as mock_update:

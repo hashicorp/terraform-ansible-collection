@@ -17,7 +17,7 @@ minor_changes:
     ``hostvars_prefix`` / ``hostvars_suffix`` renaming.
   - >-
     inventory - New ``enable_parallel_processing`` option (default ``false``)
-    and ``concurrency`` option (default and hard cap ``5``) drive concurrent
+    and ``concurrency`` option (default ``5``, hard cap ``10``) drive concurrent
     per-workspace fetches via a thread pool. Each worker constructs its own
     pytfe client; Ansible inventory mutation always happens on the main
     thread.
