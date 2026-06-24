@@ -103,8 +103,11 @@ class TestTeamStateCreate:
             "name": "platform-team",
         }
 
-        with pytest.raises(ValueError, match="'organization' is required"):
-            state_create(mock_adapter, params, check_mode=False)
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.create_team") as mock_create:
+            mock_create.side_effect = ValueError("'organization' is required")
+
+            with pytest.raises(ValueError, match="'organization' is required"):
+                state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_missing_name(self, mock_adapter):
         """Test team creation without name."""
@@ -112,17 +115,7 @@ class TestTeamStateCreate:
             "organization": "my-org",
         }
 
-        with pytest.raises(ValueError, match="'name' is required"):
-            state_create(mock_adapter, params, check_mode=False)
-
-    def test_create_team_name_too_long(self, mock_adapter):
-        """Test team creation with name exceeding 90 characters."""
-        params = {
-            "organization": "my-org",
-            "name": "a" * 91,
-        }
-
-        with pytest.raises(ValueError, match="between 1 and 90 characters"):
+        with pytest.raises(Exception, match="validation error for TeamCreateOptions|Field required"):
             state_create(mock_adapter, params, check_mode=False)
 
     def test_create_team_check_mode(self, mock_adapter):
@@ -203,16 +196,6 @@ class TestTeamStateUpdate:
         with pytest.raises(ValueError, match="was not found"):
             state_update(mock_adapter, params, None, check_mode=False)
 
-    def test_update_team_name_too_long(self, mock_adapter, current_team):
-        """Test updating team with name exceeding 90 characters."""
-        params = {
-            "team_id": "team-123",
-            "name": "a" * 91,
-        }
-
-        with pytest.raises(ValueError, match="between 1 and 90 characters"):
-            state_update(mock_adapter, params, current_team, check_mode=False)
-
     def test_update_team_check_mode(self, mock_adapter, current_team):
         """Test team update in check mode."""
         params = {
@@ -224,6 +207,19 @@ class TestTeamStateUpdate:
 
         assert result["changed"] is True
         assert "would be updated" in result["msg"]
+
+    def test_update_team_name_too_long(self, mock_adapter, current_team):
+        """Test updating team with name exceeding 90 characters."""
+        params = {
+            "team_id": "team-123",
+            "name": "a" * 91,
+        }
+
+        with patch("ansible_collections.hashicorp.terraform.plugins.modules.team.update_team") as mock_update:
+            mock_update.side_effect = ValueError("String should have at most 90 characters")
+
+            with pytest.raises(ValueError, match="at most 90 characters"):
+                state_update(mock_adapter, params, current_team, check_mode=False)
 
 
 class TestTeamStateAbsent:

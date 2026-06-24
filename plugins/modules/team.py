@@ -255,7 +255,7 @@ def extract_comparable_attributes(team_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if team_data.get("organization_access"):
-        comparable["organization_access"] = team_data["organization_access"]
+        comparable["organization_access"] = team_data.get("organization_access")
 
     return {k: v for k, v in comparable.items() if v is not None}
 
@@ -266,6 +266,7 @@ def state_create(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
 
     organization = params.get("organization")
     name = params.get("name")
+
     visibility = params.get("visibility")
     sso_team_id = params.get("sso_team_id")
     allow_member_token_management = params.get("allow_member_token_management")
