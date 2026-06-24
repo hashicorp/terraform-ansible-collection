@@ -76,11 +76,22 @@ def get_variable_set_variable_by_key(
     adapter: TerraformClient,
     variable_set_id: str,
     key: str,
+    category: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Resolve a variable-set variable by its key."""
+    """Resolve a variable-set variable by its key.
+
+    A variable set may contain the same ``key`` under different categories (an
+    ``env`` and a ``terraform`` variable both named ``FOO``). When ``category``
+    is given, both must match; otherwise the first key match wins. This mirrors
+    the workspace ``get_variable_by_key`` behaviour so the same key cannot
+    resolve to the wrong variable.
+    """
     for v in list_variable_set_variables(adapter, variable_set_id):
-        if v.get("key") == key:
-            return v
+        if v.get("key") != key:
+            continue
+        if category is not None and v.get("category") != category:
+            continue
+        return v
     return None
 
 

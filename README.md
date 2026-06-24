@@ -12,7 +12,7 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 
 ## Requirements
 
-This collection requires the `pytfe>=0.1.5` Python library to be installed.
+This collection requires the `pytfe>=1.2.0` Python library to be installed.
 
 Some modules and plugins may require other external libraries. Please check the
 requirements for each plugin or module you use in the documentation to check the

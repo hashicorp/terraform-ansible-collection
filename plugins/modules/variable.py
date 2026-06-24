@@ -302,7 +302,7 @@ def _fetch_variable(adapter: TerraformClient, kind: str, scope_id: str, params: 
         if variable_id:
             return get_variable_set_variable(adapter, scope_id, variable_id)
         if key:
-            return get_variable_set_variable_by_key(adapter, scope_id, key)
+            return get_variable_set_variable_by_key(adapter, scope_id, key, category=params.get("category"))
         return None
     if variable_id:
         return get_variable(adapter, scope_id, variable_id)

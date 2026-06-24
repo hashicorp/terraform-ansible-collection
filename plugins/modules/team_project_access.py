@@ -325,6 +325,11 @@ def state_present(
     desired = _build_desired(params)
 
     if existing is None:
+        if not (params.get("team_id") and params.get("project_id")):
+            raise ValueError(
+                f"Team-project access grant '{params.get('team_project_access_id')}' was not found. "
+                "To create a new grant, provide both 'team_id' and 'project_id'."
+            )
         if check_mode:
             return {
                 "changed": True,
