@@ -1,7 +1,0 @@
----
-minor_changes:
-  - >-
-    organization_tags - New module ``hashicorp.terraform.organization_tags`` to
-    manage organization tags on Terraform Cloud/Enterprise. Supports associating
-    workspaces with a tag (``state=present``) and deleting tags by name, id, or a
-    list of ids (``state=absent``).

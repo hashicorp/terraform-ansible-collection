@@ -18,7 +18,6 @@ description:
   - Uses a YAML configuration file whose name ends with C(inventory.yml),
     C(inventory.yaml), C(terraform_inventory.yml), or
     C(terraform_inventory.yaml).
-  - Does not support caching.
 extends_documentation_fragment:
   - constructed
   - inventory_cache
@@ -107,6 +106,7 @@ options:
         the HCP Terraform UI or projects API."
     type: dict
     default: {}
+    version_added: "2.1.0"
     suboptions:
       project_id:
         description:
@@ -143,6 +143,7 @@ options:
         the main thread.
     type: bool
     default: false
+    version_added: "2.1.0"
   concurrency:
     description:
       - Maximum number of concurrent workspace fetches when
@@ -151,6 +152,7 @@ options:
         bounded. Values outside V([1, 10]) raise a parser error.
     type: int
     default: 5
+    version_added: "2.1.0"
   search_child_modules:
     description:
       - When V(source=statefile), include resources defined inside Terraform
@@ -338,9 +340,9 @@ options:
       - Opt-in cache-freshness mode that validates a cache entry against the
         workspace's current Terraform state version ID before reusing it.
       - When V(false) (default), caching is the standard Ansible
-        timeout-based contract from O(inventory_cache#cache) — cache hits
+        timeout-based contract from O(cache) — cache hits
         make zero API calls and are fully offline-capable within
-        O(inventory_cache#cache_timeout). Use V(--flush-cache) to force a
+        O(cache_timeout). Use V(--flush-cache) to force a
         refresh after a Terraform apply.
       - When V(true), each cache hit triggers a lightweight
         C(state-versions/current) lookup. If the cached entry's recorded
@@ -351,9 +353,10 @@ options:
         connectivity on every run; if the validation API call fails the
         plugin raises a parser error rather than serve potentially stale
         cache.
-      - Has no effect when O(inventory_cache#cache) is V(false).
+      - Has no effect when O(cache) is V(false).
     type: bool
     default: false
+    version_added: "2.1.0"
 """
 
 EXAMPLES = r"""
@@ -740,6 +743,7 @@ EXAMPLES = r"""
     current_run_status: applied
 """
 
+import hashlib
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1030,12 +1034,19 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         vars sourced from the record's metadata. These names live in
         ``_PLUGIN_INJECTED_VARS`` so they survive ``hostvars_prefix`` /
         ``hostvars_suffix`` renaming.
+
+        Hostname resolution and registration run in two passes so that, in
+        multi-workspace mode, a hostname produced by more than one workspace can
+        be disambiguated (by appending the workspace name) instead of silently
+        collapsing onto a single Ansible host.
         """
+        resolved: List[Dict[str, Any]] = []
+        hostname_workspaces: Dict[str, set] = {}
         for record in records:
             host_vars: Dict[str, Any] = dict(record["host_vars"])
+            ws_id = record.get("workspace_id")
+            ws_name = record.get("workspace_name")
             if stamp_workspace_vars:
-                ws_id = record.get("workspace_id")
-                ws_name = record.get("workspace_name")
                 if ws_id:
                     host_vars["tfc_workspace_id"] = ws_id
                 if ws_name:
@@ -1054,18 +1065,49 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 index = record.get("index")
                 hostname = get_preferred_hostname(output_name, workspace_name, resolution_view, hostnames, index)
 
-            if hostname:
-                self._add_host(
-                    hostname,
-                    host_vars,
-                    resolution_view,
-                    compose,
-                    keyed_groups,
-                    groups,
-                    strict,
-                    hostvars_prefix=hostvars_prefix,
-                    hostvars_suffix=hostvars_suffix,
-                )
+            if not hostname:
+                continue
+
+            resolved.append(
+                {
+                    "hostname": hostname,
+                    "host_vars": host_vars,
+                    "resolution_view": resolution_view,
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                }
+            )
+            if stamp_workspace_vars:
+                hostname_workspaces.setdefault(hostname, set()).add(ws_id)
+
+        # Hostnames claimed by more than one distinct workspace would otherwise
+        # collapse onto a single Ansible host (last writer wins), silently
+        # dropping hosts and overwriting their ``tfc_workspace_*`` stamps.
+        colliding = {h for h, workspaces in hostname_workspaces.items() if len(workspaces) > 1}
+        if colliding:
+            Display().warning(
+                f"Multi-workspace inventory: hostname(s) {', '.join(sorted(colliding))} are produced by "
+                "more than one workspace; disambiguating by appending the workspace name. Set 'hostnames' "
+                "or 'compose' to control inventory hostnames deterministically."
+            )
+
+        for item in resolved:
+            hostname = item["hostname"]
+            if hostname in colliding:
+                suffix = item["ws_name"] or item["ws_id"]
+                if suffix:
+                    hostname = f"{hostname}_{suffix}"
+            self._add_host(
+                hostname,
+                item["host_vars"],
+                item["resolution_view"],
+                compose,
+                keyed_groups,
+                groups,
+                strict,
+                hostvars_prefix=hostvars_prefix,
+                hostvars_suffix=hostvars_suffix,
+            )
 
     # ------------------------------------------------------------------
     # Entry point
@@ -1086,11 +1128,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         (letters, digits, ``.``, ``-``, ``_``) so file-backed cache plugins
         like ``jsonfile`` can use the key directly as a filename.
 
-        Cross-endpoint isolation is the user's job via ``cache_prefix`` /
-        ``cache_connection`` rather than encoded in the key.
+        Cross-endpoint isolation: a short hash of O(tfe_address) is folded into
+        the key so the same C(organization)/C(workspace) names on different
+        HCP/TFE endpoints never collide in a shared cache backend.
         """
         ws_part = workspace_id or "{0}/{1}".format(organization or "", workspace or "")
-        raw = "_".join([self.NAME, source, ws_part])
+        raw = "_".join([self.NAME, source, getattr(self, "_endpoint_tag", ""), ws_part])
         return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
 
     def _selector_cache_key(
@@ -1102,13 +1145,12 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         """Build a filesystem-safe selector cache key for multi-workspace mode.
 
         Filters are normalized via ``json.dumps(..., sort_keys=True)`` so YAML
-        key order doesn't change the key. ``tfe_address`` is deliberately
-        excluded — matches ``_cache_key`` for the same filesystem-safety
-        reason; cross-endpoint isolation belongs to ``cache_prefix`` /
-        ``cache_connection``.
+        key order doesn't change the key. A short hash of O(tfe_address) is
+        folded in so the same C(organization)/filters on different HCP/TFE
+        endpoints never collide in a shared cache backend.
         """
         normalized = json.dumps(filters or {}, sort_keys=True, default=str)
-        raw = "_".join([self.NAME, "selector", source, organization or "", normalized])
+        raw = "_".join([self.NAME, "selector", source, getattr(self, "_endpoint_tag", ""), organization or "", normalized])
         return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
 
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
@@ -1117,6 +1159,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
 
         tfe_token: str = self.get_option("tfe_token") or ""
         tfe_address: str = self.get_option("tfe_address")
+        # Short, filesystem-safe hash of the endpoint, folded into cache keys so
+        # the same org/workspace names on different HCP/TFE endpoints can't
+        # cross-contaminate a shared cache backend.
+        self._endpoint_tag = hashlib.sha1((tfe_address or "").encode("utf-8")).hexdigest()[:10]
         source: str = self.get_option("source")
         hostnames: List[Any] = self.get_option("hostnames") or []
         include_filters: List[Dict] = self.get_option("include_filters") or []
@@ -1454,21 +1500,26 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
 
         display = Display()
 
-        def _emit_worker_error(ws_id: str, ws_name: str, exc: BaseException) -> None:
+        def _emit_worker_error(ws_id: str, ws_name: str, exc: BaseException) -> bool:
             """Route per-workspace failures to the right severity.
 
             Workspaces with no applied state are common in filter mode (bootstrap
             workspaces, never-applied workspaces) — those are not failures from
             the operator's perspective, so they go to verbose-only output.
             Real errors (auth, permission, network, etc.) stay as warnings.
+
+            Returns ``True`` when the failure is a hard error (auth/network/
+            permission), ``False`` for a benign "no applied state" skip.
             """
             msg = str(exc)
             if "no current state version" in msg.lower() or "no applied runs" in msg.lower():
                 display.vvv(f"skipping workspace {ws_name} ({ws_id}): {msg}")
-            else:
-                display.warning(f"failed to fetch workspace {ws_name} ({ws_id}): {msg}")
+                return False
+            display.warning(f"failed to fetch workspace {ws_name} ({ws_id}): {msg}")
+            return True
 
         results: List[Dict[str, Any]] = []
+        hard_failures = 0
         if enable_parallel and concurrency > 1:
             with ThreadPoolExecutor(max_workers=min(concurrency, _CONCURRENCY_MAX)) as pool:
                 futures = {pool.submit(_fetch_one, ws_id, ws_name): (ws_id, ws_name) for ws_id, ws_name in targets}
@@ -1477,18 +1528,21 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                         results.append(fut.result())
                     except Exception as exc:
                         ws_id, ws_name = futures[fut]
-                        _emit_worker_error(ws_id, ws_name, exc)
+                        if _emit_worker_error(ws_id, ws_name, exc):
+                            hard_failures += 1
         else:
             for ws_id, ws_name in targets:
                 try:
                     results.append(_fetch_one(ws_id, ws_name))
                 except Exception as exc:
-                    _emit_worker_error(ws_id, ws_name, exc)
+                    if _emit_worker_error(ws_id, ws_name, exc):
+                        hard_failures += 1
 
         all_records: List[HostRecord] = []
         for r in results:
             if r.get("warning"):
-                _emit_worker_error(r["ws_id"], r["ws_name"], Exception(r["warning"]))
+                if _emit_worker_error(r["ws_id"], r["ws_name"], Exception(r["warning"])) and r.get("skipped"):
+                    hard_failures += 1
             if r.get("skipped"):
                 continue
             for rec in r["records"]:
@@ -1500,5 +1554,16 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
             all_records.extend(r["records"])
             if cache_write_ok and r.get("blob") is not None:
                 self._write_per_workspace_cache(source, r["ws_id"], r["blob"])
+
+        # Fail loudly when *every* matched workspace hit a hard error (auth,
+        # network, permission). Silently returning an empty inventory would mask
+        # a total failure — and ``ansible-inventory`` exits 0 by default on an
+        # empty result — so refuse rather than hand back zero hosts.
+        if targets and hard_failures >= len(targets):
+            raise TerraformError(
+                f"All {len(targets)} workspace(s) matched by 'workspace_filters' failed to fetch "
+                "(see warnings above); refusing to return an empty inventory. Check the token, "
+                "network connectivity, and team/workspace permissions."
+            )
 
         return all_records

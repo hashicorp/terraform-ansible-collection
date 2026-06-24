@@ -24,14 +24,15 @@ options:
   user_id:
     description:
       - The unique identifier of the user to retrieve.
+      - Required when O(current) is not set.
       - Mutually exclusive with O(current).
     type: str
   current:
     description:
       - Set to V(true) to retrieve the currently authenticated user.
+      - Required when O(user_id) is not provided.
       - Mutually exclusive with O(user_id).
     type: bool
-    default: false
 """
 
 EXAMPLES = r"""
@@ -195,7 +196,7 @@ def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
             "user_id": {"type": "str"},
-            "current": {"type": "bool", "default": False},
+            "current": {"type": "bool"},
         },
         supports_check_mode=True,
         required_one_of=[

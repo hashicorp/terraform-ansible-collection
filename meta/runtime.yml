@@ -7,7 +7,6 @@ action_groups:
     - organizations
     - variable
     - variable_sets
-    - variable_set_variable
     - run_trigger
     - ssh_keys
     - output

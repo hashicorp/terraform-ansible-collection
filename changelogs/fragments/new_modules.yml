@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    modules - Added ``hashicorp.terraform.team``, ``hashicorp.terraform.team_info``,
+    ``hashicorp.terraform.team_project_access``, ``hashicorp.terraform.team_workspace_access``,
+    ``hashicorp.terraform.user_info``, and ``hashicorp.terraform.organization_tags`` for
+    managing teams, team access to projects and workspaces, user information, and
+    organization-tag/workspace associations. The ``team_info`` module can retrieve a single
+    team by ID, list all teams in an organization, or look one up by name.

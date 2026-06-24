@@ -11,6 +11,7 @@ import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     get_team_by_name,
+    list_teams,
     normalize_team_response,
 )
 from ansible_collections.hashicorp.terraform.plugins.modules.team import (
@@ -307,3 +308,47 @@ class TestGetTeamByName:
         result = get_team_by_name(mock_adapter, "my-org", "platform-team")
 
         assert result is None
+
+
+class TestListTeams:
+    """Test list_teams utility function."""
+
+    @pytest.fixture
+    def mock_adapter(self):
+        return Mock()
+
+    def test_list_teams_returns_formatted_results(self, mock_adapter):
+        mock_team = Mock()
+        mock_team.model_dump.return_value = {"id": "team-123", "name": "platform-team"}
+        mock_adapter.client.teams.list.return_value = iter([mock_team])
+
+        result = list_teams(mock_adapter, "my-org")
+
+        assert result == [{"id": "team-123", "name": "platform-team"}]
+        mock_adapter.client.teams.list.assert_called_once_with("my-org", options=None)
+
+
+_TEAM_MODULE = "ansible_collections.hashicorp.terraform.plugins.modules.team"
+
+
+class TestTeamArgspec:
+    """Regression: the documented update-by-id flow (team_id + name) must be permitted."""
+
+    def _argspec_kwargs(self):
+        from ansible_collections.hashicorp.terraform.plugins.modules import team as teammod
+
+        with patch(f"{_TEAM_MODULE}.AnsibleTerraformModule", side_effect=SystemExit) as mock_atm:
+            with pytest.raises(SystemExit):
+                teammod.main()
+        return mock_atm.call_args[1]
+
+    def test_org_and_name_not_required_together(self):
+        # required_together(organization, name) made team_id+name impossible because
+        # organization is mutually exclusive with team_id.
+        kwargs = self._argspec_kwargs()
+        assert ["organization", "name"] not in kwargs.get("required_together", [])
+
+    def test_organization_requires_name(self):
+        # The create-by-name path still needs name when organization is given.
+        kwargs = self._argspec_kwargs()
+        assert kwargs.get("required_by", {}).get("organization") == ("name",)

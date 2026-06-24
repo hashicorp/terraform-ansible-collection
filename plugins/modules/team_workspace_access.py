@@ -286,6 +286,11 @@ def state_present(
 
     if existing is None:
         # Grant does not exist — create it.
+        if not (params.get("team_id") and params.get("workspace_id")):
+            raise ValueError(
+                f"Team-workspace access grant '{params.get('team_workspace_access_id')}' was not found. "
+                "To create a new grant, provide both 'team_id' and 'workspace_id'."
+            )
         if check_mode:
             return {
                 "changed": True,

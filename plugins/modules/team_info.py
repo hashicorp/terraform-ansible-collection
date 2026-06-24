@@ -16,14 +16,28 @@ short_description: Retrieve information about a team in Terraform Cloud/Enterpri
 author: "Tanya Singh (@tanyasingh)"
 description:
   - Retrieves information about a team in Terraform Cloud/Enterprise by its unique ID.
-  - Fails if the team does not exist.
+  - Lists teams in an organization when O(organization) is provided without O(name).
+  - Searches for a team by name when O(organization) and O(name) are provided.
+  - Fails if a requested team does not exist.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   team_id:
     description:
       - The unique identifier of the team to retrieve.
+      - Mutually exclusive with O(organization) and O(name).
     type: str
-    required: true
+  organization:
+    description:
+      - The organization whose teams should be listed or searched.
+      - Required when O(team_id) is not provided.
+      - Mutually exclusive with O(team_id).
+    type: str
+  name:
+    description:
+      - Team name to search for within O(organization).
+      - Requires O(organization).
+      - Mutually exclusive with O(team_id).
+    type: str
 """
 
 EXAMPLES = r"""
@@ -68,6 +82,17 @@ EXAMPLES = r"""
 #     "failed": true,
 #     "msg": "Team with ID team-invalid-id not found"
 # }
+
+- name: Search for a team by organization and name
+  hashicorp.terraform.team_info:
+    organization: "my-org"
+    name: "platform-team"
+  register: team_info
+
+- name: List teams in an organization
+  hashicorp.terraform.team_info:
+    organization: "my-org"
+  register: team_list
 """
 
 RETURN = r"""
@@ -78,7 +103,7 @@ changed:
   sample: false
 team:
   description: A dictionary containing the team information.
-  returned: on success
+  returned: when O(team_id) or O(name) is provided
   type: dict
   contains:
     id:
@@ -134,6 +159,11 @@ team:
           description: Whether the user can update team membership.
           returned: always
           type: bool
+teams:
+  description: A list of teams matching the query.
+  returned: when O(organization) is provided
+  type: list
+  elements: dict
 """
 
 
@@ -147,6 +177,8 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
     get_team,
+    get_team_by_name,
+    list_teams,
     normalize_team_response,
 )
 
@@ -154,8 +186,13 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.team import (
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "team_id": {"type": "str", "required": True},
+            "team_id": {"type": "str"},
+            "organization": {"type": "str"},
+            "name": {"type": "str"},
         },
+        required_one_of=[("team_id", "organization")],
+        required_by={"name": ("organization",)},
+        mutually_exclusive=[("team_id", "organization"), ("team_id", "name")],
         supports_check_mode=True,
     )
 
@@ -167,12 +204,20 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            team_data = get_team(adapter, params["team_id"])
-
-            if not team_data:
-                raise ValueError(f"Team with ID {params['team_id']} not found")
-
-            result["team"] = normalize_team_response(team_data)
+            if params.get("team_id"):
+                team_data = get_team(adapter, params["team_id"])
+                if not team_data:
+                    raise ValueError(f"Team with ID {params['team_id']} not found")
+                result["team"] = normalize_team_response(team_data)
+            elif params.get("name"):
+                team_data = get_team_by_name(adapter, params["organization"], params["name"])
+                if not team_data:
+                    raise ValueError(f"Team '{params['name']}' was not found in organization '{params['organization']}'")
+                team = normalize_team_response(team_data)
+                result["team"] = team
+                result["teams"] = [team]
+            else:
+                result["teams"] = [normalize_team_response(team) for team in list_teams(adapter, params["organization"])]
 
             module.exit_json(**result)
 

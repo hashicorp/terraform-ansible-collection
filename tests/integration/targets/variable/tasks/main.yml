@@ -177,6 +177,195 @@
         that:
           - result_delete_env.changed
 
+    # ==================================================================
+    # Variable-set scope (merged tfe_variable-style variable_set_id).
+    # The same variable module manages variables inside a variable set.
+    # ==================================================================
+    - name: Create a variable set to host variable-set-scoped variables
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "varset-var-{{ unique_id[:8] }}"
+        description: "integration test varset for variable module (variable_set_id scope)"
+        global: false
+        priority: false
+        state: present
+      register: result_varset
+
+    - name: Set variable-set facts
+      ansible.builtin.set_fact:
+        varset_name: "varset-var-{{ unique_id[:8] }}"
+        varset_id: "{{ result_varset.id }}"
+
+    - name: Create a Terraform input variable in the variable set
+      hashicorp.terraform.variable: &create_vsv
+        variable_set_id: "{{ varset_id }}"
+        key: "region"
+        value: "us-east-1"
+        category: "terraform"
+        description: "default region"
+        hcl: false
+        sensitive: false
+        state: present
+      register: result_vsv_create
+
+    - name: Assert variable-set variable creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_vsv_create.changed
+          - result_vsv_create.id is defined
+          - result_vsv_create.key == "region"
+          - result_vsv_create.category == "terraform"
+
+    - name: Set variable-set variable_id fact
+      ansible.builtin.set_fact:
+        vsv_variable_id: "{{ result_vsv_create.id }}"
+
+    - name: Idempotency - re-create the same variable-set variable
+      hashicorp.terraform.variable: *create_vsv
+      register: result_vsv_create_again
+
+    - name: Assert variable-set re-create is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_vsv_create_again.changed
+
+    - name: Update the variable-set variable via key lookup
+      hashicorp.terraform.variable: &update_vsv
+        variable_set_id: "{{ varset_id }}"
+        key: "region"
+        value: "eu-west-1"
+        category: "terraform"
+        description: "default region"
+        hcl: false
+        sensitive: false
+        state: present
+      register: result_vsv_update
+
+    - name: Assert variable-set update was successful
+      ansible.builtin.assert:
+        that:
+          - result_vsv_update.changed
+          - result_vsv_update.value == "eu-west-1"
+
+    - name: Idempotency - apply the same variable-set update again
+      hashicorp.terraform.variable: *update_vsv
+      register: result_vsv_update_again
+
+    - name: Assert repeated variable-set update is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_vsv_update_again.changed
+
+    - name: Create a sensitive variable-set variable (write-only value)
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        key: "APP_SECRET"
+        value: "s3cr3t"
+        category: "env"
+        sensitive: true
+        state: present
+      register: result_vsv_sensitive
+
+    - name: Assert sensitive variable-set variable creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_vsv_sensitive.changed
+          - result_vsv_sensitive.sensitive
+
+    - name: Idempotency - re-run sensitive variable-set variable with same input
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        key: "APP_SECRET"
+        value: "s3cr3t"
+        category: "env"
+        sensitive: true
+        state: present
+      register: result_vsv_sensitive_again
+
+    - name: Assert sensitive variable-set re-run is idempotent (value cannot be diffed)
+      ansible.builtin.assert:
+        that:
+          - not result_vsv_sensitive_again.changed
+
+    - name: Check-mode update of variable-set variable with drifted value
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        key: "region"
+        value: "ap-south-1"
+        category: "terraform"
+        state: present
+      check_mode: true
+      register: result_vsv_check
+
+    - name: Assert check-mode reports change without mutating
+      ansible.builtin.assert:
+        that:
+          - result_vsv_check.changed
+          - "'check mode' in result_vsv_check.msg"
+
+    - name: Verify check-mode did not mutate the variable-set variable
+      hashicorp.terraform.variable: *update_vsv
+      register: result_vsv_post_check
+
+    - name: Assert variable-set value is still the pre-check value
+      ansible.builtin.assert:
+        that:
+          - not result_vsv_post_check.changed
+
+    # ---------- negative: scopes are mutually exclusive ----------
+    - name: Reject mixing variable_set_id with workspace_id
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        workspace_id: "{{ workspace_id }}"
+        key: "region"
+        category: "terraform"
+        state: present
+      register: result_vsv_conflict
+      failed_when: false
+
+    - name: Assert mixing parent scopes is rejected
+      ansible.builtin.assert:
+        that:
+          - result_vsv_conflict.failed
+
+    - name: Delete the variable-set variable by ID
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        variable_id: "{{ vsv_variable_id }}"
+        state: absent
+      register: result_vsv_delete
+
+    - name: Assert variable-set delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_vsv_delete.changed
+          - "'deleted' in result_vsv_delete.msg"
+
+    - name: Delete the variable-set variable again (no-op)
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        variable_id: "{{ vsv_variable_id }}"
+        state: absent
+      register: result_vsv_delete_again
+
+    - name: Assert repeated variable-set delete is idempotent
+      ansible.builtin.assert:
+        that:
+          - not result_vsv_delete_again.changed
+          - "'absent' in result_vsv_delete_again.msg"
+
+    - name: Delete a variable-set variable by key
+      hashicorp.terraform.variable:
+        variable_set_id: "{{ varset_id }}"
+        key: "APP_SECRET"
+        state: absent
+      register: result_vsv_delete_by_key
+
+    - name: Assert variable-set delete by key was successful
+      ansible.builtin.assert:
+        that:
+          - result_vsv_delete_by_key.changed
+
   always:
     - name: Cleanup - best-effort delete any leftover variables
       hashicorp.terraform.variable:
@@ -195,4 +384,12 @@
         organization: "{{ organization }}"
         state: absent
       when: workspace_name is defined
+      failed_when: false
+
+    - name: Cleanup - delete the test variable set
+      hashicorp.terraform.variable_sets:
+        organization: "{{ organization }}"
+        name: "{{ varset_name }}"
+        state: absent
+      when: varset_name is defined
       failed_when: false

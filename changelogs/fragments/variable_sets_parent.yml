@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    variable_sets - The ``variable_sets`` module now supports setting a parent
+    relationship on creation via the new ``parent_project_id`` and
+    ``parent_organization_name`` options.

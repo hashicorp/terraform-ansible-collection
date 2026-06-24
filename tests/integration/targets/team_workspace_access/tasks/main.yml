@@ -27,21 +27,31 @@
       ansible.builtin.set_fact:
         workspace_id: "{{ workspace_create_response.id }}"
 
-    - name: Fetch the first team in the organization
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/teams"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        return_content: true
-        status_code: 200
-      no_log: true
-      register: teams_response
+    - name: Generate unique team name
+      ansible.builtin.set_fact:
+        team_name: "{{ unique_id[:30] }}-twa-team"
+
+    - name: Create a team for the test
+      hashicorp.terraform.team:
+        organization: "{{ organization }}"
+        name: "{{ team_name }}"
+        visibility: secret
+        state: present
+      register: team_create_response
+
+    - name: Set created team ID fact
+      ansible.builtin.set_fact:
+        created_team_id: "{{ team_create_response.id }}"
+
+    - name: Look up the team by organization and name
+      hashicorp.terraform.team_info:
+        organization: "{{ organization }}"
+        name: "{{ team_name }}"
+      register: team_info_response
 
     - name: Set team_id fact
       ansible.builtin.set_fact:
-        team_id: "{{ teams_response.json.data[0].id }}"
+        team_id: "{{ team_info_response.team.id }}"
 
     # ------------------------------------------------------------------
     # 1. Grant read access
@@ -225,11 +235,34 @@
 
   always:
     # ------------------------------------------------------------------
-    # Cleanup: delete the workspace created for this test
+    # Cleanup: delete resources created for this test
     # ------------------------------------------------------------------
+    - name: Delete test team workspace access grant
+      when: twa_id is defined
+      hashicorp.terraform.team_workspace_access:
+        team_workspace_access_id: "{{ twa_id }}"
+        state: absent
+      register: cleanup_twa
+      failed_when: >-
+        cleanup_twa.failed | default(false)
+        and 'not found' not in (cleanup_twa.msg | default('') | lower)
+
+    - name: Delete test team
+      when: team_id is defined or created_team_id is defined
+      hashicorp.terraform.team:
+        team_id: "{{ team_id | default(created_team_id) }}"
+        state: absent
+      register: cleanup_team
+      failed_when: >-
+        cleanup_team.failed | default(false)
+        and 'not found' not in (cleanup_team.msg | default('') | lower)
+
     - name: Delete test workspace
       when: workspace_id is defined
       hashicorp.terraform.workspace:
         workspace_id: "{{ workspace_id }}"
         state: absent
-      ignore_errors: true
+      register: cleanup_workspace
+      failed_when: >-
+        cleanup_workspace.failed | default(false)
+        and 'not found' not in (cleanup_workspace.msg | default('') | lower)
