@@ -10,6 +10,23 @@ The primary purpose of this collection is to provide seamless integration betwee
 
 Being Red Hat Ansible Certified Content, this collection is eligible for support through the [Ansible Automation Platform](https://www.redhat.com/en/technologies/management/ansible).
 
+## Documentation
+
+In addition to the per-module reference (available with `ansible-doc`, for example `ansible-doc hashicorp.terraform.workspace`), this collection ships a set of scenario guides under [`docs/docsite/rst/`](docs/docsite/rst/) that render on the Ansible collection docsite:
+
+- [Getting started](docs/docsite/rst/guide_getting_started.rst)
+- [Authentication](docs/docsite/rst/guide_authentication.rst)
+- [Workspaces and projects](docs/docsite/rst/guide_workspaces_projects.rst)
+- [Runs and configuration versions](docs/docsite/rst/guide_runs.rst)
+- [Variables and variable sets](docs/docsite/rst/guide_variables.rst)
+- [Teams and access](docs/docsite/rst/guide_teams_and_access.rst)
+- [Workspace bootstrap](docs/docsite/rst/guide_workspace_bootstrap.rst)
+- [Dynamic inventory](docs/docsite/rst/guide_dynamic_inventory.rst)
+- [Lookup plugins](docs/docsite/rst/guide_lookups.rst)
+- [Execution environments](docs/docsite/rst/guide_execution_environments.rst)
+- [Troubleshooting](docs/docsite/rst/guide_troubleshooting.rst)
+- [Compatibility and support](docs/docsite/rst/guide_compatibility.rst)
+
 ## Requirements
 
 This collection requires the `pytfe>=1.2.0` Python library to be installed.

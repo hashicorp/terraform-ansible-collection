@@ -1,4 +1,18 @@
 ---
+# Links shown on the rendered collection docsite (edit-on-GitHub + community).
+# The issue tracker, homepage and repository links are added automatically from
+# galaxy.yml, so they are not duplicated here.
+# https://ansible.readthedocs.io/projects/antsibull-docs/collection-docs/
+edit_on_github:
+  repository: hashicorp/terraform-ansible-collection
+  branch: main
+  path_prefix: ""
+
 extra_links:
-  - description: Report an issue
+  - description: Open a support case (Red Hat Ansible Certified Content)
     url: https://access.redhat.com/support/
+
+communication:
+  forums:
+    - topic: "Ansible Forum: General usage and support questions"
+      url: https://forum.ansible.com/c/help/6

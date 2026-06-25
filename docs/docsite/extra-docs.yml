@@ -1,0 +1,27 @@
+---
+# Defines the navigation sections for the rendered collection docsite.
+# Each entry under "toctree" is a file in docs/docsite/rst/ without the .rst extension.
+# See https://ansible.readthedocs.io/projects/antsibull-docs/collection-docs/
+sections:
+  - title: Getting Started
+    toctree:
+      - guide_getting_started
+      - guide_authentication
+  - title: Scenario Guides
+    toctree:
+      - guide_workspaces_projects
+      - guide_runs
+      - guide_variables
+      - guide_teams_and_access
+      - guide_workspace_bootstrap
+  - title: Dynamic Inventory
+    toctree:
+      - guide_dynamic_inventory
+  - title: Lookup Plugins
+    toctree:
+      - guide_lookups
+  - title: Operating the Collection
+    toctree:
+      - guide_execution_environments
+      - guide_troubleshooting
+      - guide_compatibility

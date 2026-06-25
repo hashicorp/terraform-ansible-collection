@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    workspace_info - Corrected the module's ``RETURN`` documentation and
+    examples, which still described the old JSON:API response shape
+    (``workspace.attributes.*``). The module returns the workspace fields
+    flattened at the top level (for example ``workspace.name``,
+    ``workspace.execution_mode``), so the previous examples would fail at
+    runtime with ``'dict object' has no attribute 'attributes'``.
