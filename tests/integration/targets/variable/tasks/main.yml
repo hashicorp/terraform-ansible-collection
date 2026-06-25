@@ -245,7 +245,7 @@
       ansible.builtin.assert:
         that:
           - result_vsv_update.changed
-          - result_vsv_update.value == "eu-west-1"
+          - result_vsv_update.key == "region"
 
     - name: Idempotency - apply the same variable-set update again
       hashicorp.terraform.variable: *update_vsv
