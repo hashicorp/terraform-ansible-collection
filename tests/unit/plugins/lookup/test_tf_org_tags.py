@@ -44,7 +44,7 @@ class TestTfOrgTagsLookup:
         result = lookup_plugin.run([], None, organization="my-org", tfe_token="tok")
         assert result == [_TAG_LIST]
         mock_list.assert_called_once()
-        _, call_org, call_query, call_filter = mock_list.call_args.args
+        call_client, call_org, call_query, call_filter = mock_list.call_args.args
         assert call_org == "my-org"
         assert call_query is None
         assert call_filter is None
@@ -54,7 +54,7 @@ class TestTfOrgTagsLookup:
         """The query kwarg is passed through to list_organization_tags."""
         result = lookup_plugin.run([], None, organization="my-org", query="env:prod", tfe_token="tok")
         assert result == [[_TAG_LIST[0]]]
-        _, call_org, call_query, call_filter = mock_list.call_args.args
+        call_client, call_org, call_query, call_filter = mock_list.call_args.args
         assert call_org == "my-org"
         assert call_query == "env:prod"
         assert call_filter is None
@@ -64,7 +64,7 @@ class TestTfOrgTagsLookup:
         """filter_exclude_taggable_id kwarg is passed through to list_organization_tags."""
         result = lookup_plugin.run([], None, organization="my-org", filter_exclude_taggable_id="ws-abc", tfe_token="tok")
         assert result == [[_TAG_LIST[1]]]
-        _, call_org, call_query, call_filter = mock_list.call_args.args
+        call_client, call_org, call_query, call_filter = mock_list.call_args.args
         assert call_org == "my-org"
         assert call_query is None
         assert call_filter == "ws-abc"
@@ -73,7 +73,7 @@ class TestTfOrgTagsLookup:
     def test_query_and_filter_combined(self, mock_list, patched_client, lookup_plugin):
         """Both query and filter_exclude_taggable_id can be supplied together."""
         lookup_plugin.run([], None, organization="my-org", query="env:prod", filter_exclude_taggable_id="ws-xyz", tfe_token="tok")
-        _, call_org, call_query, call_filter = mock_list.call_args.args
+        call_client, call_org, call_query, call_filter = mock_list.call_args.args
         assert call_query == "env:prod"
         assert call_filter == "ws-xyz"
 
@@ -102,7 +102,7 @@ class TestTfOrgTagsLookup:
     @patch(f"{LOOKUP}.list_organization_tags", return_value=_TAG_LIST)
     def test_kwargs_forwarded_to_client(self, mock_list, patched_client, lookup_plugin):
         """All kwargs (including auth params) are forwarded to TerraformClient.from_mapping."""
-        _, mock_class = patched_client
+        mock_client_unused, mock_class = patched_client
         kwargs = {"organization": "my-org", "tfe_token": "tok-123", "tfe_address": "https://tfe.example.com"}
         lookup_plugin.run([], None, **kwargs)
         mock_class.from_mapping.assert_called_once_with(kwargs)
