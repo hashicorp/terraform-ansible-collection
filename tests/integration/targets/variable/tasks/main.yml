@@ -321,12 +321,7 @@
         category: "terraform"
         state: present
       register: result_vsv_conflict
-      failed_when: false
-
-    - name: Assert mixing parent scopes is rejected
-      ansible.builtin.assert:
-        that:
-          - result_vsv_conflict.failed
+      failed_when: "'mutually exclusive' not in (result_vsv_conflict.msg | default(''))"
 
     - name: Delete the variable-set variable by ID
       hashicorp.terraform.variable:

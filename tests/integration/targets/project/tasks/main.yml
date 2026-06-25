@@ -112,26 +112,15 @@
         agent_pool_name: "{{ project_name }}-agent-pool"
 
     - name: Create a Terraform agent pool with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/agent-pools"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ agent_pool_name }}"
-            type: "agent-pools"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.agent_pool:
+        organization: "{{ organization }}"
+        name: "{{ agent_pool_name }}"
+        state: present
       register: agent_pool_create_response
 
     - name: Set a fact for 'agent_pool_id'
       ansible.builtin.set_fact:
-        agent_pool_id: "{{ agent_pool_create_response.json.data.id }}"
+        agent_pool_id: "{{ agent_pool_create_response.id }}"
 
     - name: Update project with agent execution mode and default agent pool
       hashicorp.terraform.project: &update_project_agent_task
@@ -248,15 +237,9 @@
       ignore_errors: true
 
     - name: Delete agent pool
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        state: absent
       register: agent_pool_delete_response
       when: agent_pool_id is defined
       ignore_errors: true
