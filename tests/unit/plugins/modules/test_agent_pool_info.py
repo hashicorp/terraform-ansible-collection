@@ -43,7 +43,7 @@ def test_by_id_success(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_agent_pool")
 def test_by_id_not_found_fails(mock_get, mock_module_class):
-    mock_module, _ = _mock_module({"agent_pool_id": "apool-x", "organization": None, "name": None})
+    mock_module = _mock_module({"agent_pool_id": "apool-x", "organization": None, "name": None})[0]
     mock_module_class.return_value = mock_module
     mock_get.return_value = None
 
@@ -71,7 +71,7 @@ def test_by_name_success(mock_get_by_name, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_agent_pool_by_name")
 def test_by_name_not_found_fails(mock_get_by_name, mock_module_class):
-    mock_module, _ = _mock_module({"agent_pool_id": None, "organization": "org", "name": "ghost"})
+    mock_module = _mock_module({"agent_pool_id": None, "organization": "org", "name": "ghost"})[0]
     mock_module_class.return_value = mock_module
     mock_get_by_name.return_value = None
 
