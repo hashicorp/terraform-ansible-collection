@@ -1204,14 +1204,14 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         multi_mode = bool(workspace_filters)
         if multi_mode and (workspace_id_opt or workspace_opt):
             raise AnsibleParserError(
-                "workspace_filters is mutually exclusive with workspace_id and " "workspace. Pick exact-workspace mode OR filter mode, not both."
+                "workspace_filters is mutually exclusive with workspace_id and workspace. Pick exact-workspace mode OR filter mode, not both."
             )
         if multi_mode and not organization_opt:
             raise AnsibleParserError("workspace_filters requires 'organization' to be set.")
         if concurrency < 1 or concurrency > _CONCURRENCY_MAX:
             raise AnsibleParserError(f"concurrency must be between 1 and {_CONCURRENCY_MAX}; got {concurrency}.")
         if enable_parallel and not multi_mode:
-            Display().warning("enable_parallel_processing has no effect without workspace_filters; " "running in single-workspace mode.")
+            Display().warning("enable_parallel_processing has no effect without workspace_filters; running in single-workspace mode.")
 
         source_options: Dict[str, Any] = {
             "workspace_id": workspace_id_opt,

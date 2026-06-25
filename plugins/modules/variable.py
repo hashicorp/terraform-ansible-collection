@@ -361,7 +361,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
     """Create or update a variable to match the desired state."""
     kind, scope_id = _resolve_scope(adapter, params)
     if not scope_id:
-        raise ValueError("Unable to resolve the variable's parent: provide 'variable_set_id', " "'workspace_id', or both 'workspace' and 'organization'.")
+        raise ValueError("Unable to resolve the variable's parent: provide 'variable_set_id', 'workspace_id', or both 'workspace' and 'organization'.")
 
     current = _fetch_variable(adapter, kind, scope_id, params)
     want = _build_desired_state(params)
