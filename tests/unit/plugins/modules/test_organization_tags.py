@@ -9,12 +9,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.organization_tags import (
-    add_workspaces_to_tag,
-    delete_organization_tags,
-    get_workspace_tag_ids,
-    list_organization_tag_ids,
-)
 from ansible_collections.hashicorp.terraform.plugins.modules.organization_tags import (
     main,
     state_absent,
@@ -25,72 +19,113 @@ MODULE = "ansible_collections.hashicorp.terraform.plugins.modules.organization_t
 MODULE_UTILS = "ansible_collections.hashicorp.terraform.plugins.module_utils.organization_tags"
 
 
-class TestSdkHelpers:
-    def test_delete(self):
-        from pytfe.models.organization_tags import OrganizationTagsDeleteOptions
+class TestStatePresentByName:
+    @pytest.fixture
+    def adapter(self):
+        return Mock()
 
-        adapter = Mock()
-        delete_organization_tags(adapter, "my-org", ["tag-1", "tag-2"])
-        adapter.client.organization_tags.delete.assert_called_once_with("my-org", OrganizationTagsDeleteOptions(ids=["tag-1", "tag-2"]))
-
-    def test_delete_empty_is_noop(self):
-        adapter = Mock()
-        delete_organization_tags(adapter, "my-org", [])
-        adapter.client.organization_tags.delete.assert_not_called()
-
-    def test_add_workspaces_to_tag(self):
-        from pytfe.models.organization_tags import AddWorkspacesToTagOptions
-
-        adapter = Mock()
-        add_workspaces_to_tag(adapter, "my-org", "tag-1", ["ws-a", "ws-b"])
-        adapter.client.organization_tags.add_workspaces.assert_called_once_with("my-org", "tag-1", AddWorkspacesToTagOptions(workspace_ids=["ws-a", "ws-b"]))
-
-    def test_add_workspaces_to_tag_empty_is_noop(self):
-        adapter = Mock()
-        add_workspaces_to_tag(adapter, "my-org", "tag-1", [])
-        adapter.client.organization_tags.add_workspaces.assert_not_called()
-
-    def test_list_organization_tag_ids(self):
+    def _make_tag_list(self, tags):
+        """Return an iterator-producing side_effect for organization_tags.list calls."""
         from pytfe.models.organization_tags import OrganizationTag
 
-        adapter = Mock()
-        adapter.client.organization_tags.list.return_value = iter(
-            [
-                OrganizationTag(id="tag-1", name="prod"),
-                OrganizationTag(id="tag-2", name="dev"),
-            ]
-        )
-        result = list_organization_tag_ids(adapter, "my-org")
-        assert result == {"tag-1", "tag-2"}
-        adapter.client.organization_tags.list.assert_called_once_with("my-org")
+        return [OrganizationTag(id=tid, name=n) for tid, n in tags]
 
-    def test_list_organization_tag_ids_not_found_returns_empty(self):
-        from pytfe.errors import NotFound
+    def test_create_new_tag_single_workspace(self, adapter):
+        """Tag doesn't exist: create it on ws-a, ws-a already associated after creation."""
+        params = {"organization": "org", "name": "env:prod", "tag_id": None, "workspace_ids": ["ws-a"]}
+        # list returns empty (tag absent), then returns new tag after creation
+        adapter.client.organization_tags.list.side_effect = [
+            iter([]),
+            iter(self._make_tag_list([("tag-new", "env:prod")])),
+        ]
+        # After creation ws-a already has the tag, so get_workspace_tag_ids returns it.
+        adapter.client.workspaces.list_tags.return_value = iter([])
+        with patch(f"{MODULE}.create_tag_on_workspace") as mock_create, patch(f"{MODULE}.get_workspace_tag_ids", return_value={"tag-new"}):
+            result = state_present(adapter, params, check_mode=False)
 
-        adapter = Mock()
-        adapter.client.organization_tags.list.side_effect = NotFound("none")
-        assert list_organization_tag_ids(adapter, "my-org") == set()
+        mock_create.assert_called_once_with(adapter, "ws-a", "env:prod")
+        assert result["changed"] is True
+        assert result["id"] == "tag-new"
+        assert result["name"] == "env:prod"
+        # ws-a already associated via create_tag_on_workspace, so ws_to_add is empty
+        assert result["workspace_ids"] == []
 
-    def test_get_workspace_tag_ids(self):
-        from pytfe.models.common import Tag
+    def test_create_new_tag_multiple_workspaces(self, adapter):
+        """Tag doesn't exist: create on ws-a, then associate ws-b."""
+        params = {"organization": "org", "name": "env:prod", "tag_id": None, "workspace_ids": ["ws-a", "ws-b"]}
 
-        adapter = Mock()
-        adapter.client.workspaces.list_tags.return_value = iter(
-            [
-                Tag(id="tag-1", name="prod"),
-                Tag(id="tag-3", name="staging"),
-            ]
-        )
-        result = get_workspace_tag_ids(adapter, "ws-abc")
-        assert result == {"tag-1", "tag-3"}
-        adapter.client.workspaces.list_tags.assert_called_once_with("ws-abc")
+        def fake_resolve(adp, org, name):
+            # First call returns None (doesn't exist), second returns the new ID.
+            if not hasattr(fake_resolve, "called"):
+                fake_resolve.called = True
+                return None
+            return "tag-new"
 
-    def test_get_workspace_tag_ids_not_found_returns_empty(self):
-        from pytfe.errors import NotFound
+        def fake_ws_tags(adp, ws_id):
+            # ws-a already has the tag (just created there); ws-b does not.
+            return {"tag-new"} if ws_id == "ws-a" else set()
 
-        adapter = Mock()
-        adapter.client.workspaces.list_tags.side_effect = NotFound("none")
-        assert get_workspace_tag_ids(adapter, "ws-abc") == set()
+        with patch(f"{MODULE}.resolve_tag_by_name", side_effect=fake_resolve), patch(f"{MODULE}.create_tag_on_workspace") as mock_create, patch(
+            f"{MODULE}.get_workspace_tag_ids", side_effect=fake_ws_tags
+        ), patch(f"{MODULE}.add_workspaces_to_tag") as mock_add:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_create.assert_called_once_with(adapter, "ws-a", "env:prod")
+        mock_add.assert_called_once_with(adapter, "org", "tag-new", ["ws-b"])
+        assert result["changed"] is True
+        assert result["workspace_ids"] == ["ws-b"]
+        assert result["name"] == "env:prod"
+
+    def test_existing_tag_by_name_associates_missing(self, adapter):
+        """Tag exists; ws-b not yet associated — should associate."""
+        params = {"organization": "org", "name": "env:prod", "tag_id": None, "workspace_ids": ["ws-a", "ws-b"]}
+
+        def fake_ws_tags(adp, ws_id):
+            return {"tag-existing"} if ws_id == "ws-a" else set()
+
+        with patch(f"{MODULE}.resolve_tag_by_name", return_value="tag-existing"), patch(f"{MODULE}.create_tag_on_workspace") as mock_create, patch(
+            f"{MODULE}.get_workspace_tag_ids", side_effect=fake_ws_tags
+        ), patch(f"{MODULE}.add_workspaces_to_tag") as mock_add:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_create.assert_not_called()
+        mock_add.assert_called_once_with(adapter, "org", "tag-existing", ["ws-b"])
+        assert result["changed"] is True
+        assert result["id"] == "tag-existing"
+        assert result["name"] == "env:prod"
+
+    def test_existing_tag_all_associated_is_noop(self, adapter):
+        """Tag exists, all workspaces already associated — no-op."""
+        params = {"organization": "org", "name": "env:prod", "tag_id": None, "workspace_ids": ["ws-a"]}
+        with patch(f"{MODULE}.resolve_tag_by_name", return_value="tag-existing"), patch(f"{MODULE}.create_tag_on_workspace") as mock_create, patch(
+            f"{MODULE}.get_workspace_tag_ids", return_value={"tag-existing"}
+        ), patch(f"{MODULE}.add_workspaces_to_tag") as mock_add:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_create.assert_not_called()
+        mock_add.assert_not_called()
+        assert result["changed"] is False
+        assert "already" in result["msg"]
+        assert result["name"] == "env:prod"
+
+    def test_check_mode_new_tag_does_not_mutate(self, adapter):
+        """Tag doesn't exist + check_mode: report would-be change, no API mutations."""
+        params = {"organization": "org", "name": "env:prod", "tag_id": None, "workspace_ids": ["ws-a"]}
+        with patch(f"{MODULE}.resolve_tag_by_name", return_value=None), patch(f"{MODULE}.create_tag_on_workspace") as mock_create, patch(
+            f"{MODULE}.add_workspaces_to_tag"
+        ) as mock_add:
+            result = state_present(adapter, params, check_mode=True)
+
+        mock_create.assert_not_called()
+        mock_add.assert_not_called()
+        assert result["changed"] is True
+        assert "check mode" in result["msg"]
+        assert result["name"] == "env:prod"
+
+    def test_no_tag_id_and_no_name_raises(self, adapter):
+        params = {"organization": "org", "tag_id": None, "name": None, "workspace_ids": ["ws-a"]}
+        with pytest.raises(ValueError, match="tag_id.*name|Either"):
+            state_present(adapter, params, check_mode=False)
 
 
 class TestStatePresent:
@@ -234,9 +269,11 @@ class TestMain:
         call_args = mock_ansible_module.call_args[1]
         assert call_args["argument_spec"]["organization"] == {"type": "str", "required": True}
         assert call_args["argument_spec"]["state"]["choices"] == ["present", "absent"]
-        assert "name" not in call_args["argument_spec"]
-        assert call_args["mutually_exclusive"] == [("tag_id", "ids")]
-        assert call_args["required_if"] == [("state", "present", ["tag_id", "workspace_ids"])]
+        assert call_args["argument_spec"]["name"] == {"type": "str"}
+        assert ("tag_id", "name") in call_args["mutually_exclusive"]
+        assert ("tag_id", "ids") in call_args["mutually_exclusive"]
+        assert ("name", "ids") in call_args["mutually_exclusive"]
+        assert call_args["required_if"] == [("state", "present", ["workspace_ids"])]
         assert call_args["supports_check_mode"] is True
 
     @patch(f"{MODULE}.AnsibleTerraformModule")
