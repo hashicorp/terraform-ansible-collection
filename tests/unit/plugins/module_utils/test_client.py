@@ -14,6 +14,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
     COLLECTION_USER_AGENT_SUFFIX,
     AnsibleTerraformModule,
     TerraformClient,
+    collection_user_agent,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformTokenNotFoundError,
@@ -227,6 +228,27 @@ class TestFromMapping:
 
         with pytest.raises(TerraformTokenNotFoundError):
             TerraformClient.from_mapping({})
+
+    def test_user_agent_suffix_override_is_applied(self):
+        suffix = collection_user_agent("inventory:tfc_inv; source=statefile; mode=single")
+        client = TerraformClient.from_mapping({"tfe_token": "t"}, user_agent_suffix=suffix)
+        assert client._sdk_kwargs["user_agent_suffix"] == suffix
+
+    def test_user_agent_suffix_default_when_omitted(self):
+        client = TerraformClient.from_mapping({"tfe_token": "t"})
+        assert client._sdk_kwargs["user_agent_suffix"] == COLLECTION_USER_AGENT_SUFFIX
+
+
+class TestCollectionUserAgent:
+    def test_base_token_when_no_component(self):
+        assert collection_user_agent() == COLLECTION_USER_AGENT_SUFFIX
+
+    def test_component_appended_as_comment_preserves_base_token(self):
+        ua = collection_user_agent("inventory:tfc_inv; source=outputs; mode=multi")
+        # Base product token must remain a substring so aggregate usage queries match.
+        assert ua.startswith(COLLECTION_USER_AGENT_SUFFIX + " ")
+        assert COLLECTION_USER_AGENT_SUFFIX in ua
+        assert ua.endswith("(inventory:tfc_inv; source=outputs; mode=multi)")
 
     def test_env_fallbacks_are_applied_to_non_token_options(self, monkeypatch):
         monkeypatch.setenv("TFE_TOKEN", "env-token")

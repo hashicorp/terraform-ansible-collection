@@ -754,7 +754,7 @@ from ansible.module_utils._text import to_text
 from ansible.plugins.inventory import BaseInventoryPlugin, Cacheable, Constructable
 from ansible.utils.display import Display
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient, collection_user_agent
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
@@ -776,6 +776,18 @@ _SELECTOR_CACHE_SCHEMA = "tfc_inv_selector_v1"
 # Hard cap on concurrent workspace fetches. Larger values create memory and
 # rate-limit pressure that is rarely worth it for inventory builds.
 _CONCURRENCY_MAX = 10
+
+
+def _inventory_user_agent(source: str, mode: str) -> str:
+    """Component-tagged User-Agent suffix for dynamic-inventory API traffic.
+
+    Keeps the base ``terraform-ansible-collection/<version>`` token intact and
+    appends an RFC 7231 comment, e.g.
+    ``terraform-ansible-collection/2.1.0 (inventory:tfc_inv; source=statefile; mode=single)``
+    so telemetry can attribute usage to the inventory plugin, the data source,
+    and single vs multi-workspace mode without disturbing aggregate counts.
+    """
+    return collection_user_agent(f"inventory:tfc_inv; source={source}; mode={mode}")
 
 
 def _wire_outputs_display() -> None:
@@ -824,7 +836,10 @@ def _fetch_workspace_records(
         }
 
     try:
-        client_cm = TerraformClient.from_mapping({"tfe_token": tfe_token, "tfe_address": tfe_address})
+        client_cm = TerraformClient.from_mapping(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source_cls.NAME, "multi"),
+        )
     except TerraformTokenNotFoundError as exc:
         return {
             "records": [],
@@ -933,9 +948,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
     # Private utilities
     # ------------------------------------------------------------------
 
-    def _build_client(self, options: Dict[str, Any]) -> TerraformClient:
+    def _build_client(self, options: Dict[str, Any], *, user_agent_suffix: Optional[str] = None) -> TerraformClient:
         try:
-            return TerraformClient.from_mapping(options)
+            return TerraformClient.from_mapping(options, user_agent_suffix=user_agent_suffix)
         except TerraformTokenNotFoundError as exc:
             raise AnsibleParserError(f"Authentication error: {exc}") from exc
 
@@ -1327,7 +1342,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 source_instance._cached_blob = cached_blob
                 return source_instance.collect_hosts()
 
-            with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+            with self._build_client(
+                {"tfe_token": tfe_token, "tfe_address": tfe_address},
+                user_agent_suffix=_inventory_user_agent(source, "single"),
+            ) as client:
                 source_instance = source_cls(client, source_options)
                 records = source_instance.collect_hosts()
                 if cache_write_ok and cache_key is not None:
@@ -1337,7 +1355,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 return records
 
         # Validation mode (single workspace).
-        with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+        with self._build_client(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source, "single"),
+        ) as client:
             resolved_id, workspace_name = resolve_workspace(
                 client,
                 source_options.get("workspace_id"),
@@ -1410,7 +1431,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 if isinstance(targets, list):
                     return [(str(t[0]), str(t[1])) for t in targets if isinstance(t, (list, tuple)) and len(t) >= 2]
 
-        with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
+        with self._build_client(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source, "multi"),
+        ) as client:
             targets = list_workspaces(client, organization, workspace_filters)
 
         if cache_write_ok:

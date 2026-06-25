@@ -12,7 +12,7 @@ for interfacing with the pytfe SDK.
 """
 
 import traceback
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback, missing_required_lib
 from ansible.module_utils.errors import AnsibleFallbackNotFound
@@ -103,6 +103,21 @@ _ARGSPEC_TO_SDK = {
 COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.1.0"
 
 
+def collection_user_agent(component: Optional[str] = None) -> str:
+    """Return the collection User-Agent suffix, optionally tagged with a component.
+
+    The base product token (``terraform-ansible-collection/<version>``) is always
+    kept verbatim so aggregate usage queries keep matching. When *component* is
+    given it is appended as an RFC 7231 User-Agent comment, for example
+    ``terraform-ansible-collection/2.1.0 (inventory:tfc_inv; source=statefile)``,
+    letting telemetry distinguish individual entry points (e.g. the dynamic
+    inventory plugin) without disturbing the total-usage token.
+    """
+    if component:
+        return f"{COLLECTION_USER_AGENT_SUFFIX} ({component})"
+    return COLLECTION_USER_AGENT_SUFFIX
+
+
 def _resolve_argspec_fallback(key: str) -> Any:
     """Resolve an AUTH_ARGSPEC fallback outside AnsibleModule processing."""
     fallback = AUTH_ARGSPEC.get(key, {}).get("fallback")
@@ -180,7 +195,7 @@ class TerraformClient:
         self._prechecks()
 
     @classmethod
-    def from_mapping(cls, params: Mapping[str, Any]) -> "TerraformClient":
+    def from_mapping(cls, params: Mapping[str, Any], *, user_agent_suffix: Optional[str] = None) -> "TerraformClient":
         """Build a client from an Ansible-style params mapping.
 
         Only keys in :data:`AUTH_KEYS` are read; every other key is ignored.
@@ -189,6 +204,10 @@ class TerraformClient:
         Args:
             params: Any mapping whose keys may include Ansible argspec names
                 such as ``tfe_token``. Non-auth keys are silently ignored.
+            user_agent_suffix: Optional override for the pytfe User-Agent suffix.
+                When omitted, the default :data:`COLLECTION_USER_AGENT_SUFFIX`
+                applies. Entry points such as the dynamic inventory plugin pass a
+                component-tagged value via :func:`collection_user_agent`.
         """
         mapped = {}
         for key in AUTH_KEYS:
@@ -204,6 +223,8 @@ class TerraformClient:
                 value = _resolve_argspec_fallback(key)
             if value is not None:
                 mapped[_ARGSPEC_TO_SDK[key]] = value
+        if user_agent_suffix is not None:
+            mapped["user_agent_suffix"] = user_agent_suffix
         return cls(**mapped)
 
     @classmethod
