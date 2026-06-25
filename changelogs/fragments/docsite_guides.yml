@@ -1,0 +1,10 @@
+---
+minor_changes:
+  - >-
+    docs - Added a set of scenario guides to the collection docsite under
+    ``docs/docsite/rst/`` (getting started, authentication, workspaces and
+    projects, runs and configuration versions, variables and variable sets,
+    teams and access, workspace bootstrap, dynamic inventory, lookup plugins,
+    execution environments, troubleshooting, and compatibility), along with the
+    ``docs/docsite/extra-docs.yml`` and ``docs/docsite/config.yml`` docsite
+    configuration.

@@ -1,0 +1,8 @@
+---
+# Controller-side dependencies for Ansible Builder execution environments.
+# Ansible Builder reads this file when the collection is installed into an EE
+# and installs the listed Python requirements automatically.
+# https://docs.ansible.com/projects/builder/en/latest/collection_metadata/
+version: 1
+dependencies:
+  python: requirements.txt

@@ -12,7 +12,7 @@ import pytest
 from ansible.errors import AnsibleParserError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
-from ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv import InventoryModule
+from ansible_collections.hashicorp.terraform.plugins.inventory.tfc_inv import InventoryModule, _inventory_user_agent
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import (
     TerraformError,
     TerraformTokenNotFoundError,
@@ -2786,6 +2786,27 @@ class TestInventoryCacheStatefile:
     @patch(f"{_STATEFILE_SRC}._download_statefile")
     @patch(f"{_STATEFILE_SRC}.resolve_workspace")
     @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_user_agent_tagged_with_inventory_and_source(self, mock_client_cls, mock_src_resolve, mock_download):
+        """Single-workspace statefile run stamps the inventory+source User-Agent
+        while preserving the base collection token for aggregate telemetry."""
+        mock_client_cls.return_value = Mock()
+        mock_src_resolve.return_value = ("ws-abc", "my-ws")
+        mock_download.return_value = self._state()
+
+        plugin = _make_cache_plugin(_base_options())  # cache off -> a client is built
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        ua = mock_client_cls.from_mapping.call_args.kwargs.get("user_agent_suffix")
+        assert ua is not None
+        assert "terraform-ansible-collection/2.1.0" in ua
+        assert "inventory:tfc_inv" in ua
+        assert "source=statefile" in ua
+        assert "mode=single" in ua
+
+    @patch(f"{_STATEFILE_SRC}._download_statefile")
+    @patch(f"{_STATEFILE_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
     def test_cache_hit_skips_client_construction(self, mock_client_cls, mock_src_resolve, mock_download):
         """The strongest assertion: on cache hit, no TerraformClient is built
         and no API helper is invoked. This is what makes the cache offline-capable."""
@@ -3702,7 +3723,7 @@ class TestMultiWorkspaceValidationMode:
 
         # The TerraformClient context manager returns a client whose
         # state_versions.read_current succeeds for ws-good but fails for ws-bad.
-        def _build_client(_options):
+        def _build_client(_options, **_kwargs):
             cm = Mock()
             client = Mock()
 
@@ -3734,3 +3755,17 @@ class TestMultiWorkspaceValidationMode:
         # Only the good workspace got fetched; the bad one was skipped.
         mock_fetch.assert_called_once()
         assert mock_fetch.call_args.args[1] == "ws-good"
+
+
+class TestInventoryUserAgent:
+    """The inventory User-Agent tag carries the base token + source/mode telemetry."""
+
+    @pytest.mark.parametrize("source", ["statefile", "outputs"])
+    @pytest.mark.parametrize("mode", ["single", "multi"])
+    def test_component_tag_format(self, source, mode):
+        ua = _inventory_user_agent(source, mode)
+        # Base product token preserved verbatim (aggregate usage queries keep working).
+        assert ua.startswith("terraform-ansible-collection/")
+        assert "terraform-ansible-collection/2.1.0" in ua
+        # RFC 7231 comment with the inventory plugin + source + mode.
+        assert ua.endswith(f"(inventory:tfc_inv; source={source}; mode={mode})")

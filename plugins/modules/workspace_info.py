@@ -52,35 +52,22 @@ EXAMPLES = r"""
 #     "failed": false,
 #     "workspace": {
 #         "id": "ws-sample1234567890",
-#         "type": "workspaces",
-#         "attributes": {
-#             "name": "sample_workspace",
-#             "terraform-version": "1.10.5",
-#             "execution-mode": "remote",
-#             "allow-destroy-plan": true,
-#             "auto-apply": false,
-#             "locked": false,
-#             "resource-count": 0,
-#             "created-at": "2025-06-09T09:09:19.872Z",
-#             "updated-at": "2025-07-30T11:15:20.689Z",
-#             "permissions": {
-#                 "can-update": true,
-#                 "can-destroy": true,
-#                 "can-queue-run": true
-#             }
+#         "name": "sample_workspace",
+#         "terraform_version": "1.10.5",
+#         "execution_mode": "remote",
+#         "allow_destroy_plan": true,
+#         "auto_apply": false,
+#         "locked": false,
+#         "resource_count": 0,
+#         "created_at": "2025-06-09T09:09:19.872Z",
+#         "updated_at": "2025-07-30T11:15:20.689Z",
+#         "organization": {
+#             "id": "sample_organization"
 #         },
-#         "relationships": {
-#             "organization": {
-#                 "data": {
-#                     "id": "sample_organization",
-#                     "type": "organizations"
-#                 }
-#             }
-#         },
-#         "links": {
-#             "self": "/api/v2/workspaces/ws-sample1234567890",
-#             "self-html": "/app/sample_organization/workspaces/sample_workspace"
-#         }
+#         "permissions": {
+#             "can_update": true,
+#             "can_destroy": true,
+#             "can_queue_run": true
 #         }
 #     }
 # }
@@ -98,35 +85,22 @@ EXAMPLES = r"""
 #     "failed": false,
 #     "workspace": {
 #         "id": "ws-sample1234567890",
-#         "type": "workspaces",
-#         "attributes": {
-#             "name": "sample_workspace",
-#             "terraform-version": "1.10.5",
-#             "execution-mode": "remote",
-#             "allow-destroy-plan": true,
-#             "auto-apply": false,
-#             "locked": false,
-#             "resource-count": 0,
-#             "created-at": "2025-06-09T09:09:19.872Z",
-#             "updated-at": "2025-07-30T11:15:20.689Z",
-#             "permissions": {
-#                 "can-update": true,
-#                 "can-destroy": true,
-#                 "can-queue-run": true
-#             }
+#         "name": "sample_workspace",
+#         "terraform_version": "1.10.5",
+#         "execution_mode": "remote",
+#         "allow_destroy_plan": true,
+#         "auto_apply": false,
+#         "locked": false,
+#         "resource_count": 0,
+#         "created_at": "2025-06-09T09:09:19.872Z",
+#         "updated_at": "2025-07-30T11:15:20.689Z",
+#         "organization": {
+#             "id": "sample_organization"
 #         },
-#         "relationships": {
-#             "organization": {
-#                 "data": {
-#                     "id": "sample_organization",
-#                     "type": "organizations"
-#                 }
-#             }
-#         },
-#         "links": {
-#             "self": "/api/v2/workspaces/ws-sample1234567890",
-#             "self-html": "/app/sample_organization/workspaces/sample_workspace"
-#         }
+#         "permissions": {
+#             "can_update": true,
+#             "can_destroy": true,
+#             "can_queue_run": true
 #         }
 #     }
 # }
@@ -170,7 +144,7 @@ EXAMPLES = r"""
 
     - name: Workspace exists - proceed with operations
       ansible.builtin.debug:
-        msg: "Workspace {{ workspace_info.workspace.attributes.name }} exists with ID {{ workspace_info.workspace.id }}"
+        msg: "Workspace {{ workspace_info.workspace.name }} exists with ID {{ workspace_info.workspace.id }}"
 
   rescue:
     - name: Workspace doesn't exist - handle appropriately
@@ -186,13 +160,13 @@ EXAMPLES = r"""
   ansible.builtin.debug:
     msg: |
       Workspace Details:
-      - Name: {{ workspace_info.workspace.attributes.name }}
+      - Name: {{ workspace_info.workspace.name }}
       - ID: {{ workspace_info.workspace.id }}
-      - Terraform Version: {{ workspace_info.workspace.attributes['terraform-version'] }}
-      - Execution Mode: {{ workspace_info.workspace.attributes['execution-mode'] }}
-      - Auto Apply: {{ workspace_info.workspace.attributes['auto-apply'] }}
-      - Locked: {{ workspace_info.workspace.attributes.locked }}
-      - Resource Count: {{ workspace_info.workspace.attributes['resource-count'] }}
+      - Terraform Version: {{ workspace_info.workspace.terraform_version }}
+      - Execution Mode: {{ workspace_info.workspace.execution_mode }}
+      - Auto Apply: {{ workspace_info.workspace.auto_apply }}
+      - Locked: {{ workspace_info.workspace.locked }}
+      - Resource Count: {{ workspace_info.workspace.resource_count }}
 
 - name: Check workspace permissions before performing operations
   hashicorp.terraform.workspace_info:
@@ -203,7 +177,7 @@ EXAMPLES = r"""
 - name: Proceed only if user can update workspace
   ansible.builtin.debug:
     msg: "User has update permissions for workspace"
-  when: workspace_info.workspace.attributes.permissions['can-update']
+  when: workspace_info.workspace.permissions.can_update
 
 - name: Example with parameter validation errors
   block:
@@ -240,7 +214,10 @@ EXAMPLES = r"""
 RETURN = r"""
 workspace:
   type: dict
-  description: A dictionary containing the workspace information.
+  description:
+    - A dictionary containing the workspace information.
+    - The workspace's fields are flattened at the top level (for example V(name),
+      V(execution_mode), V(terraform_version)); there is no nested C(attributes) object.
   returned: on success
   contains:
     id:
@@ -248,32 +225,49 @@ workspace:
       returned: always
       description: The unique identifier of the workspace.
       sample: "ws-sample1234567890"
-    type:
+    name:
       type: str
       returned: always
-      description: The type of the resource (always "workspaces").
-      sample: "workspaces"
-    attributes:
+      description: The name of the workspace.
+      sample: "my-workspace"
+    execution_mode:
+      type: str
+      returned: always
+      description: The execution mode of the workspace (for example V(remote), V(local), or V(agent)).
+      sample: "remote"
+    terraform_version:
+      type: str
+      returned: always
+      description: The Terraform version associated with the workspace.
+      sample: "1.10.5"
+    auto_apply:
+      type: bool
+      returned: always
+      description: Whether runs are applied automatically when a plan succeeds.
+    locked:
+      type: bool
+      returned: always
+      description: Whether the workspace is currently locked.
+    resource_count:
+      type: int
+      returned: always
+      description: The number of resources managed by the workspace.
+    organization:
       type: dict
       returned: always
-      description: The attributes of the workspace.
-    relationships:
+      description: The organization that owns the workspace (contains its C(id)).
+    permissions:
       type: dict
       returned: always
-      description: Relationships to other resources.
-    links:
-      type: dict
+      description: The current user's permissions on the workspace.
+    outputs:
+      type: list
       returned: always
-      description: Links related to the workspace.
-      contains:
-        self:
-          type: str
-          returned: always
-          description: API endpoint for this workspace.
-        self_html:
-          type: str
-          returned: always
-          description: Web UI URL for this workspace.
+      description: The workspace's current state outputs.
+    tag_names:
+      type: list
+      returned: always
+      description: The tags associated with the workspace.
 """
 
 

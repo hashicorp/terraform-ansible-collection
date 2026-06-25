@@ -1,0 +1,7 @@
+---
+# Configuration for the antsibull-docs collection docsite.
+# https://ansible.readthedocs.io/projects/antsibull-docs/collection-docs/
+changelog:
+  # Auto-generate the changelog page of the docsite from changelogs/changelog.yaml
+  # at build time, so no CHANGELOG.rst stub needs to be committed under rst/.
+  write_changelog: true
