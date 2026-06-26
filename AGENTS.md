@@ -202,8 +202,6 @@ create → idempotent re-run → update → info → delete → delete-again, wi
 - [ ] Added to `meta/runtime.yml` `action_groups`.
 - [ ] Changelog fragment added.
 - [ ] `black` / `isort` / `flake8` / `antsibull-docs lint` / unit tests green.
-- [ ] If replacing raw `ansible.builtin.uri` usage in integration tests, all
-      occurrences are migrated to the new module.
 
 ---
 
