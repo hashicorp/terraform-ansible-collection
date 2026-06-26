@@ -35,14 +35,15 @@ non-core plugin):
    enable_plugins = hashicorp.terraform.tfc_inv, host_list, auto
 
 The inventory configuration is a YAML file whose name **must end with one of**:
-``inventory.yml``, ``inventory.yaml``, ``terraform_inventory.yml``, or
-``terraform_inventory.yaml``. A file that does not match (for example ``my_hosts.yml``) is
-silently declined by the plugin and produces an empty inventory.
+``inventory.yml``, ``inventory.yaml``, ``terraform_inventory.yml``,
+``terraform_inventory.yaml``, ``tfc_inv.yml``, or ``tfc_inv.yaml``. A file that does not match (for example
+``my_hosts.yml``) is declined by the plugin and produces an empty inventory.
 
 .. code-block:: yaml
 
-   # demo.tfc_inv.yml is INVALID — rename to e.g. demo_inventory.yml
-   # tfc.inventory.yml, prod_inventory.yaml, terraform_inventory.yml are all VALID
+   # my_hosts.yml is INVALID — rename to e.g. demo_inventory.yml
+   # tfc.inventory.yml, prod_inventory.yaml, terraform_inventory.yml,
+   # demo.tfc_inv.yml are all VALID
    plugin: hashicorp.terraform.tfc_inv
    organization: my-org
    workspace: my-workspace

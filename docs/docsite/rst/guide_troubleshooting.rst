@@ -67,8 +67,9 @@ Dynamic inventory returns no hosts
 When ``ansible-inventory --list`` is empty, work through these in order:
 
 #. **Config filename** — the inventory file name must end with ``inventory.yml``,
-   ``inventory.yaml``, ``terraform_inventory.yml``, or ``terraform_inventory.yaml``. Any other
-   name is silently declined and yields an empty inventory.
+   ``inventory.yaml``, ``terraform_inventory.yml``, ``terraform_inventory.yaml``,
+   ``tfc_inv.yml``, or ``tfc_inv.yaml``. Any other name is declined and yields an empty
+   inventory.
 #. **Plugin enabled** — add ``hashicorp.terraform.tfc_inv`` to ``enable_plugins`` in the
    ``[inventory]`` section of ``ansible.cfg``, or set
    ``ANSIBLE_INVENTORY_ENABLED=hashicorp.terraform.tfc_inv``.

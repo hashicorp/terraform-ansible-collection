@@ -16,8 +16,8 @@ description:
     (S3, AzureRM, etc.).
   - Authentication is via O(tfe_token) or the E(TFE_TOKEN) environment variable.
   - Uses a YAML configuration file whose name ends with C(inventory.yml),
-    C(inventory.yaml), C(terraform_inventory.yml), or
-    C(terraform_inventory.yaml).
+    C(inventory.yaml), C(terraform_inventory.yml), C(terraform_inventory.yaml),
+    C(tfc_inv.yml), or C(tfc_inv.yaml).
 extends_documentation_fragment:
   - constructed
   - inventory_cache
@@ -935,6 +935,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         "inventory.yml",
         "terraform_inventory.yaml",
         "terraform_inventory.yml",
+        "tfc_inv.yaml",
+        "tfc_inv.yml",
     )
 
     def verify_file(self, path: str) -> bool:

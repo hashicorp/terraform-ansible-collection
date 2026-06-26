@@ -160,6 +160,18 @@ class TestVerifyFile:
         f.touch()
         assert plugin.verify_file(str(f)) is True
 
+    def test_tfc_inv_yaml_accepted(self, tmp_path):
+        plugin = InventoryModule()
+        f = tmp_path / "demo.tfc_inv.yaml"
+        f.touch()
+        assert plugin.verify_file(str(f)) is True
+
+    def test_tfc_inv_yml_accepted(self, tmp_path):
+        plugin = InventoryModule()
+        f = tmp_path / "demo.tfc_inv.yml"
+        f.touch()
+        assert plugin.verify_file(str(f)) is True
+
     def test_terraform_state_yaml_rejected(self, tmp_path):
         plugin = InventoryModule()
         f = tmp_path / "terraform_state.yaml"
