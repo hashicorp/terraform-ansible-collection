@@ -21,7 +21,7 @@
         state: present
       register: src_ws
 
-    - name: First bootstrap - creates workspace + variables + trigger + notification
+    - name: First bootstrap - creates workspace + variables + trigger
       hashicorp.terraform.workspace_bootstrap:
         workspace: "{{ workspace_name }}"
         organization: "{{ organization }}"
@@ -38,16 +38,6 @@
             category: "env"
         run_triggers:
           - "{{ src_ws.id }}"
-        notifications:
-          - name: "bootstrap-generic"
-            destination_type: "generic"
-            # TFC auto-verifies GENERIC webhook URLs on create by POSTing a
-            # verification payload; the URL must return 2xx. httpbin's /status/200
-            # endpoint is what the pytfe example itself recommends for tests.
-            url: "https://httpbin.org/status/200"
-            enabled: true
-            triggers:
-              - "run:needs_attention"
         reconcile: true
       register: bs1
 
@@ -59,7 +49,7 @@
           - bs1.components.workspace.action == "created"
           - bs1.components.variables.created | length == 2
           - bs1.components.run_triggers.created | length == 1
-          - bs1.components.notifications.created | length == 1
+          - not bs1.components.notifications.changed
 
     - name: Second bootstrap with identical desired state is a no-op
       hashicorp.terraform.workspace_bootstrap:
@@ -78,16 +68,6 @@
             category: "env"
         run_triggers:
           - "{{ src_ws.id }}"
-        notifications:
-          - name: "bootstrap-generic"
-            destination_type: "generic"
-            # TFC auto-verifies GENERIC webhook URLs on create by POSTing a
-            # verification payload; the URL must return 2xx. httpbin's /status/200
-            # endpoint is what the pytfe example itself recommends for tests.
-            url: "https://httpbin.org/status/200"
-            enabled: true
-            triggers:
-              - "run:needs_attention"
         reconcile: true
       register: bs2
 

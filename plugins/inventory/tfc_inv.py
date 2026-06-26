@@ -16,11 +16,11 @@ description:
     (S3, AzureRM, etc.).
   - Authentication is via O(tfe_token) or the E(TFE_TOKEN) environment variable.
   - Uses a YAML configuration file whose name ends with C(inventory.yml),
-    C(inventory.yaml), C(terraform_inventory.yml), or
-    C(terraform_inventory.yaml).
-  - Does not support caching.
+    C(inventory.yaml), C(terraform_inventory.yml), C(terraform_inventory.yaml),
+    C(tfc_inv.yml), or C(tfc_inv.yaml).
 extends_documentation_fragment:
   - constructed
+  - inventory_cache
 version_added: "2.0.0"
 options:
   plugin:
@@ -91,6 +91,68 @@ options:
       - Mutually exclusive with O(organization) and O(workspace).
       - Used by V(source=statefile) and V(source=outputs).
     type: str
+  workspace_filters:
+    description:
+      - Mapping of selection criteria for B(multi-workspace mode). When set,
+        the plugin enumerates every matching workspace via the HCP Terraform
+        Workspaces list API and merges inventory across them.
+      - Requires O(organization). Mutually exclusive with O(workspace_id) and
+        O(workspace) — when used, the plugin operates in multi-workspace mode.
+      - Every host produced in this mode is stamped with the auto-injected
+        variables V(tfc_workspace_id) and V(tfc_workspace_name).
+      - Empty-string filter values are treated as unset (no API filter).
+      - "Project name resolution is intentionally not supported. Pass
+        V(project_id) as the project ID starting with V(prj-) — look it up via
+        the HCP Terraform UI or projects API."
+    type: dict
+    default: {}
+    version_added: "2.1.0"
+    suboptions:
+      project_id:
+        description:
+          - Restrict to workspaces in the given project. Must be a project ID
+            starting with V(prj-).
+        type: str
+      name_search:
+        description: Substring match on workspace name (search[name]).
+        type: str
+      tags:
+        description: Comma-separated tags to include (search[tags]).
+        type: str
+      exclude_tags:
+        description: Comma-separated tags to exclude (search[exclude-tags]).
+        type: str
+      wildcard_name:
+        description: Wildcard pattern on workspace name, e.g. V("*prod*").
+        type: str
+      current_run_status:
+        description: Filter by current-run status (filter[current-run][status]).
+        type: str
+      sort:
+        description: Sort field for workspace listing.
+        type: str
+      page_size:
+        description: Page size hint for the workspace list API.
+        type: int
+  enable_parallel_processing:
+    description:
+      - When V(true), workspaces matched by O(workspace_filters) are fetched
+        concurrently. Has no effect in single-workspace mode.
+      - Each worker constructs its own pytfe client so HTTP sessions are not
+        shared across threads. Ansible inventory mutation always happens on
+        the main thread.
+    type: bool
+    default: false
+    version_added: "2.1.0"
+  concurrency:
+    description:
+      - Maximum number of concurrent workspace fetches when
+        O(enable_parallel_processing) is V(true).
+      - Hard capped at V(10) to keep memory and API rate-limit pressure
+        bounded. Values outside V([1, 10]) raise a parser error.
+    type: int
+    default: 5
+    version_added: "2.1.0"
   search_child_modules:
     description:
       - When V(source=statefile), include resources defined inside Terraform
@@ -273,6 +335,28 @@ options:
         with the same scope and exclusions as O(hostvars_prefix).
     type: str
     default: ""
+  cache_validate_current_state_version:
+    description:
+      - Opt-in cache-freshness mode that validates a cache entry against the
+        workspace's current Terraform state version ID before reusing it.
+      - When V(false) (default), caching is the standard Ansible
+        timeout-based contract from O(cache) — cache hits
+        make zero API calls and are fully offline-capable within
+        O(cache_timeout). Use V(--flush-cache) to force a
+        refresh after a Terraform apply.
+      - When V(true), each cache hit triggers a lightweight
+        C(state-versions/current) lookup. If the cached entry's recorded
+        state version ID matches the workspace's current state version ID,
+        the heavy state download or outputs fetch is skipped. If they
+        differ, fresh data is fetched and the cache entry is overwritten.
+      - This mode is not offline-friendly. It requires HCP/TFE
+        connectivity on every run; if the validation API call fails the
+        plugin raises a parser error rather than serve potentially stale
+        cache.
+      - Has no effect when O(cache) is V(false).
+    type: bool
+    default: false
+    version_added: "2.1.0"
 """
 
 EXAMPLES = r"""
@@ -593,21 +677,117 @@ EXAMPLES = r"""
       type: string             # ansible_host = value via compose
   compose:
     ansible_host: public_ip | default(value)
+
+# Per-run in-memory cache (no persistence across ansible-inventory invocations).
+# Cache entries are keyed by the current Terraform state version ID, so a new
+# apply automatically refreshes inventory even if cache_timeout has not expired.
+- name: Inventory with in-memory cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  cache: true
+  cache_timeout: 300
+
+# Persistent cross-run cache via the jsonfile cache plugin. Setting
+# cache_prefix lets multiple tfc_inv inventories share a backend without
+# colliding (mirrors aws_ec2 / azure_rm / k8s convention).
+- name: Inventory with persistent jsonfile cache
+  plugin: hashicorp.terraform.tfc_inv
+  source: statefile
+  workspace_id: ws-abc123
+  cache: true
+  cache_plugin: jsonfile
+  cache_connection: ~/.ansible/cache/tfc_inv
+  cache_prefix: tfc_inv
+  cache_timeout: 300
+
+# Freshness-validated cache (apply-aware): each run resolves the workspace's
+# current Terraform state version and only reuses cached data whose recorded
+# state_version_id matches. Heavy state download / outputs fetch is skipped
+# when validated. NOT offline-friendly — requires HCP/TFE connectivity on
+# every run; a failed validation API call raises rather than serving stale
+# cache.
+- name: Inventory with apply-aware freshness validation
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace: my-workspace
+  cache: true
+  cache_timeout: 3600
+  cache_validate_current_state_version: true
+
+# ── multi-workspace mode ──────────────────────────────────────────────────────
+
+# Merge inventory from every workspace in a project. Hosts gain
+# tfc_workspace_id / tfc_workspace_name host vars so playbooks can route by
+# origin. Parallel fetch is opt-in via enable_parallel_processing.
+- name: All workspaces in a project
+  plugin: hashicorp.terraform.tfc_inv
+  source: outputs
+  organization: my-org
+  workspace_filters:
+    project_id: prj-abc123def456
+  enable_parallel_processing: true
+  concurrency: 5
+
+# Combine multiple filters. Filters compose at the HCP Terraform API level —
+# returned workspaces must satisfy every set criterion.
+- name: Production workspaces with prod tag, exclude deprecated
+  plugin: hashicorp.terraform.tfc_inv
+  source: statefile
+  organization: my-org
+  workspace_filters:
+    tags: prod,linux
+    exclude_tags: deprecated
+    current_run_status: applied
 """
 
-from typing import Any, Dict, Iterable, List, Optional
+import hashlib
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text
-from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.plugins.inventory import BaseInventoryPlugin, Cacheable, Constructable
 from ansible.utils.display import Display
 
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient, collection_user_agent
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError, TerraformTokenNotFoundError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.sources import outputs as _outputs_module
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.base import HostRecord
-from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import get_preferred_hostname, passes_filters
+from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.common import (
+    get_preferred_hostname,
+    list_workspaces,
+    passes_filters,
+    resolve_current_state_version_id,
+    resolve_workspace,
+)
 from ansible_collections.hashicorp.terraform.plugins.module_utils.inventory.utils.factory import get_source_backend
+
+# Bumped whenever the per-workspace cache blob shape changes; older entries are ignored.
+_CACHE_SCHEMA = "tfc_inv_cache_v1"
+
+# Bumped whenever the selector cache blob shape changes; older entries are ignored.
+_SELECTOR_CACHE_SCHEMA = "tfc_inv_selector_v1"
+
+# Hard cap on concurrent workspace fetches. Larger values create memory and
+# rate-limit pressure that is rarely worth it for inventory builds.
+_CONCURRENCY_MAX = 10
+
+
+def _inventory_user_agent(source: str, mode: str) -> str:
+    """Component-tagged User-Agent suffix for dynamic-inventory API traffic.
+
+    Keeps the base ``terraform-ansible-collection/<version>`` token intact and
+    appends an RFC 7231 comment, e.g.
+    ``terraform-ansible-collection/2.1.0 (inventory:tfc_inv; source=statefile; mode=single)``
+    so telemetry can attribute usage to the inventory plugin, the data source,
+    and single vs multi-workspace mode without disturbing aggregate counts.
+    """
+    return collection_user_agent(f"inventory:tfc_inv; source={source}; mode={mode}")
 
 
 def _wire_outputs_display() -> None:
@@ -621,7 +801,133 @@ def _wire_outputs_display() -> None:
 _wire_outputs_display()
 
 
-class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
+def _fetch_workspace_records(
+    ws_id: str,
+    ws_name: str,
+    source_options: Dict[str, Any],
+    source_cls: Any,
+    tfe_token: str,
+    tfe_address: str,
+    cached_blob: Optional[Dict[str, Any]],
+    validate_sv: bool,
+) -> Dict[str, Any]:
+    """Fetch one workspace's records. Safe to run in a worker thread.
+
+    Returns a dict with keys: ``records``, ``blob`` (new blob to write, or
+    None), ``ws_id``, ``ws_name``, ``warning`` (optional), ``skipped`` (bool).
+    Never touches ``InventoryData`` or the cache plugin — all state mutation
+    happens in the main thread.
+    """
+    per_ws_options = dict(source_options)
+    per_ws_options["workspace_id"] = ws_id
+    per_ws_options["organization"] = None
+    per_ws_options["workspace"] = None
+
+    # Default mode + cache hit: serve entirely from blob, no client needed.
+    if cached_blob is not None and not validate_sv:
+        src = source_cls(None, per_ws_options)
+        src._cached_blob = cached_blob
+        return {
+            "records": src.collect_hosts(),
+            "blob": None,
+            "ws_id": ws_id,
+            "ws_name": ws_name,
+            "skipped": False,
+        }
+
+    try:
+        client_cm = TerraformClient.from_mapping(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source_cls.NAME, "multi"),
+        )
+    except TerraformTokenNotFoundError as exc:
+        return {
+            "records": [],
+            "blob": None,
+            "ws_id": ws_id,
+            "ws_name": ws_name,
+            "warning": f"authentication error for workspace {ws_name} ({ws_id}): {exc}",
+            "skipped": True,
+        }
+
+    with client_cm as client:
+        if validate_sv:
+            try:
+                sv = client.client.state_versions.read_current(ws_id)
+                current_sv_id = getattr(sv, "id", None)
+            except Exception as exc:  # noqa: BLE001 — pytfe surfaces several error types here
+                return {
+                    "records": [],
+                    "blob": None,
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                    "warning": (f"validation-mode: skipping workspace {ws_name} ({ws_id}): " f"could not resolve current state version: {exc}"),
+                    "skipped": True,
+                }
+
+            if cached_blob is not None and cached_blob.get("state_version_id") == current_sv_id:
+                src = source_cls(None, per_ws_options)
+                src._cached_blob = cached_blob
+                return {
+                    "records": src.collect_hosts(),
+                    "blob": None,
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                    "skipped": False,
+                }
+
+            src = source_cls(client, per_ws_options)
+            src._validation_ctx = {
+                "workspace_id": ws_id,
+                "workspace_name": ws_name,
+                "state_version_id": current_sv_id,
+            }
+        else:
+            src = source_cls(client, per_ws_options)
+            # Skip the source's own resolve_workspace() — we already know the
+            # workspace identity from the dispatcher.
+            src._validation_ctx = {
+                "workspace_id": ws_id,
+                "workspace_name": ws_name,
+                "state_version_id": None,
+            }
+
+        try:
+            records = src.collect_hosts()
+        except TerraformError as exc:
+            msg = str(exc).lower()
+            if "no current state version" in msg or "no applied runs" in msg:
+                # Workspace has no state — common in filter mode (bootstrap /
+                # never-applied workspaces). Cache an empty sentinel blob so
+                # subsequent runs skip the failing API call.
+                empty_data: Any = [] if source_cls.NAME == "outputs" else {"version": 4, "resources": [], "outputs": {}}
+                return {
+                    "records": [],
+                    "blob": {
+                        "schema": _CACHE_SCHEMA,
+                        "source": source_cls.NAME,
+                        "workspace_name": ws_name,
+                        "workspace_id": ws_id,
+                        "state_version_id": None,
+                        "data": empty_data,
+                    },
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                    "skipped": False,
+                    "warning": str(exc),  # downgraded to vvv in the dispatcher
+                }
+            raise
+
+        return {
+            "records": records,
+            "blob": getattr(src, "_fetched_blob", None),
+            "ws_id": ws_id,
+            "ws_name": ws_name,
+            "skipped": False,
+        }
+
+
+class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: ignore[misc]
     NAME = "hashicorp.terraform.tfc_inv"
 
     _VALID_SUFFIXES = (
@@ -629,6 +935,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         "inventory.yml",
         "terraform_inventory.yaml",
         "terraform_inventory.yml",
+        "tfc_inv.yaml",
+        "tfc_inv.yml",
     )
 
     def verify_file(self, path: str) -> bool:
@@ -642,9 +950,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # Private utilities
     # ------------------------------------------------------------------
 
-    def _build_client(self, options: Dict[str, Any]) -> TerraformClient:
+    def _build_client(self, options: Dict[str, Any], *, user_agent_suffix: Optional[str] = None) -> TerraformClient:
         try:
-            return TerraformClient.from_mapping(options)
+            return TerraformClient.from_mapping(options, user_agent_suffix=user_agent_suffix)
         except TerraformTokenNotFoundError as exc:
             raise AnsibleParserError(f"Authentication error: {exc}") from exc
 
@@ -658,8 +966,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
     # ``hostvars_prefix`` / ``hostvars_suffix``. ``ansible_host`` is reserved
     # by Ansible itself; ``value`` is this plugin's contract for primitive
     # shapes and renaming it would break the ``compose: {ansible_host: value}``
-    # idiom.
-    _PLUGIN_INJECTED_VARS = frozenset({"ansible_host", "value"})
+    # idiom. ``tfc_workspace_id`` / ``tfc_workspace_name`` are auto-stamped in
+    # multi-workspace mode so playbooks can route hosts by origin.
+    _PLUGIN_INJECTED_VARS = frozenset({"ansible_host", "value", "tfc_workspace_id", "tfc_workspace_name"})
 
     def _build_resolution_view(
         self,
@@ -728,6 +1037,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         exclude_filters: List[Dict],
         hostvars_prefix: str = "",
         hostvars_suffix: str = "",
+        stamp_workspace_vars: bool = False,
     ) -> None:
         """Apply filtering and register each record as an Ansible host.
 
@@ -735,9 +1045,30 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         ``StatefileSource``) pre-populate ``resolved_hostname`` on each record.
         When that key is present it is used directly; otherwise the
         outputs-style ``get_preferred_hostname`` fallback applies.
+
+        When *stamp_workspace_vars* is ``True`` (multi-workspace mode), each
+        host gets the auto-injected ``tfc_workspace_id`` / ``tfc_workspace_name``
+        vars sourced from the record's metadata. These names live in
+        ``_PLUGIN_INJECTED_VARS`` so they survive ``hostvars_prefix`` /
+        ``hostvars_suffix`` renaming.
+
+        Hostname resolution and registration run in two passes so that, in
+        multi-workspace mode, a hostname produced by more than one workspace can
+        be disambiguated (by appending the workspace name) instead of silently
+        collapsing onto a single Ansible host.
         """
+        resolved: List[Dict[str, Any]] = []
+        hostname_workspaces: Dict[str, set] = {}
         for record in records:
-            host_vars: Dict[str, Any] = record["host_vars"]
+            host_vars: Dict[str, Any] = dict(record["host_vars"])
+            ws_id = record.get("workspace_id")
+            ws_name = record.get("workspace_name")
+            if stamp_workspace_vars:
+                if ws_id:
+                    host_vars["tfc_workspace_id"] = ws_id
+                if ws_name:
+                    host_vars["tfc_workspace_name"] = ws_name
+
             resolution_view = self._build_resolution_view(host_vars, hostvars_prefix, hostvars_suffix)
 
             if not passes_filters(resolution_view, include_filters, exclude_filters):
@@ -751,22 +1082,93 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
                 index = record.get("index")
                 hostname = get_preferred_hostname(output_name, workspace_name, resolution_view, hostnames, index)
 
-            if hostname:
-                self._add_host(
-                    hostname,
-                    host_vars,
-                    resolution_view,
-                    compose,
-                    keyed_groups,
-                    groups,
-                    strict,
-                    hostvars_prefix=hostvars_prefix,
-                    hostvars_suffix=hostvars_suffix,
-                )
+            if not hostname:
+                continue
+
+            resolved.append(
+                {
+                    "hostname": hostname,
+                    "host_vars": host_vars,
+                    "resolution_view": resolution_view,
+                    "ws_id": ws_id,
+                    "ws_name": ws_name,
+                }
+            )
+            if stamp_workspace_vars:
+                hostname_workspaces.setdefault(hostname, set()).add(ws_id)
+
+        # Hostnames claimed by more than one distinct workspace would otherwise
+        # collapse onto a single Ansible host (last writer wins), silently
+        # dropping hosts and overwriting their ``tfc_workspace_*`` stamps.
+        colliding = {h for h, workspaces in hostname_workspaces.items() if len(workspaces) > 1}
+        if colliding:
+            Display().warning(
+                f"Multi-workspace inventory: hostname(s) {', '.join(sorted(colliding))} are produced by "
+                "more than one workspace; disambiguating by appending the workspace name. Set 'hostnames' "
+                "or 'compose' to control inventory hostnames deterministically."
+            )
+
+        for item in resolved:
+            hostname = item["hostname"]
+            if hostname in colliding:
+                suffix = item["ws_name"] or item["ws_id"]
+                if suffix:
+                    hostname = f"{hostname}_{suffix}"
+            self._add_host(
+                hostname,
+                item["host_vars"],
+                item["resolution_view"],
+                compose,
+                keyed_groups,
+                groups,
+                strict,
+                hostvars_prefix=hostvars_prefix,
+                hostvars_suffix=hostvars_suffix,
+            )
 
     # ------------------------------------------------------------------
     # Entry point
     # ------------------------------------------------------------------
+
+    def _cache_key(
+        self,
+        source: str,
+        workspace_id: Optional[str],
+        organization: Optional[str],
+        workspace: Optional[str],
+    ) -> str:
+        """Build a static cache key from inventory config — no API calls.
+
+        Keys differ for different ``(source, workspace)`` tuples; a single
+        inventory config keeps a stable key so subsequent runs hit the cache
+        cleanly. Components are restricted to filesystem-safe characters
+        (letters, digits, ``.``, ``-``, ``_``) so file-backed cache plugins
+        like ``jsonfile`` can use the key directly as a filename.
+
+        Cross-endpoint isolation: a short hash of O(tfe_address) is folded into
+        the key so the same C(organization)/C(workspace) names on different
+        HCP/TFE endpoints never collide in a shared cache backend.
+        """
+        ws_part = workspace_id or "{0}/{1}".format(organization or "", workspace or "")
+        raw = "_".join([self.NAME, source, getattr(self, "_endpoint_tag", ""), ws_part])
+        return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
+
+    def _selector_cache_key(
+        self,
+        source: str,
+        organization: str,
+        filters: Dict[str, Any],
+    ) -> str:
+        """Build a filesystem-safe selector cache key for multi-workspace mode.
+
+        Filters are normalized via ``json.dumps(..., sort_keys=True)`` so YAML
+        key order doesn't change the key. A short hash of O(tfe_address) is
+        folded in so the same C(organization)/filters on different HCP/TFE
+        endpoints never collide in a shared cache backend.
+        """
+        normalized = json.dumps(filters or {}, sort_keys=True, default=str)
+        raw = "_".join([self.NAME, "selector", source, getattr(self, "_endpoint_tag", ""), organization or "", normalized])
+        return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
 
     def parse(self, inventory, loader, path, cache=False):  # type: ignore[override]
         super().parse(inventory, loader, path, cache=cache)
@@ -774,6 +1176,10 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
 
         tfe_token: str = self.get_option("tfe_token") or ""
         tfe_address: str = self.get_option("tfe_address")
+        # Short, filesystem-safe hash of the endpoint, folded into cache keys so
+        # the same org/workspace names on different HCP/TFE endpoints can't
+        # cross-contaminate a shared cache backend.
+        self._endpoint_tag = hashlib.sha1((tfe_address or "").encode("utf-8")).hexdigest()[:10]
         source: str = self.get_option("source")
         hostnames: List[Any] = self.get_option("hostnames") or []
         include_filters: List[Dict] = self.get_option("include_filters") or []
@@ -785,10 +1191,34 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         hostvars_prefix: str = self.get_option("hostvars_prefix") or ""
         hostvars_suffix: str = self.get_option("hostvars_suffix") or ""
 
+        workspace_filters: Dict[str, Any] = self.get_option("workspace_filters") or {}
+        enable_parallel: bool = bool(self.get_option("enable_parallel_processing"))
+        concurrency_opt = self.get_option("concurrency")
+        concurrency: int = int(concurrency_opt) if concurrency_opt is not None else 1
+
+        workspace_id_opt = self.get_option("workspace_id")
+        workspace_opt = self.get_option("workspace")
+        organization_opt = self.get_option("organization")
+
+        # Mode dispatch + validation. Multi-workspace mode is triggered by a
+        # non-empty workspace_filters; exact workspace options must not be
+        # mixed with it (fail loud rather than silently fall back).
+        multi_mode = bool(workspace_filters)
+        if multi_mode and (workspace_id_opt or workspace_opt):
+            raise AnsibleParserError(
+                "workspace_filters is mutually exclusive with workspace_id and workspace. Pick exact-workspace mode OR filter mode, not both."
+            )
+        if multi_mode and not organization_opt:
+            raise AnsibleParserError("workspace_filters requires 'organization' to be set.")
+        if concurrency < 1 or concurrency > _CONCURRENCY_MAX:
+            raise AnsibleParserError(f"concurrency must be between 1 and {_CONCURRENCY_MAX}; got {concurrency}.")
+        if enable_parallel and not multi_mode:
+            Display().warning("enable_parallel_processing has no effect without workspace_filters; running in single-workspace mode.")
+
         source_options: Dict[str, Any] = {
-            "workspace_id": self.get_option("workspace_id"),
-            "organization": self.get_option("organization"),
-            "workspace": self.get_option("workspace"),
+            "workspace_id": workspace_id_opt,
+            "organization": organization_opt,
+            "workspace": workspace_opt,
             # Passed through to StatefileSource; ignored by OutputsSource.
             "search_child_modules": self.get_option("search_child_modules"),
             "provider_mapping": self.get_option("provider_mapping") or [],
@@ -807,28 +1237,359 @@ class InventoryModule(BaseInventoryPlugin, Constructable):  # type: ignore[misc]
         if not tfe_token:
             raise AnsibleParserError("A Terraform API token is required. Set 'tfe_token' in the inventory config or the TFE_TOKEN environment variable.")
 
+        # Cache contract:
+        # ``self.get_option("cache")`` reflects the user's inventory YAML opt-in.
+        # ``cache`` (parameter) reflects the runtime gate — Ansible passes ``False``
+        # when ``--flush-cache`` is in effect, so reads must be skipped that run.
+        # Writes are still allowed to refresh the entry.
+        user_cache_opt = bool(self.get_option("cache"))
+        cache_read_ok = user_cache_opt and bool(cache)
+        cache_write_ok = user_cache_opt
+        # Opt-in apply-aware freshness mode. When True, every run resolves the
+        # workspace's current state version and only reuses cached data whose
+        # ``state_version_id`` matches. Not offline-friendly — see option docs.
+        validate_sv = user_cache_opt and bool(self.get_option("cache_validate_current_state_version"))
+
         try:
             source_cls = get_source_backend(source)
-            source_cls.validate_options(source_options)
+            if not multi_mode:
+                source_cls.validate_options(source_options)
 
-            with self._build_client({"tfe_token": tfe_token, "tfe_address": tfe_address}) as client:
-                records = source_cls(client, source_options).collect_hosts()
-
-                self._populate_from_host_records(
-                    records,
-                    hostnames,
-                    compose,
-                    keyed_groups,
-                    groups,
-                    strict,
-                    include_filters,
-                    exclude_filters,
-                    hostvars_prefix=hostvars_prefix,
-                    hostvars_suffix=hostvars_suffix,
+            if multi_mode:
+                records = self._parse_multi(
+                    source=source,
+                    source_cls=source_cls,
+                    source_options=source_options,
+                    organization=organization_opt,
+                    workspace_filters=workspace_filters,
+                    tfe_token=tfe_token,
+                    tfe_address=tfe_address,
+                    cache_read_ok=cache_read_ok,
+                    cache_write_ok=cache_write_ok,
+                    validate_sv=validate_sv,
+                    enable_parallel=enable_parallel,
+                    concurrency=concurrency,
                 )
+            else:
+                records = self._parse_single(
+                    source=source,
+                    source_cls=source_cls,
+                    source_options=source_options,
+                    tfe_token=tfe_token,
+                    tfe_address=tfe_address,
+                    cache_read_ok=cache_read_ok,
+                    cache_write_ok=cache_write_ok,
+                    validate_sv=validate_sv,
+                )
+
+            self._populate_from_host_records(
+                records,
+                hostnames,
+                compose,
+                keyed_groups,
+                groups,
+                strict,
+                include_filters,
+                exclude_filters,
+                hostvars_prefix=hostvars_prefix,
+                hostvars_suffix=hostvars_suffix,
+                stamp_workspace_vars=multi_mode,
+            )
         except TerraformError as exc:
             raise AnsibleParserError(str(exc)) from exc
         except TerraformTokenNotFoundError as exc:
             raise AnsibleParserError(f"Authentication error: {exc}") from exc
+        except AnsibleParserError:
+            raise
         except Exception as exc:
             raise AnsibleParserError(f"Failed to build inventory from HCP Terraform: {exc}") from exc
+
+    # ------------------------------------------------------------------
+    # Single-workspace path (unchanged logic, extracted for clarity)
+    # ------------------------------------------------------------------
+
+    def _parse_single(
+        self,
+        source: str,
+        source_cls: Any,
+        source_options: Dict[str, Any],
+        tfe_token: str,
+        tfe_address: str,
+        cache_read_ok: bool,
+        cache_write_ok: bool,
+        validate_sv: bool,
+    ) -> List[HostRecord]:
+        user_cache_opt = cache_write_ok  # write_ok already encodes the user opt-in
+        cache_key: Optional[str] = None
+        if user_cache_opt:
+            cache_key = self._cache_key(
+                source,
+                source_options.get("workspace_id"),
+                source_options.get("organization"),
+                source_options.get("workspace"),
+            )
+
+        if not validate_sv:
+            cached_blob: Any = None
+            if cache_read_ok and cache_key is not None:
+                try:
+                    candidate = self._cache[cache_key]
+                except KeyError:
+                    candidate = None
+                if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA:
+                    cached_blob = candidate
+
+            if cached_blob is not None:
+                source_instance = source_cls(None, source_options)
+                source_instance._cached_blob = cached_blob
+                return source_instance.collect_hosts()
+
+            with self._build_client(
+                {"tfe_token": tfe_token, "tfe_address": tfe_address},
+                user_agent_suffix=_inventory_user_agent(source, "single"),
+            ) as client:
+                source_instance = source_cls(client, source_options)
+                records = source_instance.collect_hosts()
+                if cache_write_ok and cache_key is not None:
+                    blob = getattr(source_instance, "_fetched_blob", None)
+                    if blob is not None:
+                        self._cache[cache_key] = blob
+                return records
+
+        # Validation mode (single workspace).
+        with self._build_client(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source, "single"),
+        ) as client:
+            resolved_id, workspace_name = resolve_workspace(
+                client,
+                source_options.get("workspace_id"),
+                source_options.get("organization"),
+                source_options.get("workspace"),
+            )
+            current_sv_id = resolve_current_state_version_id(client, resolved_id)
+            if current_sv_id is None:
+                raise AnsibleParserError(
+                    "cache_validate_current_state_version=true requires HCP/TFE "
+                    "connectivity to validate the cache. Could not resolve the "
+                    f"current state version ID for workspace '{workspace_name}' "
+                    f"({resolved_id}). Disable validation mode to serve cached "
+                    "data offline within cache_timeout."
+                )
+
+            cached_blob = None
+            if cache_read_ok and cache_key is not None:
+                try:
+                    candidate = self._cache[cache_key]
+                except KeyError:
+                    candidate = None
+                if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA and candidate.get("state_version_id") == current_sv_id:
+                    cached_blob = candidate
+
+            source_instance = source_cls(client, source_options)
+            if cached_blob is not None:
+                source_instance._cached_blob = cached_blob
+            else:
+                source_instance._validation_ctx = {
+                    "workspace_id": resolved_id,
+                    "workspace_name": workspace_name,
+                    "state_version_id": current_sv_id,
+                }
+            records = source_instance.collect_hosts()
+
+            if cache_write_ok and cache_key is not None and cached_blob is None:
+                blob = getattr(source_instance, "_fetched_blob", None)
+                if blob is not None:
+                    self._cache[cache_key] = blob
+            return records
+
+    # ------------------------------------------------------------------
+    # Multi-workspace path
+    # ------------------------------------------------------------------
+
+    def _resolve_targets(
+        self,
+        source: str,
+        organization: str,
+        workspace_filters: Dict[str, Any],
+        tfe_token: str,
+        tfe_address: str,
+        cache_read_ok: bool,
+        cache_write_ok: bool,
+    ) -> List[Tuple[str, str]]:
+        """Return ``[(workspace_id, workspace_name), ...]`` from selector cache
+        or a live ``workspaces.list()`` call. The selector cache eliminates the
+        workspace-list API call on warm runs.
+        """
+        selector_key = self._selector_cache_key(source, organization, workspace_filters)
+
+        if cache_read_ok:
+            try:
+                candidate = self._cache[selector_key]
+            except KeyError:
+                candidate = None
+            if isinstance(candidate, dict) and candidate.get("schema") == _SELECTOR_CACHE_SCHEMA:
+                targets = candidate.get("targets") or []
+                if isinstance(targets, list):
+                    return [(str(t[0]), str(t[1])) for t in targets if isinstance(t, (list, tuple)) and len(t) >= 2]
+
+        with self._build_client(
+            {"tfe_token": tfe_token, "tfe_address": tfe_address},
+            user_agent_suffix=_inventory_user_agent(source, "multi"),
+        ) as client:
+            targets = list_workspaces(client, organization, workspace_filters)
+
+        if cache_write_ok:
+            try:
+                self._cache[selector_key] = {
+                    "schema": _SELECTOR_CACHE_SCHEMA,
+                    "targets": [[ws_id, ws_name] for ws_id, ws_name in targets],
+                }
+            except Exception as exc:
+                Display().warning(f"failed to write selector cache: {exc}")
+
+        return targets
+
+    def _read_per_workspace_cache(self, source: str, workspace_id: str) -> Optional[Dict[str, Any]]:
+        """Read a per-workspace cache blob if shape-valid. Main-thread only."""
+        cache_key = self._cache_key(source, workspace_id, None, None)
+        try:
+            candidate = self._cache[cache_key]
+        except KeyError:
+            return None
+        if isinstance(candidate, dict) and candidate.get("schema") == _CACHE_SCHEMA:
+            return candidate
+        return None
+
+    def _write_per_workspace_cache(self, source: str, workspace_id: str, blob: Dict[str, Any]) -> None:
+        """Write a per-workspace cache blob; warn on failure. Main-thread only."""
+        cache_key = self._cache_key(source, workspace_id, None, None)
+        try:
+            self._cache[cache_key] = blob
+        except Exception as exc:
+            Display().warning(f"failed to write per-workspace cache for {workspace_id}: {exc}")
+
+    def _parse_multi(
+        self,
+        source: str,
+        source_cls: Any,
+        source_options: Dict[str, Any],
+        organization: str,
+        workspace_filters: Dict[str, Any],
+        tfe_token: str,
+        tfe_address: str,
+        cache_read_ok: bool,
+        cache_write_ok: bool,
+        validate_sv: bool,
+        enable_parallel: bool,
+        concurrency: int,
+    ) -> List[HostRecord]:
+        targets = self._resolve_targets(
+            source,
+            organization,
+            workspace_filters,
+            tfe_token,
+            tfe_address,
+            cache_read_ok,
+            cache_write_ok,
+        )
+        if not targets:
+            Display().warning(f"workspace_filters matched zero workspaces in organization {organization!r}.")
+            return []
+
+        # Validate options once with a placeholder workspace_id; per-workspace
+        # options are derived from this base in the worker.
+        base_options = dict(source_options)
+        base_options["workspace_id"] = targets[0][0]
+        base_options["organization"] = None
+        base_options["workspace"] = None
+        source_cls.validate_options(base_options)
+
+        # Pre-read every per-workspace cache blob on the main thread. Cache
+        # plugins are not documented thread-safe; this also keeps the worker
+        # signature simple.
+        pre_blobs: Dict[str, Optional[Dict[str, Any]]] = {}
+        for ws_id, _ws_name in targets:
+            pre_blobs[ws_id] = self._read_per_workspace_cache(source, ws_id) if cache_read_ok else None
+
+        def _fetch_one(ws_id: str, ws_name: str) -> Dict[str, Any]:
+            return _fetch_workspace_records(
+                ws_id=ws_id,
+                ws_name=ws_name,
+                source_options=source_options,
+                source_cls=source_cls,
+                tfe_token=tfe_token,
+                tfe_address=tfe_address,
+                cached_blob=pre_blobs.get(ws_id),
+                validate_sv=validate_sv,
+            )
+
+        display = Display()
+
+        def _emit_worker_error(ws_id: str, ws_name: str, exc: BaseException) -> bool:
+            """Route per-workspace failures to the right severity.
+
+            Workspaces with no applied state are common in filter mode (bootstrap
+            workspaces, never-applied workspaces) — those are not failures from
+            the operator's perspective, so they go to verbose-only output.
+            Real errors (auth, permission, network, etc.) stay as warnings.
+
+            Returns ``True`` when the failure is a hard error (auth/network/
+            permission), ``False`` for a benign "no applied state" skip.
+            """
+            msg = str(exc)
+            if "no current state version" in msg.lower() or "no applied runs" in msg.lower():
+                display.vvv(f"skipping workspace {ws_name} ({ws_id}): {msg}")
+                return False
+            display.warning(f"failed to fetch workspace {ws_name} ({ws_id}): {msg}")
+            return True
+
+        results: List[Dict[str, Any]] = []
+        hard_failures = 0
+        if enable_parallel and concurrency > 1:
+            with ThreadPoolExecutor(max_workers=min(concurrency, _CONCURRENCY_MAX)) as pool:
+                futures = {pool.submit(_fetch_one, ws_id, ws_name): (ws_id, ws_name) for ws_id, ws_name in targets}
+                for fut in as_completed(futures):
+                    try:
+                        results.append(fut.result())
+                    except Exception as exc:
+                        ws_id, ws_name = futures[fut]
+                        if _emit_worker_error(ws_id, ws_name, exc):
+                            hard_failures += 1
+        else:
+            for ws_id, ws_name in targets:
+                try:
+                    results.append(_fetch_one(ws_id, ws_name))
+                except Exception as exc:
+                    if _emit_worker_error(ws_id, ws_name, exc):
+                        hard_failures += 1
+
+        all_records: List[HostRecord] = []
+        for r in results:
+            if r.get("warning"):
+                if _emit_worker_error(r["ws_id"], r["ws_name"], Exception(r["warning"])) and r.get("skipped"):
+                    hard_failures += 1
+            if r.get("skipped"):
+                continue
+            for rec in r["records"]:
+                # Records from cache-hits may already carry workspace_id; the
+                # worker always restamps from the dispatch context, so this is
+                # idempotent.
+                rec["workspace_id"] = r["ws_id"]
+                rec["workspace_name"] = r["ws_name"]
+            all_records.extend(r["records"])
+            if cache_write_ok and r.get("blob") is not None:
+                self._write_per_workspace_cache(source, r["ws_id"], r["blob"])
+
+        # Fail loudly when *every* matched workspace hit a hard error (auth,
+        # network, permission). Silently returning an empty inventory would mask
+        # a total failure — and ``ansible-inventory`` exits 0 by default on an
+        # empty result — so refuse rather than hand back zero hosts.
+        if targets and hard_failures >= len(targets):
+            raise TerraformError(
+                f"All {len(targets)} workspace(s) matched by 'workspace_filters' failed to fetch "
+                "(see warnings above); refusing to return an empty inventory. Check the token, "
+                "network connectivity, and team/workspace permissions."
+            )
+
+        return all_records

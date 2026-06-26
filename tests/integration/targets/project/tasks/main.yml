@@ -27,6 +27,10 @@
         that:
           - result_create.changed
 
+    - name: Set a fact for 'project_id'
+      ansible.builtin.set_fact:
+        project_id: "{{ result_create.id }}"
+
     - name: Idempotency test - create project again
       hashicorp.terraform.project: *create_project_task
       register: result_create_again
@@ -35,6 +39,11 @@
       ansible.builtin.assert:
         that:
           - not result_create_again.changed
+          - result_create_again.id == project_id
+          - result_create_again.name == project_name
+          - result_create_again.description == "test project"
+          - result_create_again.default_execution_mode == "remote"
+          - result_create_again.auto_destroy_activity_duration == "14d"
 
     - name: Update project
       hashicorp.terraform.project: &update_project_task
@@ -65,6 +74,11 @@
       ansible.builtin.assert:
         that:
           - not result_update_again.changed
+          - result_update_again.id == project_id
+          - result_update_again.name == project_name
+          - result_update_again.description == "test project updated"
+          - result_update_again.default_execution_mode == "local"
+          - result_update_again.auto_destroy_activity_duration == "15d"
 
     - name: Update project with project_id
       hashicorp.terraform.project:
@@ -89,6 +103,8 @@
       ansible.builtin.assert:
         that:
           - not result_update_with_project_id_again.changed
+          - result_update_with_project_id_again.id == project_id
+          - result_update_with_project_id_again.auto_destroy_activity_duration == "17d"
 
     # Agent Pool Tests
     - name: Generate unique agent pool name
@@ -96,26 +112,15 @@
         agent_pool_name: "{{ project_name }}-agent-pool"
 
     - name: Create a Terraform agent pool with unique name
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/organizations/{{ organization }}/agent-pools"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        body_format: json
-        body:
-          data:
-            attributes:
-              name: "{{ agent_pool_name }}"
-            type: "agent-pools"
-        return_content: true
-        status_code: 201
-      no_log: true
+      hashicorp.terraform.agent_pool:
+        organization: "{{ organization }}"
+        name: "{{ agent_pool_name }}"
+        state: present
       register: agent_pool_create_response
 
     - name: Set a fact for 'agent_pool_id'
       ansible.builtin.set_fact:
-        agent_pool_id: "{{ agent_pool_create_response.json.data.id }}"
+        agent_pool_id: "{{ agent_pool_create_response.id }}"
 
     - name: Update project with agent execution mode and default agent pool
       hashicorp.terraform.project: &update_project_agent_task
@@ -141,6 +146,9 @@
       ansible.builtin.assert:
         that:
           - not result_update_agent_again.changed
+          - result_update_agent_again.id == project_id
+          - result_update_agent_again.default_execution_mode == "agent"
+          - result_update_agent_again.description == "project with agent execution mode"
 
     - name: Update project to change execution mode back to remote
       hashicorp.terraform.project:
@@ -188,6 +196,10 @@
       ansible.builtin.assert:
         that:
           - not result_update_agent_same.changed
+          - result_update_agent_same.id == result_create_agent.id
+          - result_update_agent_same.default_execution_mode == "agent"
+          - result_update_agent_same.description == "test project with agent mode"
+          - result_update_agent_same.auto_destroy_activity_duration == "14d"
 
   always:
     - name: Update first project to remove agent pool before deletion
@@ -225,15 +237,9 @@
       ignore_errors: true
 
     - name: Delete agent pool
-      ansible.builtin.uri:
-        url: "https://app.terraform.io/api/v2/agent-pools/{{ agent_pool_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Bearer {{ tfc_token }}"
-          Content-Type: "application/vnd.api+json"
-        status_code: 204
-        return_content: true
-      no_log: true
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        state: absent
       register: agent_pool_delete_response
       when: agent_pool_id is defined
       ignore_errors: true

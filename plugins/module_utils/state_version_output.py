@@ -169,7 +169,7 @@ def get_workspace_outputs(adapter: TerraformClient, workspace_id: str, display_s
     try:
         response = list(adapter.client.state_version_outputs.read_current(workspace_id))
     except NotFound:
-        raise ValueError(f"Workspace with ID '{workspace_id}' was not found.")
+        raise ValueError(f"No current state version found for workspace '{workspace_id}'. " "The workspace may have no applied runs yet.")
 
     outputs_data = response
 

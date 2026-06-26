@@ -54,6 +54,21 @@ options:
       - Whether values in this set override values defined on the workspace or by other
         (non-priority) variable sets.
     type: bool
+  parent_project_id:
+    description:
+      - The ID of a project to set as the parent of the variable set on creation.
+      - When set, the variable set is owned by the project rather than the organization.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_organization_name).
+    type: str
+  parent_organization_name:
+    description:
+      - The name of the organization to set as the parent of the variable set on creation.
+      - The HCP Terraform API identifies organizations by name, not by an opaque ID; pass the
+        organization name (e.g. C(my-org)) rather than an ID-style string.
+      - Only honored when the variable set is created; ignored on updates.
+      - Mutually exclusive with C(parent_project_id).
+    type: str
   workspace_ids:
     description:
       - List of workspace IDs the variable set should be attached to.
@@ -61,7 +76,7 @@ options:
         currently attached but not listed will be detached, and any listed but not attached
         will be attached.
       - Pass an empty list C([]) to detach from all workspaces. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   project_ids:
@@ -69,7 +84,7 @@ options:
       - List of project IDs the variable set should be attached to.
       - When provided, the module converges attachments to exactly this list.
       - Pass an empty list C([]) to detach from all projects. Omit to leave attachments untouched.
-      - Only valid when C(global=false).
+      - Only valid when C(global=false) and C(state=present).
     type: list
     elements: str
   state:
@@ -177,6 +192,11 @@ project_ids:
   type: list
   elements: str
   sample: ["prj-abc123"]
+parent:
+  description: Parent relationship of the variable set as returned by the API.
+  returned: when the API includes a parent relationship in the response
+  type: dict
+  sample: {"id": "prj-kFjgSzcZSr5c3imE", "type": "projects"}
 msg:
   description: Informational message, primarily for delete, no-op, and check mode operations.
   returned: when relevant
@@ -224,6 +244,20 @@ def _resolve_variable_set(adapter: TerraformClient, params: Dict[str, Any]) -> O
 def _build_desired_attrs(params: Dict[str, Any]) -> Dict[str, Any]:
     """Pick the variable-set scalar attributes from params, dropping Nones."""
     return {k: v for k, v in params.items() if k in _ATTR_KEYS and v is not None}
+
+
+def _build_parent(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Build the SDK ``parent`` relationship payload from params, if requested.
+
+    Returns ``None`` when neither parent identifier is provided.
+    """
+    project_id = params.get("parent_project_id")
+    if project_id:
+        return {"project": {"id": project_id}}
+    organization_name = params.get("parent_organization_name")
+    if organization_name:
+        return {"organization": {"name": organization_name}}
+    return None
 
 
 def _filter_current_attrs(have: Dict[str, Any], want: Dict[str, Any]) -> Dict[str, Any]:
@@ -283,6 +317,9 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             raise ValueError("'organization' is required when creating a new variable set.")
         # pytfe requires `global` on create — default to False if the user didn't specify.
         create_payload = {"global": False, **want_attrs}
+        parent = _build_parent(params)
+        if parent:
+            create_payload["parent"] = parent
         if check_mode:
             return {
                 "changed": True,
@@ -398,29 +435,29 @@ def main() -> None:
             "description": {"type": "str"},
             "global": {"type": "bool"},
             "priority": {"type": "bool"},
+            "parent_project_id": {"type": "str"},
+            "parent_organization_name": {"type": "str"},
             "workspace_ids": {"type": "list", "elements": "str"},
             "project_ids": {"type": "list", "elements": "str"},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
-        mutually_exclusive=[("variable_set_id", "name")],
-        required_one_of=[("variable_set_id", "name")],
+        mutually_exclusive=[("variable_set_id", "name"), ("parent_project_id", "parent_organization_name")],
         required_by={"name": ("organization",)},
+        required_one_of=[("variable_set_id", "name")],
         supports_check_mode=True,
     )
 
-    warnings: list = []
-    result: Dict[str, Any] = {"changed": False, "warnings": warnings}
+    result: Dict[str, Any] = {"changed": False}
     action_result: Optional[Dict[str, Any]] = None
     params: Dict[str, Any] = deepcopy(module.params)
-    params["check_mode"] = module.check_mode
 
     try:
         with module.client() as adapter:
             match params["state"]:
                 case "present":
-                    action_result = state_present(adapter, params, params["check_mode"])
+                    action_result = state_present(adapter, params, module.check_mode)
                 case "absent":
-                    action_result = state_absent(adapter, params, params["check_mode"])
+                    action_result = state_absent(adapter, params, module.check_mode)
 
             if action_result:
                 result.update(action_result)

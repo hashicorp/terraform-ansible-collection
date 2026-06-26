@@ -74,7 +74,6 @@ SUPPORTED_STATE_VERSION = 4
 PROVIDER_RESOURCE_TYPES: Dict[str, List[str]] = {
     "registry.terraform.io/hashicorp/aws": [
         "aws_instance",
-        "aws_network_interface",
     ],
     "registry.terraform.io/hashicorp/azurerm": [
         "azurerm_linux_virtual_machine",
@@ -296,6 +295,30 @@ def _sanitize_sensitive_attributes(
     return sanitized
 
 
+def _sanitize_state_for_cache(state_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a deep-copy of *state_data* with all sensitive attributes stripped.
+
+    Walks every resource instance, applies :func:`_sanitize_sensitive_attributes`
+    using the instance's ``sensitive_attributes`` marker, and removes the
+    marker afterwards (its values are gone, so the second-pass sanitization
+    inside :meth:`StatefileSource.collect_hosts` is a no-op on the cleaned
+    blob).
+
+    The result is what gets persisted via Ansible's cache plugins. Values
+    Terraform flagged as sensitive must not be written to disk under
+    ``~/.ansible/cache/`` or any other backend, so this scrubbing happens
+    *before* the blob enters the cache.
+    """
+    cleaned = copy.deepcopy(state_data) if state_data is not None else {}
+    for resource in cleaned.get("resources") or []:
+        for instance in resource.get("instances") or []:
+            attrs = instance.get("attributes") or {}
+            sensitive_paths = instance.get("sensitive_attributes") or []
+            instance["attributes"] = _sanitize_sensitive_attributes(attrs, sensitive_paths)
+            instance.pop("sensitive_attributes", None)
+    return cleaned
+
+
 # ---------------------------------------------------------------------------
 # Hostname resolution helpers
 # ---------------------------------------------------------------------------
@@ -436,9 +459,40 @@ class StatefileSource(BaseInventorySource):
         provider_mapping: List[Dict[str, Any]] = self.options.get("provider_mapping") or []
         hostnames: List[Any] = self.options.get("hostnames") or []
 
-        resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
-
-        state_data = _download_statefile(self.client, resolved_id)
+        # Cache-aware fetch.
+        # ``_cached_blob`` (if set by the plugin) is a v1 blob whose ``data`` is
+        # an already-sanitized state body — cache hits never touch the network.
+        # ``_validation_ctx`` (if set) carries a pre-resolved workspace and the
+        # current state version ID, so on a validation-mode cache miss the
+        # source skips its own ``resolve_workspace`` call and writes a blob
+        # tagged with the state version that produced it.
+        cached_blob = getattr(self, "_cached_blob", None)
+        if cached_blob is not None:
+            workspace_name = cached_blob["workspace_name"]
+            resolved_id = cached_blob.get("workspace_id")
+            state_data = cached_blob["data"]
+        else:
+            ctx = getattr(self, "_validation_ctx", None)
+            if ctx is not None:
+                resolved_id = ctx["workspace_id"]
+                workspace_name = ctx["workspace_name"]
+                pre_sv_id: Optional[str] = ctx.get("state_version_id")
+            else:
+                resolved_id, workspace_name = resolve_workspace(self.client, workspace_id_opt, organization, workspace)
+                pre_sv_id = None
+            raw_state = _download_statefile(self.client, resolved_id)
+            # Strip Terraform-flagged sensitive attributes BEFORE the blob is
+            # ever handed to the cache plugin: persisted cache files must not
+            # contain values Terraform marked sensitive.
+            state_data = _sanitize_state_for_cache(raw_state)
+            self._fetched_blob = {
+                "schema": "tfc_inv_cache_v1",
+                "source": "statefile",
+                "workspace_name": workspace_name,
+                "workspace_id": resolved_id,
+                "state_version_id": pre_sv_id,
+                "data": state_data,
+            }
         provider_configs = _build_provider_configs(provider_mapping)
 
         records: List[HostRecord] = []
@@ -477,6 +531,7 @@ class StatefileSource(BaseInventorySource):
                         "host_vars": attributes,
                         "index": effective_index,
                         "resolved_hostname": resolved_hostname,
+                        "workspace_id": resolved_id,
                     }
                 )
 

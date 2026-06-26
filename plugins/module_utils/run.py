@@ -52,6 +52,8 @@ def create_run(adapter: TerraformClient, data: dict[str, Any]) -> Optional[dict[
         data["workspace"] = Workspace.model_validate({"id": data.pop("workspace_id"), "type": "workspaces"})
     if data.get("variables"):
         data["variables"] = [RunVariable(**variable) for variable in data.pop("variables")]
+    if "run_message" in data:
+        data["message"] = data.pop("run_message")
     options = RunCreateOptions.model_validate(data)
 
     run_response = safe_api_call(adapter.client.runs.create, options)

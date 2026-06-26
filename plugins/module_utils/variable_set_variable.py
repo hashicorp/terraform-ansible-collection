@@ -9,18 +9,28 @@ from typing import Any, Dict, List, Optional
 
 try:
     from pytfe.errors import NotFound
-    from pytfe.models import VariableSetVariableListOptions
+    from pytfe.models import (
+        VariableSetVariableCreateOptions,
+        VariableSetVariableListOptions,
+        VariableSetVariableUpdateOptions,
+    )
 except ImportError:
 
     class NotFound(Exception):  # type: ignore[no-redef]
         pass
 
+    class VariableSetVariableCreateOptions:  # type: ignore[no-redef]
+        pass
+
     class VariableSetVariableListOptions:  # type: ignore[no-redef]
+        pass
+
+    class VariableSetVariableUpdateOptions:  # type: ignore[no-redef]
         pass
 
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 SENSITIVE_PLACEHOLDER = "<sensitive>"
 
@@ -49,13 +59,85 @@ def mask_sensitive(variables: List[Dict[str, Any]], display_sensitive: bool = Fa
     return masked
 
 
+def get_variable_set_variable(
+    adapter: TerraformClient,
+    variable_set_id: str,
+    variable_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Read a single variable-set variable by its ID."""
+    try:
+        variable = adapter.client.variable_set_variables.read(variable_set_id, variable_id)
+        return format_response(variable)
+    except NotFound:
+        return None
+
+
 def get_variable_set_variable_by_key(
     adapter: TerraformClient,
     variable_set_id: str,
     key: str,
+    category: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Resolve a variable-set variable by its key."""
+    """Resolve a variable-set variable by its key.
+
+    A variable set may contain the same ``key`` under different categories (an
+    ``env`` and a ``terraform`` variable both named ``FOO``). When ``category``
+    is given, both must match; otherwise the first key match wins. This mirrors
+    the workspace ``get_variable_by_key`` behaviour so the same key cannot
+    resolve to the wrong variable.
+    """
     for v in list_variable_set_variables(adapter, variable_set_id):
-        if v.get("key") == key:
-            return v
+        if v.get("key") != key:
+            continue
+        if category is not None and v.get("category") != category:
+            continue
+        return v
     return None
+
+
+def create_variable_set_variable(
+    adapter: TerraformClient,
+    variable_set_id: str,
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Create a variable within the given variable set."""
+    options = VariableSetVariableCreateOptions.model_validate(data)
+    response = safe_api_call(
+        adapter.client.variable_set_variables.create,
+        variable_set_id,
+        options,
+        error_context=f"Failed to create variable {data.get('key')!r} in variable set {variable_set_id}",
+    )
+    return format_response(response)
+
+
+def update_variable_set_variable(
+    adapter: TerraformClient,
+    variable_set_id: str,
+    variable_id: str,
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Update an existing variable within a variable set."""
+    options = VariableSetVariableUpdateOptions.model_validate(data)
+    response = safe_api_call(
+        adapter.client.variable_set_variables.update,
+        variable_set_id,
+        variable_id,
+        options,
+        error_context=f"Failed to update variable {variable_id} in variable set {variable_set_id}",
+    )
+    return format_response(response)
+
+
+def delete_variable_set_variable(
+    adapter: TerraformClient,
+    variable_set_id: str,
+    variable_id: str,
+) -> None:
+    """Delete a variable from a variable set by its ID."""
+    safe_api_call(
+        adapter.client.variable_set_variables.delete,
+        variable_set_id,
+        variable_id,
+        error_context=f"Failed to delete variable {variable_id} in variable set {variable_set_id}",
+    )

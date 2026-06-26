@@ -8,16 +8,24 @@ DOCUMENTATION = r"""
 ---
 module: variable
 version_added: "2.0.0"
-short_description: Manage Terraform Cloud/Enterprise workspace variables (create, update, delete).
+short_description: Manage Terraform Cloud/Enterprise workspace and variable-set variables (create, update, delete).
 author: "Prabuddha Chakraborty (@iam404)"
 description:
-  - Manages workspace-scoped variables on Terraform Cloud and Terraform Enterprise.
+  - Manages variables on Terraform Cloud and Terraform Enterprise, scoped either to a workspace
+    or to a variable set.
+  - For a workspace-scoped variable, identify the workspace with O(workspace_id), or with
+    O(workspace) plus O(organization).
+  - For a variable-set-scoped variable, set O(variable_set_id). This mirrors the C(tfe_variable)
+    resource in the Terraform C(tfe) provider, which manages both kinds of variable through a
+    single resource distinguished by C(workspace_id) or C(variable_set_id).
+  - "Exactly one parent scope is required (these are mutually exclusive): O(workspace_id);
+    or O(workspace) plus O(organization); or O(variable_set_id). A scope is required even when
+    targeting an existing variable by O(variable_id), because the API is scoped to its parent."
   - Supports both Terraform input variables (C(category=terraform)) and environment variables (C(category=env)).
-  - Variables may be looked up either directly by their C(variable_id), or by the combination of
-    workspace (C(workspace_id) or C(workspace)+C(organization)) and the variable's C(key).
+  - Variables may be looked up either directly by their O(variable_id), or by their O(key) within the chosen scope.
   - The C(present) state creates the variable if it does not exist, or updates it in place on drift.
   - The C(absent) state deletes the variable if it exists.
-  - Note that the value of sensitive variables is never returned by the API; see the C(sensitive) option
+  - Note that the value of sensitive variables is never returned by the API; see the O(sensitive) option
     for the idempotency consequences.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
@@ -27,24 +35,37 @@ options:
       - Provide for unambiguous update or delete operations.
       - Mutually exclusive with C(key).
     type: str
+  variable_set_id:
+    description:
+      - The unique identifier of the variable set that owns the variable (e.g. C(varset-...)).
+      - Set this to manage a variable-set-scoped variable instead of a workspace variable.
+      - Mutually exclusive with O(workspace_id), O(workspace), and O(organization).
+      - Exactly one parent scope is required - either O(variable_set_id), O(workspace_id), or
+        O(workspace) plus O(organization).
+    type: str
+    version_added: "2.1.0"
   workspace_id:
     description:
-      - The workspace that owns the variable.
-      - One of C(workspace_id) or (C(workspace) and C(organization)) is required unless C(variable_id) is provided
-        together with one of those identifiers.
+      - ID of the workspace that owns the variable (workspace scope).
+      - Provide O(workspace_id), or O(workspace) plus O(organization), to target a workspace variable.
+      - One parent scope is required - O(workspace_id), O(workspace) plus O(organization), or O(variable_set_id).
+      - Mutually exclusive with O(variable_set_id).
     type: str
   workspace:
     description:
       - The workspace name, used together with C(organization) to locate the workspace.
+      - An alternative to O(workspace_id) for the workspace scope.
+      - Mutually exclusive with O(variable_set_id).
     type: str
   organization:
     description:
       - The name of the organization that owns the workspace.
+      - Mutually exclusive with O(variable_set_id).
     type: str
   key:
     description:
       - The variable key.
-      - Required when identifying a variable by C(workspace)+C(key) (i.e. when C(variable_id) is not provided).
+      - Required when identifying a variable by C(key) within a scope (i.e. when C(variable_id) is not provided).
       - Mutually exclusive with C(variable_id).
     type: str
   value:
@@ -75,8 +96,10 @@ options:
       - Once a variable is marked sensitive, the stored value is write-only; the API will not
         return it. When C(sensitive=true), the module cannot detect drift on C(value) alone
         and will treat re-runs with the same input as idempotent.
-      - To rotate a sensitive value, change another field (for example, C(description)) alongside
-        C(value), or pass C(variable_id) and rely on the update explicitly.
+      - To rotate a sensitive value, change another field (for example, C(description))
+        alongside C(value), or delete and recreate the variable. A value-only change to a
+        sensitive variable cannot be detected and is reported as C(changed=false), regardless
+        of whether the variable is identified by C(key) or C(variable_id).
     type: bool
   state:
     description:
@@ -142,6 +165,30 @@ EXAMPLES = r"""
     workspace: "my-workspace"
     key: "region"
     state: absent
+
+- name: Create a Terraform input variable in a variable set
+  hashicorp.terraform.variable:
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
+    key: "region"
+    value: "us-east-1"
+    category: "terraform"
+    description: "Default application region"
+    state: present
+
+- name: Create a sensitive environment variable in a variable set
+  hashicorp.terraform.variable:
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
+    key: "APP_API_TOKEN"
+    value: "{{ app_api_token }}"
+    category: "env"
+    sensitive: true
+    state: present
+
+- name: Delete a variable-set variable by key
+  hashicorp.terraform.variable:
+    variable_set_id: "varset-7tRVyqGbvrF1RmWQ"
+    key: "region"
+    state: absent
 """
 
 RETURN = r"""
@@ -195,7 +242,7 @@ msg:
 """
 
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from ansible.module_utils._text import to_text
 
@@ -207,6 +254,13 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.variable impor
     get_variable,
     get_variable_by_key,
     update_variable,
+)
+from ansible_collections.hashicorp.terraform.plugins.module_utils.variable_set_variable import (
+    create_variable_set_variable,
+    delete_variable_set_variable,
+    get_variable_set_variable,
+    get_variable_set_variable_by_key,
+    update_variable_set_variable,
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
@@ -227,15 +281,56 @@ def _resolve_workspace_id(adapter: TerraformClient, params: Dict[str, Any]) -> O
     return None
 
 
-def _fetch_variable(adapter: TerraformClient, workspace_id: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Resolve the target variable by ID or by (workspace_id, key[, category])."""
+def _resolve_scope(adapter: TerraformClient, params: Dict[str, Any]) -> Tuple[str, Optional[str]]:
+    """Resolve the variable's parent scope.
+
+    Returns a ``(kind, scope_id)`` tuple. ``kind`` is ``"variable_set"`` when
+    O(variable_set_id) is supplied, otherwise ``"workspace"``. ``scope_id`` is
+    ``None`` when a workspace scope cannot be resolved.
+    """
+    variable_set_id = params.get("variable_set_id")
+    if variable_set_id:
+        return "variable_set", variable_set_id
+    return "workspace", _resolve_workspace_id(adapter, params)
+
+
+def _fetch_variable(adapter: TerraformClient, kind: str, scope_id: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Resolve the target variable by ID or by key within the chosen scope."""
     variable_id = params.get("variable_id")
-    if variable_id:
-        return get_variable(adapter, workspace_id, variable_id)
     key = params.get("key")
+    if kind == "variable_set":
+        if variable_id:
+            return get_variable_set_variable(adapter, scope_id, variable_id)
+        if key:
+            return get_variable_set_variable_by_key(adapter, scope_id, key, category=params.get("category"))
+        return None
+    if variable_id:
+        return get_variable(adapter, scope_id, variable_id)
     if key:
-        return get_variable_by_key(adapter, workspace_id, key, category=params.get("category"))
+        return get_variable_by_key(adapter, scope_id, key, category=params.get("category"))
     return None
+
+
+def _create_in_scope(adapter: TerraformClient, kind: str, scope_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a variable in the chosen scope."""
+    if kind == "variable_set":
+        return create_variable_set_variable(adapter, scope_id, data)
+    return create_variable(adapter, scope_id, data)
+
+
+def _update_in_scope(adapter: TerraformClient, kind: str, scope_id: str, variable_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Update a variable in the chosen scope."""
+    if kind == "variable_set":
+        return update_variable_set_variable(adapter, scope_id, variable_id, data)
+    return update_variable(adapter, scope_id, variable_id, data)
+
+
+def _delete_in_scope(adapter: TerraformClient, kind: str, scope_id: str, variable_id: str) -> None:
+    """Delete a variable in the chosen scope."""
+    if kind == "variable_set":
+        delete_variable_set_variable(adapter, scope_id, variable_id)
+    else:
+        delete_variable(adapter, scope_id, variable_id)
 
 
 def _build_desired_state(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -264,11 +359,11 @@ def _strip_unverifiable_sensitive_value(have: Dict[str, Any], want: Dict[str, An
 
 def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """Create or update a variable to match the desired state."""
-    workspace_id = _resolve_workspace_id(adapter, params)
-    if not workspace_id:
-        raise ValueError("Unable to resolve workspace: provide 'workspace_id' or both 'workspace' and 'organization'.")
+    kind, scope_id = _resolve_scope(adapter, params)
+    if not scope_id:
+        raise ValueError("Unable to resolve the variable's parent: provide 'variable_set_id', 'workspace_id', or both 'workspace' and 'organization'.")
 
-    current = _fetch_variable(adapter, workspace_id, params)
+    current = _fetch_variable(adapter, kind, scope_id, params)
     want = _build_desired_state(params)
 
     if current is None:
@@ -282,7 +377,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
                 "msg": f"Variable {params['key']} would be created. Skipped creation due to check mode.",
                 **want,
             }
-        created = create_variable(adapter, workspace_id, want)
+        created = _create_in_scope(adapter, kind, scope_id, want)
         return {"changed": True, **created}
 
     # Category cannot be mutated in place; flag it rather than silently drifting.
@@ -301,17 +396,17 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             "msg": f"Variable {current.get('id')} would be updated with the given options. Skipped update due to check mode.",
             **want,
         }
-    updated = update_variable(adapter, workspace_id, current["id"], want)
+    updated = _update_in_scope(adapter, kind, scope_id, current["id"], want)
     return {"changed": True, **updated}
 
 
 def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """Delete the variable if present; no-op otherwise."""
-    workspace_id = _resolve_workspace_id(adapter, params)
-    if not workspace_id:
-        return {"changed": False, "msg": "Workspace not found; variable is already absent."}
+    kind, scope_id = _resolve_scope(adapter, params)
+    if not scope_id:
+        return {"changed": False, "msg": "Parent scope not found; variable is already absent."}
 
-    current = _fetch_variable(adapter, workspace_id, params)
+    current = _fetch_variable(adapter, kind, scope_id, params)
     if current is None:
         return {"changed": False, "msg": "Variable is already absent."}
 
@@ -319,7 +414,7 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     if check_mode:
         return {"changed": True, "msg": f"Variable {variable_id} would be deleted. Skipped deletion due to check mode."}
 
-    delete_variable(adapter, workspace_id, variable_id)
+    _delete_in_scope(adapter, kind, scope_id, variable_id)
     return {"changed": True, "msg": f"Variable {variable_id} has been deleted successfully"}
 
 
@@ -327,6 +422,7 @@ def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
             "variable_id": {"type": "str"},
+            "variable_set_id": {"type": "str"},
             "workspace_id": {"type": "str"},
             "workspace": {"type": "str"},
             "organization": {"type": "str"},
@@ -339,8 +435,17 @@ def main() -> None:
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},
         },
         required_together=[["workspace", "organization"]],
-        mutually_exclusive=[("variable_id", "key"), ("workspace_id", "workspace")],
-        required_one_of=[("variable_id", "key")],
+        mutually_exclusive=[
+            ("variable_id", "key"),
+            ("workspace_id", "workspace"),
+            ("variable_set_id", "workspace_id"),
+            ("variable_set_id", "workspace"),
+            ("variable_set_id", "organization"),
+        ],
+        required_one_of=[
+            ("variable_id", "key"),
+            ("variable_set_id", "workspace_id", "workspace"),
+        ],
         supports_check_mode=True,
     )
 

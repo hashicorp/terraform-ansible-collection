@@ -12,10 +12,31 @@ source backend can import from a single location without circular dependencies.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+try:
+    from pytfe.models.workspace import WorkspaceListOptions
+except ImportError:
+
+    class WorkspaceListOptions:  # type: ignore[no-redef]
+        def __init__(self, **kwargs: Any) -> None:
+            self._kwargs = kwargs
+
+
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions import TerraformError
 from ansible_collections.hashicorp.terraform.plugins.module_utils.state_version_output import get_workspace_outputs
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace, get_workspace_by_id
+
+# workspace_filters YAML key → WorkspaceListOptions field. Keep in sync with
+# DOCUMENTATION in plugins/inventory/tfc_inv.py.
+_WORKSPACE_FILTER_MAP: Dict[str, str] = {
+    "name_search": "search",
+    "tags": "tags",
+    "exclude_tags": "exclude_tags",
+    "wildcard_name": "wildcard_name",
+    "current_run_status": "current_run_status",
+    "sort": "sort",
+    "page_size": "page_size",
+}
 
 # ---------------------------------------------------------------------------
 # Hostname resolution helpers
@@ -182,3 +203,79 @@ def fetch_outputs(client: TerraformClient, workspace_id: str) -> List[Dict[str, 
         raise TerraformError(str(exc)) from exc
     except TerraformError as exc:
         raise TerraformError(f"Failed to fetch workspace outputs: {exc}") from exc
+
+
+def list_workspaces(
+    client: TerraformClient,
+    organization: str,
+    filters: Dict[str, Any],
+) -> List[Tuple[str, str]]:
+    """Return ``[(workspace_id, workspace_name), ...]`` for *filters* via pytfe.
+
+    *filters* is the user's ``workspace_filters`` mapping. Maps each key onto
+    a ``WorkspaceListOptions`` kwarg via :data:`_WORKSPACE_FILTER_MAP`, plus the
+    special-cased ``project_id`` (which is validated to start with ``prj-`` —
+    project-name resolution is intentionally not supported in this version).
+
+    Empty-string filter values are dropped (treated as unset) so an absent
+    YAML entry and ``key: ""`` behave identically.
+
+    Empty result is a valid return; callers decide whether to warn.
+    """
+    if not organization:
+        raise TerraformError("workspace_filters requires 'organization' to be set.")
+
+    api_kwargs: Dict[str, Any] = {}
+
+    project_id = filters.get("project_id")
+    if project_id not in (None, ""):
+        if not isinstance(project_id, str) or not project_id.startswith("prj-"):
+            raise TerraformError(
+                "workspace_filters.project_id must be a project ID starting "
+                f"with 'prj-'; got {project_id!r}. Project name resolution is "
+                "not supported; use the project ID."
+            )
+        api_kwargs["project_id"] = project_id
+
+    for yaml_key, pytfe_field in _WORKSPACE_FILTER_MAP.items():
+        value = filters.get(yaml_key)
+        if value in (None, ""):
+            continue
+        api_kwargs[pytfe_field] = value
+
+    unknown = set(filters) - {"project_id"} - set(_WORKSPACE_FILTER_MAP)
+    if unknown:
+        raise TerraformError(
+            "workspace_filters has unsupported keys: " f"{sorted(unknown)}. Supported keys: project_id, " f"{', '.join(sorted(_WORKSPACE_FILTER_MAP))}."
+        )
+
+    opts = WorkspaceListOptions(**api_kwargs)
+
+    targets: List[Tuple[str, str]] = []
+    for ws in client.client.workspaces.list(organization, opts):
+        # pytfe's Workspace model exposes id / name at the top level; fall
+        # back to JSON:API dict shapes for robustness against future changes.
+        ws_id = getattr(ws, "id", None)
+        name = getattr(ws, "name", None)
+        if isinstance(ws, dict):
+            ws_id = ws_id or ws.get("id")
+            name = name or ws.get("name") or (ws.get("attributes") or {}).get("name")
+
+        if ws_id and name:
+            targets.append((str(ws_id), str(name)))
+    return targets
+
+
+def resolve_current_state_version_id(client: TerraformClient, workspace_id: str) -> Optional[str]:
+    """Return the current state version ID for *workspace_id* or ``None`` on failure.
+
+    Used by the optional cache validation mode (``cache_validate_current_state_version``)
+    to confirm a cached blob still reflects the workspace's latest applied state.
+    Returns ``None`` instead of raising so the caller can decide whether to
+    raise (validation mode) or fall back to a non-validated cache hit.
+    """
+    try:
+        sv = client.client.state_versions.read_current(workspace_id)
+        return getattr(sv, "id", None)
+    except Exception:
+        return None

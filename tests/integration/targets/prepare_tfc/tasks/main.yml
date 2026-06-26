@@ -1,4 +1,3 @@
----
 - name: Set values
   ansible.builtin.set_fact:
     tfc_token: "{{ tfc_token | default(lookup('ansible.builtin.env', 'HCP_CI_TOKEN')) }}"

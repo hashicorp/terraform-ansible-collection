@@ -11,6 +11,7 @@ import pytest
 
 from ansible_collections.hashicorp.terraform.plugins.modules.variable_sets import (
     _build_desired_attrs,
+    _build_parent,
     _extract_ids,
     _filter_current_attrs,
     _reconcile_attachments,
@@ -77,6 +78,18 @@ class TestHelpers:
     def test_validate_attachment_scope_non_global_passes(self):
         _validate_attachment_scope({"global": False, "workspace_ids": ["ws-1"]}, current_global=False)
 
+    def test_build_parent_project(self):
+        assert _build_parent({"parent_project_id": "prj-1"}) == {"project": {"id": "prj-1"}}
+
+    def test_build_parent_organization(self):
+        assert _build_parent({"parent_organization_name": "my-org"}) == {"organization": {"name": "my-org"}}
+
+    def test_build_parent_project_takes_precedence(self):
+        assert _build_parent({"parent_project_id": "prj-1", "parent_organization_name": "my-org"}) == {"project": {"id": "prj-1"}}
+
+    def test_build_parent_none(self):
+        assert _build_parent({}) is None
+
 
 class TestResolveVariableSet:
     def test_by_id(self):
@@ -137,6 +150,18 @@ class TestStatePresent:
         assert args[2]["global"] is False
         assert result["changed"] is True
         assert result["id"] == "varset-1"
+
+    def test_create_with_parent_project(self, adapter):
+        params = self._base_params(parent_project_id="prj-1")
+        with patch(f"{MODULE}._resolve_variable_set", return_value=None), patch(
+            f"{MODULE}.create_variable_set",
+            return_value={"id": "varset-1", "name": "shared-aws", "global": False},
+        ) as mock_create:
+            result = state_present(adapter, params, check_mode=False)
+
+        args = mock_create.call_args.args
+        assert args[2]["parent"] == {"project": {"id": "prj-1"}}
+        assert result["changed"] is True
 
     def test_create_requires_name(self, adapter):
         params = self._base_params(name=None)
@@ -344,8 +369,11 @@ class TestMain:
         assert argument_spec["global"]["type"] == "bool"
         assert argument_spec["workspace_ids"]["type"] == "list"
         assert argument_spec["workspace_ids"]["elements"] == "str"
+        assert "workspace_id" not in argument_spec
+        assert "project_id" not in argument_spec
         assert ("variable_set_id", "name") in call_kwargs["mutually_exclusive"]
         assert call_kwargs["supports_check_mode"] is True
+        assert ("variable_set_id", "name") in call_kwargs["required_one_of"]
 
     @patch(f"{MODULE}.AnsibleTerraformModule")
     def test_main_present_dispatch(self, mock_ansible_module, enhanced_dummy_module):

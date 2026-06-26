@@ -310,7 +310,7 @@
       ansible.builtin.assert:
         that:
           - invalid_workspace_id is failed
-          - '"not found" in invalid_workspace_id.msg'
+          - '"No current state version found" in invalid_workspace_id.msg'
         fail_msg: "Invalid workspace ID did not produce expected error"
 
     - name: Test with invalid workspace name
