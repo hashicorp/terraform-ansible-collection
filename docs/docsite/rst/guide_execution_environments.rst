@@ -209,7 +209,7 @@ To test changes from a Git branch before release, point ``requirements.yml`` at 
    collections:
      - name: https://github.com/hashicorp/terraform-ansible-collection.git
        type: git
-       version: next-2.1.0
+       version: main
 
 When building from a branch whose ``meta/execution-environment.yml`` is not yet published, list the
 Python dependency explicitly in ``requirements.txt`` (``pytfe>=1.2.0``) so it is installed.
