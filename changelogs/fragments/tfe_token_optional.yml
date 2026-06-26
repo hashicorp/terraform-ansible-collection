@@ -1,7 +1,0 @@
----
-minor_changes:
-  - >-
-    authentication - The ``tfe_token`` option is no longer marked ``required`` on
-    modules and lookups. When omitted, it falls back to the ``TFE_TOKEN`` environment
-    variable, so tasks can authenticate purely from the environment (for example via
-    ``module_defaults``) without ansible-lint reporting a missing required argument.

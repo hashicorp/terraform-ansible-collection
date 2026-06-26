@@ -1,7 +1,0 @@
----
-minor_changes:
-  - >-
-    Added ``meta/execution-environment.yml`` so that Ansible Builder
-    automatically installs the collection's controller-side Python dependency
-    (``pytfe>=1.2.0``) when the collection is included in an execution
-    environment.

@@ -4,6 +4,66 @@ Hashicorp Terraform Collection Release Notes
 
 .. contents:: Topics
 
+v2.1.0
+======
+
+Release Summary
+---------------
+
+This release adds team and access-management modules (teams, team info, team-project access, and team-workspace access), user information, and organization-tag association. The ``variable`` module can now manage variables inside a variable set via C(variable_set_id). It also extends the dynamic inventory plugin with Ansible-standard caching and multi-workspace scanning, adds Terraform refresh-only and action-only runs, and supports parent relationships when creating variable sets.
+
+Minor Changes
+-------------
+
+- Added ``meta/execution-environment.yml`` so that Ansible Builder automatically installs the collection's controller-side Python dependency (``pytfe>=1.2.0``) when the collection is included in an execution environment.
+- authentication - The ``tfe_token`` option is no longer marked ``required`` on modules and lookups. When omitted, it falls back to the ``TFE_TOKEN`` environment variable, so tasks can authenticate purely from the environment (for example via ``module_defaults``) without ansible-lint reporting a missing required argument.
+- docs - Added a set of scenario guides to the collection docsite under ``docs/docsite/rst/`` (getting started, authentication, workspaces and projects, runs and configuration versions, variables and variable sets, teams and access, workspace bootstrap, dynamic inventory, lookup plugins, execution environments, troubleshooting, and compatibility), along with the ``docs/docsite/extra-docs.yml`` and ``docs/docsite/config.yml`` docsite configuration.
+- inventory - Added an opt-in ``cache_validate_current_state_version`` option (default ``false``). When enabled, each run resolves the workspace's current Terraform state version ID and reuses cached data only when the IDs match, otherwise the cache is overwritten with fresh data. This trades the offline-friendliness of the default mode for apply-aware freshness; if the validation API call fails, the plugin raises rather than serve stale cache.
+- inventory - Default cache hits skip all upstream API calls — workspace resolution, state download, and outputs fetch are all bypassed, so subsequent ``ansible-inventory`` invocations within the ``cache_timeout`` window are fast and offline-capable. Use ``--flush-cache`` to force a refresh after a Terraform apply if you do not want to wait for the timeout.
+- inventory - Every host produced in multi-workspace mode is stamped with auto-injected ``tfc_workspace_id`` and ``tfc_workspace_name`` variables so playbooks can route by origin. These names are exempt from ``hostvars_prefix`` / ``hostvars_suffix`` renaming.
+- inventory - In multi-workspace mode with ``cache_validate_current_state_version: true``, a workspace whose ``state_versions.read_current()`` call fails is excluded from inventory with a warning rather than failing the whole sync. This is a more lenient contract than single-workspace mode (which raises), justified by the "fan-out" nature of filter mode where one workspace being unreachable should not block the rest.
+- inventory - Multi-workspace mode reuses the existing per-workspace cache blob shape unchanged (so a workspace cached in single-workspace mode by ID is bit-for-bit reusable in filter mode) and adds a separate B(selector cache) keyed by ``(source, organization, workspace_filters)`` that eliminates the workspace list API call on warm runs. With both layers warm, multi-workspace inventory is fully offline-capable within ``cache_timeout`` — the same contract as single-workspace mode.
+- inventory - New ``enable_parallel_processing`` option (default ``false``) and ``concurrency`` option (default ``5``, hard cap ``10``) drive concurrent per-workspace fetches via a thread pool. Each worker constructs its own pytfe client; Ansible inventory mutation always happens on the main thread.
+- inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now stamps a component tag onto the HCP Terraform/Enterprise ``User-Agent`` so usage telemetry can distinguish dynamic-inventory traffic. The base ``terraform-ansible-collection/<version>`` token is preserved verbatim (aggregate usage queries are unaffected) and an RFC 7231 comment is appended, for example ``(inventory:tfc_inv; source=statefile; mode=single)``, identifying the plugin, the data source (``statefile`` or ``outputs``), and single vs multi-workspace mode.
+- inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now supports Ansible-standard caching via the ``Cacheable`` mixin and the ``inventory_cache`` documentation fragment. All five standard options are exposed (``cache``, ``cache_plugin``, ``cache_connection``, ``cache_prefix``, ``cache_timeout``), matching the ``aws_ec2`` / ``azure_rm`` / ``kubernetes.core.k8s`` convention.
+- inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now supports B(multi-workspace mode). Setting the new ``workspace_filters`` option (mutually exclusive with ``workspace`` / ``workspace_id``) enumerates every matching workspace via the HCP Terraform Workspaces list API and merges inventory across them. Supported filter keys map onto pytfe's ``WorkspaceListOptions``: ``project_id``, ``name_search``, ``tags``, ``exclude_tags``, ``wildcard_name``, ``current_run_status``, ``sort``, ``page_size``. Project name resolution is not supported; pass the project ID directly (``prj-...``).
+- inventory statefile source - Sensitive Terraform attributes (paths flagged in the state's ``sensitive_attributes``) are stripped from the state body before it is written to the Ansible cache. Persistent cache files (e.g. under ``~/.ansible/cache/``) therefore never contain values Terraform marked sensitive.
+- modules - Added ``hashicorp.terraform.agent_pool`` and ``hashicorp.terraform.agent_pool_info`` for managing and inspecting Terraform Cloud/Enterprise agent pools. Agent pools group Terraform Cloud Agents so that C(execution_mode=agent) workspaces and projects can run on private, self-hosted infrastructure. The ``agent_pool`` module supports organization scoping and per-workspace/per-project allow and exclude lists; ``agent_pool_info`` can read a pool by ID, look one up by name, or list all pools in an organization.
+- modules - Added ``hashicorp.terraform.team``, ``hashicorp.terraform.team_info``, ``hashicorp.terraform.team_project_access``, ``hashicorp.terraform.team_workspace_access``, ``hashicorp.terraform.user_info``, and ``hashicorp.terraform.organization_tags`` for managing teams, team access to projects and workspaces, user information, and organization-tag/workspace associations. The ``team_info`` module can retrieve a single team by ID, list all teams in an organization, or look one up by name.
+- run - Added invoke_action_addrs option to trigger Terraform Actions runs, allowing invocation of ephemeral provider operations (e.g., AWS Lambda) at specified action addresses without creating, changing, or destroying managed resources. Produces a run with operation type action_only.
+- run - Added refresh_only option to trigger a Terraform refresh-only run that syncs state to match real infrastructure without making any changes. Compatible with auto_apply; mutually exclusive with is_destroy, plan_only, and save_plan (https://github.com/hashicorp/terraform-ansible-collection/issues/133).
+- tf_org_tags lookup - New lookup plugin ``hashicorp.terraform.tf_org_tags`` that returns all organization tags as a list of dicts (``id``, ``name``, ``instance_count``).  Supports an optional ``query`` parameter for partial-name filtering (maps to ``?q=`` on the API) and an optional ``filter_exclude_taggable_id`` parameter that excludes tags already associated with a given workspace (maps to ``?filter[exclude][taggable][id]=``), making it easy to discover which tags are available to add to a specific workspace.
+- variable - Added the ``variable_set_id`` option so the ``variable`` module can manage variables inside a variable set in addition to workspace variables. This mirrors the ``tfe_variable`` resource in the Terraform ``tfe`` provider, which is scoped by either ``workspace_id`` or ``variable_set_id``.
+- variable_sets - The ``variable_sets`` module now supports setting a parent relationship on creation via the new ``parent_project_id`` and ``parent_organization_name`` options.
+
+Bugfixes
+--------
+
+- ``hashicorp.terraform.run`` with ``state: present`` and a ``run_message`` value now correctly propagates the message to HCP Terraform.
+- project - Fixed idempotent runs returning only ``changed=false`` with no resource data; the module now returns the full project attributes (including ``id``, ``name``, ``description``, etc.) even when no changes are made.
+- workspace - Fixed idempotent runs returning only ``changed=false`` with no resource data; the module now returns the full workspace attributes (including ``id``, ``name``, ``execution_mode``, etc.) even when no changes are made.
+- workspace_info - Corrected the module's ``RETURN`` documentation and examples, which still described the old JSON:API response shape (``workspace.attributes.*``). The module returns the workspace fields flattened at the top level (for example ``workspace.name``, ``workspace.execution_mode``), so the previous examples would fail at runtime with ``'dict object' has no attribute 'attributes'``.
+
+New Plugins
+-----------
+
+Lookup
+~~~~~~
+
+- tf_org_tags - List organization tags in Terraform Cloud/Enterprise
+
+New Modules
+-----------
+
+- agent_pool - Manage Terraform Cloud/Enterprise agent pools (create, update, delete).
+- agent_pool_info - Retrieve information about Terraform Cloud/Enterprise agent pools.
+- organization_tags - Manage Terraform Cloud/Enterprise organization tags (create, associate workspaces, delete).
+- team - Manage teams in Terraform Cloud/Enterprise.
+- team_info - Retrieve information about a team in Terraform Cloud/Enterprise.
+- team_project_access - Manage team access grants on a Terraform Cloud/Enterprise project.
+- team_workspace_access - Manage team access grants on a Terraform Cloud/Enterprise workspace.
+- user_info - Retrieve information about a user in Terraform Cloud/Enterprise.
+
 v2.0.0
 ======
 

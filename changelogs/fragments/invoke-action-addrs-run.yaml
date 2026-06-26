@@ -1,7 +1,0 @@
----
-minor_changes:
-  - >-
-    run - Added invoke_action_addrs option to trigger Terraform Actions runs,
-    allowing invocation of ephemeral provider operations (e.g., AWS Lambda)
-    at specified action addresses without creating, changing, or destroying
-    managed resources. Produces a run with operation type action_only.

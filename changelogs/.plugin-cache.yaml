@@ -15,6 +15,10 @@ plugins:
       name: tfc_inv
       version_added: 2.0.0
   lookup:
+    tf_org_tags:
+      description: List organization tags in Terraform Cloud/Enterprise
+      name: tf_org_tags
+      version_added: 2.1.0
     tf_output:
       description: Retrieve Terraform Cloud/Enterprise output values
       name: tf_output
@@ -34,6 +38,17 @@ plugins:
       name: tf_variable_set_vars
       version_added: 2.0.0
   module:
+    agent_pool:
+      description: Manage Terraform Cloud/Enterprise agent pools (create, update,
+        delete).
+      name: agent_pool
+      namespace: ''
+      version_added: 2.1.0
+    agent_pool_info:
+      description: Retrieve information about Terraform Cloud/Enterprise agent pools.
+      name: agent_pool_info
+      namespace: ''
+      version_added: 2.1.0
     configuration_version:
       description: Manage configuration versions in Terraform Enterprise/Cloud.
       name: configuration_version
@@ -51,6 +66,12 @@ plugins:
       name: notification_configuration
       namespace: ''
       version_added: 2.0.0
+    organization_tags:
+      description: Manage Terraform Cloud/Enterprise organization tags (create, associate
+        workspaces, delete).
+      name: organization_tags
+      namespace: ''
+      version_added: 2.1.0
     organizations:
       description: Manage Terraform Cloud/Enterprise organizations (create, update,
         delete).
@@ -100,9 +121,34 @@ plugins:
       name: ssh_keys
       namespace: ''
       version_added: 2.0.0
+    team:
+      description: Manage teams in Terraform Cloud/Enterprise.
+      name: team
+      namespace: ''
+      version_added: 2.1.0
+    team_info:
+      description: Retrieve information about a team in Terraform Cloud/Enterprise.
+      name: team_info
+      namespace: ''
+      version_added: 2.1.0
+    team_project_access:
+      description: Manage team access grants on a Terraform Cloud/Enterprise project.
+      name: team_project_access
+      namespace: ''
+      version_added: 2.1.0
+    team_workspace_access:
+      description: Manage team access grants on a Terraform Cloud/Enterprise workspace.
+      name: team_workspace_access
+      namespace: ''
+      version_added: 2.1.0
+    user_info:
+      description: Retrieve information about a user in Terraform Cloud/Enterprise.
+      name: user_info
+      namespace: ''
+      version_added: 2.1.0
     variable:
-      description: Manage Terraform Cloud/Enterprise workspace variables (create,
-        update, delete).
+      description: Manage Terraform Cloud/Enterprise workspace and variable-set variables
+        (create, update, delete).
       name: variable
       namespace: ''
       version_added: 2.0.0
@@ -138,4 +184,4 @@ plugins:
   strategy: {}
   test: {}
   vars: {}
-version: 2.0.0
+version: 2.1.0

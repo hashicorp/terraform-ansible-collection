@@ -1,8 +1,0 @@
----
-release_summary: >-
-  This release adds team and access-management modules (teams, team info, team-project
-  access, and team-workspace access), user information, and organization-tag association.
-  The ``variable`` module can now manage variables inside a variable set via C(variable_set_id).
-  It also extends the dynamic inventory plugin with Ansible-standard caching and multi-workspace
-  scanning, adds Terraform refresh-only and action-only runs, and supports parent relationships
-  when creating variable sets.

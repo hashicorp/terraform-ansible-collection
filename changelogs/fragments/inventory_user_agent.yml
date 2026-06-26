@@ -1,9 +1,0 @@
----
-minor_changes:
-  - >-
-    inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now stamps a
-    component tag onto the HCP Terraform/Enterprise ``User-Agent`` so usage telemetry can
-    distinguish dynamic-inventory traffic. The base ``terraform-ansible-collection/<version>``
-    token is preserved verbatim (aggregate usage queries are unaffected) and an RFC 7231 comment
-    is appended, for example ``(inventory:tfc_inv; source=statefile; mode=single)``, identifying
-    the plugin, the data source (``statefile`` or ``outputs``), and single vs multi-workspace mode.

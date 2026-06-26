@@ -3,221 +3,412 @@ releases:
   1.0.0:
     changes:
       minor_changes:
-        - Adds a new module hashicorp.terraform.configuration_version for configuration-version
-          management on TFE/C.
-        - Adds a new module hashicorp.terraform.run for run management on TFE/C.
+      - Adds a new module hashicorp.terraform.configuration_version for configuration-version
+        management on TFE/C.
+      - Adds a new module hashicorp.terraform.run for run management on TFE/C.
       release_summary: This marks the first release of the hashicorp.terraform collection.
     fragments:
-      - client.yaml
-      - module_addition.yml
-      - release_100.yml
-      - run_module_addition.yml
+    - client.yaml
+    - module_addition.yml
+    - release_100.yml
+    - run_module_addition.yml
     modules:
-      - description: Manage configuration versions in Terraform Enterprise/Cloud.
-        name: configuration_version
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel, discard).
-        name: run
-        namespace: ''
+    - description: Manage configuration versions in Terraform Enterprise/Cloud.
+      name: configuration_version
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel,
+        discard).
+      name: run
+      namespace: ''
     release_date: '2025-09-03'
   1.1.0:
     changes:
       bugfixes:
-        - Ensures module invocation parameters in the task execution result aren't overridden by
-          module code logic.
+      - Ensures module invocation parameters in the task execution result aren't overridden
+        by module code logic.
       minor_changes:
-        - Adds a new module hashicorp.terraform.configuration_version_info to fetch information
-          about a configuration version in TFE/C.
-        - Adds a new module hashicorp.terraform.run_info to fetch information about a run in TFE/C.
-        - Adds a new module hashicorp.terraform.view_plan for retrieving plan information from
-          TFE/C.
-        - Adds a new module hashicorp.terraform.workspace for workspace management on TFE/C.
-        - Adds a new module hashicorp.terraform.workspace_info to fetch information about a
-          workspace in TFE/C.
+      - Adds a new module hashicorp.terraform.configuration_version_info to fetch
+        information about a configuration version in TFE/C.
+      - Adds a new module hashicorp.terraform.run_info to fetch information about
+        a run in TFE/C.
+      - Adds a new module hashicorp.terraform.view_plan for retrieving plan information
+        from TFE/C.
+      - Adds a new module hashicorp.terraform.workspace for workspace management on
+        TFE/C.
+      - Adds a new module hashicorp.terraform.workspace_info to fetch information
+        about a workspace in TFE/C.
     fragments:
-      - configuration_version_info_module_addition.yml
-      - params_fix.yml
-      - plan_module_addition.yml
-      - run_info_module_addition.yml
-      - workspace_info_module_addition.yml
-      - workspace_module_addition.yml
+    - configuration_version_info_module_addition.yml
+    - params_fix.yml
+    - plan_module_addition.yml
+    - run_info_module_addition.yml
+    - workspace_info_module_addition.yml
+    - workspace_module_addition.yml
     modules:
-      - description: Retrieve information about configuration versions in Terraform
-          Enterprise/Cloud.
-        name: configuration_version_info
-        namespace: ''
-      - description: Retrieve information about a run in Terraform Enterprise/Cloud.
-        name: run_info
-        namespace: ''
-      - description: View Terraform Cloud/Enterprise plan information
-        name: view_plan
-        namespace: ''
-      - description: Manage workspaces in Terraform Enterprise/Cloud.
-        name: workspace
-        namespace: ''
-      - description: Gather information about a workspace in Terraform Enterprise/Cloud.
-        name: workspace_info
-        namespace: ''
+    - description: Retrieve information about configuration versions in Terraform
+        Enterprise/Cloud.
+      name: configuration_version_info
+      namespace: ''
+    - description: Retrieve information about a run in Terraform Enterprise/Cloud.
+      name: run_info
+      namespace: ''
+    - description: View Terraform Cloud/Enterprise plan information
+      name: view_plan
+      namespace: ''
+    - description: Manage workspaces in Terraform Enterprise/Cloud.
+      name: workspace
+      namespace: ''
+    - description: Gather information about a workspace in Terraform Enterprise/Cloud.
+      name: workspace_info
+      namespace: ''
     release_date: '2025-10-07'
   1.2.0:
     changes:
       bugfixes:
-        - Increased the default poll_timeout for the run module to 120s. The previous default of 25s
-          was low and caused issues in tasks.
+      - Increased the default poll_timeout for the run module to 120s. The previous
+        default of 25s was low and caused issues in tasks.
       minor_changes:
-        - Adds a new module hashicorp.terraform.output for retrieving state version outputs
-          information from TFE/C.
-        - Adds a new module hashicorp.terraform.project for project management on TFE/C.
+      - Adds a new module hashicorp.terraform.output for retrieving state version
+        outputs information from TFE/C.
+      - Adds a new module hashicorp.terraform.project for project management on TFE/C.
     fragments:
-      - output_module_addition.yml
-      - project_module_addition.yml
-      - run_poll_timeout_fix.yml
+    - output_module_addition.yml
+    - project_module_addition.yml
+    - run_poll_timeout_fix.yml
     modules:
-      - description: Retrieve Terraform Cloud/Enterprise state version outputs
-        name: output
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
-        name: project
-        namespace: ''
-      - description: Gather information about a project in Terraform Enterprise/Cloud.
-        name: project_info
-        namespace: ''
+    - description: Retrieve Terraform Cloud/Enterprise state version outputs
+      name: output
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
+      name: project
+      namespace: ''
+    - description: Gather information about a project in Terraform Enterprise/Cloud.
+      name: project_info
+      namespace: ''
     plugins:
       lookup:
-        - description: Retrieve Terraform Cloud/Enterprise output values
-          name: tf_output
-          namespace:
+      - description: Retrieve Terraform Cloud/Enterprise output values
+        name: tf_output
+        namespace: null
     release_date: '2025-11-17'
   2.0.0:
     changes:
       breaking_changes:
-        - authentication - The canonical authentication and transport options are now ``tfe_token``,
-          ``tfe_address``, ``tfe_timeout``, ``tfe_verify_tls``, ``tfe_max_retries``,
-          ``tfe_ca_bundle``, and ``tfe_proxies``. The ``tf_token`` option remains as an alias for
-          ``tfe_token`` for compatibility, but old transport names such as ``tf_hostname``,
-          ``tf_validate_certs``, ``tf_timeout``, and ``tf_max_retries`` are not supported by the
-          pytfe-backed client. The primary environment variables also move to ``TFE_TOKEN`` and
-          ``TFE_ADDRESS``.
-        - client - The collection now uses a shared pytfe-backed client wrapper
-          (``plugins/module_utils/client.py``) instead of the removed
-          ``plugins/module_utils/common.py`` request helpers. Custom plugins or automation that
-          imported the internal ``common`` module must migrate to ``AnsibleTerraformModule`` and
-          ``TerraformClient`` from ``plugins/module_utils/client.py``.
+      - authentication - The canonical authentication and transport options are now
+        ``tfe_token``, ``tfe_address``, ``tfe_timeout``, ``tfe_verify_tls``, ``tfe_max_retries``,
+        ``tfe_ca_bundle``, and ``tfe_proxies``. The ``tf_token`` option remains as
+        an alias for ``tfe_token`` for compatibility, but old transport names such
+        as ``tf_hostname``, ``tf_validate_certs``, ``tf_timeout``, and ``tf_max_retries``
+        are not supported by the pytfe-backed client. The primary environment variables
+        also move to ``TFE_TOKEN`` and ``TFE_ADDRESS``.
+      - client - The collection now uses a shared pytfe-backed client wrapper (``plugins/module_utils/client.py``)
+        instead of the removed ``plugins/module_utils/common.py`` request helpers.
+        Custom plugins or automation that imported the internal ``common`` module
+        must migrate to ``AnsibleTerraformModule`` and ``TerraformClient`` from ``plugins/module_utils/client.py``.
       bugfixes:
-        - modules - Preserved task invocation parameters in module results so module code does not
-          override the invocation data reported by Ansible.
-        - run - Increased the default run polling timeout to 120 seconds to avoid premature timeout
-          failures on normal Terraform Cloud/Enterprise runs.
+      - modules - Preserved task invocation parameters in module results so module
+        code does not override the invocation data reported by Ansible.
+      - run - Increased the default run polling timeout to 120 seconds to avoid premature
+        timeout failures on normal Terraform Cloud/Enterprise runs.
       major_changes:
-        - client - Added a shared pytfe-backed ``TerraformClient`` lifecycle wrapper for modules,
-          lookups, action plugins, and inventory plugins. The wrapper centralizes token/address
-          handling, timeout, retry, TLS verification, CA bundle, proxy, and collection
-          ``User-Agent`` suffix configuration.
-        - module_utils - Removed the collection's custom request/session and local response-model
-          layer in favor of the first-class pytfe SDK and pytfe's response models.
+      - client - Added a shared pytfe-backed ``TerraformClient`` lifecycle wrapper
+        for modules, lookups, action plugins, and inventory plugins. The wrapper centralizes
+        token/address handling, timeout, retry, TLS verification, CA bundle, proxy,
+        and collection ``User-Agent`` suffix configuration.
+      - module_utils - Removed the collection's custom request/session and local response-model
+        layer in favor of the first-class pytfe SDK and pytfe's response models.
       minor_changes:
-        - actions - Added ``hashicorp.terraform.promote_run`` to gate and optionally apply a run
-          based on Sentinel policy-check outcomes, and ``hashicorp.terraform.workspace_bootstrap``
-          to converge workspace settings, variables, variable-set attachments, run triggers, and
-          notification configurations in one idempotent task.
-        - inventory - Added the ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin for HCP
-          Terraform and Terraform Enterprise. The plugin supports ``source=outputs`` and
-          ``source=statefile``, targets a single workspace by ``workspace_id`` or by
-          ``organization`` plus ``workspace``, uses the pytfe SDK, supports constructed inventory
-          features, and does not require the Terraform CLI or direct backend credentials.
-        - inventory outputs source - Added ``source=outputs`` to build hosts from current state
-          version outputs. The source supports ``hosts_from`` mappings using Terraform type
-          expressions for primitives, objects, lists, sets, maps, tuples, and dynamic values,
-          including automatic ``ansible_host`` assignment for primitive shapes when ``compose`` is
-          empty.
-        - inventory outputs source - Object-shaped outputs spread user fields at the top level of
-          host variables; primitive-shaped outputs expose the scalar as ``value``; map-shaped
-          outputs use the map key as the inventory hostname. ``hostvars_prefix`` and
-          ``hostvars_suffix`` can namespace user fields while leaving plugin-injected
-          ``ansible_host`` and ``value`` unchanged.
-        - inventory outputs source - Sensitive outputs are fetched with ``display_sensitive=False``
-          and are masked by the shared output helper unless the API omits the value.
-        - inventory statefile source - Added ``source=statefile`` to build hosts from the latest
-          Terraform state version. The source supports Terraform state v4, managed resources,
-          optional child-module traversal with ``search_child_modules``, built-in mappings for
-          common AWS, AzureRM, and Google compute resources, custom ``provider_mapping`` entries,
-          attribute and tag-based hostname preferences, include/exclude filters, and keyed groups.
-        - inventory statefile source - Terraform resource attributes marked in
-          ``sensitive_attributes`` are stripped before host variables are emitted. Sensitive values
-          are dropped rather than masked, and stripped values are not available to hostname
-          resolution, filters, compose, groups, or keyed groups.
-        - lookups - Added ``hashicorp.terraform.tf_policy_checks``,
-          ``hashicorp.terraform.tf_run_events``, and ``hashicorp.terraform.tf_variable_set_vars``
-          for policy-check gating, run timeline inspection, and variable-set variable retrieval.
-          Sensitive variable-set values are masked by default.
-        - module_utils - Added pytfe-backed helpers for notification configurations, organizations,
-          run events, run triggers, SSH keys, workspace variables, variable-set variables, and
-          variable sets.
-        - modules - Added ``hashicorp.terraform.notification_configuration``,
-          ``hashicorp.terraform.organizations``, ``hashicorp.terraform.run_trigger``,
-          ``hashicorp.terraform.ssh_keys``, ``hashicorp.terraform.variable``, and
-          ``hashicorp.terraform.variable_sets``.
-        - modules - The previously released modules (``configuration_version``,
-          ``configuration_version_info``, ``output``, ``project``, ``project_info``, ``run``,
-          ``run_info``, ``view_plan``, ``workspace``, ``workspace_info``) have been re-implemented
-          on the pytfe SDK. Public module parameters are unchanged apart from the shared
-          authentication surface migration noted in breaking_changes.
-      release_summary: Version 2.0.0 migrates the collection to the official pytfe SDK, updates the
-        public authentication surface to ``tfe_*`` options, expands Terraform Cloud/Enterprise
-        workspace management coverage, and adds a dynamic inventory plugin for statefile and outputs
-        based inventory.
+      - actions - Added ``hashicorp.terraform.promote_run`` to gate and optionally
+        apply a run based on Sentinel policy-check outcomes, and ``hashicorp.terraform.workspace_bootstrap``
+        to converge workspace settings, variables, variable-set attachments, run triggers,
+        and notification configurations in one idempotent task.
+      - inventory - Added the ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin
+        for HCP Terraform and Terraform Enterprise. The plugin supports ``source=outputs``
+        and ``source=statefile``, targets a single workspace by ``workspace_id`` or
+        by ``organization`` plus ``workspace``, uses the pytfe SDK, supports constructed
+        inventory features, and does not require the Terraform CLI or direct backend
+        credentials.
+      - inventory outputs source - Added ``source=outputs`` to build hosts from current
+        state version outputs. The source supports ``hosts_from`` mappings using Terraform
+        type expressions for primitives, objects, lists, sets, maps, tuples, and dynamic
+        values, including automatic ``ansible_host`` assignment for primitive shapes
+        when ``compose`` is empty.
+      - inventory outputs source - Object-shaped outputs spread user fields at the
+        top level of host variables; primitive-shaped outputs expose the scalar as
+        ``value``; map-shaped outputs use the map key as the inventory hostname. ``hostvars_prefix``
+        and ``hostvars_suffix`` can namespace user fields while leaving plugin-injected
+        ``ansible_host`` and ``value`` unchanged.
+      - inventory outputs source - Sensitive outputs are fetched with ``display_sensitive=False``
+        and are masked by the shared output helper unless the API omits the value.
+      - inventory statefile source - Added ``source=statefile`` to build hosts from
+        the latest Terraform state version. The source supports Terraform state v4,
+        managed resources, optional child-module traversal with ``search_child_modules``,
+        built-in mappings for common AWS, AzureRM, and Google compute resources, custom
+        ``provider_mapping`` entries, attribute and tag-based hostname preferences,
+        include/exclude filters, and keyed groups.
+      - inventory statefile source - Terraform resource attributes marked in ``sensitive_attributes``
+        are stripped before host variables are emitted. Sensitive values are dropped
+        rather than masked, and stripped values are not available to hostname resolution,
+        filters, compose, groups, or keyed groups.
+      - lookups - Added ``hashicorp.terraform.tf_policy_checks``, ``hashicorp.terraform.tf_run_events``,
+        and ``hashicorp.terraform.tf_variable_set_vars`` for policy-check gating,
+        run timeline inspection, and variable-set variable retrieval. Sensitive variable-set
+        values are masked by default.
+      - module_utils - Added pytfe-backed helpers for notification configurations,
+        organizations, run events, run triggers, SSH keys, workspace variables, variable-set
+        variables, and variable sets.
+      - modules - Added ``hashicorp.terraform.notification_configuration``, ``hashicorp.terraform.organizations``,
+        ``hashicorp.terraform.run_trigger``, ``hashicorp.terraform.ssh_keys``, ``hashicorp.terraform.variable``,
+        and ``hashicorp.terraform.variable_sets``.
+      - modules - The previously released modules (``configuration_version``, ``configuration_version_info``,
+        ``output``, ``project``, ``project_info``, ``run``, ``run_info``, ``view_plan``,
+        ``workspace``, ``workspace_info``) have been re-implemented on the pytfe SDK.
+        Public module parameters are unchanged apart from the shared authentication
+        surface migration noted in breaking_changes.
+      release_summary: Version 2.0.0 migrates the collection to the official pytfe
+        SDK, updates the public authentication surface to ``tfe_*`` options, expands
+        Terraform Cloud/Enterprise workspace management coverage, and adds a dynamic
+        inventory plugin for statefile and outputs based inventory.
     fragments:
-      - dynamic_inventory_plugin.yml
-      - dynamic_inventory_plugin.yml
-      - module_migration.yml
-      - pytfe_client_migration.yml
-      - pytfe_client_migration.yml
-      - tfe_platform_expansion.yml
-      - tfe_platform_expansion.yml
+    - dynamic_inventory_plugin.yml
+    - dynamic_inventory_plugin.yml
+    - module_migration.yml
+    - pytfe_client_migration.yml
+    - pytfe_client_migration.yml
+    - tfe_platform_expansion.yml
+    - tfe_platform_expansion.yml
     modules:
-      - description: Manage Terraform Cloud/Enterprise workspace notification configurations
-          (create, update, delete).
-        name: notification_configuration
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise organizations (create, update, delete).
-        name: organizations
-        namespace: ''
-      - description: Gate and apply a Terraform Cloud/Enterprise run based on policy outcomes.
-        name: promote_run
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise run triggers (create, delete).
-        name: run_trigger
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise organization SSH keys (create, update,
-          delete).
-        name: ssh_keys
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise workspace variables (create, update, delete).
-        name: variable
-        namespace: ''
-      - description: Manage Terraform Cloud/Enterprise variable sets (create, update, delete,
-          attach).
-        name: variable_sets
-        namespace: ''
-      - description: Converge a Terraform Cloud/Enterprise workspace baseline in a single task.
-        name: workspace_bootstrap
-        namespace: ''
+    - description: Manage Terraform Cloud/Enterprise workspace notification configurations
+        (create, update, delete).
+      name: notification_configuration
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise organizations (create, update,
+        delete).
+      name: organizations
+      namespace: ''
+    - description: Gate and apply a Terraform Cloud/Enterprise run based on policy
+        outcomes.
+      name: promote_run
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise run triggers (create, delete).
+      name: run_trigger
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise organization SSH keys (create,
+        update, delete).
+      name: ssh_keys
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise workspace variables (create,
+        update, delete).
+      name: variable
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise variable sets (create, update,
+        delete, attach).
+      name: variable_sets
+      namespace: ''
+    - description: Converge a Terraform Cloud/Enterprise workspace baseline in a single
+        task.
+      name: workspace_bootstrap
+      namespace: ''
     plugins:
       inventory:
-        - description: Unified dynamic inventory plugin for HCP Terraform / Terraform Enterprise.
-          name: inventory
-          namespace:
-        - description: Unified dynamic inventory plugin for HCP Terraform / Terraform Enterprise.
-          name: tfc_inv
-          namespace:
+      - description: Unified dynamic inventory plugin for HCP Terraform / Terraform
+          Enterprise.
+        name: inventory
+        namespace: null
+      - description: Unified dynamic inventory plugin for HCP Terraform / Terraform
+          Enterprise.
+        name: tfc_inv
+        namespace: null
       lookup:
-        - description: Retrieve Sentinel policy check outcomes for a run
-          name: tf_policy_checks
-          namespace:
-        - description: Retrieve the timeline of events for a Terraform Cloud/Enterprise run
-          name: tf_run_events
-          namespace:
-        - description: Retrieve variables owned by a Terraform Cloud/Enterprise variable set
-          name: tf_variable_set_vars
-          namespace:
+      - description: Retrieve Sentinel policy check outcomes for a run
+        name: tf_policy_checks
+        namespace: null
+      - description: Retrieve the timeline of events for a Terraform Cloud/Enterprise
+          run
+        name: tf_run_events
+        namespace: null
+      - description: Retrieve variables owned by a Terraform Cloud/Enterprise variable
+          set
+        name: tf_variable_set_vars
+        namespace: null
     release_date: '2026-05-05'
+  2.1.0:
+    changes:
+      bugfixes:
+      - '``hashicorp.terraform.run`` with ``state: present`` and a ``run_message``
+        value now correctly propagates the message to HCP Terraform.'
+      - project - Fixed idempotent runs returning only ``changed=false`` with no resource
+        data; the module now returns the full project attributes (including ``id``,
+        ``name``, ``description``, etc.) even when no changes are made.
+      - workspace - Fixed idempotent runs returning only ``changed=false`` with no
+        resource data; the module now returns the full workspace attributes (including
+        ``id``, ``name``, ``execution_mode``, etc.) even when no changes are made.
+      - workspace_info - Corrected the module's ``RETURN`` documentation and examples,
+        which still described the old JSON:API response shape (``workspace.attributes.*``).
+        The module returns the workspace fields flattened at the top level (for example
+        ``workspace.name``, ``workspace.execution_mode``), so the previous examples
+        would fail at runtime with ``'dict object' has no attribute 'attributes'``.
+      minor_changes:
+      - Added ``meta/execution-environment.yml`` so that Ansible Builder automatically
+        installs the collection's controller-side Python dependency (``pytfe>=1.2.0``)
+        when the collection is included in an execution environment.
+      - authentication - The ``tfe_token`` option is no longer marked ``required``
+        on modules and lookups. When omitted, it falls back to the ``TFE_TOKEN`` environment
+        variable, so tasks can authenticate purely from the environment (for example
+        via ``module_defaults``) without ansible-lint reporting a missing required
+        argument.
+      - docs - Added a set of scenario guides to the collection docsite under ``docs/docsite/rst/``
+        (getting started, authentication, workspaces and projects, runs and configuration
+        versions, variables and variable sets, teams and access, workspace bootstrap,
+        dynamic inventory, lookup plugins, execution environments, troubleshooting,
+        and compatibility), along with the ``docs/docsite/extra-docs.yml`` and ``docs/docsite/config.yml``
+        docsite configuration.
+      - inventory - Added an opt-in ``cache_validate_current_state_version`` option
+        (default ``false``). When enabled, each run resolves the workspace's current
+        Terraform state version ID and reuses cached data only when the IDs match,
+        otherwise the cache is overwritten with fresh data. This trades the offline-friendliness
+        of the default mode for apply-aware freshness; if the validation API call
+        fails, the plugin raises rather than serve stale cache.
+      - "inventory - Default cache hits skip all upstream API calls \u2014 workspace
+        resolution, state download, and outputs fetch are all bypassed, so subsequent
+        ``ansible-inventory`` invocations within the ``cache_timeout`` window are
+        fast and offline-capable. Use ``--flush-cache`` to force a refresh after a
+        Terraform apply if you do not want to wait for the timeout."
+      - inventory - Every host produced in multi-workspace mode is stamped with auto-injected
+        ``tfc_workspace_id`` and ``tfc_workspace_name`` variables so playbooks can
+        route by origin. These names are exempt from ``hostvars_prefix`` / ``hostvars_suffix``
+        renaming.
+      - 'inventory - In multi-workspace mode with ``cache_validate_current_state_version:
+        true``, a workspace whose ``state_versions.read_current()`` call fails is
+        excluded from inventory with a warning rather than failing the whole sync.
+        This is a more lenient contract than single-workspace mode (which raises),
+        justified by the "fan-out" nature of filter mode where one workspace being
+        unreachable should not block the rest.'
+      - "inventory - Multi-workspace mode reuses the existing per-workspace cache
+        blob shape unchanged (so a workspace cached in single-workspace mode by ID
+        is bit-for-bit reusable in filter mode) and adds a separate B(selector cache)
+        keyed by ``(source, organization, workspace_filters)`` that eliminates the
+        workspace list API call on warm runs. With both layers warm, multi-workspace
+        inventory is fully offline-capable within ``cache_timeout`` \u2014 the same
+        contract as single-workspace mode."
+      - inventory - New ``enable_parallel_processing`` option (default ``false``)
+        and ``concurrency`` option (default ``5``, hard cap ``10``) drive concurrent
+        per-workspace fetches via a thread pool. Each worker constructs its own pytfe
+        client; Ansible inventory mutation always happens on the main thread.
+      - inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now
+        stamps a component tag onto the HCP Terraform/Enterprise ``User-Agent`` so
+        usage telemetry can distinguish dynamic-inventory traffic. The base ``terraform-ansible-collection/<version>``
+        token is preserved verbatim (aggregate usage queries are unaffected) and an
+        RFC 7231 comment is appended, for example ``(inventory:tfc_inv; source=statefile;
+        mode=single)``, identifying the plugin, the data source (``statefile`` or
+        ``outputs``), and single vs multi-workspace mode.
+      - inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin now
+        supports Ansible-standard caching via the ``Cacheable`` mixin and the ``inventory_cache``
+        documentation fragment. All five standard options are exposed (``cache``,
+        ``cache_plugin``, ``cache_connection``, ``cache_prefix``, ``cache_timeout``),
+        matching the ``aws_ec2`` / ``azure_rm`` / ``kubernetes.core.k8s`` convention.
+      - 'inventory - The ``hashicorp.terraform.tfc_inv`` dynamic inventory plugin
+        now supports B(multi-workspace mode). Setting the new ``workspace_filters``
+        option (mutually exclusive with ``workspace`` / ``workspace_id``) enumerates
+        every matching workspace via the HCP Terraform Workspaces list API and merges
+        inventory across them. Supported filter keys map onto pytfe''s ``WorkspaceListOptions``:
+        ``project_id``, ``name_search``, ``tags``, ``exclude_tags``, ``wildcard_name``,
+        ``current_run_status``, ``sort``, ``page_size``. Project name resolution is
+        not supported; pass the project ID directly (``prj-...``).'
+      - inventory statefile source - Sensitive Terraform attributes (paths flagged
+        in the state's ``sensitive_attributes``) are stripped from the state body
+        before it is written to the Ansible cache. Persistent cache files (e.g. under
+        ``~/.ansible/cache/``) therefore never contain values Terraform marked sensitive.
+      - modules - Added ``hashicorp.terraform.agent_pool`` and ``hashicorp.terraform.agent_pool_info``
+        for managing and inspecting Terraform Cloud/Enterprise agent pools. Agent
+        pools group Terraform Cloud Agents so that C(execution_mode=agent) workspaces
+        and projects can run on private, self-hosted infrastructure. The ``agent_pool``
+        module supports organization scoping and per-workspace/per-project allow and
+        exclude lists; ``agent_pool_info`` can read a pool by ID, look one up by name,
+        or list all pools in an organization.
+      - modules - Added ``hashicorp.terraform.team``, ``hashicorp.terraform.team_info``,
+        ``hashicorp.terraform.team_project_access``, ``hashicorp.terraform.team_workspace_access``,
+        ``hashicorp.terraform.user_info``, and ``hashicorp.terraform.organization_tags``
+        for managing teams, team access to projects and workspaces, user information,
+        and organization-tag/workspace associations. The ``team_info`` module can
+        retrieve a single team by ID, list all teams in an organization, or look one
+        up by name.
+      - run - Added invoke_action_addrs option to trigger Terraform Actions runs,
+        allowing invocation of ephemeral provider operations (e.g., AWS Lambda) at
+        specified action addresses without creating, changing, or destroying managed
+        resources. Produces a run with operation type action_only.
+      - run - Added refresh_only option to trigger a Terraform refresh-only run that
+        syncs state to match real infrastructure without making any changes. Compatible
+        with auto_apply; mutually exclusive with is_destroy, plan_only, and save_plan
+        (https://github.com/hashicorp/terraform-ansible-collection/issues/133).
+      - tf_org_tags lookup - New lookup plugin ``hashicorp.terraform.tf_org_tags``
+        that returns all organization tags as a list of dicts (``id``, ``name``, ``instance_count``).  Supports
+        an optional ``query`` parameter for partial-name filtering (maps to ``?q=``
+        on the API) and an optional ``filter_exclude_taggable_id`` parameter that
+        excludes tags already associated with a given workspace (maps to ``?filter[exclude][taggable][id]=``),
+        making it easy to discover which tags are available to add to a specific workspace.
+      - variable - Added the ``variable_set_id`` option so the ``variable`` module
+        can manage variables inside a variable set in addition to workspace variables.
+        This mirrors the ``tfe_variable`` resource in the Terraform ``tfe`` provider,
+        which is scoped by either ``workspace_id`` or ``variable_set_id``.
+      - variable_sets - The ``variable_sets`` module now supports setting a parent
+        relationship on creation via the new ``parent_project_id`` and ``parent_organization_name``
+        options.
+      release_summary: This release adds team and access-management modules (teams,
+        team info, team-project access, and team-workspace access), user information,
+        and organization-tag association. The ``variable`` module can now manage variables
+        inside a variable set via C(variable_set_id). It also extends the dynamic
+        inventory plugin with Ansible-standard caching and multi-workspace scanning,
+        adds Terraform refresh-only and action-only runs, and supports parent relationships
+        when creating variable sets.
+    fragments:
+    - agent_pool_module.yml
+    - docsite_guides.yml
+    - execution_environment_metadata.yml
+    - fix-idempotent-return-data.yaml
+    - inventory_cache.yml
+    - inventory_multi_workspace.yml
+    - inventory_user_agent.yml
+    - invoke-action-addrs-run.yaml
+    - new_modules.yml
+    - org-tags-lookup.yml
+    - refresh-only-run.yaml
+    - release_summary.yml
+    - run_message_silent_drop.yml
+    - tfe_token_optional.yml
+    - variable_set_id.yml
+    - variable_sets_parent.yml
+    - workspace_info_return_shape_docs.yml
+    modules:
+    - description: Manage Terraform Cloud/Enterprise agent pools (create, update,
+        delete).
+      name: agent_pool
+      namespace: ''
+    - description: Retrieve information about Terraform Cloud/Enterprise agent pools.
+      name: agent_pool_info
+      namespace: ''
+    - description: Manage Terraform Cloud/Enterprise organization tags (create, associate
+        workspaces, delete).
+      name: organization_tags
+      namespace: ''
+    - description: Manage teams in Terraform Cloud/Enterprise.
+      name: team
+      namespace: ''
+    - description: Retrieve information about a team in Terraform Cloud/Enterprise.
+      name: team_info
+      namespace: ''
+    - description: Manage team access grants on a Terraform Cloud/Enterprise project.
+      name: team_project_access
+      namespace: ''
+    - description: Manage team access grants on a Terraform Cloud/Enterprise workspace.
+      name: team_workspace_access
+      namespace: ''
+    - description: Retrieve information about a user in Terraform Cloud/Enterprise.
+      name: user_info
+      namespace: ''
+    plugins:
+      lookup:
+      - description: List organization tags in Terraform Cloud/Enterprise
+        name: tf_org_tags
+        namespace: null
+    release_date: '2026-06-26'

@@ -1,6 +1,0 @@
----
-minor_changes:
-  - >-
-    variable - Added the ``variable_set_id`` option so the ``variable`` module can manage variables
-    inside a variable set in addition to workspace variables. This mirrors the ``tfe_variable`` resource
-    in the Terraform ``tfe`` provider, which is scoped by either ``workspace_id`` or ``variable_set_id``.

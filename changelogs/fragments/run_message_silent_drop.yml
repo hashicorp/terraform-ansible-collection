@@ -1,6 +1,0 @@
----
-bugfixes:
-  - >-
-    ``hashicorp.terraform.run`` with ``state: present`` and a
-    ``run_message`` value now correctly propagates the message to HCP
-    Terraform.
