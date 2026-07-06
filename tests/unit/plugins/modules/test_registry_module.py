@@ -5,7 +5,7 @@
 
 """Unit tests for plugins/modules/registry_module.py."""
 
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
@@ -24,9 +24,9 @@ class TestFetchRegistryModule:
 
         mock_get.return_value = {"id": "mod-1", "name": "vpc", "provider": "aws"}
         params = {"organization": "my-org", "name": "vpc", "provider": "aws"}
-        
+
         result = _fetch_registry_module(mock_adapter, params)
-        
+
         assert result == {"id": "mod-1", "name": "vpc", "provider": "aws"}
         mock_get.assert_called_once()
 
@@ -36,7 +36,7 @@ class TestFetchRegistryModule:
 
         params = {"organization": "my-org", "name": "vpc"}  # missing provider
         result = _fetch_registry_module(mock_adapter, params)
-        
+
         assert result is None
         mock_get.assert_not_called()
 
@@ -78,9 +78,9 @@ class TestStatePresent:
             "provider": "aws",
             "operation": "create",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         assert result["id"] == "mod-1"
         mock_create.assert_called_once()
@@ -98,9 +98,9 @@ class TestStatePresent:
             "provider": "aws",
             "operation": "create",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is False
         assert result["id"] == "mod-1"
         mock_create.assert_not_called()
@@ -117,9 +117,9 @@ class TestStatePresent:
             "provider": "aws",
             "operation": "create",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=True)
-        
+
         assert result["changed"] is True
         assert "would be created" in result["msg"]
         mock_create.assert_not_called()
@@ -138,9 +138,9 @@ class TestStatePresent:
             "operation": "create_with_vcs",
             "vcs_repo": {"identifier": "org/repo", "oauth_token_id": "ot-123"},
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         mock_create_vcs.assert_called_once()
 
@@ -158,9 +158,9 @@ class TestStatePresent:
             "operation": "create_with_vcs",
             "vcs_repo": {"identifier": "org/repo", "oauth_token_id": "ot-123"},
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is False
         mock_create_vcs.assert_not_called()
 
@@ -172,7 +172,7 @@ class TestStatePresent:
             "organization": "my-org",
             "operation": "create_with_vcs",
         }
-        
+
         with pytest.raises(ValueError, match="vcs_repo.*required"):
             state_present(mock_adapter, params, check_mode=False)
 
@@ -190,9 +190,9 @@ class TestStatePresent:
             "version": "1.0.0",
             "operation": "create_version",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         assert result["version"] == "1.0.0"
         mock_create_version.assert_called_once()
@@ -211,9 +211,9 @@ class TestStatePresent:
             "version": "1.0.0",
             "operation": "create_version",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is False
         assert result["version"] == "1.0.0"
         mock_create_version.assert_not_called()
@@ -223,9 +223,7 @@ class TestStatePresent:
     @patch(f"{MOD_PATH}.upload_registry_module_version")
     @patch("builtins.open", new_callable=mock_open, read_data=b"archive content")
     @patch("os.path.exists")
-    def test_create_version_with_archive_upload(
-        self, mock_exists, mock_file, mock_upload, mock_create_version, mock_get_version, mock_adapter
-    ):
+    def test_create_version_with_archive_upload(self, mock_exists, mock_file, mock_upload, mock_create_version, mock_get_version, mock_adapter):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_module import state_present
 
         mock_exists.return_value = True
@@ -243,9 +241,9 @@ class TestStatePresent:
             "archive": "/path/to/archive.tar.gz",
             "operation": "create_version",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         mock_create_version.assert_called_once()
         mock_upload.assert_called_once_with(mock_adapter, "https://example.com/upload", b"archive content")
@@ -261,7 +259,7 @@ class TestStatePresent:
             "provider": "aws",
             "operation": "create_version",
         }
-        
+
         with pytest.raises(ValueError, match="version.*required"):
             state_present(mock_adapter, params, check_mode=False)
 
@@ -274,7 +272,7 @@ class TestStatePresent:
         mock_fetch.return_value = {"id": "mod-1", "name": "vpc", "no_code": False}
         mock_has_drift.return_value = True
         mock_update.return_value = {"id": "mod-1", "name": "vpc", "no_code": True}
-        
+
         params = {
             "organization": "my-org",
             "name": "vpc",
@@ -282,9 +280,9 @@ class TestStatePresent:
             "no_code": True,
             "operation": "update",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         mock_update.assert_called_once()
 
@@ -296,7 +294,7 @@ class TestStatePresent:
         current = {"id": "mod-1", "name": "vpc", "no_code": True}
         mock_fetch.return_value = current
         mock_has_drift.return_value = False
-        
+
         params = {
             "organization": "my-org",
             "name": "vpc",
@@ -304,9 +302,9 @@ class TestStatePresent:
             "no_code": True,
             "operation": "update",
         }
-        
+
         result = state_present(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is False
         assert result["id"] == "mod-1"
 
@@ -323,9 +321,9 @@ class TestStateAbsent:
             "version": "1.0.0",
             "delete_scope": "version",
         }
-        
+
         result = state_absent(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         assert "deleted successfully" in result["msg"]
         mock_delete_version.assert_called_once()
@@ -341,9 +339,9 @@ class TestStateAbsent:
             "version": "1.0.0",
             "delete_scope": "version",
         }
-        
+
         result = state_absent(mock_adapter, params, check_mode=True)
-        
+
         assert result["changed"] is True
         assert "would be deleted" in result["msg"]
         mock_delete_version.assert_not_called()
@@ -360,9 +358,9 @@ class TestStateAbsent:
             "provider": "aws",
             "delete_scope": "provider",
         }
-        
+
         result = state_absent(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         mock_delete_provider.assert_called_once()
 
@@ -377,9 +375,9 @@ class TestStateAbsent:
             "provider": "aws",
             "delete_scope": "provider",
         }
-        
+
         result = state_absent(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is False
         assert "already absent" in result["msg"]
 
@@ -392,10 +390,11 @@ class TestStateAbsent:
             "name": "vpc",
             "delete_scope": "module",
         }
-        
+
         result = state_absent(mock_adapter, params, check_mode=False)
-        
+
         assert result["changed"] is True
         mock_delete_module.assert_called_once()
+
 
 # Made with Bob

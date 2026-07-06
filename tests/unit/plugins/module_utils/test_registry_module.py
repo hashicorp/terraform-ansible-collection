@@ -37,12 +37,14 @@ class TestGetRegistryModule:
         adapter = Mock()
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
-        adapter.client.registry_modules.read.return_value = _make_model({
-            "id": "mod-1",
-            "name": "vpc",
-            "provider": "aws",
-        })
-        
+        adapter.client.registry_modules.read.return_value = _make_model(
+            {
+                "id": "mod-1",
+                "name": "vpc",
+                "provider": "aws",
+            }
+        )
+
         module_id = {
             "organization": "my-org",
             "name": "vpc",
@@ -50,7 +52,7 @@ class TestGetRegistryModule:
             "registry_name": "private",
         }
         result = get_registry_module(adapter, module_id)
-        
+
         assert result == {"id": "mod-1", "name": "vpc", "provider": "aws"}
         adapter.client.registry_modules.read.assert_called_once_with(mock_id)
 
@@ -60,7 +62,7 @@ class TestGetRegistryModule:
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
         adapter.client.registry_modules.read.side_effect = NotFound("missing")
-        
+
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         assert get_registry_module(adapter, module_id) is None
 
@@ -71,14 +73,16 @@ class TestGetRegistryModuleVersion:
         adapter = Mock()
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
-        adapter.client.registry_modules.read_version.return_value = _make_model({
-            "id": "modver-1",
-            "version": "1.0.0",
-        })
-        
+        adapter.client.registry_modules.read_version.return_value = _make_model(
+            {
+                "id": "modver-1",
+                "version": "1.0.0",
+            }
+        )
+
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         result = get_registry_module_version(adapter, module_id, "1.0.0")
-        
+
         assert result == {"id": "modver-1", "version": "1.0.0"}
         adapter.client.registry_modules.read_version.assert_called_once_with(mock_id, "1.0.0")
 
@@ -88,7 +92,7 @@ class TestGetRegistryModuleVersion:
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
         adapter.client.registry_modules.read_version.side_effect = NotFound("missing")
-        
+
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         assert get_registry_module_version(adapter, module_id, "1.0.0") is None
 
@@ -100,11 +104,13 @@ class TestCreateRegistryModule:
         adapter = Mock()
         opts = Mock()
         mock_opts_cls.model_validate.return_value = opts
-        mock_safe_call.return_value = _make_model({
-            "id": "mod-1",
-            "name": "vpc",
-            "provider": "aws",
-        })
+        mock_safe_call.return_value = _make_model(
+            {
+                "id": "mod-1",
+                "name": "vpc",
+                "provider": "aws",
+            }
+        )
 
         data = {"name": "vpc", "provider": "aws", "registry_name": "private"}
         result = create_registry_module(adapter, "my-org", data)
@@ -125,11 +131,13 @@ class TestCreateRegistryModuleWithVCS:
         adapter = Mock()
         opts = Mock()
         mock_opts_cls.model_validate.return_value = opts
-        mock_safe_call.return_value = _make_model({
-            "id": "mod-1",
-            "name": "vpc",
-            "provider": "aws",
-        })
+        mock_safe_call.return_value = _make_model(
+            {
+                "id": "mod-1",
+                "name": "vpc",
+                "provider": "aws",
+            }
+        )
 
         data = {
             "vcs_repo": {
@@ -156,10 +164,12 @@ class TestCreateRegistryModuleVersion:
         mock_id_cls.return_value = mock_id
         opts = Mock()
         mock_opts_cls.model_validate.return_value = opts
-        mock_safe_call.return_value = _make_model({
-            "id": "modver-1",
-            "version": "1.0.0",
-        })
+        mock_safe_call.return_value = _make_model(
+            {
+                "id": "modver-1",
+                "version": "1.0.0",
+            }
+        )
 
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         data = {"version": "1.0.0"}
@@ -183,11 +193,13 @@ class TestUpdateRegistryModule:
         mock_id_cls.return_value = mock_id
         opts = Mock()
         mock_opts_cls.model_validate.return_value = opts
-        mock_safe_call.return_value = _make_model({
-            "id": "mod-1",
-            "name": "vpc",
-            "no_code": True,
-        })
+        mock_safe_call.return_value = _make_model(
+            {
+                "id": "mod-1",
+                "name": "vpc",
+                "no_code": True,
+            }
+        )
 
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         data = {"no_code": True}
@@ -208,10 +220,10 @@ class TestDeleteRegistryModuleByName:
         adapter = Mock()
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
-        
+
         module_id = {"organization": "my-org", "name": "vpc"}
         delete_registry_module_by_name(adapter, module_id)
-        
+
         args, kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.registry_modules.delete_by_name
         assert args[1] is mock_id
@@ -225,10 +237,10 @@ class TestDeleteRegistryModuleProvider:
         adapter = Mock()
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
-        
+
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         delete_registry_module_provider(adapter, module_id)
-        
+
         args, kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.registry_modules.delete_provider
         assert args[1] is mock_id
@@ -242,10 +254,10 @@ class TestDeleteRegistryModuleVersion:
         adapter = Mock()
         mock_id = Mock()
         mock_id_cls.return_value = mock_id
-        
+
         module_id = {"organization": "my-org", "name": "vpc", "provider": "aws"}
         delete_registry_module_version(adapter, module_id, "1.0.0")
-        
+
         args, kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.registry_modules.delete_version
         assert args[1] is mock_id
@@ -259,14 +271,15 @@ class TestUploadRegistryModuleVersion:
         adapter = Mock()
         upload_url = "https://example.com/upload"
         archive_content = b"fake archive content"
-        
+
         upload_registry_module_version(adapter, upload_url, archive_content)
-        
+
         args, kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.registry_modules.upload_tar_gzip
         assert args[1] == upload_url
         # args[2] is the BytesIO object
         assert args[2].read() == archive_content
         assert "error_context" in kwargs
+
 
 # Made with Bob

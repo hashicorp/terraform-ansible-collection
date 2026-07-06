@@ -156,11 +156,11 @@ from typing import Any, Dict
 
 from ansible.module_utils._text import to_text
 
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule
 from ansible_collections.hashicorp.terraform.plugins.module_utils.registry_module import (
     get_registry_module,
     get_registry_module_version,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule
 
 
 def main() -> None:
@@ -190,12 +190,10 @@ def main() -> None:
                 "namespace": params.get("namespace"),
                 "registry_name": params.get("registry_name", "private"),
             }
-            
+
             if params.get("version"):
                 # Retrieve specific version
-                registry_module_version = get_registry_module_version(
-                    adapter, module_id, params["version"]
-                )
+                registry_module_version = get_registry_module_version(adapter, module_id, params["version"])
                 if not registry_module_version:
                     raise ValueError(
                         f"Registry module version '{params['version']}' for '{params['name']}/{params['provider']}' "
@@ -206,10 +204,7 @@ def main() -> None:
                 # Retrieve module metadata
                 registry_module = get_registry_module(adapter, module_id)
                 if not registry_module:
-                    raise ValueError(
-                        f"Registry module '{params['name']}/{params['provider']}' was not found "
-                        f"in organization '{params['organization']}'"
-                    )
+                    raise ValueError(f"Registry module '{params['name']}/{params['provider']}' was not found " f"in organization '{params['organization']}'")
                 result["registry_module"] = registry_module
 
             module.exit_json(**result)

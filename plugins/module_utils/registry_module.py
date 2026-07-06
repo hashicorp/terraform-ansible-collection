@@ -62,9 +62,7 @@ def get_registry_module(adapter: TerraformClient, module_id: Dict[str, Any]) -> 
         return None
 
 
-def get_registry_module_version(
-    adapter: TerraformClient, module_id: Dict[str, Any], version: str
-) -> Optional[Dict[str, Any]]:
+def get_registry_module_version(adapter: TerraformClient, module_id: Dict[str, Any], version: str) -> Optional[Dict[str, Any]]:
     """Read a specific version of a registry module. Returns None if not found."""
     try:
         registry_module_id = RegistryModuleID(
@@ -96,14 +94,12 @@ def create_registry_module_with_vcs(adapter: TerraformClient, data: Dict[str, An
     response = safe_api_call(
         adapter.client.registry_modules.create_with_vcs_connection,
         options,
-        error_context=f"Failed to create registry module with VCS connection",
+        error_context="Failed to create registry module with VCS connection",
     )
     return format_response(response)
 
 
-def create_registry_module_version(
-    adapter: TerraformClient, module_id: Dict[str, Any], data: Dict[str, Any]
-) -> Dict[str, Any]:
+def create_registry_module_version(adapter: TerraformClient, module_id: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     """Create a new version for a registry module."""
     # Build RegistryModuleID from dict
     registry_module_id = RegistryModuleID(
@@ -136,7 +132,7 @@ def update_registry_module(adapter: TerraformClient, module_id: Dict[str, Any], 
         adapter.client.registry_modules.update,
         registry_module_id,
         options,
-        error_context=f"Failed to update registry module",
+        error_context=f"Failed to update registry module {module_id.get('name')}/{module_id.get('provider')}",
     )
     return format_response(response)
 
@@ -183,9 +179,7 @@ def delete_registry_module_version(adapter: TerraformClient, module_id: Dict[str
     )
 
 
-def upload_registry_module_version(
-    adapter: TerraformClient, upload_url: str, archive_content: bytes
-) -> None:
+def upload_registry_module_version(adapter: TerraformClient, upload_url: str, archive_content: bytes) -> None:
     """Upload a tar.gz archive to the registry module version upload URL."""
     import io
 
@@ -196,5 +190,6 @@ def upload_registry_module_version(
         archive,
         error_context="Failed to upload registry module version archive",
     )
+
 
 # Made with Bob

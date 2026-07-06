@@ -274,6 +274,7 @@ from typing import Any, Dict, Optional
 
 from ansible.module_utils._text import to_text
 
+from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
 from ansible_collections.hashicorp.terraform.plugins.module_utils.registry_module import (
     create_registry_module,
     create_registry_module_version,
@@ -286,7 +287,6 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.registry_modul
     update_registry_module,
     upload_registry_module_version,
 )
-from ansible_collections.hashicorp.terraform.plugins.module_utils.client import AnsibleTerraformModule, TerraformClient
 
 
 def _build_module_id(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -305,7 +305,7 @@ def _fetch_registry_module(adapter: TerraformClient, params: Dict[str, Any]) -> 
     organization = params.get("organization")
     name = params.get("name")
     provider = params.get("provider")
-    
+
     if organization and name and provider:
         module_id = _build_module_id(params)
         return get_registry_module(adapter, module_id)
@@ -322,45 +322,49 @@ def _has_drift(params: Dict[str, Any], current: Dict[str, Any]) -> bool:
 def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: bool = False) -> Dict[str, Any]:
     """Create or update a registry module to match the desired state."""
     operation = params.get("operation", "create")
-    
+
     if operation == "create":
         # Check if module already exists
         current = _fetch_registry_module(adapter, params)
         if current is not None:
             return {"changed": False, **current}
-        
+
         if check_mode:
             return {
                 "changed": True,
                 "msg": f"Registry module {params.get('name')} would be created. Skipped creation due to check mode.",
                 "name": params.get("name"),
             }
-        
-        created = create_registry_module(adapter, params["organization"], {
-            "name": params["name"],
-            "provider": params["provider"],
-            "registry_name": params.get("registry_name", "private"),
-            "namespace": params.get("namespace"),
-            "no_code": params.get("no_code"),
-        })
+
+        created = create_registry_module(
+            adapter,
+            params["organization"],
+            {
+                "name": params["name"],
+                "provider": params["provider"],
+                "registry_name": params.get("registry_name", "private"),
+                "namespace": params.get("namespace"),
+                "no_code": params.get("no_code"),
+            },
+        )
         return {"changed": True, **created}
-    
+
     elif operation == "create_with_vcs":
         if not params.get("vcs_repo"):
             raise ValueError("'vcs_repo' is required when operation is 'create_with_vcs'")
-        
+
         # Check if module already exists
         if params.get("name") and params.get("provider"):
             current = _fetch_registry_module(adapter, params)
             if current is not None:
                 return {"changed": False, **current}
-        
+
         if check_mode:
             return {
                 "changed": True,
                 "msg": "Registry module with VCS would be created. Skipped creation due to check mode.",
             }
-        
+
         # Build full options for create_with_vcs
         create_data = {
             "vcs_repo": params["vcs_repo"],
@@ -378,16 +382,16 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             create_data["no_code"] = params["no_code"]
         if params.get("test_config"):
             create_data["test_config"] = params["test_config"]
-        
+
         created = create_registry_module_with_vcs(adapter, create_data)
         return {"changed": True, **created}
-    
+
     elif operation == "create_version":
         if not params.get("version"):
             raise ValueError("'version' is required when operation is 'create_version'")
         if not params.get("name") or not params.get("provider"):
             raise ValueError("'name' and 'provider' are required when operation is 'create_version'")
-        
+
         # Check if version already exists
         module_id = _build_module_id(params)
         existing_version = get_registry_module_version(adapter, module_id, params["version"])
@@ -397,43 +401,48 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
             if params.get("archive"):
                 result["msg"] = f"Version {params['version']} already exists. Archive upload skipped."
             return result
-        
+
         if check_mode:
             return {
                 "changed": True,
                 "msg": f"Version {params['version']} would be created. Skipped creation due to check mode.",
                 "version": params["version"],
             }
-        
-        version = create_registry_module_version(adapter, module_id, {
-            "version": params["version"],
-        })
-        
+
+        version = create_registry_module_version(
+            adapter,
+            module_id,
+            {
+                "version": params["version"],
+            },
+        )
+
         # Upload archive if provided
         if params.get("archive"):
             upload_url = version.get("links", {}).get("upload")
             if not upload_url:
                 raise ValueError("Version created but no upload URL available")
-            
+
             # Read archive file
             import os
+
             archive_path = params["archive"]
             if not os.path.exists(archive_path):
                 raise ValueError(f"Archive file not found: {archive_path}")
-            
+
             with open(archive_path, "rb") as f:
                 archive_content = f.read()
-            
+
             upload_registry_module_version(adapter, upload_url, archive_content)
             version["msg"] = f"Version {params['version']} created and archive uploaded successfully"
-        
+
         return {"changed": True, **version}
-    
+
     elif operation == "update":
         current = _fetch_registry_module(adapter, params)
         if current is None:
             raise ValueError(f"Registry module {params.get('name')}/{params.get('provider')} not found")
-        
+
         if _has_drift(params, current):
             if check_mode:
                 return {
@@ -441,13 +450,17 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
                     "msg": f"Registry module {current.get('id')} would be updated. Skipped update due to check mode.",
                 }
             module_id = _build_module_id(params)
-            updated = update_registry_module(adapter, module_id, {
-                "no_code": params.get("no_code"),
-            })
+            updated = update_registry_module(
+                adapter,
+                module_id,
+                {
+                    "no_code": params.get("no_code"),
+                },
+            )
             return {"changed": True, **updated}
-        
+
         return {"changed": False, **current}
-    
+
     else:
         raise ValueError(f"Unknown operation: {operation}")
 
@@ -456,7 +469,7 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
     """Delete the registry module, provider, or version based on delete_scope."""
     delete_scope = params.get("delete_scope", "module")
     module_id = _build_module_id(params)
-    
+
     if delete_scope == "version":
         if not params.get("version"):
             raise ValueError("'version' is required when delete_scope is 'version'")
@@ -467,16 +480,16 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
             }
         delete_registry_module_version(adapter, module_id, params["version"])
         return {"changed": True, "msg": f"Version {params['version']} has been deleted successfully"}
-    
+
     elif delete_scope == "provider":
         if not params.get("provider"):
             raise ValueError("'provider' is required when delete_scope is 'provider'")
-        
+
         # Check if provider exists
         current = _fetch_registry_module(adapter, params)
         if current is None:
             return {"changed": False, "msg": "Registry module provider is already absent."}
-        
+
         if check_mode:
             return {
                 "changed": True,
@@ -484,7 +497,7 @@ def state_absent(adapter: TerraformClient, params: Dict[str, Any], check_mode: b
             }
         delete_registry_module_provider(adapter, module_id)
         return {"changed": True, "msg": f"Provider {params['provider']} has been deleted successfully"}
-    
+
     else:  # delete_scope == "module"
         if not params.get("name"):
             raise ValueError("'name' is required when delete_scope is 'module'")
