@@ -1,0 +1,135 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique registry module names
+      ansible.builtin.set_fact:
+        registry_module_name: "registry-module-test-{{ unique_id[:8] }}"
+        registry_module_provider: "aws"
+        registry_module_renamed: "registry-module-renamed-{{ unique_id[:8] }}"
+
+    # ---------- create ----------
+    - name: Create a registry module
+      hashicorp.terraform.registry_module: &create_module
+        organization: "{{ organization }}"
+        name: "{{ registry_module_name }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+        operation: "create"
+        state: present
+      register: result_create
+
+    - name: Assert registry module creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == registry_module_name
+          - result_create.provider == registry_module_provider
+          - result_create.registry_name == "private"
+
+    - name: Save registry_module_id fact
+      ansible.builtin.set_fact:
+        registry_module_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same registry module again
+      hashicorp.terraform.registry_module: *create_module
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == registry_module_id
+
+    # ---------- info: by name ----------
+    - name: Get the registry module by name
+      hashicorp.terraform.registry_module_info:
+        organization: "{{ organization }}"
+        name: "{{ registry_module_name }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+      register: result_info_name
+
+    - name: Assert info lookup returned the module
+      ansible.builtin.assert:
+        that:
+          - result_info_name.registry_module.id == registry_module_id
+          - result_info_name.registry_module.name == registry_module_name
+          - result_info_name.registry_module.provider == registry_module_provider
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete provider
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ registry_module_name }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+        delete_scope: "provider"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete ----------
+    - name: Delete the registry module provider
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ registry_module_name }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+        delete_scope: "provider"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same registry module provider again (no-op)
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ registry_module_name }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+        delete_scope: "provider"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete registry module providers by name (in case of mid-run failure)
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ item }}"
+        provider: "{{ registry_module_provider }}"
+        registry_name: "private"
+        delete_scope: "provider"
+        state: absent
+      loop:
+        - "{{ registry_module_name | default('') }}"
+        - "{{ registry_module_renamed | default('') }}"
+      when: item | length > 0
+      failed_when: false
+
+# Made with Bob
