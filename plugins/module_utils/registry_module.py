@@ -190,5 +190,3 @@ def upload_registry_module_version(adapter: TerraformClient, upload_url: str, ar
         archive,
         error_context="Failed to upload registry module version archive",
     )
-
-

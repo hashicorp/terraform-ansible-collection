@@ -395,6 +395,3 @@ class TestStateAbsent:
 
         assert result["changed"] is True
         mock_delete_module.assert_called_once()
-
-
-

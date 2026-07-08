@@ -280,6 +280,3 @@ class TestUploadRegistryModuleVersion:
         # args[2] is the BytesIO object
         assert args[2].read() == archive_content
         assert "error_context" in kwargs
-
-
-
