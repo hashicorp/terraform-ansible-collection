@@ -3,4 +3,4 @@ minor_changes:
   - registry_module - new module to manage Terraform Cloud/Enterprise private registry modules (https://github.com/ansible-collections/hashicorp.terraform/pull/XXX).
   - registry_module_info - new module to retrieve information about Terraform Cloud/Enterprise private registry modules (https://github.com/ansible-collections/hashicorp.terraform/pull/XXX).
 
-# Made with Bob
+
