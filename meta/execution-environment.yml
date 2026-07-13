@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2025, 2026
+
 ---
 # Controller-side dependencies for Ansible Builder execution environments.
 # Ansible Builder reads this file when the collection is installed into an EE

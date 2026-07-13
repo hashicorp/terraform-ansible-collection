@@ -1,3 +1,5 @@
+# Copyright IBM Corp. 2025, 2026
+
 provider "aws" {
   region = "us-west-2"
 }
