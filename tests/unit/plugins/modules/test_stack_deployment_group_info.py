@@ -114,7 +114,7 @@ def test_argument_spec_requires_stack_configuration_id_with_name():
         with pytest.raises(SystemExit):
             main()
 
-    _, kwargs = mock_cls.call_args
+    kwargs = mock_cls.call_args[1]
     assert kwargs.get("required_by", {}).get("name") == ("stack_configuration_id",)
 
 
