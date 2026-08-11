@@ -100,7 +100,7 @@ class TestUpdatePolicySet:
         result = update_policy_set(adapter, "polset-1", {"description": "new"})
 
         mock_opts_cls.model_validate.assert_called_once_with({"description": "new"})
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_sets.update
         assert args[1] == "polset-1"
         assert result == {"id": "polset-1", "description": "new"}
@@ -111,7 +111,7 @@ class TestDeletePolicySet:
     def test_delete_calls_sdk(self, mock_safe_call):
         adapter = Mock()
         delete_policy_set(adapter, "polset-1")
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_sets.delete
         assert args[1] == "polset-1"
 
@@ -122,7 +122,7 @@ class TestSyncRelationship:
         adapter = Mock()
         sync_relationship(adapter, "polset-1", "policies", add_ids=["pol-1"], remove_ids=[])
         mock_safe_call.assert_called_once()
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_sets.add_policies
         assert args[1] == "polset-1"
 
@@ -131,7 +131,7 @@ class TestSyncRelationship:
         adapter = Mock()
         sync_relationship(adapter, "polset-1", "workspaces", add_ids=[], remove_ids=["ws-1"])
         mock_safe_call.assert_called_once()
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_sets.remove_workspaces
         assert args[1] == "polset-1"
 

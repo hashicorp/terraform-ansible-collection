@@ -205,7 +205,7 @@ class TestStatePresent:
 
         state_present(mock_adapter, params, check_mode=False)
 
-        _, call_kwargs = mock_update.call_args
+        _args, call_kwargs = mock_update.call_args
         update_data = mock_update.call_args[0][2]
         assert "enabled" in update_data
         assert "version_pin" not in update_data

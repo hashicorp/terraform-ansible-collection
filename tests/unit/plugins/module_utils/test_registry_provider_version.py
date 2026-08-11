@@ -136,7 +136,7 @@ class TestCreateRegistryProviderVersion:
         data = {"version": "3.1.2", "key_id": "KEY123", "protocols": ["5.0"]}
         create_registry_provider_version(adapter, PROVIDER_ID, data)
 
-        _, kwargs = mock_safe_call.call_args
+        _args, kwargs = mock_safe_call.call_args
         error_ctx = kwargs["error_context"]
         assert "3.1.2" in error_ctx
         assert "aws" in error_ctx
@@ -166,7 +166,7 @@ class TestDeleteRegistryProviderVersion:
 
         delete_registry_provider_version(adapter, PROVIDER_ID, "2.5.0")
 
-        _, kwargs = mock_safe_call.call_args
+        _args, kwargs = mock_safe_call.call_args
         error_ctx = kwargs["error_context"]
         assert "2.5.0" in error_ctx
         assert "aws" in error_ctx

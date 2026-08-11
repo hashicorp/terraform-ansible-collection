@@ -74,7 +74,7 @@ class TestRegistryProviderVersionInfoModule:
     def test_not_found_calls_fail_json(self, mock_get, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version_info import main
 
-        mock_module, _ = _mock_module(PARAMS)
+        mock_module, _adapter = _mock_module(PARAMS)
         mock_module_class.return_value = mock_module
         mock_get.return_value = None
 
@@ -91,7 +91,7 @@ class TestRegistryProviderVersionInfoModule:
     def test_sdk_exception_calls_fail_json(self, mock_get, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version_info import main
 
-        mock_module, _ = _mock_module(PARAMS)
+        mock_module, _adapter = _mock_module(PARAMS)
         mock_module_class.return_value = mock_module
         mock_get.side_effect = Exception("Connection timeout")
 
@@ -105,7 +105,7 @@ class TestRegistryProviderVersionInfoModule:
     def test_result_contains_full_version_data(self, mock_get, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version_info import main
 
-        mock_module, _ = _mock_module(PARAMS)
+        mock_module, _adapter = _mock_module(PARAMS)
         mock_module_class.return_value = mock_module
         mock_get.return_value = PROVIDER_VERSION_DATA
 
@@ -123,7 +123,7 @@ class TestRegistryProviderVersionInfoModule:
     def test_provider_id_built_with_private_registry(self, mock_get, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version_info import main
 
-        mock_module, _ = _mock_module(PARAMS)
+        mock_module, _adapter = _mock_module(PARAMS)
         mock_module_class.return_value = mock_module
         mock_get.return_value = PROVIDER_VERSION_DATA
 
@@ -137,7 +137,7 @@ class TestRegistryProviderVersionInfoModule:
     def test_changed_is_always_false(self, mock_get, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version_info import main
 
-        mock_module, _ = _mock_module(PARAMS)
+        mock_module, _adapter = _mock_module(PARAMS)
         mock_module_class.return_value = mock_module
         mock_get.return_value = PROVIDER_VERSION_DATA
 

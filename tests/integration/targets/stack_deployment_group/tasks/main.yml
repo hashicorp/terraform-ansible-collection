@@ -34,7 +34,7 @@
           - result_by_id.stack_deployment_group.name is defined
           - result_by_id.stack_deployment_group.status is defined
 
-    
+
     # info: read by name within stack configuration
     - name: Read deployment group by name
       hashicorp.terraform.stack_deployment_group_info:
@@ -49,7 +49,7 @@
           - result_by_name.stack_deployment_group.name == sdg_name
           - result_by_name.stack_deployment_group.id is defined
 
-  
+
     # info: not-found by ID raises an error
     - name: Read a non-existent deployment group by ID (expect failure)
       hashicorp.terraform.stack_deployment_group_info:

@@ -35,7 +35,7 @@ def test_present_dispatches_with_provider_and_required_fields(mock_state_present
 
     main()
 
-    args, _ = mock_state_present.call_args
+    args, _kwargs = mock_state_present.call_args
     assert args[0] is mock_adapter
     assert args[1] == "aws"
     assert args[2] == ("role_arn",)
@@ -52,7 +52,7 @@ def test_absent_dispatches_with_provider(mock_state_absent, mock_module_class):
 
     main()
 
-    args, _ = mock_state_absent.call_args
+    args, _kwargs = mock_state_absent.call_args
     assert args[0] is mock_adapter
     assert args[1] == "aws"
     mock_module.exit_json.assert_called_once()

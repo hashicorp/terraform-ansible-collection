@@ -85,7 +85,7 @@ def test_argument_spec_requires_stack_deployment_run_id():
         with pytest.raises(SystemExit):
             main()
 
-    _, kwargs = mock_cls.call_args
+    _args, kwargs = mock_cls.call_args
     assert kwargs["argument_spec"]["stack_deployment_run_id"]["required"] is True
 
 

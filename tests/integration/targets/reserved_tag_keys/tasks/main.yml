@@ -123,7 +123,7 @@
         organization: "{{ organization }}"
         key: "{{ rtk_key_name }}"
         state: absent
-      ignore_errors: true
+      failed_when: false
       register: cleanup_result
       when: rtk_key_name is defined
 
@@ -132,5 +132,5 @@
         organization: "{{ organization }}"
         key: "{{ rtk_key_renamed }}"
         state: absent
-      ignore_errors: true
+      failed_when: false
       when: rtk_key_renamed is defined

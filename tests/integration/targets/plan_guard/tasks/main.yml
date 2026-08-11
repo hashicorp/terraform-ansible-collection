@@ -4,7 +4,7 @@
 # (mirroring a real refresh-only drift analysis: an EC2 tag change and a
 # security-group ingress change) through the shared drift_policy engine and
 # asserts the verdict for each mode.
-- name: plan_guard / plan_safe offline policy evaluation
+- name: Plan_guard / plan_safe offline policy evaluation
   block:
     - name: Canned plan_analyze analysis (safe tag + risky SG ingress drift)
       ansible.builtin.set_fact:
@@ -151,7 +151,9 @@
     - name: Assert plan_safe test plugin agrees with the filter
       ansible.builtin.assert:
         that:
-          - drift_analysis is hashicorp.terraform.plan_safe(allow=['*.tags', '*.tags_all', 'aws_security_group.*.ingress'], deny=['aws_instance.*.instance_type'])
+          - >-
+            drift_analysis is hashicorp.terraform.plan_safe(allow=['*.tags', '*.tags_all',
+            'aws_security_group.*.ingress'], deny=['aws_instance.*.instance_type'])
           - not (drift_analysis_denied is hashicorp.terraform.plan_safe(allow=['aws_instance.*.instance_type'], deny=['aws_instance.*.instance_type']))
         fail_msg: "plan_safe should agree with the plan_guard filter for the same inputs"
 

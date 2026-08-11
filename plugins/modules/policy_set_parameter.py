@@ -208,7 +208,7 @@ def main() -> None:
         argument_spec={
             "policy_set_id": {"type": "str", "required": True},
             "parameter_id": {"type": "str"},
-            "key": {"type": "str"},
+            "key": {"type": "str", "no_log": False},
             "value": {"type": "str", "no_log": True},
             "sensitive": {"type": "bool"},
             "state": {"type": "str", "default": "present", "choices": ["present", "absent"]},

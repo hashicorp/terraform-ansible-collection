@@ -335,7 +335,7 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
         return {"changed": False, **current}
 
     if check_mode:
-        summary = list(attr_diff.keys()) + [relationship for relationship, _, _ in relationship_syncs]
+        summary = list(attr_diff.keys()) + [relationship for relationship, _add_ids, _remove_ids in relationship_syncs]
         return {"changed": True, "msg": f"Policy set {current['id']} would be updated ({', '.join(summary)}). Skipped update due to check mode."}
 
     if attr_diff:

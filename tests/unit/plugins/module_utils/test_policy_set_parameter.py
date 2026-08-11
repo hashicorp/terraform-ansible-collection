@@ -78,7 +78,7 @@ class TestCreatePolicySetParameter:
         result = create_policy_set_parameter(adapter, "polset-1", data)
 
         mock_opts_cls.model_validate.assert_called_once_with(data)
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_set_parameters.create
         assert args[1] == "polset-1"
         assert args[2] is opts
@@ -96,7 +96,7 @@ class TestUpdatePolicySetParameter:
 
         result = update_policy_set_parameter(adapter, "polset-1", "var-1", {"value": "2"})
 
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_set_parameters.update
         assert args[1] == "polset-1"
         assert args[2] == "var-1"
@@ -109,7 +109,7 @@ class TestDeletePolicySetParameter:
     def test_delete_calls_sdk(self, mock_safe_call):
         adapter = Mock()
         delete_policy_set_parameter(adapter, "polset-1", "var-1")
-        args, _ = mock_safe_call.call_args
+        args, _kwargs = mock_safe_call.call_args
         assert args[0] is adapter.client.policy_set_parameters.delete
         assert args[1] == "polset-1"
         assert args[2] == "var-1"

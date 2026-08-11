@@ -87,7 +87,7 @@ class TestMain:
 
         main()
 
-        args, _ = mock_do_override.call_args
+        args, _kwargs = mock_do_override.call_args
         assert args[0] is mock_adapter
         mock_module.exit_json.assert_called_once()
 

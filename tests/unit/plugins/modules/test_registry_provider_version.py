@@ -190,7 +190,7 @@ class TestStatePresent:
 
         state_present(mock_adapter, PARAMS_PRESENT, check_mode=False)
 
-        _, call_args = mock_create.call_args[0][1], mock_create.call_args[0][2]
+        _first_arg, call_args = mock_create.call_args[0][1], mock_create.call_args[0][2]
         passed_data = mock_create.call_args[0][2]
         assert passed_data["version"] == "1.0.0"
         assert passed_data["key_id"] == "ABCD1234"
@@ -317,7 +317,7 @@ class TestMainModule:
     def test_main_exception_calls_fail_json(self, mock_state_present, mock_module_class):
         from ansible_collections.hashicorp.terraform.plugins.modules.registry_provider_version import main
 
-        mock_module, _ = self._mock_module(PARAMS_PRESENT)
+        mock_module, _adapter = self._mock_module(PARAMS_PRESENT)
         mock_module_class.return_value = mock_module
         mock_state_present.side_effect = Exception("API failure")
 

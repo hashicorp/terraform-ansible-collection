@@ -108,7 +108,7 @@ def main() -> None:
         argument_spec={
             "policy_set_id": {"type": "str", "required": True},
             "parameter_id": {"type": "str"},
-            "key": {"type": "str"},
+            "key": {"type": "str", "no_log": False},
         },
         mutually_exclusive=[("parameter_id", "key")],
         supports_check_mode=True,

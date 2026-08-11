@@ -53,7 +53,7 @@ class TestStackStateInfoArgSpec:
     @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
     def test_stack_state_id_is_required_string(self, mock_cls):
         """stack_state_id must be required and of type str."""
-        mock_module, _ = _mock_module({"stack_state_id": "sts-abc123"})
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123"})
         mock_cls.return_value = mock_module
 
         with patch(f"{MODULE_PATH}.get_stack_state", return_value=STACK_STATE):
@@ -115,7 +115,7 @@ class TestStackStateInfoNotFound:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_not_found_calls_fail_json(self, mock_get, mock_cls):
         """When helper returns None, fail_json is called with 'not found' message."""
-        mock_module, _ = _mock_module({"stack_state_id": "sts-missing"})
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-missing"})
         mock_cls.return_value = mock_module
         mock_get.return_value = None
 
@@ -137,7 +137,7 @@ class TestStackStateInfoException:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_unexpected_exception_calls_fail_json(self, mock_get, mock_cls):
         """Any unexpected SDK/helper exception causes fail_json to be called."""
-        mock_module, _ = _mock_module({"stack_state_id": "sts-abc123"})
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123"})
         mock_cls.return_value = mock_module
         mock_get.side_effect = RuntimeError("unexpected SDK failure")
 

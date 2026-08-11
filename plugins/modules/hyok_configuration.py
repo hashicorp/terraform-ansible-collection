@@ -376,8 +376,8 @@ def main() -> None:
             "kms_options": {
                 "type": "dict",
                 "options": {
-                    "key_region": {"type": "str"},
-                    "key_location": {"type": "str"},
+                    "key_region": {"type": "str", "no_log": False},
+                    "key_location": {"type": "str", "no_log": False},
                     "key_ring_id": {"type": "str"},
                 },
             },

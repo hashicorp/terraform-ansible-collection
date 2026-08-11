@@ -1,3 +1,4 @@
 ---
 minor_changes:
-  - Adds the new module hashicorp.terraform.stack_deployment_group_info for retrieving information about Terraform Cloud/Enterprise stack deployment groups by ID or name.
+  - Adds the new module hashicorp.terraform.stack_deployment_group_info for retrieving information about
+    Terraform Cloud/Enterprise stack deployment groups by ID or name.
