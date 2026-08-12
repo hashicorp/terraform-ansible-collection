@@ -14,20 +14,45 @@
         platform_os: "linux"
         platform_arch: "amd64"
         platform_shasum: "abc123def456abc123def456abc123def456abc123def456abc123def456abc123"
-        platform_filename: "terraform-provider-{{ registry_provider_name }}_1.0.0_linux_amd64.zip"
+        provider_name: "registry-provider-{{ unique_id[:8] | lower }}"
+        provider_namespace: "{{ organization }}"
         provider_version: "1.0.0"
+        provider_key_id: "TESTKEY1234567890"
         tfe_base_url: "https://app.terraform.io"
 
+    - name: Set filename fact (depends on provider_name)
+      ansible.builtin.set_fact:
+        platform_filename: "terraform-provider-{{ provider_name }}_1.0.0_linux_amd64.zip"
+
+    # ---------- prerequisites: create a provider ----------
+    - name: Create a registry provider
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ provider_namespace }}"
+        name: "{{ provider_name }}"
+        registry_name: "private"
+        state: present
+      register: result_provider_create
+
+    - name: Assert registry provider creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_provider_create.changed
+          - result_provider_create.id is defined
+
+    - name: Record whether provider was newly created
+      ansible.builtin.set_fact:
+        provider_newly_created: "{{ result_provider_create.changed }}"
+
     # ---------- prerequisites: create a provider version ----------
-    # Registry providers require a GPG key (pre-existing from integration_config.yml).
     # We create a version so the platform has somewhere to attach.
     - name: Create a registry provider version
       hashicorp.terraform.registry_provider_version:
         organization_name: "{{ organization }}"
-        namespace: "{{ registry_provider_namespace }}"
-        name: "{{ registry_provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        name: "{{ provider_name }}"
         version: "{{ provider_version }}"
-        key_id: "{{ registry_provider_key_id }}"
+        key_id: "{{ provider_key_id }}"
         protocols:
           - "5.0"
         state: present
@@ -41,8 +66,8 @@
     - name: Create a registry provider platform
       hashicorp.terraform.registry_provider_platform: &create_platform
         organization: "{{ organization }}"
-        provider_name: "{{ registry_provider_name }}"
-        namespace: "{{ registry_provider_namespace }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
         registry_name: "private"
         version: "{{ provider_version }}"
         os: "{{ platform_os }}"
@@ -80,8 +105,8 @@
     - name: Get the registry provider platform info
       hashicorp.terraform.registry_provider_platform_info:
         organization: "{{ organization }}"
-        provider_name: "{{ registry_provider_name }}"
-        namespace: "{{ registry_provider_namespace }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
         registry_name: "private"
         version: "{{ provider_version }}"
         os: "{{ platform_os }}"
@@ -99,8 +124,8 @@
     - name: Check-mode delete the platform
       hashicorp.terraform.registry_provider_platform:
         organization: "{{ organization }}"
-        provider_name: "{{ registry_provider_name }}"
-        namespace: "{{ registry_provider_namespace }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
         registry_name: "private"
         version: "{{ provider_version }}"
         os: "{{ platform_os }}"
@@ -119,8 +144,8 @@
     - name: Delete the registry provider platform
       hashicorp.terraform.registry_provider_platform:
         organization: "{{ organization }}"
-        provider_name: "{{ registry_provider_name }}"
-        namespace: "{{ registry_provider_namespace }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
         registry_name: "private"
         version: "{{ provider_version }}"
         os: "{{ platform_os }}"
@@ -138,8 +163,8 @@
     - name: Delete the same platform again (no-op)
       hashicorp.terraform.registry_provider_platform:
         organization: "{{ organization }}"
-        provider_name: "{{ registry_provider_name }}"
-        namespace: "{{ registry_provider_namespace }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
         registry_name: "private"
         version: "{{ provider_version }}"
         os: "{{ platform_os }}"
@@ -157,11 +182,25 @@
     - name: Cleanup - best-effort delete the provider version (only if we created it)
       hashicorp.terraform.registry_provider_version:
         organization_name: "{{ organization }}"
-        namespace: "{{ registry_provider_namespace }}"
-        name: "{{ registry_provider_name }}"
+        namespace: "{{ provider_namespace | default('') }}"
+        name: "{{ provider_name | default('') }}"
         version: "{{ provider_version | default('1.0.0') }}"
         state: absent
       when:
         - version_newly_created is defined
         - version_newly_created
+        - provider_name | default('') | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the provider (only if we created it)
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ provider_namespace | default('') }}"
+        name: "{{ provider_name | default('') }}"
+        registry_name: "private"
+        state: absent
+      when:
+        - provider_newly_created is defined
+        - provider_newly_created
+        - provider_name | default('') | length > 0
       failed_when: false
