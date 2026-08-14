@@ -108,6 +108,13 @@ jobs:
         env:
           HCP_CI_TOKEN: "${{ secrets.HCP_CI_TOKEN }}"
           HCP_CI_ORGANIZATION: "${{ secrets.HCP_CI_ORGANIZATION }}"
+          HCP_CI_STACK_CONFIGURATION_ID: "${{ secrets.HCP_CI_STACK_CONFIGURATION_ID }}"
+          HCP_CI_STACK_DEPLOYMENT_GROUP_ID: "${{ secrets.HCP_CI_STACK_DEPLOYMENT_GROUP_ID }}"
+          HCP_CI_STACK_DEPLOYMENT_GROUP_NAME: "${{ secrets.HCP_CI_STACK_DEPLOYMENT_GROUP_NAME }}"
+          HCP_CI_STACK_DEPLOYMENT_RUN_ID: "${{ secrets.HCP_CI_STACK_DEPLOYMENT_RUN_ID }}"
+          HCP_CI_STACK_DEPLOYMENT_STEP_ID: "${{ secrets.HCP_CI_STACK_DEPLOYMENT_STEP_ID }}"
+          HCP_CI_STACK_DIAGNOSTIC_ID: "${{ secrets.HCP_CI_STACK_DIAGNOSTIC_ID }}"
+          HCP_CI_STACK_STATE_ID: "${{ secrets.HCP_CI_STACK_STATE_ID }}"
 
       - name: List all integration test targets
         run: |

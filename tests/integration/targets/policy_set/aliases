@@ -1,0 +1,7 @@
+# Temporarily disabled: this target requires HCP Terraform organizations to
+# return kind=sentinel/opa as requested, but prab-sandbox02 now returns
+# kind=tfpolicy on every create regardless of what's requested, and pytfe's
+# PolicyKind enum doesn't support "tfpolicy" in any released version yet
+# (only on the unreleased feature/tf-policy branch, targeting pytfe 1.4.0).
+# Re-enable once pytfe 1.4.0 ships - tracked for a follow-up PR.
+disabled
