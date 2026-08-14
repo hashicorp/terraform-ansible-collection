@@ -8,10 +8,11 @@
 from unittest.mock import Mock
 
 import pytest
-from pytfe.errors import NotFound
+from pytfe.errors import NotFound, TFEError
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_state import (
     get_stack_state,
+    list_stack_states,
 )
 
 
@@ -73,3 +74,37 @@ class TestGetStackState:
 
         with pytest.raises(RuntimeError, match="unexpected API failure"):
             get_stack_state(adapter, "sts-abc123")
+
+
+_ST_ID = "st-parent01"
+
+
+class TestListStackStates:
+    def test_returns_list_of_states(self):
+        adapter = Mock()
+        payload = {"id": "sts-abc123", "generation": 3, "status": "current"}
+        model = Mock()
+        model.model_dump.return_value = payload
+        adapter.client.stack_states.list.return_value = [model]
+
+        result = list_stack_states(adapter, _ST_ID)
+
+        adapter.client.stack_states.list.assert_called_once_with(_ST_ID)
+        assert result == [payload]
+
+    def test_empty_iterator_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_states.list.return_value = []
+        result = list_stack_states(adapter, _ST_ID)
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_states.list.side_effect = NotFound("missing")
+        assert list_stack_states(adapter, _ST_ID) == []
+
+    def test_tfe_error_returns_empty_list(self):
+        """TFEError (e.g. failed deployment with no states) returns [] instead of raising."""
+        adapter = Mock()
+        adapter.client.stack_states.list.side_effect = TFEError("Unknown error.")
+        assert list_stack_states(adapter, _ST_ID) == []

@@ -3,7 +3,7 @@
 # Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from pytfe.errors import NotFound
@@ -37,3 +37,15 @@ def get_stack_deployment_group_by_name(
         return format_response(group)
     except NotFound:
         return None
+
+
+def list_stack_deployment_groups(
+    adapter: TerraformClient,
+    stack_configuration_id: str,
+) -> List[Dict[str, Any]]:
+    """List all deployment groups for a stack configuration. Returns an empty list if none exist."""
+    try:
+        groups = adapter.client.stack_deployment_groups.list(stack_configuration_id)
+        return [format_response(g) for g in groups]
+    except NotFound:
+        return []

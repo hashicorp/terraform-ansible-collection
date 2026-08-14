@@ -3,7 +3,7 @@
 # Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from pytfe.errors import NotFound
@@ -36,6 +36,15 @@ def get_stack_configuration(adapter: TerraformClient, stack_configuration_id: st
         return format_response(stack_configuration)
     except NotFound:
         return None
+
+
+def list_stack_configurations(adapter: TerraformClient, stack_id: str) -> List[Dict[str, Any]]:
+    """List all stack configurations for a stack. Returns an empty list if none exist."""
+    try:
+        configs = adapter.client.stack_configurations.list(stack_id)
+        return [format_response(c) for c in configs]
+    except NotFound:
+        return []
 
 
 def create_stack_configuration(adapter: TerraformClient, stack_id: str, data: Dict[str, Any]) -> Dict[str, Any]:

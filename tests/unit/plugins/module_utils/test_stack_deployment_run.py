@@ -11,6 +11,7 @@ from pytfe.errors import NotFound
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_run import (
     get_stack_deployment_run,
+    list_stack_deployment_runs,
 )
 
 _SDR_ID = "sdr-abc123"
@@ -28,6 +29,9 @@ def _make_model(payload):
     return m
 
 
+_SDG_ID = "sdg-xyz789"
+
+
 class TestGetStackDeploymentRun:
     def test_success(self):
         adapter = Mock()
@@ -40,3 +44,23 @@ class TestGetStackDeploymentRun:
         adapter = Mock()
         adapter.client.stack_deployment_runs.read.side_effect = NotFound("missing")
         assert get_stack_deployment_run(adapter, "sdr-missing") is None
+
+
+class TestListStackDeploymentRuns:
+    def test_returns_list_of_runs(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_runs.list.return_value = [_make_model(_RUN_PAYLOAD)]
+        result = list_stack_deployment_runs(adapter, _SDG_ID)
+        adapter.client.stack_deployment_runs.list.assert_called_once_with(_SDG_ID)
+        assert result == [_RUN_PAYLOAD]
+
+    def test_empty_iterator_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_runs.list.return_value = []
+        result = list_stack_deployment_runs(adapter, _SDG_ID)
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_runs.list.side_effect = NotFound("missing")
+        assert list_stack_deployment_runs(adapter, _SDG_ID) == []

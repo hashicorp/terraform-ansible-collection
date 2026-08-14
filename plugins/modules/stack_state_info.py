@@ -21,9 +21,15 @@ options:
   stack_state_id:
     description:
       - The unique identifier of the stack state (e.g. C(sts-...)).
-      - This module retrieves a stack state by its unique ID.
+      - Provide this to retrieve a single stack state by ID.
+      - Mutually exclusive with C(stack_id).
     type: str
-    required: true
+  stack_id:
+    description:
+      - The unique identifier of the parent stack (e.g. C(st-...)).
+      - When provided, lists all stack states for that stack.
+      - Mutually exclusive with C(stack_state_id).
+    type: str
 """
 
 EXAMPLES = r"""
@@ -31,6 +37,11 @@ EXAMPLES = r"""
   hashicorp.terraform.stack_state_info:
     stack_state_id: "sts-abc123"
   register: state
+
+- name: List all stack states for a stack
+  hashicorp.terraform.stack_state_info:
+    stack_id: "st-xyz789"
+  register: states
 
 # Task output:
 # ------------
@@ -77,6 +88,11 @@ changed:
   returned: always
   type: bool
   sample: false
+stack_states:
+  description: All stack states belonging to the stack.
+  returned: when O(stack_id) is provided
+  type: list
+  elements: dict
 stack_state:
   description: A dictionary containing the stack state information.
   returned: on success
@@ -86,7 +102,7 @@ stack_state:
       description: The unique identifier of the stack state.
       returned: always
       type: str
-      sample: "sts-abc123"
+      sample: "ss-abc123"
     generation:
       description: The sequential generation number of this state capture.
       returned: when present
@@ -175,14 +191,18 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_state import (
     get_stack_state,
+    list_stack_states,
 )
 
 
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "stack_state_id": {"type": "str", "required": True},
+            "stack_state_id": {"type": "str"},
+            "stack_id": {"type": "str"},
         },
+        required_one_of=[("stack_state_id", "stack_id")],
+        mutually_exclusive=[("stack_state_id", "stack_id")],
         supports_check_mode=True,
     )
 
@@ -193,12 +213,13 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            stack_state = get_stack_state(adapter, params["stack_state_id"])
-
-            if stack_state is None:
-                raise ValueError(f"Stack state with ID '{params['stack_state_id']}' not found")
-
-            result["stack_state"] = stack_state
+            if params.get("stack_state_id"):
+                stack_state = get_stack_state(adapter, params["stack_state_id"])
+                if stack_state is None:
+                    raise ValueError(f"Stack state with ID '{params['stack_state_id']}' not found")
+                result["stack_state"] = stack_state
+            else:
+                result["stack_states"] = list_stack_states(adapter, params["stack_id"])
             module.exit_json(**result)
 
     except Exception as e:

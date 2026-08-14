@@ -15,7 +15,8 @@ description:
   - Retrieves information about a stack deployment run on Terraform Cloud and Terraform Enterprise.
   - A stack deployment run represents a single execution within a deployment group for a stack
     configuration.
-  - Look up a single deployment run by its C(stack_deployment_run_id).
+  - Look up a single deployment run by its C(stack_deployment_run_id), or list all runs in a
+    deployment group by supplying C(stack_deployment_group_id) alone.
   - This module only reads information and never changes state.
   - Compatible with both Terraform Cloud and Terraform Enterprise.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -23,9 +24,15 @@ options:
   stack_deployment_run_id:
     description:
       - The unique identifier of the stack deployment run (e.g. C(sdr-...)).
-      - Required to look up a deployment run by ID.
+      - Provide this to look up a deployment run by ID.
+      - Mutually exclusive with C(stack_deployment_group_id).
     type: str
-    required: true
+  stack_deployment_group_id:
+    description:
+      - The unique identifier of the deployment group (e.g. C(sdg-...)).
+      - When provided, lists all deployment runs in that group.
+      - Mutually exclusive with C(stack_deployment_run_id).
+    type: str
 """
 
 EXAMPLES = r"""
@@ -33,12 +40,17 @@ EXAMPLES = r"""
   hashicorp.terraform.stack_deployment_run_info:
     stack_deployment_run_id: "sdr-abc123"
   register: run
+
+- name: List all deployment runs for a deployment group
+  hashicorp.terraform.stack_deployment_run_info:
+    stack_deployment_group_id: "sdg-xyz789"
+  register: runs
 """
 
 RETURN = r"""
 stack_deployment_run:
-  description: A single deployment run, returned for all successful lookups.
-  returned: always
+  description: A single deployment run, returned when looking up by C(stack_deployment_run_id).
+  returned: when O(stack_deployment_run_id) is provided
   type: dict
   contains:
     id:
@@ -80,6 +92,11 @@ stack_deployment_run:
           returned: always
           type: str
           sample: "sdg-xyz789"
+stack_deployment_runs:
+  description: All deployment runs belonging to the deployment group.
+  returned: when O(stack_deployment_group_id) is provided
+  type: list
+  elements: dict
 """
 
 from copy import deepcopy
@@ -92,14 +109,18 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_run import (
     get_stack_deployment_run,
+    list_stack_deployment_runs,
 )
 
 
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "stack_deployment_run_id": {"type": "str", "required": True},
+            "stack_deployment_run_id": {"type": "str"},
+            "stack_deployment_group_id": {"type": "str"},
         },
+        required_one_of=[("stack_deployment_run_id", "stack_deployment_group_id")],
+        mutually_exclusive=[("stack_deployment_run_id", "stack_deployment_group_id")],
         supports_check_mode=True,
     )
 
@@ -110,10 +131,13 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            run = get_stack_deployment_run(adapter, params["stack_deployment_run_id"])
-            if not run:
-                raise ValueError(f"Stack deployment run with ID {params['stack_deployment_run_id']!r} not found")
-            result["stack_deployment_run"] = run
+            if params.get("stack_deployment_run_id"):
+                run = get_stack_deployment_run(adapter, params["stack_deployment_run_id"])
+                if not run:
+                    raise ValueError(f"Stack deployment run with ID {params['stack_deployment_run_id']!r} not found")
+                result["stack_deployment_run"] = run
+            else:
+                result["stack_deployment_runs"] = list_stack_deployment_runs(adapter, params["stack_deployment_group_id"])
             module.exit_json(**result)
 
     except Exception as e:

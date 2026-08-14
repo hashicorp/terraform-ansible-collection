@@ -26,10 +26,15 @@ def _mock_module(params, check_mode=False):
     return mock_module, mock_adapter
 
 
+# ---------------------------------------------------------------------------
+# read by ID
+# ---------------------------------------------------------------------------
+
+
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_configuration")
 def test_by_id_success(mock_get, mock_module_class):
-    mock_module, mock_adapter = _mock_module({"stack_configuration_id": "stc-abc123"})
+    mock_module, mock_adapter = _mock_module({"stack_configuration_id": "stc-abc123", "stack_id": None})
     mock_module_class.return_value = mock_module
     mock_get.return_value = {"id": "stc-abc123", "status": "completed"}
 
@@ -46,7 +51,7 @@ def test_by_id_success(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_configuration")
 def test_by_id_not_found_fails(mock_get, mock_module_class):
-    mock_module = _mock_module({"stack_configuration_id": "stc-x"})[0]
+    mock_module = _mock_module({"stack_configuration_id": "stc-x", "stack_id": None})[0]
     mock_module_class.return_value = mock_module
     mock_get.return_value = None
 
@@ -59,7 +64,7 @@ def test_by_id_not_found_fails(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_configuration")
 def test_by_id_returns_all_fields(mock_get, mock_module_class):
-    mock_module, mock_adapter = _mock_module({"stack_configuration_id": "stc-full"})
+    mock_module, mock_adapter = _mock_module({"stack_configuration_id": "stc-full", "stack_id": None})
     mock_module_class.return_value = mock_module
     mock_get.return_value = {
         "id": "stc-full",
@@ -85,7 +90,7 @@ def test_by_id_returns_all_fields(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_configuration")
 def test_exception_triggers_fail_json(mock_get, mock_module_class):
-    mock_module = _mock_module({"stack_configuration_id": "stc-xyz789"})[0]
+    mock_module = _mock_module({"stack_configuration_id": "stc-xyz789", "stack_id": None})[0]
     mock_module_class.return_value = mock_module
     mock_get.side_effect = RuntimeError("unexpected error")
 
@@ -93,3 +98,74 @@ def test_exception_triggers_fail_json(mock_get, mock_module_class):
 
     mock_module.fail_json.assert_called_once()
     assert "unexpected error" in mock_module.fail_json.call_args[1]["msg"]
+
+
+# ---------------------------------------------------------------------------
+# list by stack_id
+# ---------------------------------------------------------------------------
+
+_STC_A = {"id": "stc-111", "status": "completed", "sequence_number": 1}
+_STC_B = {"id": "stc-222", "status": "pending", "sequence_number": 2}
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_configurations")
+def test_list_by_stack_id_success(mock_list, mock_module_class):
+    """Providing only stack_id returns a stack_configurations list."""
+    mock_module, mock_adapter = _mock_module({"stack_configuration_id": None, "stack_id": "st-xyz789"})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = [_STC_A, _STC_B]
+
+    main()
+
+    mock_list.assert_called_once_with(mock_adapter, "st-xyz789")
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_configurations"] == [_STC_A, _STC_B]
+    assert result["changed"] is False
+    assert result["warnings"] == []
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_configurations")
+def test_list_by_stack_id_empty(mock_list, mock_module_class):
+    """An empty stack returns an empty list (no error)."""
+    mock_module, mock_adapter = _mock_module({"stack_configuration_id": None, "stack_id": "st-xyz789"})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = []
+
+    main()
+
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_configurations"] == []
+    assert result["changed"] is False
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_configurations")
+def test_list_exception_triggers_fail_json(mock_list, mock_module_class):
+    mock_module = _mock_module({"stack_configuration_id": None, "stack_id": "st-xyz789"})[0]
+    mock_module_class.return_value = mock_module
+    mock_list.side_effect = RuntimeError("network error")
+
+    main()
+
+    mock_module.fail_json.assert_called_once()
+    assert "network error" in mock_module.fail_json.call_args[1]["msg"]
+
+
+# ---------------------------------------------------------------------------
+# argument spec
+# ---------------------------------------------------------------------------
+
+
+def test_argument_spec_declares_required_one_of():
+    """Module must declare required_one_of for stack_configuration_id / stack_id."""
+    with patch(f"{MODULE_PATH}.AnsibleTerraformModule", side_effect=SystemExit) as mock_cls:
+        try:
+            main()
+        except SystemExit:
+            pass
+
+    _args, kwargs = mock_cls.call_args
+    roe = kwargs.get("required_one_of", [])
+    assert any("stack_configuration_id" in pair and "stack_id" in pair for pair in roe)

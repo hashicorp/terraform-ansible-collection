@@ -14,7 +14,11 @@
         stack_name: "stack-test-{{ unique_id[:8] }}"
         stack_renamed: "stack-renamed-{{ unique_id[:8] }}"
         project_name: "stack-project-{{ unique_id[:8] }}"
+        stack_has_vcs: "{{ vcs_oauth_token_id | default('') != '' and vcs_identifier | default('') != '' }}"
 
+    # ------------------------------------------------------------------
+    # CREATE PROJECT
+    # ------------------------------------------------------------------
     - name: Create a Terraform project for the stack
       hashicorp.terraform.project:
         organization: "{{ organization }}"
@@ -26,15 +30,37 @@
       ansible.builtin.set_fact:
         project_id: "{{ result_project.id }}"
 
-    # ---------- create ----------
-    - name: Create a stack linked to a project
-      hashicorp.terraform.stack: &create_stack
+    # ------------------------------------------------------------------
+    # CREATE — VCS-backed stack (when VCS credentials are present)
+    # ------------------------------------------------------------------
+    - name: Create a VCS-backed stack linked to the project
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        project_id: "{{ result_project.id }}"
+        description: "Integration test stack"
+        vcs_repo:
+          identifier: "{{ vcs_identifier }}"
+          branch: "main"
+          oauth_token_id: "{{ vcs_oauth_token_id }}"
+        state: present
+      register: result_create
+      when: stack_has_vcs | bool
+
+    # CREATE — non-VCS stack (when VCS credentials are absent)
+    - name: Create a non-VCS stack linked to the project
+      hashicorp.terraform.stack:
         organization: "{{ organization }}"
         name: "{{ stack_name }}"
         project_id: "{{ result_project.id }}"
         description: "Integration test stack"
         state: present
-      register: result_create
+      register: result_create_novcs
+      when: not (stack_has_vcs | bool)
+
+    - name: Resolve active create result
+      ansible.builtin.set_fact:
+        result_create: "{{ result_create if stack_has_vcs | bool else result_create_novcs }}"
 
     - name: Assert stack creation was successful
       ansible.builtin.assert:
@@ -47,10 +73,36 @@
       ansible.builtin.set_fact:
         stack_id: "{{ result_create.id }}"
 
-    # ---------- idempotent re-create ----------
-    - name: Idempotency test - create the same stack again
-      hashicorp.terraform.stack: *create_stack
+    # ------------------------------------------------------------------
+    # IDEMPOTENCY
+    # ------------------------------------------------------------------
+    - name: Idempotency — create the same VCS-backed stack again (must be no-op)
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        project_id: "{{ result_project.id }}"
+        description: "Integration test stack"
+        vcs_repo:
+          identifier: "{{ vcs_identifier }}"
+          branch: "main"
+          oauth_token_id: "{{ vcs_oauth_token_id }}"
+        state: present
       register: result_create_again
+      when: stack_has_vcs | bool
+
+    - name: Idempotency — create the same non-VCS stack again (must be no-op)
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        project_id: "{{ result_project.id }}"
+        description: "Integration test stack"
+        state: present
+      register: result_create_again_novcs
+      when: not (stack_has_vcs | bool)
+
+    - name: Resolve active re-create result
+      ansible.builtin.set_fact:
+        result_create_again: "{{ result_create_again if stack_has_vcs | bool else result_create_again_novcs }}"
 
     - name: Assert re-create was a no-op
       ansible.builtin.assert:
@@ -58,7 +110,9 @@
           - not result_create_again.changed
           - result_create_again.id == stack_id
 
-    # ---------- read: by id and by name ----------
+    # ------------------------------------------------------------------
+    # READ — by ID and by name
+    # ------------------------------------------------------------------
     - name: Get the stack by ID
       hashicorp.terraform.stack_info:
         stack_id: "{{ stack_id }}"
@@ -81,7 +135,9 @@
           - result_info_name.stack.id == stack_id
           - result_info_name.stack.name == stack_name
 
-    # ---------- update (description) ----------
+    # ------------------------------------------------------------------
+    # UPDATE
+    # ------------------------------------------------------------------
     - name: Update the stack description
       hashicorp.terraform.stack:
         stack_id: "{{ stack_id }}"
@@ -95,7 +151,7 @@
           - result_update.changed
           - result_update.description == "Updated description"
 
-    - name: Idempotency test - apply the same update again
+    - name: Idempotency — apply the same update again
       hashicorp.terraform.stack:
         stack_id: "{{ stack_id }}"
         description: "Updated description"
@@ -107,7 +163,346 @@
         that:
           - not result_update_again.changed
 
-    # ---------- check-mode delete ----------
+    # ==================================================================
+    # STACK CONFIGURATION → DEPLOYMENT HIERARCHY (VCS path)
+    #
+    # Chain:
+    #   stack_id
+    #     → stack_configuration.create(source=fetch)  → stc_id
+    #     → poll stc until status=completed
+    #     → stack_deployment_groups.list(stc_id)       → sdg_id
+    #     → stack_deployment_runs.list(sdg_id)         → sdr_id
+    #     → stack_deployment_steps.list(sdr_id)        → sds_id
+    #     → list_diagnostics(sds_id)                   → std_id (conditional)
+    #
+    #   stack_id (independent)
+    #     → stack_states.list(stack_id)                → sts_id
+    # ==================================================================
+
+    # ------------------------------------------------------------------
+    # STC — create with source=fetch (VCS path)
+    # ------------------------------------------------------------------
+    - name: Create a stack configuration (source=fetch from VCS)
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: fetch
+        speculative_enabled: false
+        destroy_all: false
+        state: present
+      register: result_stc
+      when: stack_has_vcs | bool
+
+    - name: Create a stack configuration (source=manual, no VCS)
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: manual
+        speculative_enabled: false
+        destroy_all: false
+        state: present
+      register: result_stc_novcs
+      when: not (stack_has_vcs | bool)
+
+    - name: Resolve active stc result
+      ansible.builtin.set_fact:
+        result_stc: "{{ result_stc if stack_has_vcs | bool else result_stc_novcs }}"
+
+    - name: Assert stack configuration was created
+      ansible.builtin.assert:
+        that:
+          - result_stc.changed
+          - result_stc.id is defined
+          - result_stc.id is match("^stc-")
+          - result_stc.status in ["pending", "queued", "preparing", "completed", "failed"]
+          - result_stc.sequence_number is defined
+          - result_stc.sequence_number | int >= 1
+          - result_stc.speculative == false
+          - result_stc.created_at is defined
+
+    - name: Save stack configuration ID
+      ansible.builtin.set_fact:
+        stc_id: "{{ result_stc.id }}"
+
+    # Validate stc_id via the read-by-ID path
+    - name: Read the stack configuration by ID
+      hashicorp.terraform.stack_configuration_info:
+        stack_configuration_id: "{{ stc_id }}"
+      register: result_stc_read
+
+    - name: Assert stack configuration read by ID succeeded
+      ansible.builtin.assert:
+        that:
+          - not result_stc_read.changed
+          - result_stc_read.stack_configuration.id == stc_id
+          - result_stc_read.stack_configuration.speculative == false
+
+    # Rediscover stc_id from stack_id via the list relationship
+    - name: List stack configurations for this stack (relationship discovery)
+      hashicorp.terraform.stack_configuration_info:
+        stack_id: "{{ stack_id }}"
+      register: result_stc_list
+
+    - name: Assert the created configuration appears in the list
+      ansible.builtin.assert:
+        that:
+          - result_stc_list.stack_configurations | length >= 1
+          - result_stc_list.stack_configurations | selectattr('id', 'equalto', stc_id) | list | length == 1
+
+    # ------------------------------------------------------------------
+    # WAIT — poll until the stc reaches completed (VCS path only)
+    # The backend reads .tfstack.hcl from VCS asynchronously.
+    # Poll every 10 s for up to 6 minutes (36 retries).
+    # ------------------------------------------------------------------
+    - name: Poll stack configuration until completed or failed
+      hashicorp.terraform.stack_configuration_info:
+        stack_configuration_id: "{{ stc_id }}"
+      register: result_stc_poll
+      until: result_stc_poll.stack_configuration.status in ["completed", "failed"]
+      retries: 36
+      delay: 10
+      when: stack_has_vcs | bool
+
+    - name: Assert stack configuration completed successfully
+      ansible.builtin.assert:
+        that:
+          - result_stc_poll.stack_configuration.status == "completed"
+        fail_msg: >-
+          Stack configuration {{ stc_id }} ended with status
+          '{{ result_stc_poll.stack_configuration.status }}'.
+          Verify that {{ vcs_identifier }} contains a valid .tfstack.hcl
+          with at least one deployment block.
+      when: stack_has_vcs | bool
+
+    # ------------------------------------------------------------------
+    # SDG — stc_id → deployment groups (via pytfe relationship list)
+    # ------------------------------------------------------------------
+    - name: Poll for deployment groups under the stack configuration
+      hashicorp.terraform.stack_deployment_group_info:
+        stack_configuration_id: "{{ stc_id }}"
+      register: result_sdg_list
+      until: result_sdg_list.stack_deployment_groups | default([]) | length > 0
+      retries: 18
+      delay: 10
+      when: stack_has_vcs | bool
+
+    - name: Assert at least one deployment group was discovered
+      ansible.builtin.assert:
+        that:
+          - result_sdg_list.stack_deployment_groups | length > 0
+          - result_sdg_list.stack_deployment_groups[0].id is defined
+          - result_sdg_list.stack_deployment_groups[0].id is match("^sdg-")
+      when: stack_has_vcs | bool
+
+    - name: Save first deployment group ID
+      ansible.builtin.set_fact:
+        sdg_id: "{{ result_sdg_list.stack_deployment_groups[0].id }}"
+      when: stack_has_vcs | bool
+
+    - name: Validate deployment group by ID
+      hashicorp.terraform.stack_deployment_group_info:
+        stack_deployment_group_id: "{{ sdg_id }}"
+      register: result_sdg_read
+      when: stack_has_vcs | bool and sdg_id is defined
+
+    - name: Assert deployment group read-by-ID succeeded
+      ansible.builtin.assert:
+        that:
+          - not result_sdg_read.changed
+          - result_sdg_read.stack_deployment_group.id == sdg_id
+          - result_sdg_read.stack_deployment_group.status is defined
+      when: stack_has_vcs | bool and sdg_id is defined
+
+    # ------------------------------------------------------------------
+    # SDR — sdg_id → deployment runs (via pytfe relationship list)
+    # ------------------------------------------------------------------
+    - name: Poll for deployment runs under the deployment group
+      hashicorp.terraform.stack_deployment_run_info:
+        stack_deployment_group_id: "{{ sdg_id }}"
+      register: result_sdr_list
+      until: result_sdr_list.stack_deployment_runs | default([]) | length > 0
+      retries: 18
+      delay: 10
+      when: stack_has_vcs | bool and sdg_id is defined
+
+    - name: Assert at least one deployment run was discovered
+      ansible.builtin.assert:
+        that:
+          - result_sdr_list.stack_deployment_runs | length > 0
+          - result_sdr_list.stack_deployment_runs[0].id is defined
+          - result_sdr_list.stack_deployment_runs[0].id is match("^sdr-")
+      when: stack_has_vcs | bool and sdg_id is defined
+
+    - name: Save first deployment run ID
+      ansible.builtin.set_fact:
+        sdr_id: "{{ result_sdr_list.stack_deployment_runs[0].id }}"
+      when: stack_has_vcs | bool and sdg_id is defined
+
+    - name: Validate deployment run by ID
+      hashicorp.terraform.stack_deployment_run_info:
+        stack_deployment_run_id: "{{ sdr_id }}"
+      register: result_sdr_read
+      when: stack_has_vcs | bool and sdr_id is defined
+
+    - name: Assert deployment run read-by-ID succeeded
+      ansible.builtin.assert:
+        that:
+          - not result_sdr_read.changed
+          - result_sdr_read.stack_deployment_run.id == sdr_id
+          - result_sdr_read.stack_deployment_run.status is defined
+      when: stack_has_vcs | bool and sdr_id is defined
+
+    # ------------------------------------------------------------------
+    # SDS — sdr_id → deployment steps (via pytfe relationship list)
+    # ------------------------------------------------------------------
+    - name: Poll for deployment steps under the deployment run
+      hashicorp.terraform.stack_deployment_step_info:
+        stack_deployment_run_id: "{{ sdr_id }}"
+      register: result_sds_list
+      until: result_sds_list.stack_deployment_steps | default([]) | length > 0
+      retries: 18
+      delay: 10
+      when: stack_has_vcs | bool and sdr_id is defined
+
+    - name: Assert at least one deployment step was discovered
+      ansible.builtin.assert:
+        that:
+          - result_sds_list.stack_deployment_steps | length > 0
+          - result_sds_list.stack_deployment_steps[0].id is defined
+          - result_sds_list.stack_deployment_steps[0].id is match("^sds-")
+      when: stack_has_vcs | bool and sdr_id is defined
+
+    - name: Save first deployment step ID
+      ansible.builtin.set_fact:
+        sds_id: "{{ result_sds_list.stack_deployment_steps[0].id }}"
+      when: stack_has_vcs | bool and sdr_id is defined
+
+    - name: Validate deployment step by ID
+      hashicorp.terraform.stack_deployment_step_info:
+        stack_deployment_step_id: "{{ sds_id }}"
+      register: result_sds_read
+      when: stack_has_vcs | bool and sds_id is defined
+
+    - name: Assert deployment step read-by-ID succeeded
+      ansible.builtin.assert:
+        that:
+          - not result_sds_read.changed
+          - result_sds_read.stack_deployment_step.id == sds_id
+          - result_sds_read.stack_deployment_step.status is defined
+      when: stack_has_vcs | bool and sds_id is defined
+
+    # ------------------------------------------------------------------
+    # STD — sds_id → diagnostics (conditional — zero is acceptable)
+    # ------------------------------------------------------------------
+    - name: List diagnostics for the deployment step
+      hashicorp.terraform.stack_deployment_step_info:
+        stack_deployment_step_id: "{{ sds_id }}"
+        list_diagnostics: true
+      register: result_std_list
+      when: stack_has_vcs | bool and sds_id is defined
+
+    - name: Log diagnostic count
+      ansible.builtin.debug:
+        msg: >-
+          Deployment step {{ sds_id }} produced
+          {{ result_std_list.stack_diagnostics | default([]) | length }} diagnostic(s).
+      when: stack_has_vcs | bool and sds_id is defined
+
+    - name: Save first diagnostic ID (when present)
+      ansible.builtin.set_fact:
+        std_id: "{{ result_std_list.stack_diagnostics[0].id }}"
+      when: stack_has_vcs | bool and sds_id is defined and result_std_list.stack_diagnostics | default([]) | length > 0
+
+    - name: Assert diagnostic ID format (when present)
+      ansible.builtin.assert:
+        that:
+          - std_id is match("^std-")
+      when: std_id is defined
+
+    - name: Validate diagnostic by ID (when present)
+      hashicorp.terraform.stack_diagnostic_info:
+        stack_diagnostic_id: "{{ std_id }}"
+      register: result_std_read
+      when: std_id is defined
+
+    - name: Assert diagnostic read-by-ID succeeded (when present)
+      ansible.builtin.assert:
+        that:
+          - not result_std_read.changed
+          - result_std_read.stack_diagnostic.id == std_id
+          - result_std_read.stack_diagnostic.severity is defined
+          - result_std_read.stack_diagnostic.summary is defined
+      when: std_id is defined
+
+    # ------------------------------------------------------------------
+    # STS — stack_id → stack states (independent branch)
+    # Stack states only exist after a successful deployment apply. When the
+    # plan step fails (e.g. missing kube config), no state is written and
+    # the list remains empty.  Treat like diagnostics: poll, report, but
+    # do not fail the test solely because states are absent.
+    # Real API IDs use the 'sts-' prefix.
+    # ------------------------------------------------------------------
+    - name: Poll for stack states for this stack
+      hashicorp.terraform.stack_state_info:
+        stack_id: "{{ stack_id }}"
+      register: result_sts_list
+      until: result_sts_list.stack_states | default([]) | length > 0
+      retries: 18
+      delay: 10
+      failed_when: false
+      when: stack_has_vcs | bool
+
+    - name: Log stack state count
+      ansible.builtin.debug:
+        msg: >-
+          Stack {{ stack_id }} has
+          {{ result_sts_list.stack_states | default([]) | length }} state(s).
+          Stack states only appear after a successful deployment apply; a failed
+          plan step (e.g. missing provider config) will produce diagnostics but
+          no state.
+      when: stack_has_vcs | bool
+
+    - name: Save first stack state ID (when present)
+      ansible.builtin.set_fact:
+        sts_id: "{{ result_sts_list.stack_states[0].id }}"
+      when: stack_has_vcs | bool and result_sts_list.stack_states | default([]) | length > 0
+
+    - name: Assert stack state ID format (when present)
+      ansible.builtin.assert:
+        that:
+          - sts_id is match("^sts-")
+      when: sts_id is defined
+
+    - name: Validate stack state by ID (when present)
+      hashicorp.terraform.stack_state_info:
+        stack_state_id: "{{ sts_id }}"
+      register: result_sts_read
+      when: sts_id is defined
+
+    - name: Assert stack state read-by-ID succeeded (when present)
+      ansible.builtin.assert:
+        that:
+          - not result_sts_read.changed
+          - result_sts_read.stack_state.id == sts_id
+          - result_sts_read.stack_state.generation is defined
+          - result_sts_read.stack_state.status is defined
+      when: sts_id is defined
+
+    # ------------------------------------------------------------------
+    # LOG — final runtime ID summary
+    # ------------------------------------------------------------------
+    - name: Log all discovered runtime IDs
+      ansible.builtin.debug:
+        msg: >-
+          stack={{ stack_id }},
+          stc={{ stc_id | default('none') }},
+          sdg={{ sdg_id | default('none — no VCS or backend empty') }},
+          sdr={{ sdr_id | default('none') }},
+          sds={{ sds_id | default('none') }},
+          std={{ std_id | default('none (no diagnostics)') }},
+          sts={{ sts_id | default('none') }}
+
+    # ------------------------------------------------------------------
+    # CHECK-MODE DELETE
+    # ------------------------------------------------------------------
     - name: Check-mode delete (by ID)
       hashicorp.terraform.stack:
         stack_id: "{{ stack_id }}"
@@ -121,7 +516,9 @@
           - result_check_mode.changed
           - "'check mode' in result_check_mode.msg"
 
-    # ---------- delete by name ----------
+    # ------------------------------------------------------------------
+    # DELETE
+    # ------------------------------------------------------------------
     - name: Delete the stack by organization and name
       hashicorp.terraform.stack:
         organization: "{{ organization }}"
@@ -148,8 +545,7 @@
           - not result_delete_by_name_again.changed
           - "'absent' in result_delete_by_name_again.msg"
 
-    # ---------- delete by ID (already gone — verify no-op) ----------
-    - name: Delete the stack by ID (no-op — already deleted above)
+    - name: Delete the stack by ID (already gone — verify no-op)
       hashicorp.terraform.stack:
         stack_id: "{{ stack_id }}"
         state: absent
@@ -162,14 +558,14 @@
           - "'absent' in result_delete_id_noop.msg"
 
   always:
-    - name: Cleanup - best-effort delete stack by ID
+    - name: Cleanup — best-effort delete stack by ID
       hashicorp.terraform.stack:
         stack_id: "{{ stack_id }}"
         state: absent
       when: stack_id is defined
       failed_when: false
 
-    - name: Cleanup - best-effort delete project
+    - name: Cleanup — best-effort delete project
       hashicorp.terraform.project:
         project_id: "{{ project_id }}"
         state: absent

@@ -11,6 +11,8 @@ from pytfe.errors import NotFound
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_step import (
     get_stack_deployment_step,
+    list_stack_deployment_steps,
+    list_stack_diagnostics,
 )
 
 _SDS_ID = "sds-abc123"
@@ -29,6 +31,10 @@ def _make_model(payload):
     return m
 
 
+_SDR_ID = "sdr-xyz789"
+_DIAG_PAYLOAD = {"id": "std-001", "severity": "error", "summary": "bad config"}
+
+
 class TestGetStackDeploymentStep:
     def test_success(self):
         adapter = Mock()
@@ -41,3 +47,43 @@ class TestGetStackDeploymentStep:
         adapter = Mock()
         adapter.client.stack_deployment_steps.read.side_effect = NotFound("missing")
         assert get_stack_deployment_step(adapter, "sds-missing") is None
+
+
+class TestListStackDeploymentSteps:
+    def test_returns_list_of_steps(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list.return_value = [_make_model(_STEP_PAYLOAD)]
+        result = list_stack_deployment_steps(adapter, _SDR_ID)
+        adapter.client.stack_deployment_steps.list.assert_called_once_with(_SDR_ID)
+        assert result == [_STEP_PAYLOAD]
+
+    def test_empty_iterator_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list.return_value = []
+        result = list_stack_deployment_steps(adapter, _SDR_ID)
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list.side_effect = NotFound("missing")
+        assert list_stack_deployment_steps(adapter, _SDR_ID) == []
+
+
+class TestListStackDiagnostics:
+    def test_returns_list_of_diagnostics(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list_diagnostics.return_value = [_make_model(_DIAG_PAYLOAD)]
+        result = list_stack_diagnostics(adapter, _SDS_ID)
+        adapter.client.stack_deployment_steps.list_diagnostics.assert_called_once_with(_SDS_ID)
+        assert result == [_DIAG_PAYLOAD]
+
+    def test_empty_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list_diagnostics.return_value = []
+        result = list_stack_diagnostics(adapter, _SDS_ID)
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_steps.list_diagnostics.side_effect = NotFound("missing")
+        assert list_stack_diagnostics(adapter, _SDS_ID) == []

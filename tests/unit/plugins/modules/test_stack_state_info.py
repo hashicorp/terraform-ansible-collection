@@ -47,13 +47,16 @@ STACK_STATE = {
 }
 
 
+_ST_ID = "st-parent01"
+
+
 class TestStackStateInfoArgSpec:
     """Verify the argument specification contract."""
 
     @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
-    def test_stack_state_id_is_required_string(self, mock_cls):
-        """stack_state_id must be required and of type str."""
-        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123"})
+    def test_declares_required_one_of(self, mock_cls):
+        """required_one_of must be declared for stack_state_id / stack_id."""
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123", "stack_id": None})
         mock_cls.return_value = mock_module
 
         with patch(f"{MODULE_PATH}.get_stack_state", return_value=STACK_STATE):
@@ -63,9 +66,10 @@ class TestStackStateInfoArgSpec:
                 pass
 
         call_kwargs = mock_cls.call_args[1]
-        spec = call_kwargs["argument_spec"]
-        assert spec["stack_state_id"]["type"] == "str"
-        assert spec["stack_state_id"]["required"] is True
+        assert ("stack_state_id", "stack_id") in call_kwargs["required_one_of"]
+        assert ("stack_state_id", "stack_id") in call_kwargs["mutually_exclusive"]
+        assert call_kwargs["argument_spec"]["stack_state_id"]["type"] == "str"
+        assert call_kwargs["argument_spec"]["stack_id"]["type"] == "str"
 
 
 class TestStackStateInfoSuccess:
@@ -75,7 +79,7 @@ class TestStackStateInfoSuccess:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_lookup_by_id_found(self, mock_get, mock_cls):
         """Returns stack_state dict with changed=False on a successful lookup."""
-        mock_module, mock_adapter = _mock_module({"stack_state_id": "sts-abc123"})
+        mock_module, mock_adapter = _mock_module({"stack_state_id": "sts-abc123", "stack_id": None})
         mock_cls.return_value = mock_module
         mock_get.return_value = STACK_STATE
 
@@ -93,7 +97,7 @@ class TestStackStateInfoSuccess:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_check_mode_returns_state_unchanged(self, mock_get, mock_cls):
         """In check mode the state is still read and changed remains False."""
-        mock_module, mock_adapter = _mock_module({"stack_state_id": "sts-abc123"}, check_mode=True)
+        mock_module, mock_adapter = _mock_module({"stack_state_id": "sts-abc123", "stack_id": None}, check_mode=True)
         mock_cls.return_value = mock_module
         mock_get.return_value = STACK_STATE
 
@@ -107,6 +111,42 @@ class TestStackStateInfoSuccess:
         assert result["changed"] is False
         assert result["stack_state"]["id"] == "sts-abc123"
 
+    @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+    @patch(f"{MODULE_PATH}.list_stack_states")
+    def test_list_by_stack_id_success(self, mock_list, mock_cls):
+        """Providing stack_id returns stack_states list."""
+        states = [STACK_STATE, {**STACK_STATE, "id": "sts-def456"}]
+        mock_module, mock_adapter = _mock_module({"stack_state_id": None, "stack_id": _ST_ID})
+        mock_cls.return_value = mock_module
+        mock_list.return_value = states
+
+        try:
+            main()
+        except SystemExit:
+            pass
+
+        mock_list.assert_called_once_with(mock_adapter, _ST_ID)
+        result = mock_module.exit_json.call_args[1]
+        assert result["changed"] is False
+        assert result["stack_states"] == states
+
+    @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+    @patch(f"{MODULE_PATH}.list_stack_states")
+    def test_list_by_stack_id_empty(self, mock_list, mock_cls):
+        """A stack with no states returns an empty list (no error)."""
+        mock_module, mock_adapter = _mock_module({"stack_state_id": None, "stack_id": _ST_ID})
+        mock_cls.return_value = mock_module
+        mock_list.return_value = []
+
+        try:
+            main()
+        except SystemExit:
+            pass
+
+        result = mock_module.exit_json.call_args[1]
+        assert result["changed"] is False
+        assert result["stack_states"] == []
+
 
 class TestStackStateInfoNotFound:
     """fail_json is called when the state does not exist."""
@@ -115,7 +155,7 @@ class TestStackStateInfoNotFound:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_not_found_calls_fail_json(self, mock_get, mock_cls):
         """When helper returns None, fail_json is called with 'not found' message."""
-        mock_module, _adapter = _mock_module({"stack_state_id": "sts-missing"})
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-missing", "stack_id": None})
         mock_cls.return_value = mock_module
         mock_get.return_value = None
 
@@ -137,7 +177,7 @@ class TestStackStateInfoException:
     @patch(f"{MODULE_PATH}.get_stack_state")
     def test_unexpected_exception_calls_fail_json(self, mock_get, mock_cls):
         """Any unexpected SDK/helper exception causes fail_json to be called."""
-        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123"})
+        mock_module, _adapter = _mock_module({"stack_state_id": "sts-abc123", "stack_id": None})
         mock_cls.return_value = mock_module
         mock_get.side_effect = RuntimeError("unexpected SDK failure")
 

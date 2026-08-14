@@ -12,6 +12,7 @@ from pytfe.errors import NotFound
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_group import (
     get_stack_deployment_group,
     get_stack_deployment_group_by_name,
+    list_stack_deployment_groups,
 )
 
 
@@ -59,3 +60,23 @@ class TestGetStackDeploymentGroupByName:
         adapter = Mock()
         adapter.client.stack_deployment_groups.read_by_name.side_effect = NotFound("missing")
         assert get_stack_deployment_group_by_name(adapter, _STC_ID, "ghost") is None
+
+
+class TestListStackDeploymentGroups:
+    def test_returns_list_of_groups(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_groups.list.return_value = [_make_model(_GROUP_PAYLOAD)]
+        result = list_stack_deployment_groups(adapter, _STC_ID)
+        adapter.client.stack_deployment_groups.list.assert_called_once_with(_STC_ID)
+        assert result == [_GROUP_PAYLOAD]
+
+    def test_empty_iterator_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_groups.list.return_value = []
+        result = list_stack_deployment_groups(adapter, _STC_ID)
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_deployment_groups.list.side_effect = NotFound("missing")
+        assert list_stack_deployment_groups(adapter, _STC_ID) == []

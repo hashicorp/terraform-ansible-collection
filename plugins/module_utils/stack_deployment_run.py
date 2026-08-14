@@ -3,7 +3,7 @@
 # Copyright IBM Corp. 2025, 2026
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from pytfe.errors import NotFound
@@ -31,3 +31,15 @@ def get_stack_deployment_run(
         return format_response(run)
     except NotFound:
         return None
+
+
+def list_stack_deployment_runs(
+    adapter: TerraformClient,
+    stack_deployment_group_id: str,
+) -> List[Dict[str, Any]]:
+    """List all deployment runs for a deployment group. Returns an empty list if none exist."""
+    try:
+        runs = adapter.client.stack_deployment_runs.list(stack_deployment_group_id)
+        return [format_response(r) for r in runs]
+    except NotFound:
+        return []

@@ -40,7 +40,7 @@ def _mock_module(params, check_mode=False):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_deployment_run")
 def test_by_id_success(mock_get, mock_module_class):
-    mock_module, mock_adapter = _mock_module({"stack_deployment_run_id": _SDR_ID})
+    mock_module, mock_adapter = _mock_module({"stack_deployment_run_id": _SDR_ID, "stack_deployment_group_id": None})
     mock_module_class.return_value = mock_module
     mock_get.return_value = _RUN
 
@@ -56,7 +56,7 @@ def test_by_id_success(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_deployment_run")
 def test_by_id_not_found_calls_fail_json(mock_get, mock_module_class):
-    mock_module = _mock_module({"stack_deployment_run_id": "sdr-missing"})[0]
+    mock_module = _mock_module({"stack_deployment_run_id": "sdr-missing", "stack_deployment_group_id": None})[0]
     mock_module_class.return_value = mock_module
     mock_get.return_value = None
 
@@ -69,7 +69,7 @@ def test_by_id_not_found_calls_fail_json(mock_get, mock_module_class):
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
 @patch(f"{MODULE_PATH}.get_stack_deployment_run")
 def test_unexpected_exception_calls_fail_json(mock_get, mock_module_class):
-    mock_module = _mock_module({"stack_deployment_run_id": _SDR_ID})[0]
+    mock_module = _mock_module({"stack_deployment_run_id": _SDR_ID, "stack_deployment_group_id": None})[0]
     mock_module_class.return_value = mock_module
     mock_get.side_effect = RuntimeError("boom")
 
@@ -79,14 +79,15 @@ def test_unexpected_exception_calls_fail_json(mock_get, mock_module_class):
     assert "boom" in mock_module.fail_json.call_args[1]["msg"]
 
 
-def test_argument_spec_requires_stack_deployment_run_id():
-    """Verify required: true is declared for stack_deployment_run_id."""
+def test_argument_spec_declares_required_one_of():
+    """Verify required_one_of is declared for stack_deployment_run_id / stack_deployment_group_id."""
     with patch(f"{MODULE_PATH}.AnsibleTerraformModule", side_effect=SystemExit) as mock_cls:
         with pytest.raises(SystemExit):
             main()
 
     _args, kwargs = mock_cls.call_args
-    assert kwargs["argument_spec"]["stack_deployment_run_id"]["required"] is True
+    assert ("stack_deployment_run_id", "stack_deployment_group_id") in kwargs["required_one_of"]
+    assert ("stack_deployment_run_id", "stack_deployment_group_id") in kwargs["mutually_exclusive"]
 
 
 @patch(f"{MODULE_PATH}.AnsibleTerraformModule")
@@ -94,7 +95,7 @@ def test_argument_spec_requires_stack_deployment_run_id():
 def test_check_mode_still_reads_and_returns_run(mock_get, mock_module_class):
     """check_mode does not skip the read; changed is always False for an info module."""
     mock_module, mock_adapter = _mock_module(
-        {"stack_deployment_run_id": _SDR_ID},
+        {"stack_deployment_run_id": _SDR_ID, "stack_deployment_group_id": None},
         check_mode=True,
     )
     mock_module_class.return_value = mock_module
@@ -107,3 +108,37 @@ def test_check_mode_still_reads_and_returns_run(mock_get, mock_module_class):
     assert result["stack_deployment_run"] == _RUN
     assert result["changed"] is False
     assert result["warnings"] == []
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_deployment_runs")
+def test_list_by_group_id_success(mock_list, mock_module_class):
+    """Providing stack_deployment_group_id returns stack_deployment_runs list."""
+    _SDG_ID = "sdg-xyz789"
+    runs = [_RUN, {**_RUN, "id": "sdr-def456"}]
+    mock_module, mock_adapter = _mock_module({"stack_deployment_run_id": None, "stack_deployment_group_id": _SDG_ID})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = runs
+
+    main()
+
+    mock_list.assert_called_once_with(mock_adapter, _SDG_ID)
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_deployment_runs"] == runs
+    assert result["changed"] is False
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_deployment_runs")
+def test_list_by_group_id_empty(mock_list, mock_module_class):
+    """An empty deployment group returns an empty list (no error)."""
+    _SDG_ID = "sdg-empty"
+    mock_module, mock_adapter = _mock_module({"stack_deployment_run_id": None, "stack_deployment_group_id": _SDG_ID})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = []
+
+    main()
+
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_deployment_runs"] == []
+    assert result["changed"] is False

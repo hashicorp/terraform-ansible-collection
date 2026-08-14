@@ -15,7 +15,10 @@ description:
   - Retrieves information about a stack deployment step on Terraform Cloud and Terraform Enterprise.
   - A stack deployment step represents a single unit of work within a deployment run for a stack
     configuration.
-  - Look up a single deployment step by its C(stack_deployment_step_id).
+  - Look up a single deployment step by its C(stack_deployment_step_id), or list all steps in a
+    deployment run by supplying C(stack_deployment_run_id) alone.
+  - To list diagnostics produced by a step, supply C(stack_deployment_step_id) together with
+    C(list_diagnostics=true).
   - This module only reads information and never changes state.
   - Compatible with both Terraform Cloud and Terraform Enterprise.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -23,9 +26,25 @@ options:
   stack_deployment_step_id:
     description:
       - The unique identifier of the stack deployment step (e.g. C(sds-...)).
-      - Required to look up a deployment step by ID.
+      - Provide this to look up a deployment step by ID, or combine with
+        C(list_diagnostics=true) to list all diagnostics for that step.
+      - Mutually exclusive with C(stack_deployment_run_id).
     type: str
-    required: true
+  stack_deployment_run_id:
+    description:
+      - The unique identifier of the deployment run (e.g. C(sdr-...)).
+      - When provided, lists all deployment steps in that run.
+      - Mutually exclusive with C(stack_deployment_step_id).
+    type: str
+  list_diagnostics:
+    description:
+      - When C(true), lists all diagnostics for the step identified by
+        C(stack_deployment_step_id) instead of returning the step itself.
+      - Must be combined with C(stack_deployment_step_id); an error is raised otherwise.
+      - Diagnostics are produced by the pytfe C(stack_deployment_steps.list_diagnostics)
+        relationship; an empty list is returned when the step produced none.
+    type: bool
+    default: false
 """
 
 EXAMPLES = r"""
@@ -33,12 +52,23 @@ EXAMPLES = r"""
   hashicorp.terraform.stack_deployment_step_info:
     stack_deployment_step_id: "sds-abc123"
   register: step
+
+- name: List all deployment steps for a deployment run
+  hashicorp.terraform.stack_deployment_step_info:
+    stack_deployment_run_id: "sdr-xyz789"
+  register: steps
+
+- name: List all diagnostics for a deployment step
+  hashicorp.terraform.stack_deployment_step_info:
+    stack_deployment_step_id: "sds-abc123"
+    list_diagnostics: true
+  register: diags
 """
 
 RETURN = r"""
 stack_deployment_step:
-  description: A single deployment step, returned for all successful lookups.
-  returned: always
+  description: A single deployment step, returned when looking up by C(stack_deployment_step_id).
+  returned: when O(stack_deployment_step_id) is provided and O(list_diagnostics) is false
   type: dict
   contains:
     id:
@@ -79,6 +109,34 @@ stack_deployment_step:
           returned: always
           type: str
           sample: "sdr-xyz789"
+stack_deployment_steps:
+  description: All deployment steps belonging to the deployment run.
+  returned: when O(stack_deployment_run_id) is provided
+  type: list
+  elements: dict
+stack_diagnostics:
+  description: >
+    All diagnostics belonging to the deployment step.
+    The list is empty when the step produced no diagnostics.
+  returned: when O(list_diagnostics) is true
+  type: list
+  elements: dict
+  contains:
+    id:
+      description: The unique identifier of the diagnostic.
+      returned: always
+      type: str
+      sample: "std-abc123"
+    severity:
+      description: Diagnostic severity (e.g. C(error), C(warning)).
+      returned: always
+      type: str
+      sample: "error"
+    summary:
+      description: Short summary of the diagnostic.
+      returned: always
+      type: str
+      sample: "Invalid configuration"
 """
 
 from copy import deepcopy
@@ -91,14 +149,20 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 )
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_step import (
     get_stack_deployment_step,
+    list_stack_deployment_steps,
+    list_stack_diagnostics,
 )
 
 
 def main() -> None:
     module = AnsibleTerraformModule(
         argument_spec={
-            "stack_deployment_step_id": {"type": "str", "required": True},
+            "stack_deployment_step_id": {"type": "str"},
+            "stack_deployment_run_id": {"type": "str"},
+            "list_diagnostics": {"type": "bool", "default": False},
         },
+        required_one_of=[("stack_deployment_step_id", "stack_deployment_run_id")],
+        mutually_exclusive=[("stack_deployment_step_id", "stack_deployment_run_id")],
         supports_check_mode=True,
     )
 
@@ -109,10 +173,18 @@ def main() -> None:
 
     try:
         with module.client() as adapter:
-            step = get_stack_deployment_step(adapter, params["stack_deployment_step_id"])
-            if not step:
-                raise ValueError(f"Stack deployment step with ID" f" {params['stack_deployment_step_id']!r} not found")
-            result["stack_deployment_step"] = step
+            if params.get("list_diagnostics") and not params.get("stack_deployment_step_id"):
+                raise ValueError("list_diagnostics requires stack_deployment_step_id")
+            if params.get("stack_deployment_step_id"):
+                if params.get("list_diagnostics"):
+                    result["stack_diagnostics"] = list_stack_diagnostics(adapter, params["stack_deployment_step_id"])
+                else:
+                    step = get_stack_deployment_step(adapter, params["stack_deployment_step_id"])
+                    if not step:
+                        raise ValueError(f"Stack deployment step with ID {params['stack_deployment_step_id']!r} not found")
+                    result["stack_deployment_step"] = step
+            else:
+                result["stack_deployment_steps"] = list_stack_deployment_steps(adapter, params["stack_deployment_run_id"])
             module.exit_json(**result)
 
     except Exception as e:

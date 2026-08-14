@@ -156,3 +156,35 @@ def test_check_mode_by_name_still_reads_and_returns_group(mock_get_by_name, mock
     assert result["stack_deployment_group"] == _GROUP
     assert result["changed"] is False
     assert result["warnings"] == []
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_deployment_groups")
+def test_list_by_stc_id_success(mock_list, mock_module_class):
+    """Providing only stack_configuration_id returns stack_deployment_groups list."""
+    groups = [_GROUP, {**_GROUP, "id": "sdg-oth456", "name": "prod"}]
+    mock_module, mock_adapter = _mock_module({"stack_deployment_group_id": None, "stack_configuration_id": _STC_ID, "name": None})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = groups
+
+    main()
+
+    mock_list.assert_called_once_with(mock_adapter, _STC_ID)
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_deployment_groups"] == groups
+    assert result["changed"] is False
+
+
+@patch(f"{MODULE_PATH}.AnsibleTerraformModule")
+@patch(f"{MODULE_PATH}.list_stack_deployment_groups")
+def test_list_by_stc_id_empty(mock_list, mock_module_class):
+    """An empty configuration returns an empty list (no error)."""
+    mock_module, mock_adapter = _mock_module({"stack_deployment_group_id": None, "stack_configuration_id": _STC_ID, "name": None})
+    mock_module_class.return_value = mock_module
+    mock_list.return_value = []
+
+    main()
+
+    result = mock_module.exit_json.call_args[1]
+    assert result["stack_deployment_groups"] == []
+    assert result["changed"] is False

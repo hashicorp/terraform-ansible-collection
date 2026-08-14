@@ -15,7 +15,8 @@ description:
   - A stack deployment group represents a group of deployment runs for a single deployment within
     a stack configuration.
   - Look up a single deployment group by C(stack_deployment_group_id), or by
-    C(stack_configuration_id) and C(name).
+    C(stack_configuration_id) and C(name), or list all groups in a stack configuration by
+    supplying C(stack_configuration_id) alone.
   - This module only reads information and never changes state.
   - Compatible with both Terraform Cloud and Terraform Enterprise.
 extends_documentation_fragment: hashicorp.terraform.common
@@ -30,7 +31,8 @@ options:
     description:
       - The unique identifier of the stack configuration that owns the deployment group
         (e.g. C(stc-...)).
-      - Must be provided together with C(name) to look up a deployment group by name.
+      - When provided alone, lists all deployment groups in that configuration.
+      - When provided together with C(name), looks up a deployment group by name.
       - Mutually exclusive with C(stack_deployment_group_id).
     type: str
   name:
@@ -53,12 +55,19 @@ EXAMPLES = r"""
     stack_configuration_id: "stc-abc123"
     name: "dev"
   register: group
+
+- name: List all deployment groups in a stack configuration
+  hashicorp.terraform.stack_deployment_group_info:
+    stack_configuration_id: "stc-abc123"
+  register: groups
 """
 
 RETURN = r"""
 stack_deployment_group:
-  description: A single deployment group, returned for all successful lookups (by C(stack_deployment_group_id) or by C(stack_configuration_id) and C(name)).
-  returned: always
+  description: >
+    A single deployment group, returned when looking up by C(stack_deployment_group_id)
+    or by C(stack_configuration_id) and C(name).
+  returned: when O(stack_deployment_group_id) is provided, or when O(name) is provided
   type: dict
   contains:
     id:
@@ -98,6 +107,11 @@ stack_deployment_group:
           returned: always
           type: str
           sample: "stc-abc123"
+stack_deployment_groups:
+  description: All deployment groups belonging to the stack configuration.
+  returned: when only O(stack_configuration_id) is provided (no O(name))
+  type: list
+  elements: dict
 """
 
 from copy import deepcopy
@@ -109,6 +123,7 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_deployment_group import (
     get_stack_deployment_group,
     get_stack_deployment_group_by_name,
+    list_stack_deployment_groups,
 )
 
 
@@ -119,7 +134,7 @@ def main() -> None:
             "stack_configuration_id": {"type": "str"},
             "name": {"type": "str"},
         },
-        required_one_of=[("stack_deployment_group_id", "name")],
+        required_one_of=[("stack_deployment_group_id", "stack_configuration_id")],
         required_by={"name": ("stack_configuration_id",)},
         mutually_exclusive=[
             ("stack_deployment_group_id", "stack_configuration_id"),
@@ -141,7 +156,7 @@ def main() -> None:
                     raise ValueError(f"Stack deployment group with ID {params['stack_deployment_group_id']!r} not found")
                 result["stack_deployment_group"] = group
 
-            else:
+            elif params.get("name"):
                 group = get_stack_deployment_group_by_name(
                     adapter,
                     params["stack_configuration_id"],
@@ -150,6 +165,9 @@ def main() -> None:
                 if not group:
                     raise ValueError(f"Stack deployment group {params['name']!r} was not found in" f" stack configuration {params['stack_configuration_id']!r}")
                 result["stack_deployment_group"] = group
+
+            else:
+                result["stack_deployment_groups"] = list_stack_deployment_groups(adapter, params["stack_configuration_id"])
 
             module.exit_json(**result)
 

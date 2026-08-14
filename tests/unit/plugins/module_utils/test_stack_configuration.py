@@ -13,6 +13,7 @@ from pytfe.models.stack_configuration import StackConfigurationSource
 from ansible_collections.hashicorp.terraform.plugins.module_utils.stack_configuration import (
     create_stack_configuration,
     get_stack_configuration,
+    list_stack_configurations,
 )
 
 MU_PATH = "ansible_collections.hashicorp.terraform.plugins.module_utils.stack_configuration"
@@ -120,3 +121,27 @@ class TestCreateStackConfiguration:
         create_stack_configuration(adapter, "st-xyz789", data)
 
         mock_opts_cls.model_validate.assert_called_once_with({"selected_deployments": ["dep-a", "dep-b"]})
+
+
+class TestListStackConfigurations:
+    def test_returns_list_of_configurations(self):
+        adapter = Mock()
+        m1 = Mock()
+        m1.model_dump.return_value = {"id": "stc-1", "status": "completed"}
+        m2 = Mock()
+        m2.model_dump.return_value = {"id": "stc-2", "status": "pending"}
+        adapter.client.stack_configurations.list.return_value = [m1, m2]
+        result = list_stack_configurations(adapter, "st-xyz789")
+        adapter.client.stack_configurations.list.assert_called_once_with("st-xyz789")
+        assert result == [{"id": "stc-1", "status": "completed"}, {"id": "stc-2", "status": "pending"}]
+
+    def test_empty_iterator_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_configurations.list.return_value = []
+        result = list_stack_configurations(adapter, "st-xyz789")
+        assert result == []
+
+    def test_not_found_returns_empty_list(self):
+        adapter = Mock()
+        adapter.client.stack_configurations.list.side_effect = NotFound("missing")
+        assert list_stack_configurations(adapter, "st-xyz789") == []
