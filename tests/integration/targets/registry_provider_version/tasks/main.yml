@@ -1,30 +1,41 @@
 ---
-# Integration tests for the registry_provider_version module.
-#
-# Prerequisites:
-#   - A registry provider must already exist in the organization.
-#     Set the variable `registry_provider_name` to the provider's name, and
-#     `registry_provider_namespace` to its namespace (typically the org name).
-#     The GPG key ID must be set via `registry_provider_key_id`.
-#
-# All operations use module_defaults for authentication.
-
 - name: Set module defaults
   module_defaults:
     group/hashicorp.terraform.terraform:
       tfe_token: "{{ tfc_token }}"
 
   block:
-    - name: Generate a unique numeric suffix (epoch seconds)
+    - name: Generate a unique ID
       ansible.builtin.set_fact:
-        unique_suffix: "{{ lookup('pipe', 'date +%s') }}"
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        unique_epoch: "{{ lookup('pipe', 'date +%s') }}"
 
     - name: Set test variables
       ansible.builtin.set_fact:
-        test_provider_name: "{{ registry_provider_name }}"
-        test_provider_namespace: "{{ registry_provider_namespace }}"
-        test_key_id: "{{ registry_provider_key_id }}"
-        test_version: "{{ unique_suffix }}.0.0"
+        test_provider_name: "registry-provider-{{ unique_id[:8] | lower }}"
+        test_provider_namespace: "{{ organization }}"
+        test_key_id: "TESTKEY1234567890"
+        test_version: "{{ unique_epoch }}.0.0"
+
+    # ---------- prerequisites: create a provider ----------
+    - name: Create a registry provider
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        registry_name: "private"
+        state: present
+      register: result_provider_create
+
+    - name: Assert registry provider creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_provider_create.changed
+          - result_provider_create.id is defined
+
+    - name: Record whether provider was newly created
+      ansible.builtin.set_fact:
+        provider_newly_created: "{{ result_provider_create.changed }}"
 
     # ---------- create ----------
     - name: Create a registry provider version
@@ -152,4 +163,17 @@
       when:
         - test_provider_name | default('') | length > 0
         - test_version | default('') | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the provider (only if we created it)
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ test_provider_namespace | default('') }}"
+        name: "{{ test_provider_name | default('') }}"
+        registry_name: "private"
+        state: absent
+      when:
+        - provider_newly_created is defined
+        - provider_newly_created
+        - test_provider_name | default('') | length > 0
       failed_when: false

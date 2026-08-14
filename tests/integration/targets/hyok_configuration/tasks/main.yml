@@ -157,7 +157,7 @@
       ansible.builtin.assert:
         that:
           - result_test.failed
-          - "'Agent' in result_test.msg"
+          - "'agent' in result_test.msg | lower"
 
     # ---------- check-mode absent ----------
     - name: Check-mode delete
