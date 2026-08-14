@@ -1,0 +1,148 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique agent pool names
+      ansible.builtin.set_fact:
+        agent_pool_name: "agent-pool-test-{{ unique_id[:8] }}"
+        agent_pool_renamed: "agent-pool-renamed-{{ unique_id[:8] }}"
+
+    # ---------- create ----------
+    - name: Create an organization-scoped agent pool
+      hashicorp.terraform.agent_pool: &create_pool
+        organization: "{{ organization }}"
+        name: "{{ agent_pool_name }}"
+        organization_scoped: true
+        state: present
+      register: result_create
+
+    - name: Assert agent pool creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == agent_pool_name
+          - result_create.organization_scoped
+
+    - name: Save agent_pool_id fact
+      ansible.builtin.set_fact:
+        agent_pool_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same agent pool again
+      hashicorp.terraform.agent_pool: *create_pool
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == agent_pool_id
+
+    # ---------- info: by id, by name, list ----------
+    - name: Get the agent pool by ID
+      hashicorp.terraform.agent_pool_info:
+        agent_pool_id: "{{ agent_pool_id }}"
+      register: result_info_id
+
+    - name: Get the agent pool by name
+      hashicorp.terraform.agent_pool_info:
+        organization: "{{ organization }}"
+        name: "{{ agent_pool_name }}"
+      register: result_info_name
+
+    - name: List agent pools in the organization
+      hashicorp.terraform.agent_pool_info:
+        organization: "{{ organization }}"
+      register: result_info_list
+
+    - name: Assert info lookups returned the pool
+      ansible.builtin.assert:
+        that:
+          - result_info_id.agent_pool.id == agent_pool_id
+          - result_info_name.agent_pool.name == agent_pool_name
+          - result_info_list.agent_pools | selectattr('id', 'equalto', agent_pool_id) | list | length == 1
+
+    # ---------- update (rename) ----------
+    - name: Rename the agent pool by ID
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        name: "{{ agent_pool_renamed }}"
+        state: present
+      register: result_update
+
+    - name: Assert rename was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.name == agent_pool_renamed
+
+    - name: Idempotency test - apply the same rename again
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        name: "{{ agent_pool_renamed }}"
+        state: present
+      register: result_update_again
+
+    - name: Assert repeated rename was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete ----------
+    - name: Delete the agent pool by ID
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same agent pool again (no-op)
+      hashicorp.terraform.agent_pool:
+        agent_pool_id: "{{ agent_pool_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete agent pools by name (in case of mid-run failure)
+      hashicorp.terraform.agent_pool:
+        organization: "{{ organization }}"
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ agent_pool_name | default('') }}"
+        - "{{ agent_pool_renamed | default('') }}"
+      when: item | length > 0
+      failed_when: false
