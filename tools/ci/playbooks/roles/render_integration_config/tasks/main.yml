@@ -6,17 +6,6 @@
     destination_path: "~/.ansible/collections/ansible_collections/hashicorp/terraform/tests/integration/integration_config.yml"
   no_log: true
 
-- name: Set pre-provisioned stack fixture variables
-  ansible.builtin.set_fact:
-    stc_id: "{{ lookup('env', 'HCP_CI_STACK_CONFIGURATION_ID') }}"
-    sdg_id: "{{ lookup('env', 'HCP_CI_STACK_DEPLOYMENT_GROUP_ID') }}"
-    sdg_name: "{{ lookup('env', 'HCP_CI_STACK_DEPLOYMENT_GROUP_NAME') }}"
-    stack_deployment_run_id: "{{ lookup('env', 'HCP_CI_STACK_DEPLOYMENT_RUN_ID') }}"
-    stack_deployment_step_id: "{{ lookup('env', 'HCP_CI_STACK_DEPLOYMENT_STEP_ID') }}"
-    stack_diagnostic_id: "{{ lookup('env', 'HCP_CI_STACK_DIAGNOSTIC_ID') }}"
-    stack_state_id: "{{ lookup('env', 'HCP_CI_STACK_STATE_ID') }}"
-  no_log: true
-
 - name: Render integration_config.yml
   ansible.builtin.copy:
     dest: "{{ destination_path }}"
