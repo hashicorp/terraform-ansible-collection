@@ -1,0 +1,7 @@
+minor_changes:
+  - >-
+    tf_policy_evaluation_info - New module to read Terraform policy (tf-policy) evaluations
+    and set outcomes for a run.
+  - >-
+    tf_policy_evaluation - New module to override a Terraform policy (tf-policy) evaluation
+    that is awaiting override.

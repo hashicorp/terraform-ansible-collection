@@ -72,6 +72,8 @@ action_groups:
     - policy_set_outcome_info
     - policy_check
     - policy_check_info
+    - tf_policy_evaluation
+    - tf_policy_evaluation_info
     - hyok_configuration
     - hyok_configuration_info
     - aws_oidc_configuration
