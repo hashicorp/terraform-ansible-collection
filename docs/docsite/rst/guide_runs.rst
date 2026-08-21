@@ -263,6 +263,16 @@ idiomatic to Ansible instead of a module option:
 inside TFE; ``plan_guard`` is a lightweight, client-side, attribute-path gate evaluated in the playbook
 for the narrow purpose of approving refresh-only applies.
 
+Checking tf-policy posture
+=============================
+
+**Terraform policy (tf-policy)** is a separate, HCP-Terraform-only policy engine from
+Sentinel/OPA, evaluated during a run's Init, Plan, and Apply stages. See
+:ref:`guide_tf_policy <ansible_collections.hashicorp.terraform.docsite.guide_tf_policy>` for the
+full pre-flight compliance gate and override pattern using
+:ansplugin:`hashicorp.terraform.tf_policy_evaluation_info#module` and
+:ansplugin:`hashicorp.terraform.tf_policy_evaluation#module`.
+
 .. _ansible_collections.hashicorp.terraform.docsite.guide_runs.run_tasks:
 
 Managing run tasks

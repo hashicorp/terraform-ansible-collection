@@ -1,0 +1,39 @@
+terraform {
+  required_version = ">= 1.2.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  cloud {
+    organization = "{{ organization }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name = "{{ workspace_name }}"
+    }
+  }
+}
+
+# Dummy, non-validating credentials — this configuration only ever plans new
+# resource creates, which never call out to the AWS API, so no real
+# credentials are needed to exercise the tf-policy evaluation.
+provider "aws" {
+  region                      = "us-east-1"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+}
+
+resource "aws_cloudwatch_log_group" "scen8_compliant" {
+  name              = "/beta/scen8-compliant"
+  retention_in_days = 1
+}
+
+resource "aws_cloudwatch_log_group" "scen8_violating" {
+  name              = "/prod/scen8-violating"
+  retention_in_days = 1
+}

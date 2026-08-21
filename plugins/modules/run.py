@@ -560,6 +560,7 @@ SUCCESS_STATES = [
     "canceled",
     "force_canceled",
     "policy_override",
+    "tf_policy_override",
     "post_plan_completed",
     "post_plan_awaiting_decision",
 ]
