@@ -240,7 +240,7 @@
         state: "discarded"
         poll: false
       when: run_result is defined and run_result.id is defined
-      ignore_errors: true
+      failed_when: false
 
     - name: Best-effort cleanup - delete the workspace
       hashicorp.terraform.workspace:
@@ -248,11 +248,11 @@
         organization: "{{ organization }}"
         state: absent
       when: workspace_name is defined
-      ignore_errors: true
+      failed_when: false
 
     - name: Best-effort cleanup - delete the policy set
       hashicorp.terraform.policy_set:
         policy_set_id: "{{ policy_set_result.id }}"
         state: absent
       when: policy_set_result is defined and policy_set_result.id is defined
-      ignore_errors: true
+      failed_when: false
