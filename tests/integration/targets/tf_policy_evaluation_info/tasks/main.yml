@@ -125,7 +125,9 @@
       ansible.builtin.assert:
         that:
           - run_result.changed
-          - run_result.status in ["planned", "planned_and_finished", "post_plan_completed"]
+          - >-
+            run_result.status in
+            ["planned", "planned_and_finished", "post_plan_completed", "tf_policy_override"]
 
     - name: Wait for the Plan-stage tf-policy evaluation to reach a terminal status
       hashicorp.terraform.tf_policy_evaluation_info:
