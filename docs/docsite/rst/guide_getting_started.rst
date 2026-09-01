@@ -62,7 +62,7 @@ Install the Python dependency into the interpreter Ansible will use:
 
 .. code-block:: bash
 
-   python -m pip install 'pytfe>=1.2.0'
+   python -m pip install 'pytfe>=1.4.1'
 
 .. _ansible_collections.hashicorp.terraform.docsite.guide_getting_started.first_playbook:
 
