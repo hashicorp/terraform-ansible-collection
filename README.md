@@ -18,9 +18,12 @@ In addition to the per-module reference (available with `ansible-doc`, for examp
 - [Authentication](docs/docsite/rst/guide_authentication.rst)
 - [Workspaces and projects](docs/docsite/rst/guide_workspaces_projects.rst)
 - [Runs and configuration versions](docs/docsite/rst/guide_runs.rst)
+- [Drift-safe Day 2 operations (plan analyze / guard / safe)](docs/docsite/rst/guide_plan_analyze.rst)
+- [Enforcing tf-policy compliance](docs/docsite/rst/guide_tf_policy.rst)
 - [Variables and variable sets](docs/docsite/rst/guide_variables.rst)
 - [Teams and access](docs/docsite/rst/guide_teams_and_access.rst)
 - [Workspace bootstrap](docs/docsite/rst/guide_workspace_bootstrap.rst)
+- [Private registry modules](docs/docsite/rst/guide_registry_modules.rst)
 - [Dynamic inventory](docs/docsite/rst/guide_dynamic_inventory.rst)
 - [Lookup plugins](docs/docsite/rst/guide_lookups.rst)
 - [Execution environments](docs/docsite/rst/guide_execution_environments.rst)
@@ -267,6 +270,66 @@ Authentication is done via the `tfe_token` parameter (alias: `tf_token`), or by 
         run_id: "{{ run_id }}"
         output_format: json
       register: plan_json
+```
+
+### Detect drift, analyze it, and approve only safe changes
+
+Plan → Analyze → Plan Guard → Plan Safe → Apply: run a refresh-only plan to detect drift,
+classify it with `plan_analyze`, gate it with `plan_guard`/`plan_safe` against an allow/deny
+rule set, then either confirm (apply) the same run when it's safe or discard it when it isn't.
+See the [drift-safe Day 2 operations guide](docs/docsite/rst/guide_plan_analyze.rst) for the
+full option reference and worked scenarios.
+
+```yaml
+---
+- name: Detect drift, analyze it, and approve only safe changes
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ terraform_cloud_token }}"
+  vars:
+    allow_rules:
+      - "aws_instance.*.tags"
+      - "aws_instance.*.tags_all"
+    deny_rules:
+      - "aws_instance.*.instance_type"
+      - "aws_instance.*.ami"
+  tasks:
+    - name: Create a refresh-only plan (do not auto-apply)
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "Detect drift before Day 2 reconciliation"
+        refresh_only: true
+        auto_apply: false
+        poll: true
+        state: present
+      register: refresh_run
+
+    - name: Analyze the plan for THIS run
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ refresh_run.id }}"
+        detect_drift: true
+      register: drift_analysis
+
+    - name: Gate the decision
+      ansible.builtin.set_fact:
+        guard: >-
+          {{ drift_analysis | hashicorp.terraform.plan_guard(
+               allow=allow_rules, deny=deny_rules, mode='strict') }}
+
+    - name: Confirm (apply) the SAME run only when safe
+      hashicorp.terraform.run:
+        run_id: "{{ refresh_run.id }}"
+        state: applied
+        poll: true
+      when: guard.safe_to_refresh
+
+    - name: Discard the run when drift was rejected
+      hashicorp.terraform.run:
+        run_id: "{{ refresh_run.id }}"
+        state: discarded
+      when: not guard.safe_to_refresh
 ```
 
 ## Testing

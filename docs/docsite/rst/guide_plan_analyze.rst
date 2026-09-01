@@ -1,4 +1,4 @@
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze:
 
 **************************************************
 Drift-safe Day 2 operations
@@ -17,7 +17,7 @@ live.
    :local:
    :depth: 2
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.concept:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.concept:
 
 The conceptual model (read this first)
 =======================================
@@ -41,7 +41,7 @@ inside TFE, and are authored in policy languages. This workflow is a lightweight
 attribute-path allow/deny gate evaluated in the playbook, for the narrow purpose of approving
 refresh-only applies.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.architecture:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.architecture:
 
 How the three pieces fit together
 ==================================
@@ -81,9 +81,9 @@ Two design points are load-bearing and worth calling out explicitly when demoing
    ``plan_analyze`` classifies ``safe``/``risky`` is only a hint. Only ``plan_guard``'s
    ``safe_to_refresh`` decision is binding — except for ``blocked``, which is escalated
    unconditionally by ``plan_guard`` regardless of any ``allow`` rule (see
-   :ref:`ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.scenarios.blocked`).
+   :ref:`ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.scenarios.blocked`).
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.matching_grammar:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.matching_grammar:
 
 The matching grammar (shared by all three)
 ============================================
@@ -116,7 +116,7 @@ deliberate, provider-agnostic design choice: the collection targets HCP Terrafor
 suggested) would silently misclassify everything for non-AWS users. With no rules, ``strict`` mode
 reports everything as not-safe — fail-closed, the correct conservative default for a drift gate.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.plan_analyze:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.plan_analyze:
 
 ``plan_analyze`` reference
 ===========================
@@ -199,7 +199,7 @@ An unrecognized ``format_version`` major version never fails the task — it emi
 warning and proceeds best-effort, since HashiCorp may extend the schema with additive fields
 without breaking what this module reads.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.plan_guard:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.plan_guard:
 
 ``plan_guard`` (filter) reference
 ====================================
@@ -266,7 +266,7 @@ In ``permissive`` mode, unmatched and unknown attributes do **not** block — bu
      - Denied
      - **Denied**
      - Escalated unconditionally; cannot be rescued by ``allow`` — see
-       :ref:`ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.scenarios.blocked`.
+       :ref:`ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.scenarios.blocked`.
    * - Matches neither list (unmatched)
      - Denied (fail-closed)
      - Allowed (fail-open)
@@ -277,7 +277,7 @@ In ``permissive`` mode, unmatched and unknown attributes do **not** block — bu
      - Same default-disposition rule as "unmatched" — an unknown value is treated exactly like
        an unrecognized attribute.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.plan_safe:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.plan_safe:
 
 ``plan_safe`` (test) reference
 =================================
@@ -291,7 +291,7 @@ same ``allow``/``deny``/``mode`` inputs and returns exactly the ``safe_to_refres
 
    when: drift_analysis is hashicorp.terraform.plan_safe(allow=allow_rules, deny=deny_rules)
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.end_to_end:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.end_to_end:
 
 Full end-to-end example
 ==========================
@@ -333,7 +333,7 @@ Full end-to-end example
        state: discarded
      when: not guard.safe_to_refresh
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.scenarios:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.scenarios:
 
 Customer demo scenarios
 ==========================
@@ -431,7 +431,7 @@ unrelated to networking, and not anticipated by either the ``allow`` or ``deny``
 **Takeaway**: this is the cleanest way to demo the strict/permissive knob — the identical drift,
 evaluated twice against the identical analysis (no second Terraform run needed), flips outcome.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.scenarios.mixed:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.scenarios.mixed:
 
 Scenario 5 — a realistic mixed maintenance window
 ------------------------------------------------------
@@ -456,7 +456,7 @@ either way, even though the *allowed* count went up.
 change at once?" — the allow/deny/unknown buckets stay cleanly separated per attribute, and the
 overall verdict is exactly as conservative as the worst single attribute in the run.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.scenarios.blocked:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.scenarios.blocked:
 
 Scenario 6 — a rule that cannot be talked out of it
 ---------------------------------------------------------
@@ -500,7 +500,7 @@ changed and miss that the *side effects* of that change are also drift. Fail-clo
 level analysis catches all of it — including a new public IP that could silently break anything
 hardcoded to the old one.
 
-.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_safe.faq:
+.. _ansible_collections.hashicorp.terraform.docsite.guide_plan_analyze.faq:
 
 Frequently asked questions
 =============================

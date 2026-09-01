@@ -2944,7 +2944,7 @@ class TestInventoryCacheStatefile:
 
         ua = mock_client_cls.from_mapping.call_args.kwargs.get("user_agent_suffix")
         assert ua is not None
-        assert "terraform-ansible-collection/2.1.0" in ua
+        assert "terraform-ansible-collection/2.2.0" in ua
         assert "inventory:tfc_inv" in ua
         assert "source=statefile" in ua
         assert "mode=single" in ua
@@ -3911,6 +3911,6 @@ class TestInventoryUserAgent:
         ua = _inventory_user_agent(source, mode)
         # Base product token preserved verbatim (aggregate usage queries keep working).
         assert ua.startswith("terraform-ansible-collection/")
-        assert "terraform-ansible-collection/2.1.0" in ua
+        assert "terraform-ansible-collection/2.2.0" in ua
         # RFC 7231 comment with the inventory plugin + source + mode.
         assert ua.endswith(f"(inventory:tfc_inv; source={source}; mode={mode})")

@@ -4,9 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from ansible_collections.hashicorp.terraform.plugins.test.plan_safe import TestModule as PlanSafeTestModule
-from ansible_collections.hashicorp.terraform.plugins.test.plan_safe import (
-    plan_safe,
-)
+from ansible_collections.hashicorp.terraform.plugins.test.plan_safe import plan_safe
 
 
 def _analysis(address, changed_attributes, type_="aws_instance"):
