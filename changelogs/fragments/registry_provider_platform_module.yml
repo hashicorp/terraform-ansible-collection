@@ -1,8 +1,0 @@
----
-minor_changes:
-  - >-
-    registry_provider_platform - new module to manage Terraform Cloud/Enterprise
-    registry provider platforms.
-  - >-
-    registry_provider_platform_info - new module to retrieve information about
-    Terraform Cloud/Enterprise registry provider platforms.

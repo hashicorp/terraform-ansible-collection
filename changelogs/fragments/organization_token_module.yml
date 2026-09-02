@@ -1,8 +1,0 @@
-minor_changes:
-  - >-
-    organization_token - New module ``hashicorp.terraform.organization_token``
-    to manage organization-scoped authentication tokens on Terraform Cloud and
-    Terraform Enterprise. Supports creating and deleting the default organization
-    token or the HCP Terraform Audit Trails token (``token_type=audit-trails``).
-    Accepts an optional ``expired_at`` expiry timestamp. Fully idempotent on
-    ``state=present`` with full ``check_mode`` support.

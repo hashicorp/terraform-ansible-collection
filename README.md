@@ -52,6 +52,14 @@ This collection requires Python >= 3.10.
 
 ## Installation
 
+The certified collection artifact is distributed through Red Hat Automation Hub.
+The collection is not published to the public Ansible Galaxy service. For
+community use, you can also install the collection directly from Git or build a
+collection artifact from this repository. Git and self-built artifacts are not
+the certified artifact distributed through Automation Hub.
+
+### Install from Automation Hub
+
 To install this collection from Automation Hub, the following needs to be added to `ansible.cfg`:
 
 ```ini
@@ -70,7 +78,7 @@ If you already have a token, please ensure that it has not expired. Visit [Conne
 With this configured, simply run the following command:
 
 ```bash
-    ansible-galaxy collection install hashicorp.terraform
+ansible-galaxy collection install hashicorp.terraform
 ```
 
 You can also include it in a `requirements.yml` file and install it via
@@ -91,11 +99,61 @@ ansible-galaxy collection install hashicorp.terraform --upgrade
 You can also install a specific version of the collection, for example, if you
 need to downgrade when something is broken in the latest version (please report
 an issue in this repository). Use the following syntax where `X.Y.Z` can be any
-[available version](https://galaxy.ansible.com/hashicorp/terraform):
+version available in Automation Hub:
 
 ```bash
 ansible-galaxy collection install hashicorp.terraform:==X.Y.Z
 ```
+
+### Install directly from Git
+
+Add the repository to your `requirements.yml` file. The `version` value can be
+a branch, tag, or commit SHA:
+
+```yaml
+---
+collections:
+  - name: https://github.com/hashicorp/terraform-ansible-collection.git
+    type: git
+    version: main
+```
+
+Install the collection and its Python dependency into the environment where
+Ansible runs:
+
+```bash
+ansible-galaxy collection install -r requirements.yml --force
+python -m pip install "pytfe>=1.4.1"
+```
+
+Pin `version` to a release tag or commit SHA for reproducible environments.
+Despite its name, `ansible-galaxy` is also the CLI used to install collections
+from Git; the configuration above does not download this collection from the
+public Ansible Galaxy service.
+
+### Build and install from source
+
+Clone the repository, check out the source revision you want to use, and build
+the collection artifact:
+
+```bash
+git clone https://github.com/hashicorp/terraform-ansible-collection.git
+cd terraform-ansible-collection
+git checkout <tag-branch-or-commit>
+python -m pip install -r requirements.txt
+ansible-galaxy collection build --force
+ansible-galaxy collection install ./hashicorp-terraform-X.Y.Z.tar.gz --force
+```
+
+Replace `X.Y.Z` with the version declared in `galaxy.yml`. The generated tarball
+can also be used as the collection source for a controlled or disconnected
+environment.
+
+For containerized execution, use the Git-based `requirements.yml` above as the
+`galaxy` dependency in an `ansible-builder` execution-environment definition,
+or make the built tarball available to the build. See the
+[execution environments guide](docs/docsite/rst/guide_execution_environments.rst)
+for a complete build and controller workflow.
 
 See
 [Ansible Using Collections](https://docs.ansible.com/ansible/latest/user_guide/collections_using.html)

@@ -6,7 +6,11 @@ plugins:
   callback: {}
   cliconf: {}
   connection: {}
-  filter: {}
+  filter:
+    plan_guard:
+      description: Evaluate a plan_analyze result against allow/deny drift rules
+      name: plan_guard
+      version_added: 2.2.0
   httpapi: {}
   inventory:
     tfc_inv:
@@ -38,6 +42,16 @@ plugins:
       name: tf_variable_set_vars
       version_added: 2.0.0
   module:
+    agent:
+      description: Manage Terraform Cloud/Enterprise agents (delete).
+      name: agent
+      namespace: ''
+      version_added: 2.2.0
+    agent_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise agent.
+      name: agent_info
+      namespace: ''
+      version_added: 2.2.0
     agent_pool:
       description: Manage Terraform Cloud/Enterprise agent pools (create, update,
         delete).
@@ -49,6 +63,36 @@ plugins:
       name: agent_pool_info
       namespace: ''
       version_added: 2.1.0
+    agent_token:
+      description: Manage Terraform Cloud/Enterprise agent pool tokens.
+      name: agent_token
+      namespace: ''
+      version_added: 2.2.0
+    agent_token_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise agent token.
+      name: agent_token_info
+      namespace: ''
+      version_added: 2.2.0
+    aws_oidc_configuration:
+      description: Manage HCP Terraform AWS OIDC configurations for HYOK.
+      name: aws_oidc_configuration
+      namespace: ''
+      version_added: 2.2.0
+    aws_oidc_configuration_info:
+      description: Retrieve information about an HCP Terraform AWS OIDC configuration.
+      name: aws_oidc_configuration_info
+      namespace: ''
+      version_added: 2.2.0
+    azure_oidc_configuration:
+      description: Manage HCP Terraform Azure OIDC configurations for HYOK.
+      name: azure_oidc_configuration
+      namespace: ''
+      version_added: 2.2.0
+    azure_oidc_configuration_info:
+      description: Retrieve information about an HCP Terraform Azure OIDC configuration.
+      name: azure_oidc_configuration_info
+      namespace: ''
+      version_added: 2.2.0
     configuration_version:
       description: Manage configuration versions in Terraform Enterprise/Cloud.
       name: configuration_version
@@ -60,6 +104,48 @@ plugins:
       name: configuration_version_info
       namespace: ''
       version_added: 1.1.0
+    explorer:
+      description: Manage Terraform Cloud/Enterprise Explorer saved views.
+      name: explorer
+      namespace: ''
+      version_added: 2.2.0
+    explorer_info:
+      description: Query the Terraform Cloud/Enterprise Explorer API (read-only).
+      name: explorer_info
+      namespace: ''
+      version_added: 2.2.0
+    gcp_oidc_configuration:
+      description: Manage HCP Terraform GCP OIDC configurations for HYOK.
+      name: gcp_oidc_configuration
+      namespace: ''
+      version_added: 2.2.0
+    gcp_oidc_configuration_info:
+      description: Retrieve information about an HCP Terraform GCP OIDC configuration.
+      name: gcp_oidc_configuration_info
+      namespace: ''
+      version_added: 2.2.0
+    hyok_configuration:
+      description: Manage HCP Terraform HYOK (Hold Your Own Key) configurations.
+      name: hyok_configuration
+      namespace: ''
+      version_added: 2.2.0
+    hyok_configuration_info:
+      description: Retrieve information about HCP Terraform HYOK (Hold Your Own Key)
+        configurations.
+      name: hyok_configuration_info
+      namespace: ''
+      version_added: 2.2.0
+    no_code_module:
+      description: Manage Terraform Cloud/Enterprise no-code modules.
+      name: no_code_module
+      namespace: ''
+      version_added: 2.2.0
+    no_code_module_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise no-code
+        module.
+      name: no_code_module_info
+      namespace: ''
+      version_added: 2.2.0
     notification_configuration:
       description: Manage Terraform Cloud/Enterprise workspace notification configurations
         (create, update, delete).
@@ -72,6 +158,11 @@ plugins:
       name: organization_tags
       namespace: ''
       version_added: 2.1.0
+    organization_token:
+      description: Manage Terraform Cloud/Enterprise organization tokens.
+      name: organization_token
+      namespace: ''
+      version_added: 2.2.0
     organizations:
       description: Manage Terraform Cloud/Enterprise organizations (create, update,
         delete).
@@ -83,6 +174,77 @@ plugins:
       name: output
       namespace: ''
       version_added: 1.2.0
+    plan_analyze:
+      description: Analyze a Terraform plan for drift and change classification
+      name: plan_analyze
+      namespace: ''
+      version_added: 2.2.0
+    policy:
+      description: Manage Terraform Cloud/Enterprise policies (Sentinel, OPA, or tf-policy).
+      name: policy
+      namespace: ''
+      version_added: 2.2.0
+    policy_check:
+      description: Override a soft-mandatory Terraform Cloud/Enterprise policy check.
+      name: policy_check
+      namespace: ''
+      version_added: 2.2.0
+    policy_check_info:
+      description: Retrieve Sentinel policy check outcomes for a Terraform Cloud/Enterprise
+        run.
+      name: policy_check_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_evaluation_info:
+      description: List OPA policy evaluations for a Terraform Cloud/Enterprise task
+        stage.
+      name: policy_evaluation_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise policy.
+      name: policy_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_set:
+      description: Manage Terraform Cloud/Enterprise policy sets and their memberships.
+      name: policy_set
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise policy
+        set.
+      name: policy_set_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_outcome_info:
+      description: Retrieve OPA policy set outcomes for a Terraform Cloud/Enterprise
+        policy evaluation.
+      name: policy_set_outcome_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_parameter:
+      description: Manage parameters on a Terraform Cloud/Enterprise policy set.
+      name: policy_set_parameter
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_parameter_info:
+      description: Retrieve information about Terraform Cloud/Enterprise policy set
+        parameters.
+      name: policy_set_parameter_info
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_version:
+      description: Create and upload a Terraform Cloud/Enterprise policy set version.
+      name: policy_set_version
+      namespace: ''
+      version_added: 2.2.0
+    policy_set_version_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise policy
+        set version.
+      name: policy_set_version_info
+      namespace: ''
+      version_added: 2.2.0
     project:
       description: Manage Terraform Cloud/Enterprise projects (create, update, delete).
       name: project
@@ -99,6 +261,61 @@ plugins:
       name: promote_run
       namespace: ''
       version_added: 2.0.0
+    public_registry_module_info:
+      description: Retrieve information about a module from the public Terraform Registry.
+      name: public_registry_module_info
+      namespace: ''
+      version_added: 2.2.0
+    registry_module:
+      description: Manage Terraform Cloud/Enterprise private registry modules.
+      name: registry_module
+      namespace: ''
+      version_added: 2.2.0
+    registry_module_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise private
+        registry module.
+      name: registry_module_info
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider:
+      description: Manage Terraform Cloud/Enterprise registry providers.
+      name: registry_provider
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise registry
+        provider.
+      name: registry_provider_info
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider_platform:
+      description: Manage Terraform Cloud/Enterprise registry provider platforms.
+      name: registry_provider_platform
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider_platform_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise registry
+        provider platform.
+      name: registry_provider_platform_info
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider_version:
+      description: Manage Terraform Cloud/Enterprise private registry provider versions.
+      name: registry_provider_version
+      namespace: ''
+      version_added: 2.2.0
+    registry_provider_version_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise private
+        registry provider version.
+      name: registry_provider_version_info
+      namespace: ''
+      version_added: 2.2.0
+    reserved_tag_keys:
+      description: Manage Terraform Cloud/Enterprise reserved tag keys (create, update,
+        delete).
+      name: reserved_tag_keys
+      namespace: ''
+      version_added: 2.2.0
     run:
       description: Manage Terraform Cloud/Enterprise runs (create, apply, cancel,
         discard).
@@ -110,6 +327,16 @@ plugins:
       name: run_info
       namespace: ''
       version_added: 1.1.0
+    run_task:
+      description: Manage Terraform Cloud/Enterprise run tasks (create, update, delete).
+      name: run_task
+      namespace: ''
+      version_added: 2.2.0
+    run_task_info:
+      description: Retrieve information about Terraform Cloud/Enterprise run tasks.
+      name: run_task_info
+      namespace: ''
+      version_added: 2.2.0
     run_trigger:
       description: Manage Terraform Cloud/Enterprise run triggers (create, delete).
       name: run_trigger
@@ -121,6 +348,64 @@ plugins:
       name: ssh_keys
       namespace: ''
       version_added: 2.0.0
+    stack:
+      description: Manage Terraform Cloud/Enterprise stacks (create, update, delete).
+      name: stack
+      namespace: ''
+      version_added: 2.2.0
+    stack_configuration:
+      description: Create a Terraform stack configuration snapshot.
+      name: stack_configuration
+      namespace: ''
+      version_added: 2.2.0
+    stack_configuration_info:
+      description: Retrieve information about a Terraform stack configuration.
+      name: stack_configuration_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_deployment_group_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise stack deployment
+        group.
+      name: stack_deployment_group_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_deployment_run_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise stack deployment
+        run.
+      name: stack_deployment_run_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_deployment_step_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise stack deployment
+        step.
+      name: stack_deployment_step_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_diagnostic_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise stack diagnostic.
+      name: stack_diagnostic_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_info:
+      description: Retrieve information about Terraform Cloud/Enterprise stacks.
+      name: stack_info
+      namespace: ''
+      version_added: 2.2.0
+    stack_state_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise stack state.
+      name: stack_state_info
+      namespace: ''
+      version_added: 2.2.0
+    task_result_info:
+      description: Retrieve information about a Terraform Cloud/Enterprise task result.
+      name: task_result_info
+      namespace: ''
+      version_added: 2.2.0
+    task_stage_info:
+      description: Retrieve information about Terraform Cloud/Enterprise task stages.
+      name: task_stage_info
+      namespace: ''
+      version_added: 2.2.0
     team:
       description: Manage teams in Terraform Cloud/Enterprise.
       name: team
@@ -136,11 +421,33 @@ plugins:
       name: team_project_access
       namespace: ''
       version_added: 2.1.0
+    team_token:
+      description: Manage Terraform Cloud and Terraform Enterprise team tokens.
+      name: team_token
+      namespace: ''
+      version_added: 2.2.0
+    team_token_info:
+      description: Retrieve information about a Terraform Cloud and Terraform Enterprise
+        team token.
+      name: team_token_info
+      namespace: ''
+      version_added: 2.2.0
     team_workspace_access:
       description: Manage team access grants on a Terraform Cloud/Enterprise workspace.
       name: team_workspace_access
       namespace: ''
       version_added: 2.1.0
+    tf_policy_evaluation:
+      description: Override a Terraform policy (tf-policy) evaluation.
+      name: tf_policy_evaluation
+      namespace: ''
+      version_added: 2.2.0
+    tf_policy_evaluation_info:
+      description: Read Terraform policy (tf-policy) evaluations and set outcomes
+        for a run.
+      name: tf_policy_evaluation_info
+      namespace: ''
+      version_added: 2.2.0
     user_info:
       description: Retrieve information about a user in Terraform Cloud/Enterprise.
       name: user_info
@@ -158,6 +465,16 @@ plugins:
       name: variable_sets
       namespace: ''
       version_added: 2.0.0
+    vault_oidc_configuration:
+      description: Manage HCP Terraform Vault OIDC configurations for HYOK.
+      name: vault_oidc_configuration
+      namespace: ''
+      version_added: 2.2.0
+    vault_oidc_configuration_info:
+      description: Retrieve information about an HCP Terraform Vault OIDC configuration.
+      name: vault_oidc_configuration_info
+      namespace: ''
+      version_added: 2.2.0
     view_plan:
       description: View Terraform Cloud/Enterprise plan information
       name: view_plan
@@ -179,9 +496,25 @@ plugins:
       name: workspace_info
       namespace: ''
       version_added: 1.1.0
+    workspace_run_task:
+      description: Associate and manage run tasks on a Terraform Cloud/Enterprise
+        workspace.
+      name: workspace_run_task
+      namespace: ''
+      version_added: 2.2.0
+    workspace_run_task_info:
+      description: Retrieve information about run tasks associated with a workspace.
+      name: workspace_run_task_info
+      namespace: ''
+      version_added: 2.2.0
   netconf: {}
   shell: {}
   strategy: {}
-  test: {}
+  test:
+    plan_safe:
+      description: Test whether a plan_analyze result is safe to refresh under allow/deny
+        drift rules
+      name: plan_safe
+      version_added: 2.2.0
   vars: {}
-version: 2.1.0
+version: 2.2.0
