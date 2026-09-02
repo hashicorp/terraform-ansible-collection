@@ -14,9 +14,34 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 
 In addition to the per-module reference (available with `ansible-doc`, for
 example `ansible-doc hashicorp.terraform.workspace`), this collection provides
-a [scenario guide index](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/README.md).
+a [documentation index](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/README.md).
 The links below open the rendered guides on GitHub, including when this README
 is viewed from Automation Hub:
+
+### End-to-End Cookbooks
+
+- [Provision with Terraform, configure with Ansible](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_provision_and_configure.rst)
+- [Application onboarding factory](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_application_onboarding.rst)
+- [Governed drift reconciliation](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_governed_drift.rst)
+- [Event-driven post-apply automation](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_event_driven_post_apply.rst)
+- [Ephemeral preview environments](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_ephemeral_environment.rst)
+
+### Advanced Platform Cookbooks
+
+- [Promote one known-good configuration](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_promote_known_good_configuration.rst)
+- [Replace an agent pool blue-green](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_agent_pool_blue_green.rst)
+- [Run a fleet Terraform upgrade campaign](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_fleet_upgrade_campaign.rst)
+- [Respond to drift through an EDA workflow](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_event_driven_drift_response.rst)
+- [Migrate a workspace to dynamic credentials](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_dynamic_credentials_migration.rst)
+- [Decommission infrastructure safely](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_governed_decommission.rst)
+- [Rehearse disaster recovery end to end](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_disaster_recovery_rehearsal.rst)
+- [Roll out compliance controls safely](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_compliance_control_rollout.rst)
+- [Publish a signed private provider](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_private_provider_release.rst)
+- [Govern day-two operations with Terraform Actions](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_terraform_actions.rst)
+- [Rotate an HCP Terraform HYOK key](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_hyok_key_rotation.rst)
+- [Onboard and observe an HCP Terraform Stack](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_stacks_observability.rst)
+
+### Feature Guides
 
 - [Getting started](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_getting_started.rst)
 - [Authentication](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_authentication.rst)

@@ -16,7 +16,7 @@ how to resolve them.
 Missing ``pytfe`` library
 =========================
 
-The collection needs the ``pytfe`` SDK (``>= 1.2.0``) in the **same Python interpreter** that runs
+The collection needs the ``pytfe`` SDK (``>= 1.4.1``) in the **same Python interpreter** that runs
 the task. Because modules run on the play's host, that interpreter is usually the one on
 ``localhost``, not necessarily the one that launched ``ansible-playbook``.
 

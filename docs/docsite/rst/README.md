@@ -11,6 +11,48 @@ Hub and `ansible-doc`.
 - [Authentication](guide_authentication.rst): Configure API tokens, Terraform
   Enterprise endpoints, TLS, proxies, timeouts, and retries.
 
+## End-to-End Cookbooks
+
+- [Provision with Terraform, configure with Ansible](cookbook_provision_and_configure.rst):
+  Apply Terraform, turn outputs into inventory, and configure the resulting hosts.
+- [Application onboarding factory](cookbook_application_onboarding.rst): Build an
+  idempotent project and workspace landing zone from an application definition.
+- [Governed drift reconciliation](cookbook_governed_drift.rst): Detect drift,
+  evaluate allow and deny rules, approve safe state reconciliation, and discard
+  unsafe drift.
+- [Event-driven post-apply automation](cookbook_event_driven_post_apply.rst):
+  Route Terraform run notifications through EDA to configuration and failure
+  workflows.
+- [Ephemeral preview environments](cookbook_ephemeral_environment.rst): Create,
+  configure, test, destroy, and delete a temporary environment in one lifecycle.
+
+## Advanced Platform Cookbooks
+
+- [Promote one known-good configuration](cookbook_promote_known_good_configuration.rst):
+  Reuse one immutable configuration version across development, staging, and production.
+- [Replace an agent pool blue-green](cookbook_agent_pool_blue_green.rst): Build and
+  verify replacement private execution capacity before draining the old pool.
+- [Run a fleet Terraform upgrade campaign](cookbook_fleet_upgrade_campaign.rst): Use
+  Explorer, speculative runs, bounded batches, and automatic canary rollback.
+- [Respond to drift through an EDA workflow](cookbook_event_driven_drift_response.rst):
+  Route health-assessment events into analysis, approval, and an exact-run decision.
+- [Migrate a workspace to dynamic credentials](cookbook_dynamic_credentials_migration.rst):
+  Replace static cloud keys with workload identity and a reversible canary plan.
+- [Decommission infrastructure safely](cookbook_governed_decommission.rst): Drain and
+  back up applications before reviewing, applying, and recording a destroy run.
+- [Rehearse disaster recovery end to end](cookbook_disaster_recovery_rehearsal.rst):
+  Rebuild isolated infrastructure, restore data, validate recovery, and clean up.
+- [Roll out compliance controls safely](cookbook_compliance_control_rollout.rst): Canary
+  policies and run tasks in advisory mode before mandatory enforcement.
+- [Publish a signed private provider](cookbook_private_provider_release.rst): Publish
+  checksums, signatures, and multi-platform provider binaries to a private registry.
+- [Govern day-two operations with Actions](cookbook_terraform_actions.rst): Preview,
+  approve, invoke, and validate provider-defined Terraform Actions.
+- [Rotate an HCP Terraform HYOK key](cookbook_hyok_key_rotation.rst): Test a new
+  customer-managed key and retire the old configuration under separate approval.
+- [Onboard and observe an HCP Terraform Stack](cookbook_stacks_observability.rst): Create
+  a VCS-backed Stack and collect deployment, state, step, and diagnostic evidence.
+
 ## Scenario Guides
 
 - [Workspaces and projects](guide_workspaces_projects.rst): Create, update,

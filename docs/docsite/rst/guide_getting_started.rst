@@ -24,7 +24,7 @@ Requirements
 
 - **Ansible**: ``ansible-core >= 2.16.0``.
 - **Python**: 3.10 or later, in the interpreter that runs the tasks (usually on ``localhost``).
-- **pytfe**: the `pytfe <https://pypi.org/project/pytfe/>`__ Python SDK, version ``1.2.0`` or
+- **pytfe**: the `pytfe <https://pypi.org/project/pytfe/>`__ Python SDK, version ``1.4.1`` or
   later. Every module, lookup, and the inventory plugin in this collection talk to the
   Terraform API through ``pytfe``.
 - **An API token** for HCP Terraform or Terraform Enterprise. See
@@ -43,13 +43,15 @@ Requirements
 Installing the collection
 =========================
 
-Install the collection from Ansible Galaxy or Automation Hub:
+The certified collection artifact is distributed through Red Hat Automation Hub. The collection
+is not published to the public Ansible Galaxy service. After configuring ``ansible-galaxy`` for
+your Automation Hub account, install the certified artifact with:
 
 .. code-block:: bash
 
    ansible-galaxy collection install hashicorp.terraform
 
-Or pin it in a ``requirements.yml`` and install with
+You can pin the Automation Hub artifact in a ``requirements.yml`` and install with
 ``ansible-galaxy collection install -r requirements.yml``:
 
 .. code-block:: yaml
@@ -57,6 +59,36 @@ Or pin it in a ``requirements.yml`` and install with
    ---
    collections:
      - name: hashicorp.terraform
+       version: "2.2.0"
+
+For community use, install directly from a Git tag or commit without using the public Galaxy
+service:
+
+.. code-block:: yaml
+
+   ---
+   collections:
+     - name: https://github.com/hashicorp/terraform-ansible-collection.git
+       type: git
+       version: "<release-tag-or-commit-sha>"
+
+.. code-block:: bash
+
+   ansible-galaxy collection install -r requirements.yml --force
+
+To build a local collection artifact instead, clone the repository and run:
+
+.. code-block:: bash
+
+   git clone https://github.com/hashicorp/terraform-ansible-collection.git
+   cd terraform-ansible-collection
+   git checkout RELEASE_TAG_OR_COMMIT_SHA
+   ansible-galaxy collection build --force
+   ansible-galaxy collection install ./hashicorp-terraform-X.Y.Z.tar.gz --force
+
+Replace ``X.Y.Z`` with the version in ``galaxy.yml``. Git checkouts and self-built artifacts are
+not the certified artifact distributed through Automation Hub. Pin a tag or commit SHA for
+reproducible automation; use a branch only when intentionally testing unreleased changes.
 
 Install the Python dependency into the interpreter Ansible will use:
 
@@ -143,6 +175,12 @@ ways to provide credentials and connection settings.
 Where to go next
 ================
 
+- :ref:`ansible_collections.hashicorp.terraform.docsite.cookbook_provision_and_configure` - run
+  the flagship Terraform provisioning to Ansible configuration workflow.
+- :ref:`ansible_collections.hashicorp.terraform.docsite.cookbook_application_onboarding` - build
+  an idempotent application landing zone.
+- :ref:`ansible_collections.hashicorp.terraform.docsite.cookbook_governed_drift` - govern Day 2
+  drift acceptance and infrastructure remediation.
 - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_authentication` — tokens, TLS,
   proxies, and self-hosted Terraform Enterprise.
 - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_workspaces_projects` — create

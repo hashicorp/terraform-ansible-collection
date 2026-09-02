@@ -1,0 +1,11 @@
+---
+doc_changes:
+  - >-
+    docs - Added five foundational and twelve advanced end-to-end cookbooks
+    covering provisioning and configuration, application onboarding, governed
+    drift, event-driven automation, ephemeral environments, immutable
+    promotion, private agents, fleet upgrades, dynamic credentials,
+    decommissioning, disaster recovery, compliance controls, private
+    providers, Terraform Actions, HYOK rotation, and Stack observability.
+    Added GitHub-readable navigation and aligned the getting-started dependency
+    and installation guidance with Automation Hub and Git/source distribution.
