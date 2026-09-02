@@ -16,6 +16,7 @@ license_file: LICENSE
 tags: ["hashicorp", "terraform", "infrastructure", "cloud"]
 
 repository: https://github.com/hashicorp/terraform-ansible-collection
+documentation: https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/README.md
 homepage: https://www.hashicorp.com/
 issues: https://github.com/hashicorp/terraform-ansible-collection/issues
 
