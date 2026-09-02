@@ -1,0 +1,119 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    # ---------- create (no oidc_configuration_id => always creates) ----------
+    - name: Create a Vault OIDC configuration
+      hashicorp.terraform.vault_oidc_configuration:
+        organization: "{{ organization }}"
+        address: "https://vault.example.com"
+        role_name: "tfc-test-{{ unique_id[:8] }}"
+        namespace: "admin"
+        state: present
+      register: result_create
+
+    - name: Assert Vault OIDC configuration creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.role_name == "tfc-test-" + unique_id[:8]
+          - result_create.namespace == "admin"
+
+    - name: Save oidc_configuration_id fact
+      ansible.builtin.set_fact:
+        vault_oidc_configuration_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-apply, identified by ID ----------
+    - name: Idempotency test - re-apply the same role_name by ID
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        role_name: "tfc-test-{{ unique_id[:8] }}"
+        state: present
+      register: result_reapply
+
+    - name: Assert re-apply was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_reapply.changed
+          - result_reapply.id == vault_oidc_configuration_id
+
+    # ---------- update on drift, identified by ID ----------
+    - name: Update the address by ID
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        address: "https://vault2.example.com"
+        state: present
+      register: result_update
+
+    - name: Assert update was applied
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.address == "https://vault2.example.com"
+
+    # ---------- info lookup ----------
+    - name: Look up the Vault OIDC configuration by ID
+      hashicorp.terraform.vault_oidc_configuration_info:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+      register: result_info
+
+    - name: Assert info matches the updated configuration
+      ansible.builtin.assert:
+        that:
+          - result_info.oidc_configuration.id == vault_oidc_configuration_id
+          - result_info.oidc_configuration.address == "https://vault2.example.com"
+
+    # ---------- check-mode absent ----------
+    - name: Check-mode delete
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- absent ----------
+    - name: Delete the Vault OIDC configuration
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same Vault OIDC configuration again (no-op)
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the Vault OIDC configuration (in case of mid-run failure)
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ vault_oidc_configuration_id }}"
+        state: absent
+      when: vault_oidc_configuration_id is defined
+      failed_when: false

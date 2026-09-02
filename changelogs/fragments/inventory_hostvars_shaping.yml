@@ -1,0 +1,12 @@
+minor_changes:
+  - >-
+    tfc_inv inventory - Add an optional ``hostvars`` option with ``include`` and
+    ``exclude`` lists to shape which top-level source attributes are emitted as
+    Ansible host variables. ``include`` limits emitted host vars to the listed
+    keys, ``exclude`` removes listed keys, and ``exclude`` wins when a key
+    appears in both; unknown keys are ignored. Shaping affects only the emitted
+    host vars - ``compose``, ``hostnames``, ``keyed_groups``, ``groups``, and the
+    filter options continue to resolve against the full sanitized data, and the
+    plugin-injected ``ansible_host`` / ``value`` / ``tfc_workspace_id`` /
+    ``tfc_workspace_name`` variables are always emitted. When ``hostvars`` is
+    omitted, behavior is unchanged.

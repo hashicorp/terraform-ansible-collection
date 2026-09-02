@@ -31,7 +31,7 @@ When you need a custom EE
 Automatic dependency installation
 =================================
 
-This collection declares its single controller-side Python dependency, ``pytfe>=1.2.0``, in
+This collection declares its single controller-side Python dependency, ``pytfe>=1.4.1``, in
 ``meta/execution-environment.yml`` (which points at the collection's ``requirements.txt``). When you
 include the collection in an EE, **Ansible Builder installs** ``pytfe`` **automatically** — you do
 not have to list it yourself. You can confirm this for any collection with:
@@ -40,7 +40,7 @@ not have to list it yourself. You can confirm this for any collection with:
 
    ansible-builder introspect ~/.ansible/collections
    # python:
-   # - 'pytfe>=1.2.0  # from collection hashicorp.terraform'
+   # - 'pytfe>=1.4.1  # from collection hashicorp.terraform'
 
 ``pytfe`` is a pure-Python package and needs no system (C) libraries, so a ``bindep.txt`` is not
 required for this collection.
@@ -84,7 +84,7 @@ packages your own roles need:
 
 .. code-block:: text
 
-   pytfe>=1.2.0
+   pytfe>=1.4.1
 
 Build the image:
 
@@ -212,7 +212,7 @@ To test changes from a Git branch before release, point ``requirements.yml`` at 
        version: main
 
 When building from a branch whose ``meta/execution-environment.yml`` is not yet published, list the
-Python dependency explicitly in ``requirements.txt`` (``pytfe>=1.2.0``) so it is installed.
+Python dependency explicitly in ``requirements.txt`` (``pytfe>=1.4.1``) so it is installed.
 
 .. _ansible_collections.hashicorp.terraform.docsite.guide_execution_environments.troubleshooting:
 
@@ -221,7 +221,7 @@ Troubleshooting
 
 - **"Failed to import the required Python library (pytfe)"** inside the EE — the image was built
   without ``pytfe``. Confirm the collection is in ``requirements.yml`` (so the metadata pulls
-  ``pytfe`` in) or add ``pytfe>=1.2.0`` to ``requirements.txt``, then rebuild.
+  ``pytfe`` in) or add ``pytfe>=1.4.1`` to ``requirements.txt``, then rebuild.
 - **Wrong Python version** — use a current ``ee-minimal`` base image; the collection needs Python
   ``>= 3.10``.
 - **Galaxy/Hub install failures** — verify the ``ansible.cfg`` server URL, token validity, and CA

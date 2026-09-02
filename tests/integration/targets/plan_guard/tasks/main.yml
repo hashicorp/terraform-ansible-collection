@@ -1,0 +1,171 @@
+---
+# Offline integration test for the plan_guard filter / plan_safe test plugins.
+# No API or cloud credentials needed - it feeds a canned plan_analyze-shaped fact
+# (mirroring a real refresh-only drift analysis: an EC2 tag change and a
+# security-group ingress change) through the shared drift_policy engine and
+# asserts the verdict for each mode.
+- name: Plan_guard / plan_safe offline policy evaluation
+  block:
+    - name: Canned plan_analyze analysis (safe tag + risky SG ingress drift)
+      ansible.builtin.set_fact:
+        drift_analysis:
+          has_drift: true
+          drift_count: 2
+          resource_changes:
+            - address: "aws_instance.ec2"
+              type: "aws_instance"
+              name: "ec2"
+              module_address: null
+              classification: "safe"
+              source: "resource_drift"
+              changed_attributes:
+                - "tags.Env"
+                - "tags_all.Env"
+              unknown_attributes: []
+            - address: "aws_security_group.ec2_sg"
+              type: "aws_security_group"
+              name: "ec2_sg"
+              module_address: null
+              classification: "risky"
+              source: "resource_drift"
+              changed_attributes:
+                - "ingress[1].from_port"
+                - "ingress[1].to_port"
+              unknown_attributes: []
+
+    - name: Analysis that also touches a denied instance_type
+      ansible.builtin.set_fact:
+        drift_analysis_denied:
+          resource_changes:
+            - address: "aws_instance.web"
+              type: "aws_instance"
+              name: "web"
+              module_address: null
+              classification: "risky"
+              source: "resource_drift"
+              changed_attributes:
+                - "instance_type"
+              unknown_attributes: []
+
+    - name: Analysis with a plan_analyze-classified blocked resource
+      ansible.builtin.set_fact:
+        drift_analysis_blocked:
+          resource_changes:
+            - address: "aws_iam_policy.admin"
+              type: "aws_iam_policy"
+              name: "admin"
+              module_address: null
+              classification: "blocked"
+              source: "resource_drift"
+              changed_attributes:
+                - "policy"
+              unknown_attributes: []
+
+    # 1) strict + all attrs allowed -> safe
+    - name: Strict mode, all drift allowed
+      ansible.builtin.set_fact:
+        guard_safe: >-
+          {{ drift_analysis | hashicorp.terraform.plan_guard(
+               allow=['*.tags', '*.tags_all', 'aws_security_group.*.ingress'],
+               deny=['aws_instance.*.instance_type'],
+               mode='strict') }}
+
+    - name: Assert safe verdict
+      ansible.builtin.assert:
+        that:
+          - guard_safe.safe_to_refresh
+          - guard_safe.summary.allowed == 4
+          - guard_safe.summary.denied == 0
+        fail_msg: "Expected all drift to be allowed in strict mode"
+
+    # 2) strict + an unmatched attribute -> blocked (default-deny)
+    - name: Strict mode, unmatched attribute blocks
+      ansible.builtin.set_fact:
+        guard_unmatched: >-
+          {{ drift_analysis | hashicorp.terraform.plan_guard(allow=['*.tags'], deny=[], mode='strict') }}
+
+    - name: Assert unmatched blocks in strict mode
+      ansible.builtin.assert:
+        that:
+          - guard_unmatched.safe_to_refresh == false
+          - guard_unmatched.summary.denied > 0
+        fail_msg: "Strict mode should block unmatched attributes"
+
+    # 3) permissive + same input -> safe (default-allow)
+    - name: Permissive mode allows unmatched
+      ansible.builtin.set_fact:
+        guard_permissive: >-
+          {{ drift_analysis | hashicorp.terraform.plan_guard(allow=['*.tags'], deny=[], mode='permissive') }}
+
+    - name: Assert permissive allows unmatched
+      ansible.builtin.assert:
+        that:
+          - guard_permissive.safe_to_refresh
+          - guard_permissive.summary.denied == 0
+        fail_msg: "Permissive mode should allow unmatched attributes"
+
+    # 4) deny wins over allow
+    - name: Deny match wins over allow
+      ansible.builtin.set_fact:
+        guard_denied: >-
+          {{ drift_analysis_denied | hashicorp.terraform.plan_guard(
+               allow=['aws_instance.*.instance_type'],
+               deny=['aws_instance.*.instance_type'],
+               mode='permissive') }}
+
+    - name: Assert deny wins over allow
+      ansible.builtin.assert:
+        that:
+          - guard_denied.safe_to_refresh == false
+          - guard_denied.summary.denied == 1
+          - guard_denied.summary.allowed == 0
+          - guard_denied.denied[0].rule == "aws_instance.*.instance_type"
+        fail_msg: "deny should take precedence over allow"
+
+    # 5) blocked classification cannot be overridden by allow
+    - name: Blocked classification is unconditional
+      ansible.builtin.set_fact:
+        guard_blocked: >-
+          {{ drift_analysis_blocked | hashicorp.terraform.plan_guard(allow=['*'], deny=[], mode='permissive') }}
+
+    - name: Assert blocked classification cannot be allowed
+      ansible.builtin.assert:
+        that:
+          - guard_blocked.safe_to_refresh == false
+          - guard_blocked.summary.blocked == 1
+        fail_msg: "A plan_analyze-blocked resource must not be overridable by an allow rule"
+
+    # 6) empty analysis -> trivially safe
+    - name: Empty analysis is safe
+      ansible.builtin.set_fact:
+        guard_empty: "{{ {'resource_changes': []} | hashicorp.terraform.plan_guard(mode='strict') }}"
+
+    - name: Assert empty analysis is safe
+      ansible.builtin.assert:
+        that:
+          - guard_empty.safe_to_refresh
+          - guard_empty.summary.allowed == 0
+        fail_msg: "Empty analysis should be safe to refresh"
+
+    # 7) plan_safe test plugin mirrors the filter's verdict
+    - name: Assert plan_safe test plugin agrees with the filter
+      ansible.builtin.assert:
+        that:
+          - >-
+            drift_analysis is hashicorp.terraform.plan_safe(allow=['*.tags', '*.tags_all',
+            'aws_security_group.*.ingress'], deny=['aws_instance.*.instance_type'])
+          - not (drift_analysis_denied is hashicorp.terraform.plan_safe(allow=['aws_instance.*.instance_type'], deny=['aws_instance.*.instance_type']))
+        fail_msg: "plan_safe should agree with the plan_guard filter for the same inputs"
+
+    # 8) fail-on-denied composed with the built-in assert (documented pattern)
+    - name: Fail-on-denied composed with assert
+      block:
+        - name: Assert safe_to_refresh (expected to fail for denied analysis)
+          ansible.builtin.assert:
+            that: "guard_denied.safe_to_refresh"
+            fail_msg: "Denied drift: {{ guard_denied.denied }}"
+      rescue:
+        - name: Confirm the assert failed for the right reason
+          ansible.builtin.assert:
+            that: "'Denied drift' in ansible_failed_result.msg"
+            fail_msg: "Expected the composed assert to fail with the denied-drift message"

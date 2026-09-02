@@ -1,0 +1,118 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') | lower }}"
+
+    # ---------- create (no oidc_configuration_id => always creates) ----------
+    - name: Create a GCP OIDC configuration
+      hashicorp.terraform.gcp_oidc_configuration:
+        organization: "{{ organization }}"
+        service_account_email: "tfc-test-{{ unique_id[:8] }}@project.iam.gserviceaccount.com"
+        project_number: "123456789012"
+        workload_provider_name: "projects/123456789012/locations/global/workloadIdentityPools/tfc-pool/providers/tfc-provider"
+        state: present
+      register: result_create
+
+    - name: Assert GCP OIDC configuration creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.service_account_email == "tfc-test-" + unique_id[:8] + "@project.iam.gserviceaccount.com"
+
+    - name: Save oidc_configuration_id fact
+      ansible.builtin.set_fact:
+        gcp_oidc_configuration_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-apply, identified by ID ----------
+    - name: Idempotency test - re-apply the same service_account_email by ID
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        service_account_email: "tfc-test-{{ unique_id[:8] }}@project.iam.gserviceaccount.com"
+        state: present
+      register: result_reapply
+
+    - name: Assert re-apply was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_reapply.changed
+          - result_reapply.id == gcp_oidc_configuration_id
+
+    # ---------- update on drift, identified by ID ----------
+    - name: Update the project_number by ID
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        project_number: "987654321098"
+        state: present
+      register: result_update
+
+    - name: Assert update was applied
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.project_number == "987654321098"
+
+    # ---------- info lookup ----------
+    - name: Look up the GCP OIDC configuration by ID
+      hashicorp.terraform.gcp_oidc_configuration_info:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+      register: result_info
+
+    - name: Assert info matches the updated configuration
+      ansible.builtin.assert:
+        that:
+          - result_info.oidc_configuration.id == gcp_oidc_configuration_id
+          - result_info.oidc_configuration.project_number == "987654321098"
+
+    # ---------- check-mode absent ----------
+    - name: Check-mode delete
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- absent ----------
+    - name: Delete the GCP OIDC configuration
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same GCP OIDC configuration again (no-op)
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the GCP OIDC configuration (in case of mid-run failure)
+      hashicorp.terraform.gcp_oidc_configuration:
+        oidc_configuration_id: "{{ gcp_oidc_configuration_id }}"
+        state: absent
+      when: gcp_oidc_configuration_id is defined
+      failed_when: false

@@ -1,0 +1,19 @@
+minor_changes:
+  - >-
+    plan_analyze module - New read-only module
+    ``hashicorp.terraform.plan_analyze`` that parses a Terraform plan JSON
+    document (fetched via a ``run_id`` / ``plan_id``, or supplied inline as
+    ``plan_json``) and returns machine-friendly drift and change facts:
+    ``has_drift`` / ``drift_count``, ``has_changes`` / ``change_count``, the
+    changed and computed (unknown) attribute paths per resource, and a
+    descriptive ``safe`` / ``risky`` / ``blocked`` / ``unknown``
+    classification with user-overridable, glob-based ``safe_attributes`` /
+    ``risky_attributes`` / ``blocked_attributes`` rules (precedence
+    ``blocked > risky > safe > unknown``). Rules default to empty
+    (fail-closed) and are matched against a canonical
+    ``<module_path>.<type>.<name>.<attribute.path>`` target, so they can be
+    scoped by resource type/module rather than bare attribute names.
+    Complements ``view_plan`` (human-readable diff) by exposing a
+    programmatic drift-detection surface. Targets Terraform 1.x plan JSON;
+    an unrecognized ``format_version`` warns and proceeds best-effort rather
+    than failing the task.

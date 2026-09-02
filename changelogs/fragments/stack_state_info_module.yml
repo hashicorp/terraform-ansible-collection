@@ -1,0 +1,4 @@
+minor_changes:
+  - >-
+    stack_state_info - New read-only module to retrieve information about a
+    Terraform Cloud/Enterprise stack state by its unique ID.

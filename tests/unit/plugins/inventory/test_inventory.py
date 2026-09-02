@@ -98,6 +98,7 @@ def _base_options(**overrides) -> dict:
         "strict": False,
         "hostvars_prefix": "",
         "hostvars_suffix": "",
+        "hostvars": {},
         # Multi-workspace + caching options. Seeded here so option lookups in
         # parse() resolve from _options directly instead of falling through to
         # Ansible config (which requires the full plugin loader).
@@ -2689,6 +2690,138 @@ class TestInventoryModuleParseOutputs:
 
 
 # ---------------------------------------------------------------------------
+# hostvars include/exclude shaping (issue #137)
+# ---------------------------------------------------------------------------
+
+
+class TestHostvarsShaping:
+    """Shaping affects only emitted host vars; compose/groups see full data."""
+
+    def _shaping_plugin(self):
+        plugin = _make_plugin(_base_options())
+        # Isolate the emit loop: stub the composite/group mixins so we can
+        # inspect the resolution_view they receive without a real templar.
+        plugin._set_composite_vars = Mock()
+        plugin._add_host_to_keyed_groups = Mock()
+        plugin._add_host_to_composed_groups = Mock()
+        return plugin
+
+    def _emitted(self, plugin):
+        return {c[0][1]: c[0][2] for c in plugin.inventory.set_variable.call_args_list}
+
+    def _host_vars(self):
+        return {
+            "private_ip": "1.2.3.4",
+            "tags": {"role": "web"},
+            "ami": "ami-123",
+            "instance_state": "running",
+            "ansible_host": "1.2.3.4",
+            "value": "1.2.3.4",
+            "tfc_workspace_id": "ws-abc",
+            "tfc_workspace_name": "my-ws",
+        }
+
+    def test_omitted_emits_everything(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        plugin._add_host("h1", hv, dict(hv), {}, [], {}, False)
+        assert set(self._emitted(plugin)) == set(hv)
+
+    def test_include_limits_emitted_keys(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        plugin._add_host("h1", hv, dict(hv), {}, [], {}, False, hostvars_include=["private_ip", "tags"])
+        emitted = self._emitted(plugin)
+        # Only the included source keys, plus always-preserved plugin vars.
+        assert "private_ip" in emitted
+        assert "tags" in emitted
+        assert "ami" not in emitted
+        assert "instance_state" not in emitted
+        # Plugin-injected vars survive an include list.
+        for injected in ("ansible_host", "value", "tfc_workspace_id", "tfc_workspace_name"):
+            assert injected in emitted
+
+    def test_exclude_removes_key(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        plugin._add_host("h1", hv, dict(hv), {}, [], {}, False, hostvars_exclude=["ami"])
+        emitted = self._emitted(plugin)
+        assert "ami" not in emitted
+        assert "private_ip" in emitted
+        assert "instance_state" in emitted
+
+    def test_exclude_wins_over_include(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        plugin._add_host(
+            "h1",
+            hv,
+            dict(hv),
+            {},
+            [],
+            {},
+            False,
+            hostvars_include=["private_ip", "ami"],
+            hostvars_exclude=["ami"],
+        )
+        emitted = self._emitted(plugin)
+        assert "private_ip" in emitted
+        assert "ami" not in emitted
+
+    def test_unknown_include_keys_ignored(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        plugin._add_host("h1", hv, dict(hv), {}, [], {}, False, hostvars_include=["private_ip", "does_not_exist"])
+        emitted = self._emitted(plugin)
+        assert "private_ip" in emitted
+        assert "does_not_exist" not in emitted
+
+    def test_compose_and_groups_see_full_data(self):
+        plugin = self._shaping_plugin()
+        hv = self._host_vars()
+        view = dict(hv)
+        plugin._add_host("h1", hv, view, {"ansible_host": "private_ip"}, [{"key": "ami"}], {}, False, hostvars_exclude=["ami", "private_ip"])
+        # Excluded from emitted host vars ...
+        emitted = self._emitted(plugin)
+        assert "ami" not in emitted
+        assert "private_ip" not in emitted
+        # ... but compose / keyed_groups / groups still receive the FULL view.
+        assert plugin._set_composite_vars.call_args[0][1] is view
+        assert "ami" in plugin._set_composite_vars.call_args[0][1]
+        assert plugin._add_host_to_keyed_groups.call_args[0][1] is view
+        assert plugin._add_host_to_composed_groups.call_args[0][1] is view
+
+    @patch(f"{_OUTPUTS_SRC}.fetch_outputs")
+    @patch(f"{_OUTPUTS_SRC}.resolve_workspace")
+    @patch(f"{_INV_MODULE}.TerraformClient")
+    def test_include_exclude_via_parse(self, mock_client_cls, mock_resolve, mock_fetch):
+        mock_client_cls.return_value = Mock()
+        mock_resolve.return_value = ("ws-abc", "my-ws")
+        mock_fetch.return_value = [
+            {
+                "name": "web",
+                "value": {"private_ip": "1.2.3.4", "ami": "ami-123", "tags": {"role": "web"}},
+                "sensitive": False,
+            },
+        ]
+
+        plugin = _make_plugin(
+            _base_options(
+                source="outputs",
+                hosts_from={"output": "web", "type": "object"},
+                hostvars={"include": ["private_ip", "tags"], "exclude": ["ami"]},
+            )
+        )
+        with _parse_ctx(plugin):
+            plugin.parse(Mock(), Mock(), "/fake/inventory.yml")
+
+        plugin.inventory.set_variable.assert_any_call("my-ws_web", "private_ip", "1.2.3.4")
+        plugin.inventory.set_variable.assert_any_call("my-ws_web", "tags", {"role": "web"})
+        for call in plugin.inventory.set_variable.call_args_list:
+            assert call[0][1] != "ami"
+
+
+# ---------------------------------------------------------------------------
 # InventoryModule.parse — common error paths
 # ---------------------------------------------------------------------------
 
@@ -2811,7 +2944,7 @@ class TestInventoryCacheStatefile:
 
         ua = mock_client_cls.from_mapping.call_args.kwargs.get("user_agent_suffix")
         assert ua is not None
-        assert "terraform-ansible-collection/2.1.0" in ua
+        assert "terraform-ansible-collection/2.2.0" in ua
         assert "inventory:tfc_inv" in ua
         assert "source=statefile" in ua
         assert "mode=single" in ua
@@ -3778,6 +3911,6 @@ class TestInventoryUserAgent:
         ua = _inventory_user_agent(source, mode)
         # Base product token preserved verbatim (aggregate usage queries keep working).
         assert ua.startswith("terraform-ansible-collection/")
-        assert "terraform-ansible-collection/2.1.0" in ua
+        assert "terraform-ansible-collection/2.2.0" in ua
         # RFC 7231 comment with the inventory plugin + source + mode.
         assert ua.endswith(f"(inventory:tfc_inv; source={source}; mode={mode})")

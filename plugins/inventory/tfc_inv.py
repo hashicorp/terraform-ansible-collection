@@ -335,6 +335,39 @@ options:
         with the same scope and exclusions as O(hostvars_prefix).
     type: str
     default: ""
+  hostvars:
+    description:
+      - Optional shaping of which source attributes are emitted as Ansible host
+        variables. When omitted, every sanitized source attribute is emitted
+        (unchanged behavior).
+      - Shaping affects B(only) the emitted host vars. O(compose),
+        O(hostnames), O(keyed_groups), O(groups), and the filter options
+        continue to resolve against the B(full) sanitized data, so a field can
+        be excluded from host vars while still driving grouping or composition.
+      - Keys refer to the original top-level Terraform field names (before any
+        O(hostvars_prefix) / O(hostvars_suffix) renaming). Unknown keys are
+        ignored.
+      - The plugin-injected variables V(ansible_host), V(value),
+        V(tfc_workspace_id), and V(tfc_workspace_name) are always emitted and
+        are never removed by this shaping.
+    type: dict
+    default: {}
+    version_added: "2.2.0"
+    suboptions:
+      include:
+        description:
+          - When non-empty, limit emitted host vars to these top-level keys.
+        type: list
+        elements: str
+        default: []
+      exclude:
+        description:
+          - Remove these top-level keys from the emitted host vars. If a key
+            appears in both O(hostvars.include) and O(hostvars.exclude),
+            O(hostvars.exclude) wins.
+        type: list
+        elements: str
+        default: []
   cache_validate_current_state_version:
     description:
       - Opt-in cache-freshness mode that validates a cache entry against the
@@ -616,6 +649,26 @@ EXAMPLES = r"""
     - tf_name                         # reference the prefixed name
   compose:
     ansible_host: tf_public_ip
+
+# hostvars shaping: reduce noisy host vars. Only the emitted vars are shaped -
+# `ami` still drives keyed_groups below even though it is excluded from host
+# vars, and `instance_state` still drives compose despite not being included.
+- name: Statefile inventory with hostvars include/exclude
+  plugin: hashicorp.terraform.tfc_inv
+  source: statefile
+  organization: my-org
+  workspace: my-workspace
+  hostvars:
+    include:
+      - private_ip
+      - tags
+    exclude:
+      - ami
+  compose:
+    ansible_host: private_ip
+  keyed_groups:
+    - key: ami
+      prefix: ami
 
 # set(object) — same JSON wire format as list(object); accepted as a synonym.
 - name: Inventory from set(object)
@@ -1007,11 +1060,24 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         strict: bool,
         hostvars_prefix: str = "",
         hostvars_suffix: str = "",
+        hostvars_include: Optional[List[str]] = None,
+        hostvars_exclude: Optional[List[str]] = None,
     ) -> None:
         hostname = self._sanitize_hostname(hostname)
         self.inventory.add_host(hostname)
         rename = hostvars_prefix or hostvars_suffix
+        include = set(hostvars_include or [])
+        exclude = set(hostvars_exclude or [])
         for key, value in host_vars.items():
+            # Shape emitted host vars per ``hostvars.include`` / ``exclude``.
+            # Plugin-injected vars (connection + workspace metadata) are always
+            # emitted. ``resolution_view`` is left untouched below, so compose /
+            # groups / keyed_groups still see the full, unshaped data.
+            if key not in self._PLUGIN_INJECTED_VARS:
+                if include and key not in include:
+                    continue
+                if key in exclude:
+                    continue
             if rename and key not in self._PLUGIN_INJECTED_VARS:
                 var_name = f"{hostvars_prefix}{key}{hostvars_suffix}"
             else:
@@ -1037,6 +1103,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         exclude_filters: List[Dict],
         hostvars_prefix: str = "",
         hostvars_suffix: str = "",
+        hostvars_include: Optional[List[str]] = None,
+        hostvars_exclude: Optional[List[str]] = None,
         stamp_workspace_vars: bool = False,
     ) -> None:
         """Apply filtering and register each record as an Ansible host.
@@ -1124,6 +1192,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 strict,
                 hostvars_prefix=hostvars_prefix,
                 hostvars_suffix=hostvars_suffix,
+                hostvars_include=hostvars_include,
+                hostvars_exclude=hostvars_exclude,
             )
 
     # ------------------------------------------------------------------
@@ -1190,6 +1260,9 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
         strict: bool = bool(self.get_option("strict"))
         hostvars_prefix: str = self.get_option("hostvars_prefix") or ""
         hostvars_suffix: str = self.get_option("hostvars_suffix") or ""
+        hostvars_shape: Dict[str, Any] = self.get_option("hostvars") or {}
+        hostvars_include: List[str] = hostvars_shape.get("include") or []
+        hostvars_exclude: List[str] = hostvars_shape.get("exclude") or []
 
         workspace_filters: Dict[str, Any] = self.get_option("workspace_filters") or {}
         enable_parallel: bool = bool(self.get_option("enable_parallel_processing"))
@@ -1293,6 +1366,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):  # type: i
                 exclude_filters,
                 hostvars_prefix=hostvars_prefix,
                 hostvars_suffix=hostvars_suffix,
+                hostvars_include=hostvars_include,
+                hostvars_exclude=hostvars_exclude,
                 stamp_workspace_vars=multi_mode,
             )
         except TerraformError as exc:

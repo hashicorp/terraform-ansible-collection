@@ -1,0 +1,245 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique saved view names
+      ansible.builtin.set_fact:
+        view_name: "explorer-view-test-{{ unique_id[:8] }}"
+        view_renamed: "explorer-view-renamed-{{ unique_id[:8] }}"
+
+    # ---------- ad-hoc query (read-only) ----------
+    - name: Execute an ad-hoc Explorer workspaces query
+      hashicorp.terraform.explorer_info:
+        organization: "{{ organization }}"
+        view_type: workspaces
+      register: result_query
+
+    - name: Assert ad-hoc query returned rows list
+      ansible.builtin.assert:
+        that:
+          - not result_query.changed
+          - result_query.rows is defined
+          - result_query.rows | type_debug == "list"
+
+    # ---------- check-mode create ----------
+    - name: Check-mode create (no view should be created)
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        name: "{{ view_name }}"
+        query_type: workspaces
+        query:
+          query_type: workspaces
+        state: present
+      check_mode: true
+      register: result_create_check
+
+    - name: Assert check-mode create reports change without creating
+      ansible.builtin.assert:
+        that:
+          - result_create_check.changed
+          - "'check mode' in result_create_check.msg"
+
+    # Verify that check-mode caused no state change.
+    - name: Verify explorer_info is still reachable after check-mode create
+      hashicorp.terraform.explorer_info:
+        organization: "{{ organization }}"
+        view_type: workspaces
+      register: result_post_check_create
+
+    - name: Assert no state change occurred during check-mode create
+      ansible.builtin.assert:
+        that:
+          - not result_post_check_create.changed
+          - result_post_check_create.rows is defined
+
+    # ---------- create ----------
+    - name: Create a workspaces saved view
+      hashicorp.terraform.explorer: &create_view
+        organization: "{{ organization }}"
+        name: "{{ view_name }}"
+        query_type: workspaces
+        query:
+          query_type: workspaces
+          filter:
+            - field: workspace_name
+              operator: contains
+              value:
+                - test
+        state: present
+      register: result_create
+
+    - name: Assert saved view creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == view_name
+          - result_create.query_type == "workspaces"
+
+    - name: Save view_id fact
+      ansible.builtin.set_fact:
+        view_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same saved view again
+      hashicorp.terraform.explorer: *create_view
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == view_id
+
+    # ---------- info: by id ----------
+    - name: Read the saved view by ID
+      hashicorp.terraform.explorer_info:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+      register: result_info_id
+
+    - name: Assert saved view info lookup returned the view
+      ansible.builtin.assert:
+        that:
+          - not result_info_id.changed
+          - result_info_id.saved_view.id == view_id
+          - result_info_id.saved_view.name == view_name
+          - result_info_id.rows is defined
+
+    # ---------- check-mode update ----------
+    - name: Check-mode rename (no update should be applied)
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        name: "{{ view_renamed }}"
+        query:
+          query_type: workspaces
+        state: present
+      check_mode: true
+      register: result_update_check
+
+    - name: Assert check-mode update reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_update_check.changed
+          - "'check mode' in result_update_check.msg"
+
+    - name: Confirm view name was not actually changed by check-mode
+      hashicorp.terraform.explorer_info:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+      register: result_after_check_update
+
+    - name: Assert name was NOT changed by check-mode update
+      ansible.builtin.assert:
+        that:
+          - result_after_check_update.saved_view.name == view_name
+
+    # ---------- update (rename) ----------
+    - name: Rename the saved view by ID
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        name: "{{ view_renamed }}"
+        query:
+          query_type: workspaces
+        state: present
+      register: result_update
+
+    - name: Assert rename was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.id == view_id
+          - result_update.name == view_renamed
+
+    - name: Idempotency test - apply the same rename again
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        name: "{{ view_renamed }}"
+        query:
+          query_type: workspaces
+        state: present
+      register: result_update_again
+
+    - name: Assert repeated rename was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+          - result_update_again.id == view_id
+          - result_update_again.name == view_renamed
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # Verify the view still exists after check-mode delete.
+    - name: Read saved view after check-mode delete to confirm it still exists
+      hashicorp.terraform.explorer_info:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+      register: result_after_check_delete
+
+    - name: Assert saved view is unchanged after check-mode delete
+      ansible.builtin.assert:
+        that:
+          - result_after_check_delete.saved_view.id == view_id
+          - result_after_check_delete.saved_view.name == view_renamed
+
+    # ---------- delete ----------
+    - name: Delete the saved view by ID
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same saved view again (no-op)
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        view_id: "{{ view_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete saved views by name (in case of mid-run failure)
+      hashicorp.terraform.explorer:
+        organization: "{{ organization }}"
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ view_name | default('') }}"
+        - "{{ view_renamed | default('') }}"
+      when: item | length > 0
+      failed_when: false

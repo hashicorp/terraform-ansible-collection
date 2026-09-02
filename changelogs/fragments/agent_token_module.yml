@@ -1,0 +1,8 @@
+---
+minor_changes:
+  - >-
+    agent_token - new module to manage Terraform Cloud/Enterprise agent pool
+    authentication tokens.
+  - >-
+    agent_token_info - new module to retrieve information about Terraform
+    Cloud/Enterprise agent pool authentication tokens.

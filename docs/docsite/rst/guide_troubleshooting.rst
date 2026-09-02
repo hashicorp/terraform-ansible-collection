@@ -24,9 +24,9 @@ the task. Because modules run on the play's host, that interpreter is usually th
 
    # confirm which interpreter Ansible uses, then install into it
    ansible localhost -m ansible.builtin.setup -a 'filter=ansible_python_version'
-   python -m pip install 'pytfe>=1.2.0'
+   python -m pip install 'pytfe>=1.4.1'
 
-In an execution environment, add ``pytfe>=1.2.0`` to the EE's Python requirements — see
+In an execution environment, add ``pytfe>=1.4.1`` to the EE's Python requirements — see
 :ref:`ansible_collections.hashicorp.terraform.docsite.guide_execution_environments`.
 
 .. _ansible_collections.hashicorp.terraform.docsite.guide_troubleshooting.auth:

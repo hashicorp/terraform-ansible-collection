@@ -1,0 +1,260 @@
+---
+# Exercises tf_policy_evaluation_info and tf_policy_evaluation end to end
+# against a live HCP Terraform org: creates a kind=tfpolicy policy set,
+# uploads the mandatory_overridable_scen_8 policy, attaches it to a fresh
+# workspace on a tf-policy-compatible Terraform version, triggers a run that
+# violates the policy, waits for the Plan-stage evaluation to reach
+# awaiting_override, then overrides it.
+#
+# tf-policy is HCP Terraform only and requires a Terraform CLI version the
+# org has tf-policy support enabled for - see
+# .push/docs/tf-policy-manual-testing-hcp.md for the full manual walkthrough
+# and the gotchas this target works around (flat policy-tarball layout,
+# serial run queue, workspace Terraform version).
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tf_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id1: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 600
+
+    - name: Generate unique workspace and policy set names
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id1 }}-tfpolicy-ws"
+        policy_set_name: "{{ unique_id1 }}-tfpolicy-set"
+
+    - name: Create a kind=tfpolicy policy set
+      hashicorp.terraform.policy_set:
+        organization: "{{ organization }}"
+        name: "{{ policy_set_name }}"
+        kind: tfpolicy
+        policy_tool_version: "0.1.0"
+        agent_enabled: true
+        overridable: true
+        state: present
+      register: policy_set_result
+
+    - name: Assert the policy set was created with kind=tfpolicy
+      ansible.builtin.assert:
+        that:
+          - policy_set_result.changed
+          - policy_set_result.kind == "tfpolicy"
+
+    - name: Upload the mandatory_overridable_scen_8 policy
+      hashicorp.terraform.policy_set_version:
+        policy_set_id: "{{ policy_set_result.id }}"
+        policy_files_path: "{{ role_path }}/files"
+        poll_interval: 3
+        poll_timeout: 60
+      register: policy_version_result
+
+    - name: Assert the policy set version became ready
+      ansible.builtin.assert:
+        that:
+          - policy_version_result.status == "ready"
+
+    - name: Create a Terraform workspace on a tf-policy-compatible Terraform version
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        terraform_version: "1.16.0-alpha20260626"
+        state: present
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.id }}"
+
+    - name: Attach the workspace to the tf-policy policy set
+      hashicorp.terraform.policy_set:
+        policy_set_id: "{{ policy_set_result.id }}"
+        workspace_ids:
+          - "{{ workspace_id }}"
+        state: present
+      register: policy_set_attach_result
+
+    - name: Assert the workspace was attached
+      ansible.builtin.assert:
+        that:
+          - policy_set_attach_result.changed
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration with a tf-policy violation
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: cv_result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - cv_result.changed
+          - cv_result.status == "uploaded"
+
+    - name: Create a new run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "tf_policy_evaluation_info integration test"
+        state: "present"
+        configuration_version: "{{ cv_result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_result
+
+    - name: Assert the run reached a post-plan status
+      ansible.builtin.assert:
+        that:
+          - run_result.changed
+          - >-
+            run_result.status in
+            ["planned", "planned_and_finished", "post_plan_completed", "tf_policy_override"]
+
+    - name: Wait for the Plan-stage tf-policy evaluation to reach a terminal status
+      hashicorp.terraform.tf_policy_evaluation_info:
+        run_id: "{{ run_result.id }}"
+        include_outcomes: true
+      register: posture
+      until: >-
+        posture.evaluations
+        | selectattr('stage_type', 'eq', 'Plan')
+        | map(attribute='status')
+        | list
+        | select('in', ['awaiting_override', 'passed', 'failed', 'errored'])
+        | list
+        | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Set a fact for the Plan-stage evaluation
+      ansible.builtin.set_fact:
+        plan_evaluation: "{{ posture.evaluations | selectattr('stage_type', 'eq', 'Plan') | first }}"
+
+    - name: Assert the evaluation reached awaiting_override with the expected outcome
+      ansible.builtin.assert:
+        that:
+          - plan_evaluation.id is match("^tfpeval-")
+          - plan_evaluation.status == "awaiting_override"
+          - plan_evaluation.result_count.mandatory_failed == 1
+          - >-
+            plan_evaluation.set_outcomes
+            | map(attribute='outcomes')
+            | flatten
+            | selectattr('enforcement_level', 'eq', 'mandatory_overridable')
+            | list
+            | length > 0
+
+    - name: Read the same evaluation directly by evaluation_id
+      hashicorp.terraform.tf_policy_evaluation_info:
+        evaluation_id: "{{ plan_evaluation.id }}"
+      register: single_evaluation
+
+    - name: Assert the direct read matches
+      ansible.builtin.assert:
+        that:
+          - single_evaluation.evaluation.id == plan_evaluation.id
+          - single_evaluation.evaluation.status == "awaiting_override"
+
+    - name: Filter set outcomes to only failed / mandatory_overridable
+      hashicorp.terraform.tf_policy_evaluation_info:
+        evaluation_id: "{{ plan_evaluation.id }}"
+        include_outcomes: true
+        filter:
+          status: failed
+          enforcement_level: mandatory_overridable
+      register: filtered_evaluation
+
+    - name: Assert the filtered outcomes are non-empty and match the filter
+      ansible.builtin.assert:
+        that:
+          - filtered_evaluation.evaluation.set_outcomes | length > 0
+
+    - name: Check mode for overriding the evaluation
+      hashicorp.terraform.tf_policy_evaluation:
+        evaluation_id: "{{ plan_evaluation.id }}"
+        comment: "check mode - should not write"
+      check_mode: true
+      register: check_mode_override
+
+    - name: Assert check mode reported changed without writing
+      ansible.builtin.assert:
+        that:
+          - check_mode_override.changed
+          - "'check mode' in check_mode_override.msg"
+
+    - name: Confirm check mode did not actually override
+      hashicorp.terraform.tf_policy_evaluation_info:
+        evaluation_id: "{{ plan_evaluation.id }}"
+      register: posture_after_check_mode
+
+    - name: Assert the evaluation is still awaiting_override after check mode
+      ansible.builtin.assert:
+        that:
+          - posture_after_check_mode.evaluation.status == "awaiting_override"
+
+    - name: Override the mandatory_overridable failure
+      hashicorp.terraform.tf_policy_evaluation:
+        evaluation_id: "{{ plan_evaluation.id }}"
+        comment: "integration test override"
+      register: override_result
+
+    - name: Assert the override succeeded
+      ansible.builtin.assert:
+        that:
+          - override_result.changed
+          - override_result.status == "overridden"
+
+    - name: Re-run the override - should now be a no-op
+      hashicorp.terraform.tf_policy_evaluation:
+        evaluation_id: "{{ plan_evaluation.id }}"
+        comment: "integration test override"
+      register: override_result_again
+
+    - name: Assert the second override is idempotent
+      ansible.builtin.assert:
+        that:
+          - not override_result_again.changed
+          - "'already in status' in override_result_again.msg"
+
+  always:
+    - name: Best-effort cleanup - discard the run if still open
+      hashicorp.terraform.run:
+        run_id: "{{ run_result.id }}"
+        state: "discarded"
+        poll: false
+      when: run_result is defined and run_result.id is defined
+      failed_when: false
+
+    - name: Best-effort cleanup - delete the workspace
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: absent
+      when: workspace_name is defined
+      failed_when: false
+
+    - name: Best-effort cleanup - delete the policy set
+      hashicorp.terraform.policy_set:
+        policy_set_id: "{{ policy_set_result.id }}"
+        state: absent
+      when: policy_set_result is defined and policy_set_result.id is defined
+      failed_when: false

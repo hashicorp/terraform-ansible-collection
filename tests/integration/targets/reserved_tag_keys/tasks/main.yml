@@ -1,0 +1,136 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique reserved tag key names
+      ansible.builtin.set_fact:
+        rtk_key_name: "rtk-test-{{ unique_id[:8] }}"
+        rtk_key_renamed: "rtk-renamed-{{ unique_id[:8] }}"
+
+    # ---------- create ----------
+    - name: Create a reserved tag key
+      hashicorp.terraform.reserved_tag_keys: &create_rtk
+        organization: "{{ organization }}"
+        key: "{{ rtk_key_name }}"
+        disable_overrides: true
+        state: present
+      register: result_create
+
+    - name: Assert reserved tag key creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.key == rtk_key_name
+          - result_create.disable_overrides is true
+
+    - name: Save reserved_tag_key_id fact
+      ansible.builtin.set_fact:
+        reserved_tag_key_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same reserved tag key again
+      hashicorp.terraform.reserved_tag_keys: *create_rtk
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == reserved_tag_key_id
+          - result_create_again.key == rtk_key_name
+
+    # ---------- update ----------
+    - name: Update reserved tag key - disable_overrides to false
+      hashicorp.terraform.reserved_tag_keys:
+        reserved_tag_key_id: "{{ reserved_tag_key_id }}"
+        disable_overrides: false
+        state: present
+      register: result_update
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.id == reserved_tag_key_id
+          - result_update.disable_overrides is false
+
+    # ---------- idempotent re-update (via org+key — ID-only cannot be idempotent without read()) ----------
+    - name: Idempotency test - re-run with same settings via org+key
+      hashicorp.terraform.reserved_tag_keys:
+        organization: "{{ organization }}"
+        key: "{{ rtk_key_name }}"
+        disable_overrides: false
+        state: present
+      register: result_update_again
+
+    - name: Assert re-update via org+key was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+          - result_update_again.id == reserved_tag_key_id
+          - result_update_again.disable_overrides is false
+
+    # ---------- delete ----------
+    - name: Delete the reserved tag key in check mode
+      hashicorp.terraform.reserved_tag_keys:
+        reserved_tag_key_id: "{{ reserved_tag_key_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_delete
+
+    - name: Assert check mode delete shows changed=true
+      ansible.builtin.assert:
+        that:
+          - result_check_delete.changed
+          - "'check mode' in result_check_delete.msg"
+
+    - name: Delete the reserved tag key
+      hashicorp.terraform.reserved_tag_keys:
+        reserved_tag_key_id: "{{ reserved_tag_key_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert deletion was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted successfully' in result_delete.msg"
+
+    # ---------- idempotent delete ----------
+    - name: Idempotency test - delete the same reserved tag key again
+      hashicorp.terraform.reserved_tag_keys:
+        reserved_tag_key_id: "{{ reserved_tag_key_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert re-delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'already absent' in result_delete_again.msg"
+
+  always:
+    - name: Best-effort cleanup - delete reserved tag key if present
+      hashicorp.terraform.reserved_tag_keys:
+        organization: "{{ organization }}"
+        key: "{{ rtk_key_name }}"
+        state: absent
+      failed_when: false
+      register: cleanup_result
+      when: rtk_key_name is defined
+
+    - name: Best-effort cleanup - delete renamed reserved tag key if present
+      hashicorp.terraform.reserved_tag_keys:
+        organization: "{{ organization }}"
+        key: "{{ rtk_key_renamed }}"
+        state: absent
+      failed_when: false
+      when: rtk_key_renamed is defined

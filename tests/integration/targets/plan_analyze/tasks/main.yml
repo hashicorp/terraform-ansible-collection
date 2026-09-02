@@ -1,0 +1,281 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        poll_interval: 10
+        poll_timeout: 300
+
+    - name: Generate unique workspace name
+      ansible.builtin.set_fact:
+        workspace_name: "{{ unique_id }}-plan-analyze-workspace"
+
+    - name: Create a Terraform workspace with unique name
+      hashicorp.terraform.workspace:
+        workspace: "{{ workspace_name }}"
+        organization: "{{ organization }}"
+        state: present
+      register: workspace_create_response
+
+    - name: Set a fact for 'workspace_id'
+      ansible.builtin.set_fact:
+        workspace_id: "{{ workspace_create_response.id }}"
+
+    - name: Create temporary directory to store main.tf configuration
+      ansible.builtin.tempfile:
+        state: directory
+      register: temp_dir
+
+    - name: Generate Terraform configuration
+      ansible.builtin.template:
+        src: "main.tf.j2"
+        dest: "{{ temp_dir.path }}/main.tf"
+        mode: "0644"
+
+    - name: Create configuration version with auto_queue_runs to false
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ temp_dir.path }}"
+        auto_queue_runs: false
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+        state: present
+      register: config_version_result
+
+    - name: Assert create and upload success
+      ansible.builtin.assert:
+        that:
+          - config_version_result.changed
+          - config_version_result.status == "uploaded"
+
+    - name: Create a new run to produce a plan
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "plan for plan_analyze testing"
+        state: "present"
+        configuration_version: "{{ config_version_result.id }}"
+        poll: true
+        poll_interval: "{{ poll_interval }}"
+        poll_timeout: "{{ poll_timeout }}"
+      register: run_result
+
+    - name: Assert run was created and planned
+      ansible.builtin.assert:
+        that:
+          - run_result.changed
+          - run_result.status in ["planned", "planned_and_finished", "post_plan_completed"]
+
+    - name: Get plan_id from run relationships
+      ansible.builtin.set_fact:
+        plan_id: "{{ run_result.plan.id }}"
+
+    # --- Analyze by run_id (default: empty rule sets -> everything safe) --
+    - name: Analyze plan by run_id
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ run_result.id }}"
+      register: analyze_by_run
+
+    - name: Assert analyze by run_id defaults to safe with no rules supplied
+      ansible.builtin.assert:
+        that:
+          - analyze_by_run.changed == false
+          - analyze_by_run.has_changes
+          - analyze_by_run.change_count == 1
+          - analyze_by_run.resource_changes | length == 1
+          - analyze_by_run.resource_changes[0].source == "resource_changes"
+          - analyze_by_run.resource_changes[0].classification == "safe"
+          - analyze_by_run.summary.safe == 1
+          - '"triggers.ami" in analyze_by_run.resource_changes[0].changed_attributes'
+          - '"id" in analyze_by_run.resource_changes[0].unknown_attributes'
+        fail_msg: "plan_analyze should default to a safe/fail-closed classification with no rules supplied"
+
+    # --- Analyze by plan_id, with explicit canonical-target rules ---------
+    - name: Analyze plan by plan_id with explicit blocked rule
+      hashicorp.terraform.plan_analyze:
+        plan_id: "{{ plan_id }}"
+        blocked_attributes:
+          - "null_resource.*.triggers.ami"
+        risky_attributes:
+          - "null_resource.*.triggers.instance_type"
+      register: analyze_by_plan
+
+    - name: Assert analyze by plan_id classifies the create as blocked
+      ansible.builtin.assert:
+        that:
+          - analyze_by_plan.change_count == 1
+          - analyze_by_plan.resource_changes[0].classification == "blocked"
+          - analyze_by_plan.summary.blocked == 1
+
+    - name: Analyze plan using the 'id' alias
+      hashicorp.terraform.plan_analyze:
+        id: "{{ plan_id }}"
+        blocked_attributes:
+          - "null_resource.*.triggers.ami"
+      register: analyze_by_alias
+
+    - name: Assert 'id' alias works
+      ansible.builtin.assert:
+        that:
+          - analyze_by_alias.resource_changes[0].classification == "blocked"
+
+    # --- Custom classification overrides ----------------------------------
+    - name: Analyze with explicit empty classification lists (everything safe)
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ run_result.id }}"
+        safe_attributes: []
+        risky_attributes: []
+        blocked_attributes: []
+      register: analyze_custom
+
+    - name: Assert unmatched attributes default to safe
+      ansible.builtin.assert:
+        that:
+          - analyze_custom.resource_changes[0].classification == "safe"
+          - analyze_custom.summary.safe == 1
+          - analyze_custom.summary.blocked == 0
+
+    # --- include_values masking / passthrough -----------------------------
+    - name: Analyze with include_values enabled
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ run_result.id }}"
+        include_values: true
+      register: analyze_values
+
+    - name: Assert values are returned when requested
+      ansible.builtin.assert:
+        that:
+          - analyze_values.resource_changes[0].after.triggers.instance_type == "t2.micro"
+
+    # --- Toggling drift / resource-change walking -------------------------
+    - name: Analyze with drift and resource changes disabled
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ run_result.id }}"
+        detect_drift: false
+        include_resource_changes: false
+      register: analyze_none
+
+    - name: Assert nothing is analyzed when both sources are disabled
+      ansible.builtin.assert:
+        that:
+          - analyze_none.change_count == 0
+          - analyze_none.drift_count == 0
+          - analyze_none.has_changes == false
+          - analyze_none.resource_changes | length == 0
+
+    # --- Inline plan_json (offline, no API) -------------------------------
+    - name: Analyze an inline plan JSON document with explicit rules
+      hashicorp.terraform.plan_analyze:
+        plan_json:
+          format_version: "1.2"
+          resource_changes:
+            - address: "aws_instance.app"
+              type: "aws_instance"
+              name: "app"
+              provider_name: "registry.terraform.io/hashicorp/aws"
+              mode: "managed"
+              change:
+                actions: ["update"]
+                before:
+                  instance_type: "t2.micro"
+                  tags:
+                    role: "web"
+                after:
+                  instance_type: "t3.small"
+                  tags:
+                    role: "db"
+        risky_attributes:
+          - "aws_instance.*.instance_type"
+      register: analyze_inline
+
+    - name: Assert inline analysis classifies instance_type change as risky
+      ansible.builtin.assert:
+        that:
+          - analyze_inline.change_count == 1
+          - analyze_inline.resource_changes[0].classification == "risky"
+          - analyze_inline.summary.risky == 1
+          - '"instance_type" in analyze_inline.resource_changes[0].changed_attributes'
+          - '"tags.role" in analyze_inline.resource_changes[0].changed_attributes'
+
+    # --- Error handling / warnings -----------------------------------------
+    - name: Analyze an unrecognized plan format_version (warns, does not fail)
+      hashicorp.terraform.plan_analyze:
+        plan_json:
+          format_version: "2.0"
+      register: analyze_bad_version
+
+    - name: Assert unrecognized version warns and proceeds best-effort
+      ansible.builtin.assert:
+        that:
+          - analyze_bad_version is not failed
+          - analyze_bad_version.resource_changes == []
+          - analyze_bad_version.warnings | default([]) | select('search', '2.0') | list | length > 0
+        fail_msg: "An unrecognized format_version should warn and proceed, not fail"
+
+    - name: Analyze with an invalid plan_id
+      hashicorp.terraform.plan_analyze:
+        plan_id: "plan-invalid123"
+      ignore_errors: true
+      register: analyze_invalid
+
+    - name: Assert invalid plan_id fails
+      ansible.builtin.assert:
+        that:
+          - analyze_invalid is failed
+
+    - name: Call plan_analyze with no source (required_one_of)
+      hashicorp.terraform.plan_analyze: {}
+      ignore_errors: true
+      register: analyze_no_source
+
+    - name: Assert missing source fails
+      ansible.builtin.assert:
+        that:
+          - analyze_no_source is failed
+
+    - name: Call plan_analyze with mutually exclusive sources
+      hashicorp.terraform.plan_analyze:
+        run_id: "{{ run_result.id }}"
+        plan_id: "{{ plan_id }}"
+      ignore_errors: true
+      register: analyze_conflict
+
+    - name: Assert mutually exclusive sources fail
+      ansible.builtin.assert:
+        that:
+          - analyze_conflict is failed
+          - '"mutually exclusive" in analyze_conflict.msg'
+
+  always:
+    - name: Cancel any active runs
+      hashicorp.terraform.run:
+        run_id: "{{ run_result.id | default('') }}"
+        state: canceled
+      when: run_result.id is defined
+      failed_when: false
+
+    - name: Force unlock workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: unlocked
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Delete workspace
+      hashicorp.terraform.workspace:
+        workspace_id: "{{ workspace_id }}"
+        state: absent
+        force: true
+      when: workspace_id is defined
+      failed_when: false
+
+    - name: Clean up config directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined

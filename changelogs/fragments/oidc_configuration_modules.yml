@@ -1,0 +1,11 @@
+minor_changes:
+  - >-
+    Added ``aws_oidc_configuration``, ``azure_oidc_configuration``, ``gcp_oidc_configuration``,
+    and ``vault_oidc_configuration`` modules (each with an ``_info`` companion) to manage the
+    HCP Terraform-side OIDC configuration record HYOK uses to authenticate to a customer KMS -
+    most commonly as the ``oidc_configuration_id`` dependency of ``hyok_configuration``. None
+    of the four create or manage cloud-side IAM/service-principal/workload-identity resources,
+    only the HCP Terraform configuration record. Since the underlying API has no ``list``
+    endpoint and the record has no ``name`` field, ``state=present`` is only idempotent when
+    ``oidc_configuration_id`` is supplied (read+diff+update); without it, every run creates a
+    new record - documented explicitly in each module rather than silently duplicating.

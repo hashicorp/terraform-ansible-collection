@@ -1,0 +1,12 @@
+---
+- name: Test registry_module integration target locally
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Prepare Terraform Cloud credentials
+      ansible.builtin.include_tasks:
+        file: targets/prepare_tfc/tasks/main.yml
+
+    - name: Run registry module integration tests
+      ansible.builtin.include_tasks:
+        file: targets/registry_module/tasks/main.yml

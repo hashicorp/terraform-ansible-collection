@@ -1,0 +1,31 @@
+terraform {
+  required_version = ">= 1.2.0"
+
+  cloud {
+    organization = "{{ organization }}"
+    hostname     = "app.terraform.io"
+    workspaces {
+      name = "{{ workspace_name }}"
+    }
+  }
+}
+
+# A cloud-credential-free resource whose trigger keys let plan_analyze be
+# exercised end-to-end without a real cloud provider. classification is
+# descriptive-only and defaults to empty (fail-closed) rule sets, so the
+# integration tasks below pass explicit canonical-target rules
+# (e.g. "null_resource.*.triggers.ami") to exercise each classification tier:
+#   * ami           -> classified blocked when an explicit rule is supplied
+#   * instance_type -> classified risky when an explicit rule is supplied
+#   * role          -> unmatched, always defaults to "safe"
+resource "null_resource" "web" {
+  triggers = {
+    ami           = "ami-12345678"
+    instance_type = "t2.micro"
+    role          = "web"
+  }
+}
+
+output "web_id" {
+  value = null_resource.web.id
+}

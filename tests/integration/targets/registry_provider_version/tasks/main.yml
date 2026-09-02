@@ -1,0 +1,179 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+        unique_epoch: "{{ lookup('pipe', 'date +%s') }}"
+
+    - name: Set test variables
+      ansible.builtin.set_fact:
+        test_provider_name: "registry-provider-{{ unique_id[:8] | lower }}"
+        test_provider_namespace: "{{ organization }}"
+        test_key_id: "TESTKEY1234567890"
+        test_version: "{{ unique_epoch }}.0.0"
+
+    # ---------- prerequisites: create a provider ----------
+    - name: Create a registry provider
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        registry_name: "private"
+        state: present
+      register: result_provider_create
+
+    - name: Assert registry provider creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_provider_create.changed
+          - result_provider_create.id is defined
+
+    - name: Record whether provider was newly created
+      ansible.builtin.set_fact:
+        provider_newly_created: "{{ result_provider_create.changed }}"
+
+    # ---------- create ----------
+    - name: Create a registry provider version
+      hashicorp.terraform.registry_provider_version: &create_version
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+        key_id: "{{ test_key_id }}"
+        protocols:
+          - "5.0"
+        state: present
+      register: result_create
+
+    - name: Assert registry provider version creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.version == test_version
+          - result_create.key_id == test_key_id
+          - "'5.0' in result_create.protocols"
+
+    - name: Save registry_provider_version_id fact
+      ansible.builtin.set_fact:
+        registry_provider_version_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same registry provider version again
+      hashicorp.terraform.registry_provider_version: *create_version
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == registry_provider_version_id
+
+    # ---------- info: by version ----------
+    - name: Read the registry provider version
+      hashicorp.terraform.registry_provider_version_info:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+      register: result_info
+
+    - name: Assert info lookup returned the version
+      ansible.builtin.assert:
+        that:
+          - result_info.registry_provider_version.id == registry_provider_version_id
+          - result_info.registry_provider_version.version == test_version
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete registry provider version
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # Confirm the version still exists after check-mode delete
+    - name: Read version again to confirm it still exists
+      hashicorp.terraform.registry_provider_version_info:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+      register: result_still_exists
+
+    - name: Assert version was not actually deleted in check mode
+      ansible.builtin.assert:
+        that:
+          - result_still_exists.registry_provider_version.id == registry_provider_version_id
+
+    # ---------- delete ----------
+    - name: Delete the registry provider version
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    # ---------- idempotent delete ----------
+    - name: Delete the same registry provider version again (no-op)
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace }}"
+        name: "{{ test_provider_name }}"
+        version: "{{ test_version }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete registry provider version (in case of mid-run failure)
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ test_provider_namespace | default('') }}"
+        name: "{{ test_provider_name | default('') }}"
+        version: "{{ test_version | default('') }}"
+        state: absent
+      when:
+        - test_provider_name | default('') | length > 0
+        - test_version | default('') | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the provider (only if we created it)
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ test_provider_namespace | default('') }}"
+        name: "{{ test_provider_name | default('') }}"
+        registry_name: "private"
+        state: absent
+      when:
+        - provider_newly_created is defined
+        - provider_newly_created
+        - test_provider_name | default('') | length > 0
+      failed_when: false

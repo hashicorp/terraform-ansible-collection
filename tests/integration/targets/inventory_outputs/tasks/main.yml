@@ -151,6 +151,58 @@
           not composed correctly — got: {{ item.value }}
       loop: "{{ inv_list._meta.hostvars | dict2items }}"
 
+    # ── Inventory test: hostvars include/exclude shaping ───────────────────────
+
+    - name: Write inventory config with hostvars shaping (outputs)
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_hostvars.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.tfc_inv
+          source: outputs
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          hosts_from:
+            output: hosts_list
+            type: list(object)
+          hostnames:
+            - name
+          hostvars:
+            include:
+              - server_ip
+          compose:
+            ansible_host: server_ip
+
+    - name: Run ansible-inventory with hostvars shaping (outputs)
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_hostvars.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_hostvars.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+        TFE_TOKEN: "{{ tfc_token }}"
+      changed_when: false
+
+    - name: Load inventory JSON (hostvars shaping, outputs)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_hostvars.json"
+        name: inv_hostvars
+
+    - name: Assert shaping keeps only included var while hostname uses full data
+      ansible.builtin.assert:
+        that:
+          # only server_ip emitted from the object fields
+          - item.value.server_ip is defined
+          - item.value.name is not defined
+          - item.value.host_index is not defined
+          # hostname still resolved from the EXCLUDED 'name' field
+          - item.key is match('^host-')
+          # ansible_host still composed from server_ip (included)
+          - item.value.ansible_host == item.value.server_ip
+        fail_msg: "hostvars shaping (outputs) failed for {{ item.key }} — got: {{ item.value }}"
+      loop: "{{ inv_hostvars._meta.hostvars | dict2items }}"
+
     # ── Inventory test: scalar output via hosts_from ───────────────────────────
 
     - name: Write inventory config for scalar output

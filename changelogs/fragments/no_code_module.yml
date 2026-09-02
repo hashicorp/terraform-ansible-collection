@@ -1,0 +1,7 @@
+minor_changes:
+  - >-
+    no_code_module - new module to manage Terraform Cloud/Enterprise no-code
+    provisioning modules.
+  - >-
+    no_code_module_info - new module to retrieve information about Terraform
+    Cloud/Enterprise no-code provisioning modules.

@@ -1,0 +1,179 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    # ---------- pre-flight ----------
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique stack and project names
+      ansible.builtin.set_fact:
+        stack_name: "stack-configuration-test-{{ unique_id[:8] }}"
+        project_name: "stack-configuration-project-{{ unique_id[:8] }}"
+
+    - name: Create a Terraform project for the stack
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        name: "{{ project_name }}"
+        state: present
+      register: result_project
+
+    - name: Save project_id fact
+      ansible.builtin.set_fact:
+        project_id: "{{ result_project.id }}"
+
+    - name: Create a temporary stack linked to the project
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        project_id: "{{ result_project.id }}"
+        description: "Integration test stack"
+        state: present
+      register: result_stack
+
+    - name: Save stack_id fact
+      ansible.builtin.set_fact:
+        stack_id: "{{ result_stack.id }}"
+
+    # ---------- create ----------
+    - name: Create a stack configuration (manual, non-speculative)
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: manual
+        speculative_enabled: false
+        destroy_all: false
+        state: present
+      register: result_create
+
+    - name: Assert creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.id is match("^stc-")
+          - result_create.status in ["pending", "queued", "preparing", "completed", "failed"]
+          - result_create.sequence_number is defined
+          - result_create.sequence_number | int >= 1
+          - result_create.speculative == false
+          - result_create.created_at is defined
+
+    - name: Save created stack configuration ID
+      ansible.builtin.set_fact:
+        stack_configuration_id: "{{ result_create.id }}"
+
+    # Stack configurations are append-only — every state: present call creates a new snapshot.
+    # This is intentional API design, not a bug. Verify it explicitly.
+    - name: Create a second stack configuration (append-only verification)
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: manual
+        speculative_enabled: false
+        destroy_all: false
+        state: present
+      register: result_create_second
+
+    - name: Assert second create produced a new snapshot (changed=true, new ID)
+      ansible.builtin.assert:
+        that:
+          - result_create_second.changed
+          - result_create_second.id is defined
+          - result_create_second.id != stack_configuration_id
+          - result_create_second.sequence_number | int > result_create.sequence_number | int
+          - result_create_second.speculative == false
+
+    # ---------- read by id ----------
+    - name: Read the created stack configuration by ID
+      hashicorp.terraform.stack_configuration_info:
+        stack_configuration_id: "{{ stack_configuration_id }}"
+      register: result_read
+
+    - name: Assert read returns the correct configuration
+      ansible.builtin.assert:
+        that:
+          - not result_read.changed
+          - result_read.stack_configuration.id == stack_configuration_id
+          - result_read.stack_configuration.status in ["pending", "queued", "preparing", "completed", "failed"]
+          - result_read.stack_configuration.sequence_number | int >= 1
+          - result_read.stack_configuration.speculative == false
+          - result_read.stack_configuration.created_at is defined
+          - result_read.stack_configuration.updated_at is defined
+
+    # ---------- check-mode create ----------
+    - name: Check-mode create (no configuration is actually created)
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: manual
+        speculative_enabled: true
+        state: present
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports changed without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+          - result_check_mode.id is not defined
+
+    # ---------- create speculative ----------
+    - name: Create a speculative stack configuration
+      hashicorp.terraform.stack_configuration:
+        stack_id: "{{ stack_id }}"
+        source: manual
+        speculative_enabled: true
+        state: present
+      register: result_speculative
+
+    - name: Assert speculative configuration was created
+      ansible.builtin.assert:
+        that:
+          - result_speculative.changed
+          - result_speculative.id is defined
+          - result_speculative.id is match("^stc-")
+          - result_speculative.id != stack_configuration_id
+          - result_speculative.speculative == true
+
+    - name: Save speculative stack configuration ID
+      ansible.builtin.set_fact:
+        stack_configuration_id_speculative: "{{ result_speculative.id }}"
+
+    # ---------- not found ----------
+    - name: Read a non-existent stack configuration ID (expected to fail)
+      hashicorp.terraform.stack_configuration_info:
+        stack_configuration_id: "stc-0000000000000000"
+      register: result_not_found
+      ignore_errors: true
+
+    - name: Assert lookup of non-existent ID fails gracefully
+      ansible.builtin.assert:
+        that:
+          - result_not_found.failed
+          - result_not_found.msg is defined
+          - "'not found' in result_not_found.msg | lower"
+
+  always:
+    - name: Log created stack configuration IDs for reference
+      ansible.builtin.debug:
+        msg: >-
+          Created stack configuration IDs (immutable, cannot be deleted):
+          manual={{ stack_configuration_id | default('none') }},
+          speculative={{ stack_configuration_id_speculative | default('none') }}
+      failed_when: false
+
+    - name: Cleanup - best-effort delete stack by ID
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        state: absent
+      when: stack_id is defined
+      failed_when: false
+
+    - name: Cleanup - best-effort delete project
+      hashicorp.terraform.project:
+        project_id: "{{ project_id }}"
+        state: absent
+      when: project_id is defined
+      failed_when: false

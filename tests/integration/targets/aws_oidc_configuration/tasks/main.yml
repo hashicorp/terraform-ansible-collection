@@ -1,0 +1,116 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    # ---------- create (no oidc_configuration_id => always creates) ----------
+    - name: Create an AWS OIDC configuration
+      hashicorp.terraform.aws_oidc_configuration:
+        organization: "{{ organization }}"
+        role_arn: "arn:aws:iam::111122223333:role/tfc-test-{{ unique_id[:8] }}"
+        state: present
+      register: result_create
+
+    - name: Assert AWS OIDC configuration creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.role_arn == "arn:aws:iam::111122223333:role/tfc-test-" + unique_id[:8]
+
+    - name: Save oidc_configuration_id fact
+      ansible.builtin.set_fact:
+        aws_oidc_configuration_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-apply, identified by ID ----------
+    - name: Idempotency test - re-apply the same role_arn by ID
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        role_arn: "arn:aws:iam::111122223333:role/tfc-test-{{ unique_id[:8] }}"
+        state: present
+      register: result_reapply
+
+    - name: Assert re-apply was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_reapply.changed
+          - result_reapply.id == aws_oidc_configuration_id
+
+    # ---------- update on drift, identified by ID ----------
+    - name: Update the role_arn by ID
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        role_arn: "arn:aws:iam::111122223333:role/tfc-test-{{ unique_id[:8] }}-updated"
+        state: present
+      register: result_update
+
+    - name: Assert update was applied
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.role_arn == "arn:aws:iam::111122223333:role/tfc-test-" + unique_id[:8] + "-updated"
+
+    # ---------- info lookup ----------
+    - name: Look up the AWS OIDC configuration by ID
+      hashicorp.terraform.aws_oidc_configuration_info:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+      register: result_info
+
+    - name: Assert info matches the updated configuration
+      ansible.builtin.assert:
+        that:
+          - result_info.oidc_configuration.id == aws_oidc_configuration_id
+          - result_info.oidc_configuration.role_arn == result_update.role_arn
+
+    # ---------- check-mode absent ----------
+    - name: Check-mode delete
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- absent ----------
+    - name: Delete the AWS OIDC configuration
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same AWS OIDC configuration again (no-op)
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the AWS OIDC configuration (in case of mid-run failure)
+      hashicorp.terraform.aws_oidc_configuration:
+        oidc_configuration_id: "{{ aws_oidc_configuration_id }}"
+        state: absent
+      when: aws_oidc_configuration_id is defined
+      failed_when: false

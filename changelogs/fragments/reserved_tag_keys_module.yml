@@ -1,0 +1,4 @@
+minor_changes:
+  - >-
+    reserved_tag_keys - New module to create, update, and delete Terraform
+    Cloud/Enterprise reserved tag keys.

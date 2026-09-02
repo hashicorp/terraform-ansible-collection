@@ -144,6 +144,59 @@
         fail_msg: "Host {{ item.key }} missing triggers.server_ip — got hostvars: {{ item.value }}"
       loop: "{{ inv_data._meta.hostvars | dict2items }}"
 
+    # ── Inventory test: hostvars include/exclude shaping ───────────────────────
+
+    - name: Write inventory config with hostvars shaping
+      ansible.builtin.copy:
+        dest: "{{ temp_dir.path }}/inventory_hostvars.terraform_inventory.yml"
+        mode: "0644"
+        content: |
+          plugin: hashicorp.terraform.tfc_inv
+          source: statefile
+          workspace_id: {{ workspace_id }}
+          tfe_token: {{ tfc_token }}
+          provider_mapping:
+            - provider_name: registry.terraform.io/hashicorp/null
+              types:
+                - null_resource
+          hostvars:
+            include:
+              - id
+              - triggers
+            exclude:
+              - triggers
+          compose:
+            ansible_host: triggers.server_ip
+
+    - name: Run ansible-inventory with hostvars shaping
+      ansible.builtin.shell: >-
+        ansible-inventory
+        -i "{{ temp_dir.path }}/inventory_hostvars.terraform_inventory.yml"
+        --list
+        > "{{ temp_dir.path }}/inv_hostvars.json"
+      environment:
+        ANSIBLE_COLLECTIONS_PATHS: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATHS') }}"
+      changed_when: false
+
+    - name: Load inventory JSON (hostvars shaping)
+      ansible.builtin.include_vars:
+        file: "{{ temp_dir.path }}/inv_hostvars.json"
+        name: inv_hostvars_data
+
+    - name: Assert shaping trims emitted vars but compose still resolves full data
+      ansible.builtin.assert:
+        that:
+          # id kept (in include, not excluded)
+          - item.value['id'] is defined
+          # triggers dropped: exclude wins over include
+          - item.value['triggers'] is not defined
+          # compose resolved ansible_host from the EXCLUDED triggers.server_ip,
+          # proving compose/groups see the full unshaped data
+          - item.value['ansible_host'] is defined
+          - item.value['ansible_host'] is match('10\\.0\\.0\\.[0-9]+')
+        fail_msg: "hostvars shaping failed for {{ item.key }} — got: {{ item.value }}"
+      loop: "{{ inv_hostvars_data._meta.hostvars | dict2items }}"
+
     # ── Inventory test: without provider_mapping (null_resource filtered out) ──
 
     - name: Write inventory config without provider_mapping

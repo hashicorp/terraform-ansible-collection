@@ -1,0 +1,157 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique resource names
+      ansible.builtin.set_fact:
+        run_task_name: "tsi-task-{{ unique_id[:8] }}"
+        workspace_name: "tsi-ws-{{ unique_id[:8] }}"
+        run_task_url: "{{ run_task_url | default('https://postman-echo.com/post') }}"
+
+    # ---------- prerequisites: run task + workspace + association ----------
+    - name: Create a run task
+      hashicorp.terraform.run_task:
+        organization: "{{ organization }}"
+        name: "{{ run_task_name }}"
+        url: "{{ run_task_url }}"
+        enabled: true
+        state: present
+      register: result_task
+
+    - name: Create a workspace
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name }}"
+        execution_mode: remote
+        state: present
+      register: result_workspace
+
+    - name: Save workspace_id fact
+      ansible.builtin.set_fact:
+        workspace_id: "{{ result_workspace.id }}"
+
+    - name: Associate the run task at the post_plan stage
+      hashicorp.terraform.workspace_run_task:
+        workspace_id: "{{ workspace_id }}"
+        run_task_id: "{{ result_task.id }}"
+        enforcement_level: advisory
+        stages:
+          - post_plan
+        state: present
+
+    # ---------- upload a configuration version ----------
+    - name: Upload a configuration version
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ workspace_id }}"
+        configuration_files_path: "{{ role_path }}/files/tf_config"
+        auto_queue_runs: false
+        state: present
+      register: result_cv
+
+    # ---------- create a plan-only run to generate task stages ----------
+    - name: Create a plan-only run
+      hashicorp.terraform.run:
+        workspace_id: "{{ workspace_id }}"
+        run_message: "task_stage_info integration test"
+        plan_only: true
+        poll: false
+        state: present
+      register: result_run
+
+    - name: Save run_id fact
+      ansible.builtin.set_fact:
+        run_id: "{{ result_run.id }}"
+
+    # ---------- list task stages (poll until the plan produces them) ----------
+    - name: List task stages for the run (wait for the plan to reach post_plan)
+      hashicorp.terraform.task_stage_info:
+        run_id: "{{ run_id }}"
+      register: result_stages
+      until: result_stages.task_stages | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Assert task stages were returned
+      ansible.builtin.assert:
+        that:
+          - result_stages.task_stages | length > 0
+          - result_stages.task_stages[0].id is defined
+
+    - name: Save a task_stage_id fact
+      ansible.builtin.set_fact:
+        task_stage_id: "{{ result_stages.task_stages[0].id }}"
+
+    # ---------- read a single task stage (with include) ----------
+    - name: Read the task stage by ID, including its task results
+      hashicorp.terraform.task_stage_info:
+        task_stage_id: "{{ task_stage_id }}"
+        include:
+          - task_results
+      register: result_stage
+
+    - name: Assert the task stage was read
+      ansible.builtin.assert:
+        that:
+          - result_stage.task_stage.id == task_stage_id
+          - result_stage.task_stage.stage is defined
+
+    - name: Read a non-existent task stage (expect failure)
+      hashicorp.terraform.task_stage_info:
+        task_stage_id: "ts-doesnotexist0000"
+      register: result_stage_missing
+      ignore_errors: true
+
+    - name: Assert missing task stage lookup failed
+      ansible.builtin.assert:
+        that:
+          - result_stage_missing.failed
+          - "'not found' in result_stage_missing.msg"
+
+    # ---------- read a task result (if the stage produced one) ----------
+    - name: Read a task result by ID
+      hashicorp.terraform.task_result_info:
+        task_result_id: "{{ result_stage.task_stage.task_results[0].id }}"
+      register: result_task_result
+      when: result_stage.task_stage.task_results | default([]) | length > 0
+
+    - name: Assert the task result was read
+      ansible.builtin.assert:
+        that:
+          - result_task_result.task_result.id == result_stage.task_stage.task_results[0].id
+      when: result_stage.task_stage.task_results | default([]) | length > 0
+
+    - name: Read a non-existent task result (expect failure)
+      hashicorp.terraform.task_result_info:
+        task_result_id: "taskrs-doesnotexist00"
+      register: result_result_missing
+      ignore_errors: true
+
+    - name: Assert missing task result lookup failed
+      ansible.builtin.assert:
+        that:
+          - result_result_missing.failed
+          - "'not found' in result_result_missing.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the workspace
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name | default('') }}"
+        state: absent
+      when: (workspace_name | default('')) | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the run task
+      hashicorp.terraform.run_task:
+        organization: "{{ organization }}"
+        name: "{{ run_task_name | default('') }}"
+        state: absent
+      when: (run_task_name | default('')) | length > 0
+      failed_when: false

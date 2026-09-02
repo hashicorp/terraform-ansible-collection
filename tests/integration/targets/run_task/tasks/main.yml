@@ -1,0 +1,182 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique run task names
+      ansible.builtin.set_fact:
+        run_task_name: "run-task-test-{{ unique_id[:8] }}"
+        run_task_renamed: "run-task-renamed-{{ unique_id[:8] }}"
+        run_task_url: "{{ run_task_url | default('https://httpbin.org/post') }}"
+
+    # ---------- create ----------
+    # TFC verifies the run task URL on create (it POSTs and requires a 2xx).
+    # Public echo endpoints can be transiently unavailable; treat that specific
+    # verification failure as non-fatal and skip the checks
+    - name: Create a run task
+      hashicorp.terraform.run_task: &create_task
+        organization: "{{ organization }}"
+        name: "{{ run_task_name }}"
+        url: "{{ run_task_url }}"
+        description: "Integration test run task"
+        enabled: true
+        state: present
+      register: result_create
+      failed_when: >-
+        result_create.failed | default(false)
+        and not (
+          'Verification failed' in (result_create.msg | default(''))
+          and 'Check that your URL is correct' in (result_create.msg | default(''))
+        )
+
+    - name: Detect run task URL verification outage
+      ansible.builtin.set_fact:
+        run_task_verification_unavailable: >-
+          {{
+            'Verification failed' in (result_create.msg | default(''))
+            and 'Check that your URL is correct' in (result_create.msg | default(''))
+          }}
+
+    - name: Skip run task CRUD checks when URL verification is unavailable
+      ansible.builtin.debug:
+        msg: >-
+          Skipping run_task CRUD integration because HCP Terraform could not
+          verify the run task endpoint: {{ result_create.msg | default('') }}
+      when: run_task_verification_unavailable | bool
+
+    - name: Run task CRUD checks
+      when: not run_task_verification_unavailable | bool
+      block:
+        - name: Assert run task creation was successful
+          ansible.builtin.assert:
+            that:
+              - result_create.changed
+              - result_create.id is defined
+              - result_create.name == run_task_name
+              - result_create.url == run_task_url
+              - result_create.category == "task"
+
+        - name: Save run_task_id fact
+          ansible.builtin.set_fact:
+            run_task_id: "{{ result_create.id }}"
+
+        # ---------- idempotent re-create ----------
+        - name: Idempotency test - create the same run task again
+          hashicorp.terraform.run_task: *create_task
+          register: result_create_again
+
+        - name: Assert re-create was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_create_again.changed
+              - result_create_again.id == run_task_id
+
+        # ---------- info: by id, by name, list ----------
+        - name: Get the run task by ID
+          hashicorp.terraform.run_task_info:
+            run_task_id: "{{ run_task_id }}"
+          register: result_info_id
+
+        - name: Get the run task by name
+          hashicorp.terraform.run_task_info:
+            organization: "{{ organization }}"
+            name: "{{ run_task_name }}"
+          register: result_info_name
+
+        - name: List run tasks in the organization
+          hashicorp.terraform.run_task_info:
+            organization: "{{ organization }}"
+          register: result_info_list
+
+        - name: Assert info lookups returned the run task
+          ansible.builtin.assert:
+            that:
+              - result_info_id.run_task.id == run_task_id
+              - result_info_name.run_task.name == run_task_name
+              - result_info_list.run_tasks | selectattr('id', 'equalto', run_task_id) | list | length == 1
+
+        # ---------- update (rename + description drift) ----------
+        - name: Rename the run task by ID
+          hashicorp.terraform.run_task:
+            run_task_id: "{{ run_task_id }}"
+            name: "{{ run_task_renamed }}"
+            description: "Updated description"
+            state: present
+          register: result_update
+
+        - name: Assert rename was successful
+          ansible.builtin.assert:
+            that:
+              - result_update.changed
+              - result_update.name == run_task_renamed
+              - result_update.description == "Updated description"
+
+        - name: Idempotency test - apply the same update again
+          hashicorp.terraform.run_task:
+            run_task_id: "{{ run_task_id }}"
+            name: "{{ run_task_renamed }}"
+            description: "Updated description"
+            state: present
+          register: result_update_again
+
+        - name: Assert repeated update was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_update_again.changed
+
+        # ---------- check-mode delete ----------
+        - name: Check-mode delete
+          hashicorp.terraform.run_task:
+            run_task_id: "{{ run_task_id }}"
+            state: absent
+          check_mode: true
+          register: result_check_mode
+
+        - name: Assert check-mode reports change without applying
+          ansible.builtin.assert:
+            that:
+              - result_check_mode.changed
+              - "'check mode' in result_check_mode.msg"
+
+        # ---------- delete ----------
+        - name: Delete the run task by ID
+          hashicorp.terraform.run_task:
+            run_task_id: "{{ run_task_id }}"
+            state: absent
+          register: result_delete
+
+        - name: Assert delete was successful
+          ansible.builtin.assert:
+            that:
+              - result_delete.changed
+              - "'deleted' in result_delete.msg"
+
+        - name: Delete the same run task again (no-op)
+          hashicorp.terraform.run_task:
+            run_task_id: "{{ run_task_id }}"
+            state: absent
+          register: result_delete_again
+
+        - name: Assert second delete was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_delete_again.changed
+              - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete run tasks by name (in case of mid-run failure)
+      hashicorp.terraform.run_task:
+        organization: "{{ organization }}"
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ run_task_name | default('') }}"
+        - "{{ run_task_renamed | default('') }}"
+      when: item | length > 0
+      failed_when: false

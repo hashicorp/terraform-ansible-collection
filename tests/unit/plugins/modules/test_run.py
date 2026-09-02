@@ -36,6 +36,20 @@ class TestWaitForState:
         assert data["status"] == "applied"
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
+    def test_wait_for_state_tf_policy_override_is_terminal(self, mock_get_run):
+        """Regression test: a run paused awaiting a tf-policy override decision
+        reports status=tf_policy_override - this must stop polling as a
+        success state the same way the pre-existing Sentinel/OPA
+        policy_override state does, not time out."""
+        mock_adapter = Mock()
+        mock_get_run.return_value = {"id": "run-1", "status": "tf_policy_override"}
+
+        status, data = wait_for_state(mock_adapter, "run-1", timeout=5, polling_interval=1)
+
+        assert status == "success"
+        assert data["status"] == "tf_policy_override"
+
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
     def test_wait_for_state_failure(self, mock_get_run):
         mock_adapter = Mock()
         mock_get_run.return_value = {"id": "run-2", "status": "errored"}

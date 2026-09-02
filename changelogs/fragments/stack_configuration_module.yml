@@ -1,0 +1,3 @@
+minor_changes:
+  - Adds the new module hashicorp.terraform.stack_configuration for creating Terraform Cloud/Enterprise stack configuration snapshots.
+  - Adds the new module hashicorp.terraform.stack_configuration_info for retrieving information about a Terraform Cloud/Enterprise stack configuration.

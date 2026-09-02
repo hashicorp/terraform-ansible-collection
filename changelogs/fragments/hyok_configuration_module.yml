@@ -1,0 +1,12 @@
+minor_changes:
+  - >-
+    Added ``hyok_configuration`` and ``hyok_configuration_info`` modules to manage HCP
+    Terraform HYOK (Hold Your Own Key) configurations, letting an organization encrypt
+    workspace state/plan data with a customer-controlled KMS key. Since the underlying
+    API has no update endpoint, ``hyok_configuration`` fails on ``state=present`` if the
+    supplied options drift from an existing configuration rather than silently ignoring
+    the drift or replacing the configuration - delete and recreate to change attributes.
+    ``state=absent`` automatically revokes the configuration (polling for completion) before
+    deleting, since the API rejects deleting a non-revoked configuration; set ``wait=false``
+    to only trigger the revoke. An optional ``test=true`` invokes and, by default, waits on
+    the async key-access test action, failing the task on a ``test_failed`` result.

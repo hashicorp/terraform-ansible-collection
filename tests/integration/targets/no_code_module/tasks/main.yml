@@ -1,0 +1,159 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique names for test resources
+      ansible.builtin.set_fact:
+        ncm_module_name: "ncm-test-{{ unique_id[:8] }}"
+        ncm_module_provider: "aws"
+
+    # ---------- prerequisite: create a private registry module ----------
+    - name: Create a registry module to enable no-code on
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ ncm_module_name }}"
+        provider: "{{ ncm_module_provider }}"
+        registry_name: "private"
+        state: present
+      register: result_reg_module
+
+    - name: Assert registry module was created
+      ansible.builtin.assert:
+        that:
+          - result_reg_module.changed
+          - result_reg_module.id is defined
+
+    - name: Save registry module id
+      ansible.builtin.set_fact:
+        reg_module_id: "{{ result_reg_module.id }}"
+
+    # ---------- create ----------
+    - name: Enable no-code provisioning on the registry module
+      hashicorp.terraform.no_code_module: &create_ncm
+        organization: "{{ organization }}"
+        registry_module_id: "{{ reg_module_id }}"
+        enabled: true
+        state: present
+      register: result_create
+
+    - name: Assert no-code module creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.enabled == true
+
+    - name: Save no-code module id
+      ansible.builtin.set_fact:
+        no_code_module_id: "{{ result_create.id }}"
+
+    # ---------- info lookup ----------
+    - name: Retrieve the no-code module by id
+      hashicorp.terraform.no_code_module_info:
+        no_code_module_id: "{{ no_code_module_id }}"
+      register: result_info
+
+    - name: Assert info lookup returned the no-code module
+      ansible.builtin.assert:
+        that:
+          - result_info.no_code_module.id == no_code_module_id
+          - result_info.no_code_module.enabled == true
+          - not result_info.changed
+
+    # ---------- info: not found ----------
+    - name: Retrieve a non-existent no-code module (should fail)
+      hashicorp.terraform.no_code_module_info:
+        no_code_module_id: "nocode-doesnotexist"
+      register: result_info_missing
+      ignore_errors: true
+
+    - name: Assert not-found error is reported correctly
+      ansible.builtin.assert:
+        that:
+          - result_info_missing.failed
+          - "'not found' in result_info_missing.msg | lower"
+
+    # ---------- update ----------
+    - name: Update no-code module (disable)
+      hashicorp.terraform.no_code_module:
+        no_code_module_id: "{{ no_code_module_id }}"
+        enabled: false
+        state: present
+      register: result_update
+
+    - name: Assert update was applied
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+
+    # ---------- idempotent update ----------
+    - name: Idempotency test - update no-code module with same value
+      hashicorp.terraform.no_code_module:
+        no_code_module_id: "{{ no_code_module_id }}"
+        enabled: false
+        state: present
+      register: result_update_again
+
+    - name: Assert idempotent update was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete no-code module
+      hashicorp.terraform.no_code_module:
+        no_code_module_id: "{{ no_code_module_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without deleting
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete ----------
+    - name: Delete the no-code module
+      hashicorp.terraform.no_code_module:
+        no_code_module_id: "{{ no_code_module_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    # ---------- idempotent delete ----------
+    - name: Delete the same no-code module again (no-op)
+      hashicorp.terraform.no_code_module:
+        no_code_module_id: "{{ no_code_module_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the registry module
+      hashicorp.terraform.registry_module:
+        organization: "{{ organization }}"
+        name: "{{ ncm_module_name | default('') }}"
+        provider: "{{ ncm_module_provider | default('aws') }}"
+        registry_name: "private"
+        delete_scope: "provider"
+        state: absent
+      when: ncm_module_name is defined and ncm_module_name | length > 0
+      failed_when: false

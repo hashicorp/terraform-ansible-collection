@@ -6,10 +6,10 @@ Getting started
 
 The ``hashicorp.terraform`` collection lets you manage `HCP Terraform <https://app.terraform.io>`__
 (formerly Terraform Cloud) and `Terraform Enterprise <https://developer.hashicorp.com/terraform/enterprise>`__
-from Ansible. You can create and update workspaces and projects, upload configuration
-versions, queue and apply runs, read state outputs, manage variables and teams, and build
-a dynamic inventory directly from Terraform state — all without the Terraform CLI or direct
-access to a state backend.
+from Ansible. You can create and update workspaces, projects, and stacks; upload configuration
+versions; queue and apply runs; analyze plans for drift; read state outputs; manage variables,
+teams, and run tasks; publish private registry modules; and build a dynamic inventory directly
+from Terraform state — all without the Terraform CLI or direct access to a state backend.
 
 This guide gets you from a fresh control node to your first successful task.
 
@@ -62,7 +62,7 @@ Install the Python dependency into the interpreter Ansible will use:
 
 .. code-block:: bash
 
-   python -m pip install 'pytfe>=1.2.0'
+   python -m pip install 'pytfe>=1.4.1'
 
 .. _ansible_collections.hashicorp.terraform.docsite.guide_getting_started.first_playbook:
 
@@ -146,9 +146,11 @@ Where to go next
 - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_authentication` — tokens, TLS,
   proxies, and self-hosted Terraform Enterprise.
 - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_workspaces_projects` — create
-  and manage workspaces and projects.
-- :ref:`ansible_collections.hashicorp.terraform.docsite.guide_runs` — upload configuration and
-  drive runs.
+  and manage workspaces, projects, and stacks.
+- :ref:`ansible_collections.hashicorp.terraform.docsite.guide_runs` — upload configuration,
+  drive runs, analyze plans, and manage run tasks.
+- :ref:`ansible_collections.hashicorp.terraform.docsite.guide_registry_modules` — publish and
+  manage modules in the private registry.
 - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_dynamic_inventory` — build an
   Ansible inventory from Terraform state.
 - The full per-module reference is available with ``ansible-doc``, for example

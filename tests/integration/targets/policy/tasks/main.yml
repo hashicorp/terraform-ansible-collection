@@ -1,0 +1,182 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') | lower }}"
+
+    - name: Generate a unique policy name
+      ansible.builtin.set_fact:
+        policy_name: "policy-test-{{ unique_id[:8] }}"
+
+    # ---------- create ----------
+    - name: Create a Sentinel policy with content
+      hashicorp.terraform.policy: &create_policy
+        organization: "{{ organization }}"
+        name: "{{ policy_name }}"
+        kind: sentinel
+        enforcement_level: hard-mandatory
+        policy_content: "main = rule { true }"
+        state: present
+      register: result_create
+
+    - name: Assert policy creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == policy_name
+          - result_create.kind == "sentinel"
+
+    - name: Save policy_id fact
+      ansible.builtin.set_fact:
+        policy_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same policy again (same content)
+      hashicorp.terraform.policy: *create_policy
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == policy_id
+
+    # ---------- kind drift fails, not silently ignored ----------
+    - name: Attempt state=present with a drifted kind (expected to fail)
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        kind: opa
+        state: present
+      register: result_kind_drift
+      ignore_errors: true
+
+    - name: Assert kind drift fails with a clear message
+      ansible.builtin.assert:
+        that:
+          - result_kind_drift.failed
+          - "'immutable' in result_kind_drift.msg"
+
+    # ---------- attribute update ----------
+    - name: Update the enforcement level by ID
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        enforcement_level: soft-mandatory
+        state: present
+      register: result_attr_update
+
+    - name: Assert attribute update was applied
+      ansible.builtin.assert:
+        that:
+          - result_attr_update.changed
+          - result_attr_update.enforcement_level == "soft-mandatory"
+
+    # ---------- content drift is genuinely detected (round-trippable, unlike write-only resources) ----------
+    - name: Update the policy content (different from what was uploaded)
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        policy_content: "main = rule { false }"
+        state: present
+      register: result_content_update
+
+    - name: Assert content update was applied
+      ansible.builtin.assert:
+        that:
+          - result_content_update.changed
+
+    - name: Idempotency test - re-apply the same content
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        policy_content: "main = rule { false }"
+        state: present
+      register: result_content_reapply
+
+    - name: Assert content re-apply was a no-op (content genuinely diffed via download)
+      ansible.builtin.assert:
+        that:
+          - not result_content_reapply.changed
+
+    # ---------- info lookups ----------
+    - name: Look up the policy by ID
+      hashicorp.terraform.policy_info:
+        policy_id: "{{ policy_id }}"
+      register: result_info_by_id
+
+    - name: Assert info-by-id matches
+      ansible.builtin.assert:
+        that:
+          - result_info_by_id.policy.id == policy_id
+          - result_info_by_id.policy.name == policy_name
+
+    - name: Look up the policy by organization and name
+      hashicorp.terraform.policy_info:
+        organization: "{{ organization }}"
+        name: "{{ policy_name }}"
+      register: result_info_by_name
+
+    - name: Assert info-by-name matches
+      ansible.builtin.assert:
+        that:
+          - result_info_by_name.policy.id == policy_id
+
+    - name: List policies in the organization
+      hashicorp.terraform.policy_info:
+        organization: "{{ organization }}"
+      register: result_list
+
+    - name: Assert the created policy appears in the list
+      ansible.builtin.assert:
+        that:
+          - policy_id in (result_list.policies | map(attribute='id') | list)
+
+    # ---------- absent ----------
+    - name: Check-mode delete
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    - name: Delete the policy
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same policy again (no-op)
+      hashicorp.terraform.policy:
+        policy_id: "{{ policy_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete policy by name (in case of mid-run failure)
+      hashicorp.terraform.policy:
+        organization: "{{ organization }}"
+        name: "{{ policy_name }}"
+        state: absent
+      when: policy_name is defined
+      failed_when: false

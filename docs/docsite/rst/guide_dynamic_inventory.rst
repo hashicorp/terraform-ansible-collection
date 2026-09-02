@@ -285,6 +285,63 @@ The plugin supports the standard ``constructed`` options for both sources:
    exclude_filters:
      - tags.env: staging        # drop staging
 
+.. _ansible_collections.hashicorp.terraform.docsite.guide_dynamic_inventory.hostvars_shaping:
+
+Shaping emitted host variables (``hostvars``)
+---------------------------------------------
+
+The optional :ansopt:`hashicorp.terraform.tfc_inv#inventory:hostvars` key limits or removes the
+top-level source attributes emitted as Ansible host variables. This is useful for trimming noisy
+or sensitive-adjacent keys from the inventory without affecting how grouping and composition work.
+
+.. note::
+
+   Shaping affects **only** the emitted host vars. ``compose``, ``hostnames``,
+   ``keyed_groups``, ``groups``, and the filter options continue to resolve against the
+   **full** sanitized source data — so a field can be excluded from host vars while still
+   driving a keyed group or a ``compose`` expression.
+   Plugin-injected variables (``ansible_host``, ``value``, ``tfc_workspace_id``,
+   ``tfc_workspace_name``) are always emitted regardless of the lists.
+
+Use ``include`` to allow-list specific keys:
+
+.. code-block:: yaml
+
+   plugin: hashicorp.terraform.tfc_inv
+   source: statefile
+   organization: my-org
+   workspace: my-workspace
+   hostvars:
+     include:
+       - private_ip
+       - tags
+   compose:
+     ansible_host: private_ip    # private_ip is in the include list — resolves fine
+   keyed_groups:
+     - key: instance_state       # instance_state is NOT in include, but compose/groups
+       prefix: state             # still see the full data, so this still works
+
+Use ``exclude`` to block-list specific keys:
+
+.. code-block:: yaml
+
+   plugin: hashicorp.terraform.tfc_inv
+   source: statefile
+   organization: my-org
+   workspace: my-workspace
+   hostvars:
+     exclude:
+       - ami                  # drop ami from host vars
+       - ebs_block_device     # drop large nested block
+   compose:
+     ansible_host: public_ip
+   keyed_groups:
+     - key: ami               # ami still drives grouping even though it is excluded
+       prefix: ami
+
+When ``include`` and ``exclude`` are both set, ``exclude`` wins for any key that appears in both
+lists. Unknown keys in either list are silently ignored.
+
 Reserved host-variable names
 ----------------------------
 

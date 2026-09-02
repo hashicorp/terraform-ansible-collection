@@ -1,0 +1,3 @@
+minor_changes:
+  - explorer - new module to create, update, and delete Terraform Cloud/Enterprise Explorer saved views with full idempotency and check-mode support.
+  - explorer_info - new read-only module to execute ad-hoc Explorer queries or read a saved view definition and its result rows.

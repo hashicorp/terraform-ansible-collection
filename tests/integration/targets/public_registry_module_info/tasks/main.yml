@@ -1,0 +1,97 @@
+---
+- name: Public Registry Module Info integration tests
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    # ── latest version lookup ─────────────────────────────────────────────────
+
+    - name: Retrieve the latest version of hashicorp/consul/aws
+      hashicorp.terraform.public_registry_module_info:
+        namespace: "hashicorp"
+        name: "consul"
+        provider: "aws"
+      register: result_latest
+
+    - name: Assert latest version lookup returned a result
+      ansible.builtin.assert:
+        that:
+          - not result_latest.changed
+          - result_latest.public_registry_module is defined
+          - result_latest.public_registry_module.namespace == "hashicorp"
+          - result_latest.public_registry_module.name == "consul"
+          - result_latest.public_registry_module.provider == "aws"
+          - result_latest.public_registry_module.version is defined
+          - result_latest.public_registry_module.verified is defined
+
+    # ── idempotency: second lookup returns same result ────────────────────────
+
+    - name: Re-run the latest version lookup (idempotency)
+      hashicorp.terraform.public_registry_module_info:
+        namespace: "hashicorp"
+        name: "consul"
+        provider: "aws"
+      register: result_latest_again
+
+    - name: Assert repeated lookup reports no change
+      ansible.builtin.assert:
+        that:
+          - not result_latest_again.changed
+          - result_latest_again.public_registry_module.version == result_latest.public_registry_module.version
+
+    # ── specific version lookup ───────────────────────────────────────────────
+
+    - name: Save the latest version string
+      ansible.builtin.set_fact:
+        consul_latest_version: "{{ result_latest.public_registry_module.version }}"
+
+    - name: Retrieve a specific version of hashicorp/consul/aws
+      hashicorp.terraform.public_registry_module_info:
+        namespace: "hashicorp"
+        name: "consul"
+        provider: "aws"
+        version: "{{ consul_latest_version }}"
+      register: result_specific
+
+    - name: Assert specific version lookup returned the correct version
+      ansible.builtin.assert:
+        that:
+          - not result_specific.changed
+          - result_specific.public_registry_module.version == consul_latest_version
+          - result_specific.public_registry_module.namespace == "hashicorp"
+          - result_specific.public_registry_module.name == "consul"
+          - result_specific.public_registry_module.provider == "aws"
+
+    # ── not-found: nonexistent module fails gracefully ────────────────────────
+
+    - name: Attempt to look up a nonexistent module (expect failure)
+      hashicorp.terraform.public_registry_module_info:
+        namespace: "nonexistent-ns-xyz"
+        name: "nomodule"
+        provider: "aws"
+      register: result_missing
+      ignore_errors: true
+
+    - name: Assert nonexistent module returns a failure
+      ansible.builtin.assert:
+        that:
+          - result_missing is failed
+          - "'was not found' in result_missing.msg"
+
+    # ── not-found: nonexistent version fails gracefully ──────────────────────
+
+    - name: Attempt to look up a nonexistent version (expect failure)
+      hashicorp.terraform.public_registry_module_info:
+        namespace: "hashicorp"
+        name: "consul"
+        provider: "aws"
+        version: "0.0.0-nonexistent"
+      register: result_missing_version
+      ignore_errors: true
+
+    - name: Assert nonexistent version returns a failure
+      ansible.builtin.assert:
+        that:
+          - result_missing_version is failed
+          - "'was not found' in result_missing_version.msg"

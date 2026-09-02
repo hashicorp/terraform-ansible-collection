@@ -1,0 +1,206 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Set platform test variables
+      ansible.builtin.set_fact:
+        platform_os: "linux"
+        platform_arch: "amd64"
+        platform_shasum: "abc123def456abc123def456abc123def456abc123def456abc123def456abc123"
+        provider_name: "registry-provider-{{ unique_id[:8] | lower }}"
+        provider_namespace: "{{ organization }}"
+        provider_version: "1.0.0"
+        provider_key_id: "TESTKEY1234567890"
+        tfe_base_url: "https://app.terraform.io"
+
+    - name: Set filename fact (depends on provider_name)
+      ansible.builtin.set_fact:
+        platform_filename: "terraform-provider-{{ provider_name }}_1.0.0_linux_amd64.zip"
+
+    # ---------- prerequisites: create a provider ----------
+    - name: Create a registry provider
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ provider_namespace }}"
+        name: "{{ provider_name }}"
+        registry_name: "private"
+        state: present
+      register: result_provider_create
+
+    - name: Assert registry provider creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_provider_create.changed
+          - result_provider_create.id is defined
+
+    - name: Record whether provider was newly created
+      ansible.builtin.set_fact:
+        provider_newly_created: "{{ result_provider_create.changed }}"
+
+    # ---------- prerequisites: create a provider version ----------
+    # We create a version so the platform has somewhere to attach.
+    - name: Create a registry provider version
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ provider_namespace }}"
+        name: "{{ provider_name }}"
+        version: "{{ provider_version }}"
+        key_id: "{{ provider_key_id }}"
+        protocols:
+          - "5.0"
+        state: present
+      register: result_version_create
+
+    - name: Record whether version was newly created or already existed
+      ansible.builtin.set_fact:
+        version_newly_created: "{{ result_version_create.changed }}"
+
+    # ---------- create ----------
+    - name: Create a registry provider platform
+      hashicorp.terraform.registry_provider_platform: &create_platform
+        organization: "{{ organization }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        registry_name: "private"
+        version: "{{ provider_version }}"
+        os: "{{ platform_os }}"
+        arch: "{{ platform_arch }}"
+        shasum: "{{ platform_shasum }}"
+        filename: "{{ platform_filename }}"
+        state: present
+      register: result_create
+
+    - name: Assert platform creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.os == platform_os
+          - result_create.arch == platform_arch
+          - result_create.filename == platform_filename
+
+    - name: Save platform id fact
+      ansible.builtin.set_fact:
+        platform_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same platform again
+      hashicorp.terraform.registry_provider_platform: *create_platform
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == platform_id
+
+    # ---------- info lookup ----------
+    - name: Get the registry provider platform info
+      hashicorp.terraform.registry_provider_platform_info:
+        organization: "{{ organization }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        registry_name: "private"
+        version: "{{ provider_version }}"
+        os: "{{ platform_os }}"
+        arch: "{{ platform_arch }}"
+      register: result_info
+
+    - name: Assert info lookup returned the platform
+      ansible.builtin.assert:
+        that:
+          - result_info.registry_provider_platform.id == platform_id
+          - result_info.registry_provider_platform.os == platform_os
+          - result_info.registry_provider_platform.arch == platform_arch
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete the platform
+      hashicorp.terraform.registry_provider_platform:
+        organization: "{{ organization }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        registry_name: "private"
+        version: "{{ provider_version }}"
+        os: "{{ platform_os }}"
+        arch: "{{ platform_arch }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete ----------
+    - name: Delete the registry provider platform
+      hashicorp.terraform.registry_provider_platform:
+        organization: "{{ organization }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        registry_name: "private"
+        version: "{{ provider_version }}"
+        os: "{{ platform_os }}"
+        arch: "{{ platform_arch }}"
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    # ---------- delete again (no-op) ----------
+    - name: Delete the same platform again (no-op)
+      hashicorp.terraform.registry_provider_platform:
+        organization: "{{ organization }}"
+        provider_name: "{{ provider_name }}"
+        namespace: "{{ provider_namespace }}"
+        registry_name: "private"
+        version: "{{ provider_version }}"
+        os: "{{ platform_os }}"
+        arch: "{{ platform_arch }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the provider version (only if we created it)
+      hashicorp.terraform.registry_provider_version:
+        organization_name: "{{ organization }}"
+        namespace: "{{ provider_namespace | default('') }}"
+        name: "{{ provider_name | default('') }}"
+        version: "{{ provider_version | default('1.0.0') }}"
+        state: absent
+      when:
+        - version_newly_created is defined
+        - version_newly_created
+        - provider_name | default('') | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the provider (only if we created it)
+      hashicorp.terraform.registry_provider:
+        organization: "{{ organization }}"
+        namespace: "{{ provider_namespace | default('') }}"
+        name: "{{ provider_name | default('') }}"
+        registry_name: "private"
+        state: absent
+      when:
+        - provider_newly_created is defined
+        - provider_newly_created
+        - provider_name | default('') | length > 0
+      failed_when: false

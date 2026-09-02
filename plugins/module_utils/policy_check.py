@@ -16,7 +16,7 @@ except ImportError:
 
 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.client import TerraformClient
-from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response
+from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 HARD_FAIL_STATUSES = {"hard_failed", "errored"}
 SOFT_FAIL_STATUSES = {"soft_failed"}
@@ -37,6 +37,16 @@ def get_policy_check(adapter: TerraformClient, policy_check_id: str) -> Optional
         return format_response(adapter.client.policy_checks.read(policy_check_id))
     except NotFound:
         return None
+
+
+def override_policy_check(adapter: TerraformClient, policy_check_id: str) -> Dict[str, Any]:
+    """Override a soft-mandatory or warning policy check."""
+    response = safe_api_call(
+        adapter.client.policy_checks.override,
+        policy_check_id,
+        error_context=f"Failed to override policy check {policy_check_id}",
+    )
+    return format_response(response)
 
 
 def summarize_policy_checks(checks: List[Dict[str, Any]]) -> Dict[str, Any]:

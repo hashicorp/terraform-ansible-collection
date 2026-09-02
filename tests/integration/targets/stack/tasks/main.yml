@@ -1,0 +1,177 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique stack and project names
+      ansible.builtin.set_fact:
+        stack_name: "stack-test-{{ unique_id[:8] }}"
+        stack_renamed: "stack-renamed-{{ unique_id[:8] }}"
+        project_name: "stack-project-{{ unique_id[:8] }}"
+
+    - name: Create a Terraform project for the stack
+      hashicorp.terraform.project:
+        organization: "{{ organization }}"
+        name: "{{ project_name }}"
+        state: present
+      register: result_project
+
+    - name: Save project_id fact
+      ansible.builtin.set_fact:
+        project_id: "{{ result_project.id }}"
+
+    # ---------- create ----------
+    - name: Create a stack linked to a project
+      hashicorp.terraform.stack: &create_stack
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        project_id: "{{ result_project.id }}"
+        description: "Integration test stack"
+        state: present
+      register: result_create
+
+    - name: Assert stack creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == stack_name
+
+    - name: Save stack_id fact
+      ansible.builtin.set_fact:
+        stack_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same stack again
+      hashicorp.terraform.stack: *create_stack
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == stack_id
+
+    # ---------- read: by id and by name ----------
+    - name: Get the stack by ID
+      hashicorp.terraform.stack_info:
+        stack_id: "{{ stack_id }}"
+      register: result_info_id
+
+    - name: Assert info by ID returned the stack
+      ansible.builtin.assert:
+        that:
+          - result_info_id.stack.id == stack_id
+
+    - name: Get the stack by organization and name
+      hashicorp.terraform.stack_info:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+      register: result_info_name
+
+    - name: Assert info by name returned the same stack
+      ansible.builtin.assert:
+        that:
+          - result_info_name.stack.id == stack_id
+          - result_info_name.stack.name == stack_name
+
+    # ---------- update (description) ----------
+    - name: Update the stack description
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        description: "Updated description"
+        state: present
+      register: result_update
+
+    - name: Assert update was successful
+      ansible.builtin.assert:
+        that:
+          - result_update.changed
+          - result_update.description == "Updated description"
+
+    - name: Idempotency test - apply the same update again
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        description: "Updated description"
+        state: present
+      register: result_update_again
+
+    - name: Assert repeated update was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_update_again.changed
+
+    # ---------- check-mode delete ----------
+    - name: Check-mode delete (by ID)
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    # ---------- delete by name ----------
+    - name: Delete the stack by organization and name
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        state: absent
+      register: result_delete_by_name
+
+    - name: Assert name-based delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete_by_name.changed
+          - "'deleted' in result_delete_by_name.msg"
+
+    - name: Delete the same stack again by name (no-op)
+      hashicorp.terraform.stack:
+        organization: "{{ organization }}"
+        name: "{{ stack_name }}"
+        state: absent
+      register: result_delete_by_name_again
+
+    - name: Assert second name-based delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_by_name_again.changed
+          - "'absent' in result_delete_by_name_again.msg"
+
+    # ---------- delete by ID (already gone — verify no-op) ----------
+    - name: Delete the stack by ID (no-op — already deleted above)
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        state: absent
+      register: result_delete_id_noop
+
+    - name: Assert ID-based delete of missing stack was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_id_noop.changed
+          - "'absent' in result_delete_id_noop.msg"
+
+  always:
+    - name: Cleanup - best-effort delete stack by ID
+      hashicorp.terraform.stack:
+        stack_id: "{{ stack_id }}"
+        state: absent
+      when: stack_id is defined
+      failed_when: false
+
+    - name: Cleanup - best-effort delete project
+      hashicorp.terraform.project:
+        project_id: "{{ project_id }}"
+        state: absent
+      when: project_id is defined
+      failed_when: false

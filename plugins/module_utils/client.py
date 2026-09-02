@@ -100,7 +100,7 @@ _ARGSPEC_TO_SDK = {
 # Identifier attached to every HCP API request originating from this collection,
 # forwarded to pytfe via TFEConfig.user_agent_suffix. Enables attribution and
 # support triage for collection-sourced traffic.
-COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.1.0"
+COLLECTION_USER_AGENT_SUFFIX = "terraform-ansible-collection/2.2.0"
 
 
 def collection_user_agent(component: Optional[str] = None) -> str:
@@ -109,7 +109,7 @@ def collection_user_agent(component: Optional[str] = None) -> str:
     The base product token (``terraform-ansible-collection/<version>``) is always
     kept verbatim so aggregate usage queries keep matching. When *component* is
     given it is appended as an RFC 7231 User-Agent comment, for example
-    ``terraform-ansible-collection/2.1.0 (inventory:tfc_inv; source=statefile)``,
+    ``terraform-ansible-collection/2.2.0 (inventory:tfc_inv; source=statefile)``,
     letting telemetry distinguish individual entry points (e.g. the dynamic
     inventory plugin) without disturbing the total-usage token.
     """

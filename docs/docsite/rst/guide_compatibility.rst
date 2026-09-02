@@ -54,7 +54,7 @@ About the ``pytfe`` requirement
 
 Every module, lookup, and the inventory plugin depend on ``pytfe``. Newer collection features rely
 on SDK surfaces added in ``pytfe`` 1.2.0, so older SDK versions are not supported even if a subset
-of modules happens to import. Always install ``pytfe>=1.2.0`` into the interpreter Ansible uses, and
+of modules happens to import. Always install ``pytfe>=1.4.1`` into the interpreter Ansible uses, and
 pin it in execution environments — see
 :ref:`ansible_collections.hashicorp.terraform.docsite.guide_execution_environments`.
 

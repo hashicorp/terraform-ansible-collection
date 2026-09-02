@@ -1,0 +1,221 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique resource names
+      ansible.builtin.set_fact:
+        run_task_name: "wrt-task-{{ unique_id[:8] }}"
+        workspace_name: "wrt-ws-{{ unique_id[:8] }}"
+        run_task_url: "{{ run_task_url | default('https://httpbin.org/post') }}"
+
+    # ---------- prerequisites: a run task and a workspace ----------
+    # TFC verifies the run task URL on create (it POSTs and requires a 2xx).
+    # Public echo endpoints can be transiently unavailable; treat that specific
+    # verification failure as non-fatal and skip the checks
+    - name: Create a run task to associate
+      hashicorp.terraform.run_task:
+        organization: "{{ organization }}"
+        name: "{{ run_task_name }}"
+        url: "{{ run_task_url }}"
+        description: "Integration test run task for workspace association"
+        enabled: true
+        state: present
+      register: result_task
+      failed_when: >-
+        result_task.failed | default(false)
+        and not (
+          'Verification failed' in (result_task.msg | default(''))
+          and 'Check that your URL is correct' in (result_task.msg | default(''))
+        )
+
+    - name: Detect run task URL verification outage
+      ansible.builtin.set_fact:
+        run_task_verification_unavailable: >-
+          {{
+            'Verification failed' in (result_task.msg | default(''))
+            and 'Check that your URL is correct' in (result_task.msg | default(''))
+          }}
+
+    - name: Skip workspace run task checks when URL verification is unavailable
+      ansible.builtin.debug:
+        msg: >-
+          Skipping workspace_run_task integration because HCP Terraform could
+          not verify the run task endpoint: {{ result_task.msg | default('') }}
+      when: run_task_verification_unavailable | bool
+
+    - name: Workspace run task association checks
+      when: not run_task_verification_unavailable | bool
+      block:
+        - name: Save run_task_id fact
+          ansible.builtin.set_fact:
+            run_task_id: "{{ result_task.id }}"
+
+        - name: Create a workspace to attach the run task to
+          hashicorp.terraform.workspace:
+            organization: "{{ organization }}"
+            workspace: "{{ workspace_name }}"
+            execution_mode: remote
+            description: integration test workspace for run task association
+            state: present
+          register: result_workspace
+
+        - name: Save workspace_id fact
+          ansible.builtin.set_fact:
+            workspace_id: "{{ result_workspace.id }}"
+
+        # ---------- create association ----------
+        - name: Associate the run task with the workspace
+          hashicorp.terraform.workspace_run_task: &create_assoc
+            organization: "{{ organization }}"
+            workspace: "{{ workspace_name }}"
+            run_task_name: "{{ run_task_name }}"
+            enforcement_level: advisory
+            stages:
+              - post_plan
+            state: present
+          register: result_create
+
+        - name: Assert association was created
+          ansible.builtin.assert:
+            that:
+              - result_create.changed
+              - result_create.id is defined
+              - result_create.enforcement_level == "advisory"
+              - "'post_plan' in result_create.stages"
+              - result_create.run_task.id == run_task_id
+
+        - name: Save workspace_run_task_id fact
+          ansible.builtin.set_fact:
+            workspace_run_task_id: "{{ result_create.id }}"
+
+        # ---------- idempotent re-create ----------
+        - name: Idempotency test - associate again with same config
+          hashicorp.terraform.workspace_run_task: *create_assoc
+          register: result_create_again
+
+        - name: Assert re-associate was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_create_again.changed
+              - result_create_again.id == workspace_run_task_id
+
+        # ---------- info: by id, by run task, list ----------
+        - name: Get the association by its ID
+          hashicorp.terraform.workspace_run_task_info:
+            workspace_id: "{{ workspace_id }}"
+            workspace_run_task_id: "{{ workspace_run_task_id }}"
+          register: result_info_id
+
+        - name: Get the association by run task name
+          hashicorp.terraform.workspace_run_task_info:
+            organization: "{{ organization }}"
+            workspace: "{{ workspace_name }}"
+            run_task_name: "{{ run_task_name }}"
+          register: result_info_task
+
+        - name: List run tasks associated with the workspace
+          hashicorp.terraform.workspace_run_task_info:
+            workspace_id: "{{ workspace_id }}"
+          register: result_info_list
+
+        - name: Assert info lookups returned the association
+          ansible.builtin.assert:
+            that:
+              - result_info_id.workspace_run_task.id == workspace_run_task_id
+              - result_info_task.workspace_run_task.run_task.id == run_task_id
+              - result_info_list.workspace_run_tasks | selectattr('id', 'equalto', workspace_run_task_id) | list | length == 1
+
+        # ---------- update (enforcement + stages drift) ----------
+        - name: Update the association to mandatory with more stages
+          hashicorp.terraform.workspace_run_task: &update_assoc
+            workspace_id: "{{ workspace_id }}"
+            run_task_id: "{{ run_task_id }}"
+            enforcement_level: mandatory
+            stages:
+              - pre_plan
+              - post_plan
+            state: present
+          register: result_update
+
+        - name: Assert update was successful
+          ansible.builtin.assert:
+            that:
+              - result_update.changed
+              - result_update.enforcement_level == "mandatory"
+              - "'pre_plan' in result_update.stages"
+              - "'post_plan' in result_update.stages"
+
+        - name: Idempotency test - apply the same update again
+          hashicorp.terraform.workspace_run_task: *update_assoc
+          register: result_update_again
+
+        - name: Assert repeated update was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_update_again.changed
+
+        # ---------- check-mode delete ----------
+        - name: Check-mode detach
+          hashicorp.terraform.workspace_run_task:
+            workspace_id: "{{ workspace_id }}"
+            workspace_run_task_id: "{{ workspace_run_task_id }}"
+            state: absent
+          check_mode: true
+          register: result_check_mode
+
+        - name: Assert check-mode reports change without applying
+          ansible.builtin.assert:
+            that:
+              - result_check_mode.changed
+              - "'check mode' in result_check_mode.msg"
+
+        # ---------- delete ----------
+        - name: Detach the run task from the workspace
+          hashicorp.terraform.workspace_run_task:
+            workspace_id: "{{ workspace_id }}"
+            workspace_run_task_id: "{{ workspace_run_task_id }}"
+            state: absent
+          register: result_delete
+
+        - name: Assert detach was successful
+          ansible.builtin.assert:
+            that:
+              - result_delete.changed
+              - "'deleted' in result_delete.msg"
+
+        - name: Detach the same association again (no-op)
+          hashicorp.terraform.workspace_run_task:
+            workspace_id: "{{ workspace_id }}"
+            run_task_id: "{{ run_task_id }}"
+            state: absent
+          register: result_delete_again
+
+        - name: Assert second detach was a no-op
+          ansible.builtin.assert:
+            that:
+              - not result_delete_again.changed
+              - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort delete the workspace
+      hashicorp.terraform.workspace:
+        organization: "{{ organization }}"
+        workspace: "{{ workspace_name | default('') }}"
+        state: absent
+      when: (workspace_name | default('')) | length > 0
+      failed_when: false
+
+    - name: Cleanup - best-effort delete the run task
+      hashicorp.terraform.run_task:
+        organization: "{{ organization }}"
+        name: "{{ run_task_name | default('') }}"
+        state: absent
+      when: (run_task_name | default('')) | length > 0
+      failed_when: false

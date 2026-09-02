@@ -11,9 +11,12 @@ sections:
     toctree:
       - guide_workspaces_projects
       - guide_runs
+      - guide_plan_analyze
+      - guide_tf_policy
       - guide_variables
       - guide_teams_and_access
       - guide_workspace_bootstrap
+      - guide_registry_modules
   - title: Dynamic Inventory
     toctree:
       - guide_dynamic_inventory

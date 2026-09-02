@@ -1,0 +1,240 @@
+---
+- name: Set module defaults
+  module_defaults:
+    group/hashicorp.terraform.terraform:
+      tfe_token: "{{ tfc_token }}"
+
+  block:
+    - name: Generate a unique ID
+      ansible.builtin.set_fact:
+        unique_id: "{{ lookup('pipe', 'uuidgen') }}"
+
+    - name: Generate unique fixture/config names
+      ansible.builtin.set_fact:
+        hyok_agent_pool_name: "hyok-test-pool-{{ unique_id[:8] }}"
+        hyok_config_name: "hyok-test-{{ unique_id[:8] }}"
+        hyok_vault_role_name: "hyok-test-role-{{ unique_id[:8] }}"
+
+    # ---------- fixtures: agent pool + Vault OIDC configuration ----------
+    # HYOK requires a real agent pool and OIDC configuration to reference.
+    - name: Create an agent pool for the HYOK configuration
+      hashicorp.terraform.agent_pool:
+        organization: "{{ organization }}"
+        name: "{{ hyok_agent_pool_name }}"
+        organization_scoped: true
+        state: present
+      register: result_agent_pool
+
+    - name: Assert agent pool creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_agent_pool.changed
+          - result_agent_pool.id is defined
+
+    - name: Save agent_pool_id fact
+      ansible.builtin.set_fact:
+        hyok_agent_pool_id: "{{ result_agent_pool.id }}"
+
+    - name: Create a Vault OIDC configuration for the HYOK configuration
+      hashicorp.terraform.vault_oidc_configuration:
+        organization: "{{ organization }}"
+        address: "https://vault.example.com"
+        role_name: "{{ hyok_vault_role_name }}"
+        state: present
+      register: result_oidc_config
+
+    - name: Assert Vault OIDC configuration creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_oidc_config.changed
+          - result_oidc_config.id is defined
+
+    - name: Save oidc_configuration_id fact
+      ansible.builtin.set_fact:
+        hyok_oidc_configuration_id: "{{ result_oidc_config.id }}"
+
+    # ---------- create ----------
+    - name: Create a HYOK configuration
+      hashicorp.terraform.hyok_configuration: &create_hyok
+        organization: "{{ organization }}"
+        name: "{{ hyok_config_name }}"
+        kek_id: "fake-kek-id-{{ unique_id[:8] }}"
+        agent_pool_id: "{{ hyok_agent_pool_id }}"
+        oidc_configuration_id: "{{ hyok_oidc_configuration_id }}"
+        oidc_configuration_type: vault
+        state: present
+      register: result_create
+
+    - name: Assert HYOK configuration creation was successful
+      ansible.builtin.assert:
+        that:
+          - result_create.changed
+          - result_create.id is defined
+          - result_create.name == hyok_config_name
+          - result_create.status == "untested"
+
+    - name: Save hyok_configuration_id fact
+      ansible.builtin.set_fact:
+        hyok_configuration_id: "{{ result_create.id }}"
+
+    # ---------- idempotent re-create ----------
+    - name: Idempotency test - create the same HYOK configuration again
+      hashicorp.terraform.hyok_configuration: *create_hyok
+      register: result_create_again
+
+    - name: Assert re-create was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_create_again.changed
+          - result_create_again.id == hyok_configuration_id
+
+    # ---------- drift on an immutable field fails, not silently replaced ----------
+    - name: Attempt state=present with a drifted kek_id (expected to fail)
+      hashicorp.terraform.hyok_configuration:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+        kek_id: "different-kek-id"
+        state: present
+      register: result_drift
+      ignore_errors: true
+
+    - name: Assert drift on an immutable field fails with a clear message
+      ansible.builtin.assert:
+        that:
+          - result_drift.failed
+          - "'immutable' in result_drift.msg"
+
+    # ---------- info lookups ----------
+    - name: Look up the HYOK configuration by ID
+      hashicorp.terraform.hyok_configuration_info:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+      register: result_info_by_id
+
+    - name: Assert info-by-id matches the created configuration
+      ansible.builtin.assert:
+        that:
+          - result_info_by_id.hyok_configuration.id == hyok_configuration_id
+          - result_info_by_id.hyok_configuration.name == hyok_config_name
+
+    - name: Look up the HYOK configuration by organization and name
+      hashicorp.terraform.hyok_configuration_info:
+        organization: "{{ organization }}"
+        name: "{{ hyok_config_name }}"
+      register: result_info_by_name
+
+    - name: Assert info-by-name matches the created configuration
+      ansible.builtin.assert:
+        that:
+          - result_info_by_name.hyok_configuration.id == hyok_configuration_id
+          - result_info_by_name.hyok_configurations | length == 1
+
+    - name: List HYOK configurations in the organization
+      hashicorp.terraform.hyok_configuration_info:
+        organization: "{{ organization }}"
+      register: result_list
+
+    - name: Assert the created configuration appears in the list
+      ansible.builtin.assert:
+        that:
+          - hyok_configuration_id in (result_list.hyok_configurations | map(attribute='id') | list)
+
+    # ---------- test action ----------
+    # No agent worker is attached to hyok_agent_pool_id in this sandbox, so
+    # pytfe's test() call itself fails synchronously (a ServerError, not an
+    # async transition to test_failed) - this is real, environment-driven
+    # behavior, not a fabricated failure. It exercises the module's
+    # fail_json path for the test action.
+    - name: Invoke the test action (expected to fail - no live agent attached to the pool)
+      hashicorp.terraform.hyok_configuration:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+        test: true
+        timeout: 30
+        poll_interval: 5
+        state: present
+      register: result_test
+      ignore_errors: true
+
+    - name: Assert the test action failed with an agent-availability error
+      ansible.builtin.assert:
+        that:
+          - result_test.failed
+          - "'agent' in result_test.msg | lower"
+
+    # ---------- check-mode absent ----------
+    - name: Check-mode delete
+      hashicorp.terraform.hyok_configuration:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+        state: absent
+      check_mode: true
+      register: result_check_mode
+
+    - name: Assert check-mode reports change without applying
+      ansible.builtin.assert:
+        that:
+          - result_check_mode.changed
+          - "'check mode' in result_check_mode.msg"
+
+    - name: Assert the configuration was not actually revoked by check mode
+      hashicorp.terraform.hyok_configuration_info:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+      register: result_info_after_check_mode
+      failed_when: result_info_after_check_mode.hyok_configuration.status == "revoked"
+
+    # ---------- absent: auto revoke, wait, then delete ----------
+    - name: Delete the HYOK configuration (auto-revokes and waits first)
+      hashicorp.terraform.hyok_configuration:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+        timeout: 120
+        poll_interval: 5
+        state: absent
+      register: result_delete
+
+    - name: Assert delete was successful
+      ansible.builtin.assert:
+        that:
+          - result_delete.changed
+          - "'deleted' in result_delete.msg"
+
+    - name: Delete the same HYOK configuration again (no-op)
+      hashicorp.terraform.hyok_configuration:
+        hyok_configuration_id: "{{ hyok_configuration_id }}"
+        state: absent
+      register: result_delete_again
+
+    - name: Assert second delete was a no-op
+      ansible.builtin.assert:
+        that:
+          - not result_delete_again.changed
+          - "'absent' in result_delete_again.msg"
+
+  always:
+    - name: Cleanup - best-effort revoke+delete the HYOK configuration by name (in case of mid-run failure)
+      block:
+        - name: Look up leftover HYOK configuration by name
+          hashicorp.terraform.hyok_configuration_info:
+            organization: "{{ organization }}"
+            name: "{{ hyok_config_name }}"
+          register: leftover_hyok
+          failed_when: false
+
+        - name: Delete leftover HYOK configuration
+          hashicorp.terraform.hyok_configuration:
+            hyok_configuration_id: "{{ leftover_hyok.hyok_configuration.id }}"
+            timeout: 120
+            state: absent
+          when: leftover_hyok.hyok_configuration is defined
+          failed_when: false
+
+    - name: Cleanup - best-effort delete the Vault OIDC configuration
+      hashicorp.terraform.vault_oidc_configuration:
+        oidc_configuration_id: "{{ hyok_oidc_configuration_id }}"
+        state: absent
+      when: hyok_oidc_configuration_id is defined
+      failed_when: false
+
+    - name: Cleanup - best-effort delete agent pool by name (in case of mid-run failure)
+      hashicorp.terraform.agent_pool:
+        organization: "{{ organization }}"
+        name: "{{ hyok_agent_pool_name }}"
+        state: absent
+      when: hyok_agent_pool_name is defined
+      failed_when: false
