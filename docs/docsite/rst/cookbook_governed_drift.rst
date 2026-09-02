@@ -159,7 +159,6 @@ Save this as ``govern-drift.yml``:
          when:
            - interactive_approval | bool
            - drift_guard.safe_to_refresh
-           - refresh_run.actions.is_confirmable | default(false)
 
        - name: Calculate the final approval decision
          ansible.builtin.set_fact:
@@ -173,17 +172,27 @@ Save this as ``govern-drift.yml``:
                 ) }}
 
        - name: Apply the same refresh-only run when safe and approved
-         hashicorp.terraform.run:
+         hashicorp.terraform.promote_run:
            run_id: "{{ refresh_run.id }}"
-           run_message: Accept approved drift into Terraform state
-           poll: true
-           poll_interval: 10
-           poll_timeout: "{{ run_poll_timeout }}"
-           state: applied
+           require_policy_pass: true
+           allow_advisory_failures: false
+           wait: true
+           timeout: "{{ run_poll_timeout }}"
          register: accepted_refresh
          when:
            - drift_approved
-           - refresh_run.actions.is_confirmable | default(false)
+           - refresh_run.status != 'planned_and_finished'
+
+       - name: Require the approved refresh to complete
+         ansible.builtin.assert:
+           that:
+             - >-
+               accepted_refresh.gates.run_status_after | default('') == 'applied'
+               or accepted_refresh.run.status | default('')
+                  in ['applied', 'planned_and_finished']
+         when:
+           - drift_approved
+           - refresh_run.status != 'planned_and_finished'
 
        - name: Discard a rejected or unsafe refresh-only run
          hashicorp.terraform.run:
@@ -194,14 +203,13 @@ Save this as ``govern-drift.yml``:
          register: discarded_refresh
          when:
            - not drift_approved
-           - refresh_run.actions.is_discardable | default(false)
+           - refresh_run.status != 'planned_and_finished'
 
        - name: Report a no-drift terminal run
          ansible.builtin.debug:
            msg: "Run {{ refresh_run.id }} found no actionable drift; no state update was required."
          when:
-           - not (refresh_run.actions.is_confirmable | default(false))
-           - not (refresh_run.actions.is_discardable | default(false))
+           - refresh_run.status == 'planned_and_finished'
 
        - name: Create a separate normal plan to remediate unsafe drift
          hashicorp.terraform.run:
@@ -251,6 +259,19 @@ Save this as ``govern-drift.yml``:
            - remediation_run.id is defined
            - approve_normal_apply | bool
 
+       - name: Require normal remediation to complete
+         ansible.builtin.assert:
+           that:
+             - >-
+               remediation_result.gates.run_status_after | default('') == 'applied'
+               or remediation_result.run.status | default('')
+                  in ['applied', 'planned_and_finished']
+         when:
+           - remediation_run is not skipped
+           - remediation_run.id is defined
+           - remediation_run.status != 'planned_and_finished'
+           - approve_normal_apply | bool
+
        - name: Discard an unapproved normal remediation plan
          hashicorp.terraform.run:
            run_id: "{{ remediation_run.id }}"
@@ -260,7 +281,7 @@ Save this as ``govern-drift.yml``:
            - remediation_run is not skipped
            - remediation_run.id is defined
            - not approve_normal_apply | bool
-           - remediation_run.actions.is_discardable | default(false)
+           - remediation_run.status != 'planned_and_finished'
 
 Expected decisions
 ==================

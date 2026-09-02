@@ -18,7 +18,10 @@ description:
   - The C(present) state creates the notification if missing, or updates it in place on drift.
   - The C(absent) state deletes the notification if it exists.
   - B(Webhook verification) - For C(generic), C(slack), and C(microsoft-teams) destinations,
-    Terraform Cloud verifies the C(url) on create by POSTing a small payload; the URL must return 2xx.
+    Terraform Cloud verifies the C(url) on create and whenever an enabled configuration is updated;
+    the URL must return 2xx.
+  - The C(token) is write-only and cannot be compared after creation. Supplying it again for an
+    existing notification does not rotate it. Delete and recreate the notification to rotate the token.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   notification_configuration_id:
@@ -62,6 +65,8 @@ options:
     description:
       - Optional HMAC signing secret forwarded to C(generic) webhooks as the C(X-TFE-Notification-Signature) header.
       - This argument is treated as secret; its value is never logged.
+      - The API does not return the stored value, so token-only drift cannot be detected or updated
+        idempotently. Delete and recreate the notification to rotate it.
     type: str
   enabled:
     description:
@@ -225,7 +230,8 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.notification_c
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import dict_diff
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
-# Keys that participate in drift detection / payload construction.
+# Keys accepted in create payloads. ``token`` is write-only and is excluded from
+# updates below so an identical invocation remains idempotent.
 _SDK_KEYS = {"name", "destination_type", "url", "token", "enabled", "triggers", "email_addresses"}
 
 
@@ -299,7 +305,8 @@ def state_present(adapter: TerraformClient, params: Dict[str, Any], check_mode: 
     have = _filter_current_state(current, want)
     # destination_type is immutable and always matches here; exclude from the diff payload.
     have.pop("destination_type", None)
-    want_for_diff = {k: v for k, v in want.items() if k != "destination_type"}
+    want_for_diff = {k: v for k, v in want.items() if k not in {"destination_type", "token"}}
+    have.pop("token", None)
     diff = dict_diff(have, want_for_diff)
     if not diff:
         return {"changed": False, **current}

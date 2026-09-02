@@ -73,8 +73,10 @@ Check on a run later with :ansplugin:`hashicorp.terraform.run_info#module` (usef
 Gating an apply on policy results
 =================================
 
-:ansplugin:`hashicorp.terraform.promote_run#module` evaluates a run's Sentinel/OPA policy checks
-and applies only when the policies pass — a safer apply step for governed workspaces:
+:ansplugin:`hashicorp.terraform.promote_run#module` evaluates the legacy Sentinel policy checks
+returned by the run policy-checks API and applies only when those checks pass. This covers
+Sentinel policy sets that do not use policy agents. Agent-based OPA evaluations and Terraform
+policy (tf-policy) evaluations must be inspected through their dedicated modules before promotion.
 
 .. code-block:: yaml
 
@@ -233,7 +235,7 @@ independent run — so the decision always applies to exactly what gets applied:
    - name: Confirm (apply) the SAME run only when safe
      hashicorp.terraform.promote_run:
        run_id: "{{ refresh_run.id }}"
-       action: apply
+       wait: true
        comment: "Accept approved drift into Terraform state"
      when: guard.safe_to_refresh
 
@@ -245,7 +247,7 @@ breakdown:
    - name: Confirm the run only when the drift is safe to accept
      hashicorp.terraform.promote_run:
        run_id: "{{ refresh_run.id }}"
-       action: apply
+       wait: true
      when: drift_analysis is hashicorp.terraform.plan_safe(allow=allow_rules, deny=deny_rules)
 
 Compose ``fail_on_denied``-style hard failure with the built-in ``assert``, keeping failure semantics
@@ -258,10 +260,12 @@ idiomatic to Ansible instead of a module option:
        that: "guard.safe_to_refresh"
        fail_msg: "Denied drift: {{ guard.denied }}"
 
-``plan_guard`` is **not** a replacement for HCP Terraform/TFE-native Sentinel/OPA policy checks (see
-:ansplugin:`hashicorp.terraform.tf_policy_checks#lookup`). Sentinel/OPA run server-side and gate runs
-inside TFE; ``plan_guard`` is a lightweight, client-side, attribute-path gate evaluated in the playbook
-for the narrow purpose of approving refresh-only applies.
+``plan_guard`` is **not** a replacement for HCP Terraform/TFE-native Sentinel or OPA policy
+evaluation. Use :ansplugin:`hashicorp.terraform.tf_policy_checks#lookup` for legacy Sentinel
+checks and :ansplugin:`hashicorp.terraform.policy_evaluation_info#module` for agent-based OPA
+evaluations. Those policies run server-side and gate runs inside TFE; ``plan_guard`` is a
+lightweight, client-side, attribute-path gate evaluated in the playbook for the narrow purpose of
+approving refresh-only applies.
 
 Checking tf-policy posture
 =============================

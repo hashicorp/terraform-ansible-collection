@@ -54,9 +54,10 @@ Expose non-sensitive host connection data and health-check URLs:
    output "preview_hosts" {
      value = [
        for name, instance in aws_instance.preview : {
-         name         = name
-         address      = instance.public_ip
-         ansible_user = "ec2-user"
+         name               = name
+         address            = instance.public_ip
+         ansible_user       = "ec2-user"
+         ansible_connection = "ssh"
        }
      ]
    }
@@ -99,6 +100,7 @@ Save this as ``preview-environment.yml``:
        - name: Initialize cleanup facts
          ansible.builtin.set_fact:
            preview_workspace_id: ""
+           preview_destroy_succeeded: false
 
        - name: Run the preview lifecycle
          block:
@@ -152,6 +154,16 @@ Save this as ``preview-environment.yml``:
                state: present
              register: preview_plan
 
+           - name: Wait for the plan to become confirmable or finish with no changes
+             hashicorp.terraform.run_info:
+               run_id: "{{ preview_plan.id }}"
+             register: preview_plan_ready
+             retries: "{{ (run_poll_timeout | int + 9) // 10 }}"
+             delay: 10
+             until: >-
+               preview_plan_ready.run.actions.is_confirmable | default(false)
+               or preview_plan_ready.run.status == 'planned_and_finished'
+
            - name: Apply the exact preview run
              hashicorp.terraform.run:
                run_id: "{{ preview_plan.id }}"
@@ -161,14 +173,14 @@ Save this as ``preview-environment.yml``:
                poll_timeout: "{{ run_poll_timeout }}"
                state: applied
              register: preview_apply
-             when: preview_plan.actions.is_confirmable | default(false)
+             when: preview_plan_ready.run.actions.is_confirmable | default(false)
 
            - name: Verify preview provisioning
              ansible.builtin.assert:
                that:
                  - >-
                    (preview_apply.status | default('')) == 'applied'
-                   or preview_plan.status == 'planned_and_finished'
+                   or preview_plan_ready.run.status == 'planned_and_finished'
                fail_msg: "Preview Terraform run {{ preview_plan.id }} did not complete."
 
            - name: Read preview hosts from Terraform outputs
@@ -196,6 +208,7 @@ Save this as ``preview-environment.yml``:
                name: "{{ item.name }}"
                ansible_host: "{{ item.address }}"
                ansible_user: "{{ item.ansible_user | default(omit) }}"
+               ansible_connection: "{{ item.ansible_connection | default('ssh') }}"
                groups:
                  - preview
              loop: "{{ preview_hosts }}"
@@ -258,7 +271,15 @@ Save this as ``preview-environment.yml``:
                poll_timeout: "{{ run_poll_timeout }}"
                state: present
              register: preview_destroy
-             failed_when: false
+             ignore_errors: true
+             when: preview_workspace_id | length > 0
+
+           - name: Record whether Terraform completed the destroy
+             ansible.builtin.set_fact:
+               preview_destroy_succeeded: >-
+                 {{ not (preview_destroy.failed | default(true))
+                    and (preview_destroy.status | default(''))
+                        in ['applied', 'planned_and_finished'] }}
              when: preview_workspace_id | length > 0
 
            - name: Safely delete the empty preview workspace
@@ -267,8 +288,10 @@ Save this as ``preview-environment.yml``:
                force: false
                state: absent
              register: preview_workspace_delete
-             failed_when: false
-             when: preview_workspace_id | length > 0
+             ignore_errors: true
+             when:
+               - preview_workspace_id | length > 0
+               - preview_destroy_succeeded | bool
 
            - name: Force-delete only when explicitly authorized
              hashicorp.terraform.workspace:
@@ -276,21 +299,27 @@ Save this as ``preview-environment.yml``:
                force: true
                state: absent
              register: preview_workspace_force_delete
-             failed_when: false
+             ignore_errors: true
              when:
                - preview_workspace_id | length > 0
-               - preview_workspace_delete.failed | default(false)
                - force_workspace_delete | bool
+               - >-
+                 not preview_destroy_succeeded
+                 or preview_workspace_delete.failed | default(true)
 
            - name: Report incomplete cleanup
-             ansible.builtin.debug:
+             ansible.builtin.fail:
                msg: >-
                  Cleanup did not safely delete {{ preview_workspace }}. Preserve
                  workspace ID {{ preview_workspace_id }} for the janitor workflow.
              when:
                - preview_workspace_id | length > 0
-               - preview_workspace_delete.failed | default(false)
-               - not force_workspace_delete | bool
+               - >-
+                 not preview_destroy_succeeded
+                 or preview_workspace_delete.failed | default(true)
+               - >-
+                 not (force_workspace_delete | bool)
+                 or preview_workspace_force_delete.failed | default(true)
 
 Expected behavior and reruns
 ============================
@@ -313,9 +342,10 @@ approval node before this playbook or split plan and apply into separate jobs wh
 exact run ID.
 
 If configuration or smoke testing fails, cleanup still attempts a destroy. A failed destroy does
-not automatically force-delete the workspace. This leaves its state and resources visible for
-investigation and for the janitor workflow. Set ``force_workspace_delete: true`` only when orphaning
-remaining resources is understood and explicitly accepted.
+not automatically force-delete the workspace; the cleanup task fails and leaves its state and
+resources visible for investigation and for the janitor workflow. Set
+``force_workspace_delete: true`` only when orphaning remaining resources is understood and
+explicitly accepted.
 
 Rollback is normally unnecessary because the environment is destroyed. When a failed preview must
 be retained for debugging, temporarily disable cleanup through a separately reviewed diagnostic

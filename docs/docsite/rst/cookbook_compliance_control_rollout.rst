@@ -24,8 +24,8 @@ Terraform/TFE. A run task sends run context to an external service and waits for
 Prerequisites
 =============
 
-- Store reviewed Sentinel, OPA, or tf-policy source in version control. The example uses a
-  standalone Sentinel policy loaded from a file.
+- Store reviewed policy source in version control. This example uses a standalone Sentinel policy
+  in platform environment mode so its result is available from the policy-checks API.
 - Operate a run-task service that verifies HMAC signatures, returns promptly, posts progress, and
   completes its callback within the platform timeout.
 - Use a canary configuration that exercises the resources and attributes the controls evaluate.
@@ -96,6 +96,7 @@ Save this as ``rollout-controls.yml``:
            kind: sentinel
            global: false
            overridable: false
+           agent_enabled: false
            policy_ids:
              - "{{ canary_policy.id }}"
            workspace_ids:
@@ -154,12 +155,39 @@ Save this as ``rollout-controls.yml``:
            run_id: "{{ effective_canary_run_id }}"
          register: canary_task_stages
 
+       - name: Read task results from every stage
+         hashicorp.terraform.task_stage_info:
+           task_stage_id: "{{ item.id }}"
+           include:
+             - task_results
+         loop: "{{ canary_task_stages.task_stages }}"
+         loop_control:
+           label: "{{ item.stage | default(item.id) }}"
+         register: canary_task_stage_details
+
+       - name: Require both controls to produce review evidence
+         ansible.builtin.assert:
+           that:
+             - canary_policy_checks.policy_checks | length > 0
+             - canary_task_stages.task_stages | length > 0
+             - >-
+               canary_task_stage_details.results
+               | selectattr('task_stage.task_results', 'defined')
+               | map(attribute='task_stage.task_results')
+               | flatten
+               | length > 0
+           fail_msg: >-
+             The canary did not produce both Sentinel policy-check and run-task evidence.
+             Do not promote the controls.
+
        - name: Display the evidence that must be reviewed
          ansible.builtin.debug:
            msg:
              run_id: "{{ effective_canary_run_id }}"
              policy_checks: "{{ canary_policy_checks.policy_checks }}"
-             task_stages: "{{ canary_task_stages.task_stages }}"
+             task_stages: >-
+               {{ canary_task_stage_details.results
+                  | map(attribute='task_stage') | list }}
 
        - name: Publish the canary evidence for workflow approval
          ansible.builtin.set_stats:
@@ -170,7 +198,9 @@ Save this as ``rollout-controls.yml``:
              reviewed_run_task_id: "{{ security_task.id }}"
              reviewed_workspace_run_task_id: "{{ canary_task_association.id }}"
              reviewed_policy_checks: "{{ canary_policy_checks.policy_checks }}"
-             reviewed_task_stages: "{{ canary_task_stages.task_stages }}"
+             reviewed_task_stages: >-
+               {{ canary_task_stage_details.results
+                  | map(attribute='task_stage') | list }}
            per_host: false
 
        - name: Report that controls remain advisory pending approval
@@ -224,6 +254,14 @@ In production, split the example at the ``promote_controls`` assertion:
 
 Do not make an organization-global run task mandatory as the first rollout step. A timeout or
 service outage can block every Terraform run in scope.
+
+This example deliberately sets ``agent_enabled: false``. Platform environment mode uses the
+legacy Sentinel policy-check flow that ``policy_check_info`` reads. OPA policies and Sentinel
+policy sets with ``agent_enabled: true`` use policy evaluations instead; read the run's task
+stages, then use :ansplugin:`hashicorp.terraform.policy_evaluation_info#module` and
+:ansplugin:`hashicorp.terraform.policy_set_outcome_info#module` to retain the associated outcomes
+as approval evidence. Terraform policy (tf-policy) uses the separate modules documented in
+:ref:`ansible_collections.hashicorp.terraform.docsite.guide_tf_policy`.
 
 Rollback and idempotency
 ========================

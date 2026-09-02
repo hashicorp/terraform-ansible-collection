@@ -34,6 +34,12 @@ class TestListPolicySets:
         adapter.client.policy_sets.list.return_value = iter([_make_model({"id": "polset-1", "name": "a"})])
         assert list_policy_sets(adapter, "my-org") == [{"id": "polset-1", "name": "a"}]
 
+    def test_normalizes_global_alias(self):
+        adapter = Mock()
+        adapter.client.policy_sets.list.return_value = iter([_make_model({"id": "polset-1", "name": "a", "Global": False})])
+
+        assert list_policy_sets(adapter, "my-org") == [{"id": "polset-1", "name": "a", "global": False}]
+
     def test_not_found_returns_empty(self):
         adapter = Mock()
         adapter.client.policy_sets.list.side_effect = NotFound("nope")

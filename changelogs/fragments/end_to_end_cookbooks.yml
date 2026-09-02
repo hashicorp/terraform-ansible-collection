@@ -9,3 +9,5 @@ doc_changes:
     providers, Terraform Actions, HYOK rotation, and Stack observability.
     Added GitHub-readable navigation and aligned the getting-started dependency
     and installation guidance with Automation Hub and Git/source distribution.
+  - >-
+    docs - Corrected examples after validating them against collection behavior.

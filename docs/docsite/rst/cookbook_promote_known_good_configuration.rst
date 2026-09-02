@@ -164,15 +164,12 @@ Save the sequential stage implementation as ``promote-environment.yml`` beside t
          Approve run {{ target_run.id }} using configuration
          {{ promoted_configuration.id }} in {{ promotion_target.name }}? Type yes
      register: promotion_prompt
-     when:
-       - promotion_target.approval_prompt | bool
-       - target_run.actions.is_confirmable | default(false)
+     when: promotion_target.approval_prompt | bool
 
    - name: Calculate approval for this stage
      ansible.builtin.set_fact:
        stage_approved: >-
-         {{ (not (target_run.actions.is_confirmable | default(false)))
-            or (not promotion_target.approval_prompt | bool)
+         {{ (not promotion_target.approval_prompt | bool)
             or ((promotion_prompt.user_input | default('no') | lower) == 'yes')
             or (promotion_approved | bool) }}
 
@@ -189,7 +186,7 @@ Save the sequential stage implementation as ``promote-environment.yml`` beside t
      register: promotion_result
      when:
        - stage_approved
-       - target_run.actions.is_confirmable | default(false)
+       - target_run.status != 'planned_and_finished'
 
    - name: Discard a rejected target run
      hashicorp.terraform.run:
@@ -197,15 +194,16 @@ Save the sequential stage implementation as ``promote-environment.yml`` beside t
        state: discarded
      when:
        - not stage_approved
-       - target_run.actions.is_discardable | default(false)
+       - target_run.status != 'planned_and_finished'
 
    - name: Stop promotion after a rejection or failed gate
      ansible.builtin.assert:
        that:
          - stage_approved
          - >-
-           (not (target_run.actions.is_confirmable | default(false)))
-           or (promotion_result.gates.applied | default(false))
+           target_run.status == 'planned_and_finished'
+           or promotion_result.gates.run_status_after | default('') == 'applied'
+           or promotion_result.run.status | default('') == 'planned_and_finished'
        fail_msg: >-
          Promotion stopped at {{ promotion_target.name }} for run {{ target_run.id }}.
 

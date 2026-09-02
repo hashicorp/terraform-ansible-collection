@@ -105,7 +105,7 @@ Save this as ``decommission.yml`` and run it with the Terraform-backed inventory
          hashicorp.terraform.plan_analyze:
            run_id: "{{ destroy_run.id }}"
            include_resource_changes: true
-           detect_drift: true
+           detect_drift: false
          register: destroy_analysis
 
        - name: Find actions that are not pure deletes
@@ -121,10 +121,9 @@ Save this as ``decommission.yml`` and run it with the Terraform-backed inventory
              - destroy_analysis.has_changes
              - unexpected_destroy_actions | length == 0
              - decommission_approved | bool
-             - destroy_run.actions.is_confirmable | default(false)
            fail_msg: >-
-             Destroy run {{ destroy_run.id }} is unapproved, empty, not confirmable, or contains
-             an action other than delete. Leave it unapplied and inspect the plan.
+             Destroy run {{ destroy_run.id }} is unapproved, empty, or contains an action other
+             than delete. Leave it unapplied and inspect the plan.
 
        - name: Display the destructive evidence before apply
          ansible.builtin.debug:
@@ -149,8 +148,9 @@ Save this as ``decommission.yml`` and run it with the Terraform-backed inventory
        - name: Require a completed Terraform destruction
          ansible.builtin.assert:
            that:
-             - destroyed.gates.applied | default(false)
-             - destroyed.gates.run_status_after | default('') == 'applied'
+             - >-
+               destroyed.gates.run_status_after | default('') == 'applied'
+               or destroyed.run.status | default('') == 'applied'
 
        - name: Delete the now-empty workspace
          hashicorp.terraform.workspace:
@@ -181,10 +181,14 @@ the lifecycle is complete.
 Store backup IDs, inventory snapshot, plan summary, destroyed resource addresses, run ID,
 approver, apply result, and workspace deletion result outside the deleted workspace.
 
+The analysis deliberately sets ``detect_drift: false``. Drift entries describe differences found
+while refreshing prior state and are not actions in the destroy proposal; including them in the
+same ``resource_changes`` list would make the pure-delete assertion reject otherwise valid destroy
+plans.
+
 .. seealso::
 
    - :ansplugin:`hashicorp.terraform.run#module`
    - :ansplugin:`hashicorp.terraform.plan_analyze#module`
    - :ansplugin:`hashicorp.terraform.promote_run#module`
    - :ref:`ansible_collections.hashicorp.terraform.docsite.guide_dynamic_inventory`
-

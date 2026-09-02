@@ -122,8 +122,10 @@ Save this as ``dr-rehearsal.yml``:
        - name: Require successful infrastructure recovery
          ansible.builtin.assert:
            that:
-             - dr_apply.gates.applied | default(false)
-             - dr_apply.gates.run_status_after | default('') == 'applied'
+             - >-
+               dr_apply.gates.run_status_after | default('') == 'applied'
+               or dr_apply.run.status | default('')
+                  in ['applied', 'planned_and_finished']
 
        - name: Read the deliberate recovery-host contract
          ansible.builtin.set_fact:
@@ -218,11 +220,18 @@ Save this as ``dr-rehearsal.yml``:
            comment: Approved DR rehearsal cleanup
          register: dr_destroyed
 
+       - name: Require successful rehearsal cleanup
+         ansible.builtin.assert:
+           that:
+             - >-
+               dr_destroyed.gates.run_status_after | default('') == 'applied'
+               or dr_destroyed.run.status | default('')
+                  in ['applied', 'planned_and_finished']
+
        - name: Delete the empty rehearsal workspace
          hashicorp.terraform.workspace:
            workspace_id: "{{ dr_baseline.workspace_id }}"
            state: absent
-         when: dr_destroyed.gates.run_status_after | default('') == 'applied'
 
 Failure and cleanup design
 ==========================

@@ -76,10 +76,19 @@ _RELATIONSHIP_METHOD_NAMES = {
 }
 
 
+def _format_policy_set(response: Any) -> Dict[str, Any]:
+    """Normalize pytfe's Python-safe name for the ``global`` API field."""
+    data = format_response(response)
+    for alias in ("Global", "global_"):
+        if alias in data:
+            data["global"] = data.pop(alias)
+    return data
+
+
 def list_policy_sets(adapter: TerraformClient, organization: str) -> List[Dict[str, Any]]:
     """List policy sets in an organization."""
     try:
-        return [format_response(ps) for ps in adapter.client.policy_sets.list(organization)]
+        return [_format_policy_set(ps) for ps in adapter.client.policy_sets.list(organization)]
     except NotFound:
         return []
 
@@ -87,7 +96,7 @@ def list_policy_sets(adapter: TerraformClient, organization: str) -> List[Dict[s
 def get_policy_set(adapter: TerraformClient, policy_set_id: str) -> Optional[Dict[str, Any]]:
     """Read a single policy set by its ID. Returns None if not found."""
     try:
-        return format_response(adapter.client.policy_sets.read(policy_set_id))
+        return _format_policy_set(adapter.client.policy_sets.read(policy_set_id))
     except NotFound:
         return None
 
@@ -109,7 +118,7 @@ def create_policy_set(adapter: TerraformClient, organization: str, data: Dict[st
         options,
         error_context=f"Failed to create policy set {data.get('name')!r} in organization {organization}",
     )
-    return format_response(response)
+    return _format_policy_set(response)
 
 
 def update_policy_set(adapter: TerraformClient, policy_set_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -121,7 +130,7 @@ def update_policy_set(adapter: TerraformClient, policy_set_id: str, data: Dict[s
         options,
         error_context=f"Failed to update policy set {policy_set_id}",
     )
-    return format_response(response)
+    return _format_policy_set(response)
 
 
 def delete_policy_set(adapter: TerraformClient, policy_set_id: str) -> None:

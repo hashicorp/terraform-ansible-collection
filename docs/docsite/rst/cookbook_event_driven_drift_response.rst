@@ -75,7 +75,9 @@ Save this as ``configure-drift-events.yml``:
            state: present
          no_log: true
 
-The notification endpoint is verified during creation and must return a successful response.
+The notification endpoint is verified during creation and enabled updates and must return a
+successful response. Terraform does not return an existing HMAC token through the API; rotate it
+by deleting and recreating the notification in a controlled change.
 
 Route drift events
 ==================
@@ -217,17 +219,29 @@ Save this as ``govern-drift-event.yml``. The same playbook runs in both workflow
          when: workflow_phase == 'decide'
 
        - name: Apply the same refresh-only run when safe and approved
-         hashicorp.terraform.run:
+         hashicorp.terraform.promote_run:
            run_id: "{{ governed_run_id }}"
-           state: applied
-           poll: true
-           poll_interval: 10
-           poll_timeout: "{{ run_poll_timeout }}"
+           require_policy_pass: true
+           allow_advisory_failures: false
+           wait: true
+           timeout: "{{ run_poll_timeout }}"
+         register: governed_refresh_apply
          when:
            - workflow_phase == 'decide'
            - approval_decision == 'approve'
            - drift_guard.safe_to_refresh
-           - governed_run.run.actions.is_confirmable | default(false)
+
+       - name: Require the approved refresh to complete
+         ansible.builtin.assert:
+           that:
+             - >-
+               governed_refresh_apply.gates.run_status_after | default('') == 'applied'
+               or governed_refresh_apply.run.status | default('')
+                  in ['applied', 'planned_and_finished']
+         when:
+           - workflow_phase == 'decide'
+           - approval_decision == 'approve'
+           - drift_guard.safe_to_refresh
 
        - name: Discard rejected or unsafe drift
          hashicorp.terraform.run:
@@ -238,7 +252,7 @@ Save this as ``govern-drift-event.yml``. The same playbook runs in both workflow
            - >-
              approval_decision == 'reject'
              or not drift_guard.safe_to_refresh
-           - governed_run.run.actions.is_discardable | default(false)
+           - governed_run.run.status != 'planned_and_finished'
 
        - name: Refuse an approval that conflicts with the guard
          ansible.builtin.assert:
@@ -269,8 +283,9 @@ Replay protection and operations
 ================================
 
 Deduplicate assessment events at the verified ingress using a stable event identifier and short
-retention window. Terraform may retry webhook delivery. Also prevent concurrent drift workflows
-for one workspace; otherwise multiple confirmable refresh runs can present conflicting decisions.
+retention window. Do not rely on Terraform to redeliver failures; buffer accepted events durably
+and replay them through the ingress when necessary. Also prevent concurrent drift workflows for
+one workspace; otherwise multiple confirmable refresh runs can present conflicting decisions.
 
 Persist the assessment event, run ID, policy version, guard output, approval identity, and final
 run status. Expire or discard runs that remain pending beyond the organization's approval SLA.

@@ -25,9 +25,17 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.policy_check i
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, get_run
 
 # Run states in which `apply` is a valid operation.
-APPLIABLE_STATUSES = {"planned", "cost_estimated", "policy_checked", "post_plan_completed", "confirmed"}
+APPLIABLE_STATUSES = {"planned", "planned_and_saved", "cost_estimated", "policy_checked", "post_plan_completed"}
 # Run states that are already final.
-FINAL_STATUSES = {"applied", "errored", "canceled", "discarded", "planned_and_finished"}
+FINAL_STATUSES = {"applied", "errored", "canceled", "force_canceled", "discarded", "planned_and_finished", "policy_soft_failed"}
+
+
+def _is_appliable(run):
+    """Prefer Terraform's action capability over a potentially transient status."""
+    actions = run.get("actions") or {}
+    if "is_confirmable" in actions:
+        return bool(actions["is_confirmable"])
+    return run.get("status") in APPLIABLE_STATUSES
 
 
 class ActionModule(ActionBase):
@@ -53,15 +61,24 @@ class ActionModule(ActionBase):
         )
     )
 
-    def _fail(self, result, msg, **extra):
-        result.update({"failed": True, "changed": False, "msg": msg, **extra})
+    def _fail(self, result, msg, changed=False, **extra):
+        result.update({"failed": True, "changed": changed, "msg": msg, **extra})
         return result
 
     def _wait_for_appliable(self, adapter, run_id, timeout, poll_interval):
         """Poll the run until it is appliable, final, or the timeout elapses."""
         deadline = time.time() + timeout
         run = get_run(adapter, run_id)
-        while run and run.get("status") not in APPLIABLE_STATUSES | FINAL_STATUSES and time.time() < deadline:
+        while run and not _is_appliable(run) and run.get("status") not in FINAL_STATUSES and time.time() < deadline:
+            time.sleep(poll_interval)
+            run = get_run(adapter, run_id)
+        return run
+
+    def _wait_for_final(self, adapter, run_id, timeout, poll_interval):
+        """Poll an applied run until it reaches a final state or times out."""
+        deadline = time.time() + timeout
+        run = get_run(adapter, run_id)
+        while run and run.get("status") not in FINAL_STATUSES and time.time() < deadline:
             time.sleep(poll_interval)
             run = get_run(adapter, run_id)
         return run
@@ -98,15 +115,23 @@ class ActionModule(ActionBase):
                 gates["run_status_before"] = run.get("status")
 
                 if run.get("status") in FINAL_STATUSES:
+                    gates["run_status_after"] = run.get("status")
                     gates["skipped_reason"] = f"Run already in final state '{run.get('status')}'"
                     result.update({"changed": False, "gates": gates, "run": run})
                     return result
 
-                if wait and run.get("status") not in APPLIABLE_STATUSES:
+                if wait and not _is_appliable(run):
                     run = self._wait_for_appliable(adapter, run_id, timeout, poll_interval) or run
                     gates["run_status_before"] = run.get("status")
 
-                if run.get("status") not in APPLIABLE_STATUSES:
+                if not _is_appliable(run):
+                    if wait and run.get("status") not in FINAL_STATUSES:
+                        return self._fail(
+                            result,
+                            f"Timed out waiting for run {run_id} to become appliable; last status was {run.get('status')!r}.",
+                            gates=gates,
+                            run=run,
+                        )
                     gates["skipped_reason"] = f"Run status {run.get('status')!r} is not appliable"
                     result.update({"changed": False, "gates": gates, "run": run})
                     return result
@@ -128,8 +153,25 @@ class ActionModule(ActionBase):
 
                 apply_run(adapter, run_id, comment=comment)
                 gates["applied"] = True
-                run_after = get_run(adapter, run_id) or run
+                if wait:
+                    run_after = self._wait_for_final(adapter, run_id, timeout, poll_interval) or run
+                else:
+                    run_after = get_run(adapter, run_id) or run
                 gates["run_status_after"] = run_after.get("status")
+
+                if wait and run_after.get("status") != "applied":
+                    if run_after.get("status") in FINAL_STATUSES:
+                        msg = f"Run {run_id} finished in status {run_after.get('status')!r} after apply was issued."
+                    else:
+                        msg = f"Timed out waiting for run {run_id} to finish; last status was {run_after.get('status')!r}."
+                    return self._fail(
+                        result,
+                        msg,
+                        changed=True,
+                        gates=gates,
+                        run=run_after,
+                        policy_checks=checks,
+                    )
 
                 result.update({"changed": True, "gates": gates, "run": run_after, "policy_checks": checks})
                 return result

@@ -99,10 +99,23 @@ Save this as ``onboard-stack.yml``:
            state: present
          register: stack_configuration
 
-       - name: Read configuration status
+       - name: Wait for configuration processing to finish
          hashicorp.terraform.stack_configuration_info:
            stack_configuration_id: "{{ stack_configuration.id }}"
          register: configuration_status
+         retries: 60
+         delay: 10
+         until: >-
+           configuration_status.stack_configuration.status | default('')
+           in ['completed', 'errored']
+
+       - name: Require a successfully processed configuration
+         ansible.builtin.assert:
+           that:
+             - configuration_status.stack_configuration.status == 'completed'
+           fail_msg: >-
+             Stack configuration {{ stack_configuration.id }} did not complete successfully.
+             Inspect its diagnostics before continuing.
 
        - name: Wait for every expected deployment group to appear
          hashicorp.terraform.stack_deployment_group_info:

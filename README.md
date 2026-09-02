@@ -437,7 +437,11 @@ GitHub Actions workflows are used to run tests for the `hashicorp.terraform` col
 
 ## Support
 
-As Red Hat Ansible Certified Content, this collection is entitled to support through the Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner. If a support case cannot be opened with Red Hat and the collection has been obtained either from Galaxy or GitHub, there may community help available on the [Ansible Forum](https://forum.ansible.com/).
+The certified artifact distributed through Red Hat Automation Hub may be eligible for support
+through your Ansible Automation Platform subscription. Git and self-built artifacts are community
+installation paths; use the [project issue tracker](https://github.com/hashicorp/terraform-ansible-collection/issues)
+for reproducible defects or ask for community help on the
+[Ansible Forum](https://forum.ansible.com/).
 
 ## Release Notes and Roadmap
 

@@ -55,8 +55,8 @@ Prerequisites and permissions
   :ref:`ansible_collections.hashicorp.terraform.docsite.cookbook_provision_and_configure`.
 - Provide an idempotent role named ``application_baseline`` or change the handler variable.
 
-Start the EDA activation or webhook receiver before creating the notification, because Terraform
-verifies generic webhook URLs on creation.
+Start the EDA activation or webhook receiver before creating or enabling the notification, because
+Terraform verifies generic webhook URLs on creation and on enabled updates.
 
 Configure the Terraform notification
 ====================================
@@ -99,6 +99,9 @@ Store the endpoint and HMAC secret in Vault or controller credentials. Save this
 
 The token is used to sign generic notifications. The receiving ingress must verify the
 ``X-TFE-Notification-Signature`` header before forwarding the body to EDA.
+Terraform does not return an existing token through the API, so the module cannot compare or
+rotate it on an in-place update. To rotate the token, remove and recreate the notification in a
+controlled change while the receiver accepts the old and new secrets during the transition.
 
 Run the EDA rulebook
 ====================
@@ -279,14 +282,15 @@ Expected behavior and idempotency
 - Completed plans with another status do not match the post-apply rule.
 - Applied destroy runs are verified but skip configuration.
 - A ``run:errored`` event launches only the failure handler.
-- Re-delivered webhook events may run the handler more than once. The role must be idempotent, so
-  duplicate delivery converges to the same state rather than repeating an unsafe action.
+- Duplicate or deliberately replayed webhook events may run the handler more than once. The role
+  must be idempotent, so replay converges to the same state rather than repeating an unsafe action.
 
 Failure, replay, and rollback
 =============================
 
-Terraform retries failed notification deliveries. Monitor the rulebook activation and configure a
-dead-letter or incident path at the ingress so a prolonged EDA outage is visible.
+Do not rely on Terraform to redeliver a failed notification. Monitor the rulebook activation and
+configure durable buffering plus a dead-letter or incident path at the ingress so a prolonged EDA
+outage is visible and captured events can be replayed deliberately.
 
 If Terraform applied successfully but host configuration failed, rerun ``post-apply.yml`` with a
 captured, validated event or run the same configuration role against ``tfc_inv`` inventory. Do not

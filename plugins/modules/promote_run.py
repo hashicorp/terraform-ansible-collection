@@ -11,13 +11,16 @@ version_added: "2.0.0"
 short_description: Gate and apply a Terraform Cloud/Enterprise run based on policy outcomes.
 author: "Prabuddha Chakraborty (@iam404)"
 description:
-  - Evaluates policy-check outcomes for a Terraform run and, when eligible, applies it.
+  - Evaluates legacy Sentinel policy-check outcomes for a Terraform run and, when eligible, applies it.
   - Implemented as an action plugin that wraps the collection's pytfe-backed helpers; it
     does not issue its own HTTP calls.
   - Returns a structured C(gates) dictionary describing the decision taken so callers can
     inspect why the run was or was not applied.
-  - Idempotent. Runs already in a final state (applied, errored, canceled, discarded,
-    planned_and_finished) are reported as a no-op.
+  - Idempotent. Runs already in a final state (applied, errored, canceled, force-canceled, discarded,
+    planned_and_finished, policy_soft_failed) are reported as a no-op.
+  - C(planned_and_saved) runs are eligible for apply.
+  - This action reads the policy-check API. For agent-based Sentinel, OPA, or Terraform policy,
+    inspect the corresponding policy-evaluation modules before invoking the apply.
 extends_documentation_fragment: hashicorp.terraform.common
 options:
   run_id:
@@ -38,12 +41,15 @@ options:
     default: true
   wait:
     description:
-      - When true, wait for the run to become appliable before evaluating policies.
+      - When true, wait for the run to become appliable before evaluating policies and, after an
+        apply is issued, wait until the run reaches C(applied) or another final state.
     type: bool
     default: false
   timeout:
     description:
-      - Maximum seconds to wait for the run to become appliable when C(wait=true).
+      - >-
+        Maximum seconds for each wait phase when C(wait=true): becoming appliable and completing
+        apply.
     type: int
     default: 600
   poll_interval:
@@ -94,7 +100,10 @@ gates:
       description: Run status observed before the decision.
       type: str
     run_status_after:
-      description: Run status observed after the apply (if applied).
+      description:
+        - Run status observed after the apply was issued, or the existing status when the run was
+          already final.
+        - When C(wait=true) issues an apply and succeeds, this is C(applied).
       type: str
     policy_summary:
       description: Counts of policy-check outcomes by enforcement level.

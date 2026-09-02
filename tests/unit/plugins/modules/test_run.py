@@ -49,6 +49,27 @@ class TestWaitForState:
         assert status == "success"
         assert data["status"] == "tf_policy_override"
 
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.time.sleep")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
+    def test_wait_for_state_uses_operation_specific_success_states(self, mock_get_run, _mock_sleep):
+        mock_adapter = Mock()
+        mock_get_run.side_effect = [
+            {"id": "run-1", "status": "planned"},
+            {"id": "run-1", "status": "applied"},
+        ]
+
+        status, data = wait_for_state(
+            mock_adapter,
+            "run-1",
+            timeout=5,
+            polling_interval=1,
+            success_states={"applied"},
+        )
+
+        assert status == "success"
+        assert data["status"] == "applied"
+        assert mock_get_run.call_count == 2
+
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
     def test_wait_for_state_failure(self, mock_get_run):
         mock_adapter = Mock()
@@ -58,6 +79,17 @@ class TestWaitForState:
 
         assert status == "failure"
         assert data["status"] == "errored"
+
+    @pytest.mark.parametrize("run_status", ["canceled", "force_canceled", "discarded"])
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.get_run")
+    def test_wait_for_state_treats_aborted_created_run_as_failure(self, mock_get_run, run_status):
+        mock_adapter = Mock()
+        mock_get_run.return_value = {"id": "run-2", "status": run_status}
+
+        status, data = wait_for_state(mock_adapter, "run-2", timeout=5, polling_interval=1)
+
+        assert status == "failure"
+        assert data["status"] == run_status
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.time.sleep")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.time.time")
@@ -104,7 +136,9 @@ class TestHandlePollingAndResult:
         result = handle_polling_and_result(mock_adapter, {"id": "run-1"}, True)
 
         assert result["failed"] is True
-        assert "expected success state" in result["msg"]
+        assert result["changed"] is True
+        assert result["status"] == "errored"
+        assert "expected states" in result["msg"]
 
     def test_without_polling(self):
         mock_adapter = Mock()
@@ -261,6 +295,38 @@ class TestStateHandlers:
         call_data = mock_create_run.call_args.kwargs["data"]
         assert call_data["refresh_only"] is True
         assert call_data["auto_apply"] is True
+        assert mock_handle.call_args.kwargs["success_states"] == {"applied", "planned_and_finished"}
+
+    @pytest.mark.parametrize(
+        "run_option, expected_states",
+        [
+            ({"plan_only": True}, {"planned_and_finished"}),
+            ({"save_plan": True}, {"planned_and_finished", "planned_and_saved"}),
+        ],
+    )
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
+    @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.create_run")
+    def test_state_present_waits_for_requested_plan_artifact(
+        self,
+        mock_create_run,
+        mock_handle,
+        run_option,
+        expected_states,
+    ):
+        mock_create_run.return_value = {"id": "run-plan"}
+        mock_handle.return_value = {"changed": True, "id": "run-plan"}
+
+        state_present(
+            Mock(),
+            workspace_id="ws-1",
+            state="present",
+            poll=True,
+            poll_timeout=120,
+            poll_interval=1,
+            **run_option,
+        )
+
+        assert mock_handle.call_args.kwargs["success_states"] == expected_states
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.create_run")
@@ -296,6 +362,7 @@ class TestStateHandlers:
 
         assert result["changed"] is True
         mock_apply_run.assert_called_once_with(ANY, "run-1", comment="apply")
+        assert mock_handle.call_args.kwargs["success_states"] == {"applied"}
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.discard_run")
@@ -307,6 +374,7 @@ class TestStateHandlers:
 
         assert result["changed"] is True
         mock_discard_run.assert_called_once_with(ANY, "run-2", comment="discard")
+        assert mock_handle.call_args.kwargs["success_states"] == {"discarded"}
 
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.handle_polling_and_result")
     @patch("ansible_collections.hashicorp.terraform.plugins.modules.run.cancel_run")
@@ -318,6 +386,7 @@ class TestStateHandlers:
 
         assert result["changed"] is True
         mock_cancel_run.assert_called_once_with(ANY, "run-3", comment="cancel")
+        assert mock_handle.call_args.kwargs["success_states"] == {"canceled", "force_canceled"}
 
 
 class TestWorkspaceLookup:

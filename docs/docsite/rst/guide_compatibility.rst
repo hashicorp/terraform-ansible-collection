@@ -63,10 +63,11 @@ pin it in execution environments — see
 Getting support
 ===============
 
-As Red Hat Ansible Certified Content, this collection is eligible for support through the
-`Ansible Automation Platform <https://www.redhat.com/en/technologies/management/ansible>`__. If a
-support case cannot be opened with Red Hat and you obtained the collection from Automation Hub or
-GitHub, community help is available on the `Ansible Forum <https://forum.ansible.com/c/help/6>`__.
+The certified artifact distributed through Red Hat Automation Hub may be eligible for support
+through your
+`Ansible Automation Platform <https://www.redhat.com/en/technologies/management/ansible>`__
+subscription. Git and self-built artifacts are community installation paths; community help is
+available on the `Ansible Forum <https://forum.ansible.com/c/help/6>`__.
 
 Report bugs and request features on the
 `project issue tracker <https://github.com/hashicorp/terraform-ansible-collection/issues>`__.

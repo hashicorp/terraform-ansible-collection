@@ -144,6 +144,16 @@ Save this as ``provision-and-configure.yml``:
            state: present
          register: terraform_run
 
+       - name: Wait for the plan to become confirmable or finish with no changes
+         hashicorp.terraform.run_info:
+           run_id: "{{ terraform_run.id }}"
+         register: terraform_run_ready
+         retries: "{{ (run_poll_timeout | int + 9) // 10 }}"
+         delay: 10
+         until: >-
+           terraform_run_ready.run.actions.is_confirmable | default(false)
+           or terraform_run_ready.run.status == 'planned_and_finished'
+
        - name: Apply the exact run when it has changes
          hashicorp.terraform.run:
            run_id: "{{ terraform_run.id }}"
@@ -152,14 +162,14 @@ Save this as ``provision-and-configure.yml``:
            poll_timeout: "{{ run_poll_timeout }}"
            state: applied
          register: applied_run
-         when: terraform_run.actions.is_confirmable | default(false)
+         when: terraform_run_ready.run.actions.is_confirmable | default(false)
 
        - name: Verify that the run reached an acceptable state
          ansible.builtin.assert:
            that:
              - >-
                (applied_run.status | default('')) == 'applied'
-               or terraform_run.status == 'planned_and_finished'
+               or terraform_run_ready.run.status == 'planned_and_finished'
            fail_msg: "Terraform run {{ terraform_run.id }} was not applied successfully."
 
        - name: Read the non-sensitive host contract from Terraform
