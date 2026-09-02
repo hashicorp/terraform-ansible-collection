@@ -13,4 +13,3 @@ bugfixes:
   - >-
     notification_configuration - Do not report perpetual drift for the
     write-only webhook token on an existing notification.
-
