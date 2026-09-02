@@ -1,3 +1,0 @@
----
-minor_changes:
-  - Add the read-only ``stack_diagnostic_info`` module to retrieve a stack diagnostic by ID through the PyTFE ``stack_diagnostics.read()`` SDK call.

@@ -4,6 +4,134 @@ Hashicorp Terraform Collection Release Notes
 
 .. contents:: Topics
 
+v2.2.0
+======
+
+Minor Changes
+-------------
+
+- Add the read-only ``stack_diagnostic_info`` module to retrieve a stack diagnostic by ID through the PyTFE ``stack_diagnostics.read()`` SDK call.
+- Added ``aws_oidc_configuration``, ``azure_oidc_configuration``, ``gcp_oidc_configuration``, and ``vault_oidc_configuration`` modules (each with an ``_info`` companion) to manage the HCP Terraform-side OIDC configuration record HYOK uses to authenticate to a customer KMS - most commonly as the ``oidc_configuration_id`` dependency of ``hyok_configuration``. None of the four create or manage cloud-side IAM/service-principal/workload-identity resources, only the HCP Terraform configuration record. Since the underlying API has no ``list`` endpoint and the record has no ``name`` field, ``state=present`` is only idempotent when ``oidc_configuration_id`` is supplied (read+diff+update); without it, every run creates a new record - documented explicitly in each module rather than silently duplicating.
+- Added ``hyok_configuration`` and ``hyok_configuration_info`` modules to manage HCP Terraform HYOK (Hold Your Own Key) configurations, letting an organization encrypt workspace state/plan data with a customer-controlled KMS key. Since the underlying API has no update endpoint, ``hyok_configuration`` fails on ``state=present`` if the supplied options drift from an existing configuration rather than silently ignoring the drift or replacing the configuration - delete and recreate to change attributes. ``state=absent`` automatically revokes the configuration (polling for completion) before deleting, since the API rejects deleting a non-revoked configuration; set ``wait=false`` to only trigger the revoke. An optional ``test=true`` invokes and, by default, waits on the async key-access test action, failing the task on a ``test_failed`` result.
+- Added a family of policy management modules: ``policy``/``policy_info`` (standalone Sentinel/OPA/tf-policy policies, with genuine content drift detection via the API's round-trippable upload/download), ``policy_set``/``policy_set_info`` (policy sets, including inline diff-and-sync of all five relationship types - policies, workspaces, workspace_exclusions, projects, project_exclusions - against a policy set's current membership), ``policy_set_version``/``policy_set_version_info`` (create-then-upload a new version for non-VCS-backed policy sets, mirroring ``configuration_version``'s shape), ``policy_set_parameter``/``policy_set_parameter_info`` (key/value parameters on a policy set, with the same sensitive-value write-only handling as the ``variable`` module), ``policy_evaluation_info`` and ``policy_set_outcome_info`` (read-only OPA policy evaluation results), and ``policy_check``/``policy_check_info`` (the legacy Sentinel policy-checks surface, extending the existing ``policy_check`` module_utils helper used by ``promote_run`` and the ``tf_policy_checks`` lookup - ``policy_check`` adds an idempotent override action). ``kind`` is immutable after creation on both ``policy`` and ``policy_set``; supplying a different value against an existing resource fails with a clear message rather than silently ignoring the drift.
+- Adds a new module hashicorp.terraform.registry_provider for creating and deleting Terraform Cloud/Enterprise registry providers.
+- Adds a new module hashicorp.terraform.registry_provider_info for fetching information about a Terraform Cloud/Enterprise registry provider.
+- Adds new modules hashicorp.terraform.registry_provider_version and hashicorp.terraform.registry_provider_version_info for managing private registry provider versions on Terraform Cloud and Terraform Enterprise.
+- Adds the new module hashicorp.terraform.stack_configuration for creating Terraform Cloud/Enterprise stack configuration snapshots.
+- Adds the new module hashicorp.terraform.stack_configuration_info for retrieving information about a Terraform Cloud/Enterprise stack configuration.
+- Adds the new module hashicorp.terraform.stack_deployment_group_info for retrieving information about Terraform Cloud/Enterprise stack deployment groups by ID or name.
+- Adds the new module hashicorp.terraform.stack_deployment_run_info for retrieving information about Terraform Cloud/Enterprise stack deployment runs by ID.
+- Adds the new module hashicorp.terraform.stack_deployment_step_info for retrieving information about Terraform Cloud/Enterprise stack deployment steps by ID.
+- agent - new module to delete Terraform Cloud/Enterprise agents by ID.
+- agent_info - new info module to retrieve information about a Terraform Cloud/Enterprise agent by ID.
+- agent_token - new module to manage Terraform Cloud/Enterprise agent pool authentication tokens.
+- agent_token_info - new module to retrieve information about Terraform Cloud/Enterprise agent pool authentication tokens.
+- explorer - new module to create, update, and delete Terraform Cloud/Enterprise Explorer saved views with full idempotency and check-mode support.
+- explorer_info - new read-only module to execute ad-hoc Explorer queries or read a saved view definition and its result rows.
+- no_code_module - new module to manage Terraform Cloud/Enterprise no-code provisioning modules.
+- no_code_module_info - new module to retrieve information about Terraform Cloud/Enterprise no-code provisioning modules.
+- organization_token - New module ``hashicorp.terraform.organization_token`` to manage organization-scoped authentication tokens on Terraform Cloud and Terraform Enterprise. Supports creating and deleting the default organization token or the HCP Terraform Audit Trails token (``token_type=audit-trails``). Accepts an optional ``expired_at`` expiry timestamp. Fully idempotent on ``state=present`` with full ``check_mode`` support.
+- plan_analyze module - New read-only module ``hashicorp.terraform.plan_analyze`` that parses a Terraform plan JSON document (fetched via a ``run_id`` / ``plan_id``, or supplied inline as ``plan_json``) and returns machine-friendly drift and change facts: ``has_drift`` / ``drift_count``, ``has_changes`` / ``change_count``, the changed and computed (unknown) attribute paths per resource, and a descriptive ``safe`` / ``risky`` / ``blocked`` / ``unknown`` classification with user-overridable, glob-based ``safe_attributes`` / ``risky_attributes`` / ``blocked_attributes`` rules (precedence ``blocked > risky > safe > unknown``). Rules default to empty (fail-closed) and are matched against a canonical ``<module_path>.<type>.<name>.<attribute.path>`` target, so they can be scoped by resource type/module rather than bare attribute names. Complements ``view_plan`` (human-readable diff) by exposing a programmatic drift-detection surface. Targets Terraform 1.x plan JSON; an unrecognized ``format_version`` warns and proceeds best-effort rather than failing the task.
+- plan_guard filter / plan_safe test - New pure, offline plugins ``hashicorp.terraform.plan_guard`` (filter) and ``hashicorp.terraform.plan_safe`` (test) that evaluate a ``plan_analyze`` result against user-defined ``allow`` / ``deny`` rules and return an auditable ``safe_to_refresh`` decision for gating a refresh-only apply that absorbs approved drift into Terraform state. Unlike a module, both are usable inline (for example directly in ``when:``) since they perform no I/O and never fork a Python interpreter. Rules use the same canonical attribute-matching grammar as ``plan_analyze`` classification; ``deny`` always wins over ``allow``, ``strict`` mode (default) is fail-closed, and a resource ``plan_analyze`` already classified ``blocked`` is escalated unconditionally. Not a replacement for TFE-native Sentinel/OPA policy checks.
+- public_registry_module_info - new module to retrieve information about modules from the public Terraform Registry (registry.terraform.io).
+- registry_module - new module to manage Terraform Cloud/Enterprise private registry modules (https://github.com/hashicorp/terraform-ansible-collection/pull/168).
+- registry_module_info - new module to retrieve information about Terraform Cloud/Enterprise private registry modules (https://github.com/hashicorp/terraform-ansible-collection/pull/168).
+- registry_provider_platform - new module to manage Terraform Cloud/Enterprise registry provider platforms.
+- registry_provider_platform_info - new module to retrieve information about Terraform Cloud/Enterprise registry provider platforms.
+- reserved_tag_keys - New module to create, update, and delete Terraform Cloud/Enterprise reserved tag keys.
+- run_task module - New module ``hashicorp.terraform.run_task`` to create, update, and delete organization-scoped run tasks on Terraform Cloud and Terraform Enterprise. Supports identifying a run task by ``run_task_id`` or by ``(organization, name)``, configuring the invocation ``url``, ``description``, ``enabled`` flag, optional ``hmac_key`` (write-only), ``agent_pool_id``, and a ``global_configuration`` block (``enabled`` / ``stages`` / ``enforcement_level``). Idempotent on ``present`` with ``check_mode`` support.
+- run_task_info module - New module ``hashicorp.terraform.run_task_info`` to retrieve run task details by ``run_task_id``, by ``(organization, name)``, or list every run task in an organization.
+- stack - New module to create, update, and delete Terraform Cloud/Enterprise stacks (https://github.com/hashicorp/terraform-ansible-collection/pull/163).
+- stack_info - New module to retrieve information about Terraform Cloud/Enterprise stacks (https://github.com/hashicorp/terraform-ansible-collection/pull/163).
+- stack_state_info - New read-only module to retrieve information about a Terraform Cloud/Enterprise stack state by its unique ID.
+- task_result_info module - New module ``hashicorp.terraform.task_result_info`` to read a single run task result by ``task_result_id`` on Terraform Cloud and Terraform Enterprise.
+- task_stage_info module - New module ``hashicorp.terraform.task_stage_info`` to read a single run task stage by ``task_stage_id`` (optionally sideloading related resources via ``include``) or list every task stage for a run by ``run_id``, on Terraform Cloud and Terraform Enterprise.
+- team_token - New module to create and delete Terraform Cloud and Terraform Enterprise team tokens, with idempotent team-token management.
+- team_token_info - New module to retrieve read-only information about Terraform Cloud and Terraform Enterprise team tokens by team ID or token ID.
+- tf_policy_evaluation - New module to override a Terraform policy (tf-policy) evaluation that is awaiting override.
+- tf_policy_evaluation_info - New module to read Terraform policy (tf-policy) evaluations and set outcomes for a run.
+- tfc_inv inventory - Add an optional ``hostvars`` option with ``include`` and ``exclude`` lists to shape which top-level source attributes are emitted as Ansible host variables. ``include`` limits emitted host vars to the listed keys, ``exclude`` removes listed keys, and ``exclude`` wins when a key appears in both; unknown keys are ignored. Shaping affects only the emitted host vars - ``compose``, ``hostnames``, ``keyed_groups``, ``groups``, and the filter options continue to resolve against the full sanitized data, and the plugin-injected ``ansible_host`` / ``value`` / ``tfc_workspace_id`` / ``tfc_workspace_name`` variables are always emitted. When ``hostvars`` is omitted, behavior is unchanged.
+- workspace_run_task module - New module ``hashicorp.terraform.workspace_run_task`` to associate an existing organization run task with a workspace, update its enforcement level and run stages, or remove the association, on Terraform Cloud and Terraform Enterprise. The workspace is identified by ``workspace_id`` or ``(organization, workspace)``, and the run task by ``run_task_id`` or ``run_task_name``; an existing association can also be targeted by ``workspace_run_task_id``. Idempotent on ``present`` with ``check_mode`` support.
+- workspace_run_task_info module - New module ``hashicorp.terraform.workspace_run_task_info`` to retrieve a workspace run task association by ``workspace_run_task_id`` or by run task, or list every run task associated with a workspace.
+
+New Plugins
+-----------
+
+Filter
+~~~~~~
+
+- plan_guard - Evaluate a plan\_analyze result against allow/deny drift rules
+
+Test
+~~~~
+
+- plan_safe - Test whether a plan\_analyze result is safe to refresh under allow/deny drift rules
+
+New Modules
+-----------
+
+- agent - Manage Terraform Cloud/Enterprise agents (delete).
+- agent_info - Retrieve information about a Terraform Cloud/Enterprise agent.
+- agent_token - Manage Terraform Cloud/Enterprise agent pool tokens.
+- agent_token_info - Retrieve information about a Terraform Cloud/Enterprise agent token.
+- aws_oidc_configuration - Manage HCP Terraform AWS OIDC configurations for HYOK.
+- aws_oidc_configuration_info - Retrieve information about an HCP Terraform AWS OIDC configuration.
+- azure_oidc_configuration - Manage HCP Terraform Azure OIDC configurations for HYOK.
+- azure_oidc_configuration_info - Retrieve information about an HCP Terraform Azure OIDC configuration.
+- explorer - Manage Terraform Cloud/Enterprise Explorer saved views.
+- explorer_info - Query the Terraform Cloud/Enterprise Explorer API (read\-only).
+- gcp_oidc_configuration - Manage HCP Terraform GCP OIDC configurations for HYOK.
+- gcp_oidc_configuration_info - Retrieve information about an HCP Terraform GCP OIDC configuration.
+- hyok_configuration - Manage HCP Terraform HYOK (Hold Your Own Key) configurations.
+- hyok_configuration_info - Retrieve information about HCP Terraform HYOK (Hold Your Own Key) configurations.
+- no_code_module - Manage Terraform Cloud/Enterprise no\-code modules.
+- no_code_module_info - Retrieve information about a Terraform Cloud/Enterprise no\-code module.
+- organization_token - Manage Terraform Cloud/Enterprise organization tokens.
+- plan_analyze - Analyze a Terraform plan for drift and change classification
+- policy - Manage Terraform Cloud/Enterprise policies (Sentinel, OPA, or tf\-policy).
+- policy_check - Override a soft\-mandatory Terraform Cloud/Enterprise policy check.
+- policy_check_info - Retrieve Sentinel policy check outcomes for a Terraform Cloud/Enterprise run.
+- policy_evaluation_info - List OPA policy evaluations for a Terraform Cloud/Enterprise task stage.
+- policy_info - Retrieve information about a Terraform Cloud/Enterprise policy.
+- policy_set - Manage Terraform Cloud/Enterprise policy sets and their memberships.
+- policy_set_info - Retrieve information about a Terraform Cloud/Enterprise policy set.
+- policy_set_outcome_info - Retrieve OPA policy set outcomes for a Terraform Cloud/Enterprise policy evaluation.
+- policy_set_parameter - Manage parameters on a Terraform Cloud/Enterprise policy set.
+- policy_set_parameter_info - Retrieve information about Terraform Cloud/Enterprise policy set parameters.
+- policy_set_version - Create and upload a Terraform Cloud/Enterprise policy set version.
+- policy_set_version_info - Retrieve information about a Terraform Cloud/Enterprise policy set version.
+- public_registry_module_info - Retrieve information about a module from the public Terraform Registry.
+- registry_module - Manage Terraform Cloud/Enterprise private registry modules.
+- registry_module_info - Retrieve information about a Terraform Cloud/Enterprise private registry module.
+- registry_provider - Manage Terraform Cloud/Enterprise registry providers.
+- registry_provider_info - Retrieve information about a Terraform Cloud/Enterprise registry provider.
+- registry_provider_platform - Manage Terraform Cloud/Enterprise registry provider platforms.
+- registry_provider_platform_info - Retrieve information about a Terraform Cloud/Enterprise registry provider platform.
+- registry_provider_version - Manage Terraform Cloud/Enterprise private registry provider versions.
+- registry_provider_version_info - Retrieve information about a Terraform Cloud/Enterprise private registry provider version.
+- reserved_tag_keys - Manage Terraform Cloud/Enterprise reserved tag keys (create, update, delete).
+- run_task - Manage Terraform Cloud/Enterprise run tasks (create, update, delete).
+- run_task_info - Retrieve information about Terraform Cloud/Enterprise run tasks.
+- stack - Manage Terraform Cloud/Enterprise stacks (create, update, delete).
+- stack_configuration - Create a Terraform stack configuration snapshot.
+- stack_configuration_info - Retrieve information about a Terraform stack configuration.
+- stack_deployment_group_info - Retrieve information about a Terraform Cloud/Enterprise stack deployment group.
+- stack_deployment_run_info - Retrieve information about a Terraform Cloud/Enterprise stack deployment run.
+- stack_deployment_step_info - Retrieve information about a Terraform Cloud/Enterprise stack deployment step.
+- stack_diagnostic_info - Retrieve information about a Terraform Cloud/Enterprise stack diagnostic.
+- stack_info - Retrieve information about Terraform Cloud/Enterprise stacks.
+- stack_state_info - Retrieve information about a Terraform Cloud/Enterprise stack state.
+- task_result_info - Retrieve information about a Terraform Cloud/Enterprise task result.
+- task_stage_info - Retrieve information about Terraform Cloud/Enterprise task stages.
+- team_token - Manage Terraform Cloud and Terraform Enterprise team tokens.
+- team_token_info - Retrieve information about a Terraform Cloud and Terraform Enterprise team token.
+- tf_policy_evaluation - Override a Terraform policy (tf\-policy) evaluation.
+- tf_policy_evaluation_info - Read Terraform policy (tf\-policy) evaluations and set outcomes for a run.
+- vault_oidc_configuration - Manage HCP Terraform Vault OIDC configurations for HYOK.
+- vault_oidc_configuration_info - Retrieve information about an HCP Terraform Vault OIDC configuration.
+- workspace_run_task - Associate and manage run tasks on a Terraform Cloud/Enterprise workspace.
+- workspace_run_task_info - Retrieve information about run tasks associated with a workspace.
+
 v2.1.0
 ======
 

@@ -1,7 +1,0 @@
-minor_changes:
-  - >-
-    team_token - New module to create and delete Terraform Cloud and Terraform
-    Enterprise team tokens, with idempotent team-token management.
-  - >-
-    team_token_info - New module to retrieve read-only information about
-    Terraform Cloud and Terraform Enterprise team tokens by team ID or token ID.

@@ -1,5 +1,0 @@
----
-minor_changes:
-  - Adds new modules hashicorp.terraform.registry_provider_version and
-    hashicorp.terraform.registry_provider_version_info for managing private
-    registry provider versions on Terraform Cloud and Terraform Enterprise.

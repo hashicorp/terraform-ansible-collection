@@ -1,5 +1,0 @@
----
-minor_changes:
-  - >-
-    public_registry_module_info - new module to retrieve information about
-    modules from the public Terraform Registry (registry.terraform.io).
