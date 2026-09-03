@@ -27,7 +27,7 @@ Supported versions
    * - Python
      - ``>= 3.10`` (in the interpreter that runs the tasks)
    * - ``pytfe``
-     - ``>= 1.2.0``
+     - ``>= 1.4.1``
 
 Individual plugins may add their own ``version_added`` metadata; check a plugin's documentation
 with ``ansible-doc`` for option-level details.
@@ -52,8 +52,8 @@ or direct access to a state backend.
 About the ``pytfe`` requirement
 ===============================
 
-Every module, lookup, and the inventory plugin depend on ``pytfe``. Newer collection features rely
-on SDK surfaces added in ``pytfe`` 1.2.0, so older SDK versions are not supported even if a subset
+Every module, lookup, and the inventory plugin depend on ``pytfe``. Collection features rely on
+SDK surfaces available in ``pytfe`` 1.4.1, so older SDK versions are not supported even if a subset
 of modules happens to import. Always install ``pytfe>=1.4.1`` into the interpreter Ansible uses, and
 pin it in execution environments — see
 :ref:`ansible_collections.hashicorp.terraform.docsite.guide_execution_environments`.
@@ -63,10 +63,11 @@ pin it in execution environments — see
 Getting support
 ===============
 
-As Red Hat Ansible Certified Content, this collection is eligible for support through the
-`Ansible Automation Platform <https://www.redhat.com/en/technologies/management/ansible>`__. If a
-support case cannot be opened with Red Hat and you obtained the collection from Galaxy or GitHub,
-community help is available on the `Ansible Forum <https://forum.ansible.com/c/help/6>`__.
+The certified artifact distributed through Red Hat Automation Hub may be eligible for support
+through your
+`Ansible Automation Platform <https://www.redhat.com/en/technologies/management/ansible>`__
+subscription. Git and self-built artifacts are community installation paths; community help is
+available on the `Ansible Forum <https://forum.ansible.com/c/help/6>`__.
 
 Report bugs and request features on the
 `project issue tracker <https://github.com/hashicorp/terraform-ansible-collection/issues>`__.

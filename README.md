@@ -12,23 +12,52 @@ Being Red Hat Ansible Certified Content, this collection is eligible for support
 
 ## Documentation
 
-In addition to the per-module reference (available with `ansible-doc`, for example `ansible-doc hashicorp.terraform.workspace`), this collection ships a set of scenario guides under [`docs/docsite/rst/`](docs/docsite/rst/) that render on the Ansible collection docsite:
+In addition to the per-module reference (available with `ansible-doc`, for
+example `ansible-doc hashicorp.terraform.workspace`), this collection provides
+a [documentation index](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/README.md).
+The links below open the rendered guides on GitHub, including when this README
+is viewed from Automation Hub:
 
-- [Getting started](docs/docsite/rst/guide_getting_started.rst)
-- [Authentication](docs/docsite/rst/guide_authentication.rst)
-- [Workspaces and projects](docs/docsite/rst/guide_workspaces_projects.rst)
-- [Runs and configuration versions](docs/docsite/rst/guide_runs.rst)
-- [Drift-safe Day 2 operations (plan analyze / guard / safe)](docs/docsite/rst/guide_plan_analyze.rst)
-- [Enforcing tf-policy compliance](docs/docsite/rst/guide_tf_policy.rst)
-- [Variables and variable sets](docs/docsite/rst/guide_variables.rst)
-- [Teams and access](docs/docsite/rst/guide_teams_and_access.rst)
-- [Workspace bootstrap](docs/docsite/rst/guide_workspace_bootstrap.rst)
-- [Private registry modules](docs/docsite/rst/guide_registry_modules.rst)
-- [Dynamic inventory](docs/docsite/rst/guide_dynamic_inventory.rst)
-- [Lookup plugins](docs/docsite/rst/guide_lookups.rst)
-- [Execution environments](docs/docsite/rst/guide_execution_environments.rst)
-- [Troubleshooting](docs/docsite/rst/guide_troubleshooting.rst)
-- [Compatibility and support](docs/docsite/rst/guide_compatibility.rst)
+### End-to-End Cookbooks
+
+- [Provision with Terraform, configure with Ansible](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_provision_and_configure.rst)
+- [Application onboarding factory](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_application_onboarding.rst)
+- [Governed drift reconciliation](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_governed_drift.rst)
+- [Event-driven post-apply automation](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_event_driven_post_apply.rst)
+- [Ephemeral preview environments](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_ephemeral_environment.rst)
+
+### Advanced Platform Cookbooks
+
+- [Promote one known-good configuration](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_promote_known_good_configuration.rst)
+- [Replace an agent pool blue-green](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_agent_pool_blue_green.rst)
+- [Run a fleet Terraform upgrade campaign](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_fleet_upgrade_campaign.rst)
+- [Respond to drift through an EDA workflow](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_event_driven_drift_response.rst)
+- [Migrate a workspace to dynamic credentials](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_dynamic_credentials_migration.rst)
+- [Decommission infrastructure safely](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_governed_decommission.rst)
+- [Rehearse disaster recovery end to end](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_disaster_recovery_rehearsal.rst)
+- [Roll out compliance controls safely](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_compliance_control_rollout.rst)
+- [Publish a signed private provider](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_private_provider_release.rst)
+- [Govern day-two operations with Terraform Actions](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_terraform_actions.rst)
+- [Rotate an HCP Terraform HYOK key](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_hyok_key_rotation.rst)
+- [Onboard and observe an HCP Terraform Stack](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/cookbook_stacks_observability.rst)
+
+### Feature Guides
+
+- [Getting started](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_getting_started.rst)
+- [Authentication](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_authentication.rst)
+- [Workspaces and projects](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_workspaces_projects.rst)
+- [Runs and configuration versions](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_runs.rst)
+- [Drift-safe Day 2 operations (plan analyze / guard / safe)](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_plan_analyze.rst)
+- [Enforcing tf-policy compliance](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_tf_policy.rst)
+- [Variables and variable sets](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_variables.rst)
+- [Teams and access](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_teams_and_access.rst)
+- [Workspace bootstrap](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_workspace_bootstrap.rst)
+- [Private registry modules](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_registry_modules.rst)
+- [Dynamic inventory](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_dynamic_inventory.rst)
+- [Lookup plugins](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_lookups.rst)
+- [Execution environments](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_execution_environments.rst)
+- [Troubleshooting](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_troubleshooting.rst)
+- [Compatibility and support](https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/guide_compatibility.rst)
 
 ## Requirements
 
@@ -408,7 +437,11 @@ GitHub Actions workflows are used to run tests for the `hashicorp.terraform` col
 
 ## Support
 
-As Red Hat Ansible Certified Content, this collection is entitled to support through the Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner. If a support case cannot be opened with Red Hat and the collection has been obtained either from Galaxy or GitHub, there may community help available on the [Ansible Forum](https://forum.ansible.com/).
+The certified artifact distributed through Red Hat Automation Hub may be eligible for support
+through your Ansible Automation Platform subscription. Git and self-built artifacts are community
+installation paths; use the [project issue tracker](https://github.com/hashicorp/terraform-ansible-collection/issues)
+for reproducible defects or ask for community help on the
+[Ansible Forum](https://forum.ansible.com/).
 
 ## Release Notes and Roadmap
 

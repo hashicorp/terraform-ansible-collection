@@ -31,163 +31,31 @@ EXAMPLES = r"""
     run_id: "run-sample-12345"
   register: run_info
 
-# Task output:
-# ------------
-# "run_result": {
-#     "changed": false,
-#     "failed": false,
-#     "run": {
-#         "attributes": {
-#             "actions": {
-#                 "is-cancelable": false,
-#                 "is-confirmable": false,
-#                 "is-discardable": false,
-#                 "is-force-cancelable": false
-#             },
-#             "allow-config-generation": true,
-#             "allow-empty-apply": false,
-#             "auto-apply": false,
-#             "canceled-at": null,
-#             "created-at": "2025-07-30T11:35:47.183Z",
-#             "has-changes": true,
-#             "is-destroy": false,
-#             "message": "test",
-#             "permissions": {
-#                 "can-apply": true,
-#                 "can-cancel": true,
-#                 "can-comment": true,
-#                 "can-discard": true,
-#                 "can-force-cancel": true,
-#                 "can-force-execute": true,
-#                 "can-override-policy-check": true
-#             },
-#             "plan-only": false,
-#             "refresh": true,
-#             "refresh-only": false,
-#             "replace-addrs": [],
-#             "save-plan": false,
-#             "source": "tfe-ui",
-#             "status": "discarded",
-#             "status-timestamps": {
-#                 "discarded-at": "2025-07-30T11:39:34+00:00",
-#                 "plan-queueable-at": "2025-07-30T11:35:47+00:00",
-#                 "plan-queued-at": "2025-07-30T11:35:47+00:00",
-#                 "planned-at": "2025-07-30T11:36:08+00:00",
-#                 "planning-at": "2025-07-30T11:35:49+00:00",
-#                 "post-plan-running-at": "2025-07-30T11:36:08+00:00",
-#                 "queuing-at": "2025-07-30T11:35:47+00:00"
-#             },
-#             "target-addrs": null,
-#             "terraform-version": "1.10.5",
-#             "trigger-reason": "manual",
-#             "updated-at": "2025-07-30T11:39:34.091Z",
-#             "variables": []
-#         },
-#         "id": "run-sample1234567890",
-#         "links": {
-#             "self": "/api/v2/runs/run-sample1234567890"
-#         },
-#         "relationships": {
-#             "apply": {
-#                 "data": {
-#                     "id": "apply-XJ1s5VQrgZRNSHsn",
-#                     "type": "applies"
-#                 },
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/apply"
-#                 }
-#             },
-#             "comments": {
-#                 "data": [],
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/comments"
-#                 }
-#             },
-#             "configuration-version": {
-#                 "data": {
-#                     "id": "cv-h2u3XnkPasTHbgyv",
-#                     "type": "configuration-versions"
-#                 },
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/configuration-version"
-#                 }
-#             },
-#             "created-by": {
-#                 "data": {
-#                     "id": "user-YYhuc7w4AJxv5RVp",
-#                     "type": "users"
-#                 },
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/created-by"
-#                 }
-#             },
-#             "plan": {
-#                 "data": {
-#                     "id": "plan-2hQe8iJVqBDAg9zA",
-#                     "type": "plans"
-#                 },
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/plan"
-#                 }
-#             },
-#             "policy-checks": {
-#                 "data": [],
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/policy-checks"
-#                 }
-#             },
-#             "run-events": {
-#                 "data": [
-#                     {
-#                         "id": "re-a6cNzRDD4THQK5xF",
-#                         "type": "run-events"
-#                     }
-#                 ],
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/run-events"
-#                 }
-#             },
-#             "task-stages": {
-#                 "data": [
-#                     {
-#                         "id": "ts-24rWmqCXzYtyNv6C",
-#                         "type": "task-stages"
-#                     }
-#                 ],
-#                 "links": {
-#                     "related": "/api/v2/runs/run-sample1234567890/task-stages"
-#                 }
-#             },
-#             "workspace": {
-#                 "data": {
-#                     "id": "ws-82Qk88p7boaHK2BT",
-#                     "type": "workspaces"
-#                 }
-#             }
-#         },
-#         "type": "runs"
-#     }
-# }
+# The returned run is flattened and uses snake_case keys:
+# run_info.run:
+#   id: run-sample-12345
+#   status: applied
+#   actions:
+#     is_confirmable: false
+#   auto_apply: false
+#   is_destroy: false
+#   plan_only: false
+#   workspace:
+#     id: ws-sample-12345
 
 - name: Handle case when run does not exist by ID
   hashicorp.terraform.run_info:
     run_id: "run-invalid-id"
   register: run_info
   ignore_errors: true
-
-# Task output:
-# ------------
-# FAILED! => {
-#     "changed": false,
-#     "failed": true,
-#     "msg": "The run with ID 'run-invalid-id' was not found."
-# }
 """
 
 RETURN = r"""
 run:
   type: dict
-  description: A dictionary containing the run information.
+  description:
+    - Run information flattened from the pytfe model.
+    - Field names use snake_case; there is no JSON:API C(attributes) wrapper.
   returned: on success
   contains:
     id:
@@ -195,28 +63,79 @@ run:
       returned: always
       description: The unique identifier of the run.
       sample: "run-sample-12345"
-    type:
+    status:
       type: str
       returned: always
-      description: The type of the resource (always "runs").
-      sample: "runs"
-    attributes:
+      description: The current run status.
+      sample: "applied"
+    actions:
       type: dict
-      returned: always
-      description: The attributes of the run.
-    relationships:
+      returned: when available
+      description: Capability flags for actions available on the run.
+      sample:
+        is_cancelable: false
+        is_confirmable: false
+        is_discardable: false
+        is_force_cancelable: false
+    auto_apply:
+      type: bool
+      returned: when available
+      description: Whether the run was configured to apply automatically.
+      sample: false
+    has_changes:
+      type: bool
+      returned: when available
+      description: Whether the run's plan contains changes.
+      sample: true
+    is_destroy:
+      type: bool
+      returned: when available
+      description: Whether this is a destroy run.
+      sample: false
+    message:
+      type: str
+      returned: when available
+      description: The message associated with the run.
+      sample: "Deploy production"
+    plan_only:
+      type: bool
+      returned: when available
+      description: Whether this is a speculative plan-only run.
+      sample: false
+    refresh_only:
+      type: bool
+      returned: when available
+      description: Whether this is a refresh-only run.
+      sample: false
+    source:
+      type: str
+      returned: when available
+      description: The source that created the run.
+      sample: "tfe-api"
+    status_timestamps:
       type: dict
-      returned: always
-      description: Relationships to other resources.
-    links:
+      returned: when available
+      description: Lifecycle timestamps keyed by snake_case event name.
+      sample:
+        planned_at: "2026-03-26T10:14:40Z"
+        applied_at: "2026-03-26T10:14:55Z"
+    configuration_version:
       type: dict
-      returned: always
-      description: Links related to the run.
-      contains:
-        self:
-          type: str
-          returned: always
-          description: API endpoint for this run.
+      returned: when available
+      description: The related configuration version in flattened pytfe form.
+    plan:
+      type: dict
+      returned: when available
+      description: The related plan in flattened pytfe form.
+    workspace:
+      type: dict
+      returned: when available
+      description: The related workspace in flattened pytfe form.
+    variables:
+      type: list
+      elements: dict
+      returned: when available
+      description: Variables supplied directly to the run.
 """
 
 

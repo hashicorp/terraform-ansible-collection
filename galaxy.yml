@@ -5,7 +5,7 @@
 
 namespace: "hashicorp"
 name: "terraform"
-version: 2.2.0
+version: 2.2.1
 readme: README.md
 authors:
   - HashiCorp, an IBM Company (https://github.com/hashicorp)
@@ -16,6 +16,7 @@ license_file: LICENSE
 tags: ["hashicorp", "terraform", "infrastructure", "cloud"]
 
 repository: https://github.com/hashicorp/terraform-ansible-collection
+documentation: https://github.com/hashicorp/terraform-ansible-collection/blob/main/docs/docsite/rst/README.md
 homepage: https://www.hashicorp.com/
 issues: https://github.com/hashicorp/terraform-ansible-collection/issues
 

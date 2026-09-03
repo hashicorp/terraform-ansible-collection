@@ -1,12 +1,34 @@
 ---
 # Defines the navigation sections for the rendered collection docsite.
-# Each entry under "toctree" is a file in docs/docsite/rst/ without the .rst extension.
+# Each entry under "toctree" is a file in docs/docsite/rst/ without the
+# .rst extension.
 # See https://ansible.readthedocs.io/projects/antsibull-docs/collection-docs/
 sections:
   - title: Getting Started
     toctree:
       - guide_getting_started
       - guide_authentication
+  - title: End-to-End Cookbooks
+    toctree:
+      - cookbook_provision_and_configure
+      - cookbook_application_onboarding
+      - cookbook_governed_drift
+      - cookbook_event_driven_post_apply
+      - cookbook_ephemeral_environment
+  - title: Advanced Platform Cookbooks
+    toctree:
+      - cookbook_promote_known_good_configuration
+      - cookbook_agent_pool_blue_green
+      - cookbook_fleet_upgrade_campaign
+      - cookbook_event_driven_drift_response
+      - cookbook_dynamic_credentials_migration
+      - cookbook_governed_decommission
+      - cookbook_disaster_recovery_rehearsal
+      - cookbook_compliance_control_rollout
+      - cookbook_private_provider_release
+      - cookbook_terraform_actions
+      - cookbook_hyok_key_rotation
+      - cookbook_stacks_observability
   - title: Scenario Guides
     toctree:
       - guide_workspaces_projects

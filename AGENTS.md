@@ -172,6 +172,9 @@ runs).
 # style
 black --check plugins tests && isort --check plugins tests && flake8 plugins tests
 
+# Ansible and YAML lint
+ansible-lint
+
 # unit (collection must be importable as ansible_collections.hashicorp.terraform)
 ANSIBLE_COLLECTIONS_PATH=<COLL> pytest tests/unit/plugins/.../test_<resource>.py -q
 
@@ -201,7 +204,8 @@ create → idempotent re-run → update → info → delete → delete-again, wi
       shape matches actual flattened output).
 - [ ] Added to `meta/runtime.yml` `action_groups`.
 - [ ] Changelog fragment added.
-- [ ] `black` / `isort` / `flake8` / `antsibull-docs lint` / unit tests green.
+- [ ] `black` / `isort` / `flake8` / `ansible-lint` / `antsibull-docs lint` /
+      unit tests green.
 
 ---
 

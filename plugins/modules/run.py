@@ -551,24 +551,32 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.exceptions imp
 from ansible_collections.hashicorp.terraform.plugins.module_utils.run import apply_run, cancel_run, create_run, discard_run, get_run
 from ansible_collections.hashicorp.terraform.plugins.module_utils.workspace import get_workspace
 
-SUCCESS_STATES = [
+SUCCESS_STATES = {
     "planned",
     "planned_and_finished",
     "planned_and_saved",
     "applied",
-    "discarded",
-    "canceled",
-    "force_canceled",
     "policy_override",
     "tf_policy_override",
     "post_plan_completed",
     "post_plan_awaiting_decision",
-]
+}
 
-FAILURE_STATES = ["errored", "policy_soft_failed"]
+FAILURE_STATES = {"errored", "policy_soft_failed", "canceled", "force_canceled", "discarded"}
+AUTO_APPLY_SUCCESS_STATES = {"applied", "planned_and_finished"}
+PLAN_ONLY_SUCCESS_STATES = {"planned_and_finished"}
+SAVE_PLAN_SUCCESS_STATES = {"planned_and_finished", "planned_and_saved"}
+FINAL_RUN_STATES = {"applied", "errored", "canceled", "force_canceled", "discarded", "planned_and_finished"}
 
 
-def wait_for_state(adapter: TerraformClient, run_id: str, timeout: int = 120, polling_interval: int = 5) -> tuple[str, Optional[dict[str, Any]]]:
+def wait_for_state(
+    adapter: TerraformClient,
+    run_id: str,
+    timeout: int = 120,
+    polling_interval: int = 5,
+    success_states: Optional[set[str]] = None,
+    failure_states: Optional[set[str]] = None,
+) -> tuple[str, Optional[dict[str, Any]]]:
     """
     Wait for a run to reach a terminal state (success or failure).
     Args:
@@ -576,11 +584,15 @@ def wait_for_state(adapter: TerraformClient, run_id: str, timeout: int = 120, po
         run_id: The ID of the run to wait for.
         timeout: The timeout for the wait in seconds.
         polling_interval: The polling interval in seconds.
+        success_states: States that complete the requested operation successfully.
+        failure_states: States that terminate the requested operation unsuccessfully.
     Returns:
         A tuple of (status, run_data) where status is "success", "failure", or "timeout"
     Raises:
         TerraformError: If the run does not reach the expected state within the timeout.
     """
+    expected_success = success_states or SUCCESS_STATES
+    expected_failure = failure_states or FAILURE_STATES
     start_time = time.time()
     run = None
     while True:
@@ -589,9 +601,9 @@ def wait_for_state(adapter: TerraformClient, run_id: str, timeout: int = 120, po
         if not run:
             return "failure", {"error": f"Run {run_id} not found"}
         state = run.get("status")
-        if run and state in SUCCESS_STATES:
+        if run and state in expected_success:
             return "success", run
-        elif run and state in FAILURE_STATES:
+        elif run and state in expected_failure:
             return "failure", run
 
         if time.time() - start_time > timeout:
@@ -601,7 +613,15 @@ def wait_for_state(adapter: TerraformClient, run_id: str, timeout: int = 120, po
     return "timeout", run
 
 
-def handle_polling_and_result(adapter: TerraformClient, response: dict, poll: bool, run_id: Optional[str] = None, **kwargs: Any) -> dict[str, Any]:
+def handle_polling_and_result(
+    adapter: TerraformClient,
+    response: dict,
+    poll: bool,
+    run_id: Optional[str] = None,
+    success_states: Optional[set[str]] = None,
+    failure_states: Optional[set[str]] = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
     """
     Handle polling and return appropriate action result.
     Args:
@@ -615,12 +635,29 @@ def handle_polling_and_result(adapter: TerraformClient, response: dict, poll: bo
     action_result = {}
     target_run_id = run_id or response.get("id")
     if poll and target_run_id:
-        status, poll_response = wait_for_state(adapter, target_run_id, kwargs.get("poll_timeout", 120), kwargs.get("poll_interval", 5))
+        status, poll_response = wait_for_state(
+            adapter,
+            target_run_id,
+            kwargs.get("poll_timeout", 120),
+            kwargs.get("poll_interval", 5),
+            success_states=success_states,
+            failure_states=failure_states,
+        )
         if status == "success" and poll_response:
             poll_data = poll_response or {}
             action_result.update({"changed": True, **poll_data})
         else:
-            action_result.update({"failed": True, "msg": f"Run reached status '{status}' instead of expected success state"})
+            poll_data = poll_response or {}
+            observed = poll_data.get("status", status)
+            expected = sorted(success_states or SUCCESS_STATES)
+            action_result.update(
+                {
+                    "changed": True,
+                    **poll_data,
+                    "failed": True,
+                    "msg": f"Run reached status {observed!r} instead of one of the expected states {expected}",
+                }
+            )
     else:
         data = response or {}
         action_result.update({"changed": True, **data})
@@ -698,7 +735,21 @@ def state_present(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     run_params = {key: value for key, value in kwargs.items() if not key.startswith(("tf_", "tfe_", "poll_")) and key not in excluded_params}
 
     response = create_run(adapter, data=run_params)
-    return handle_polling_and_result(adapter, response, **kwargs)
+    if kwargs.get("auto_apply"):
+        success_states = AUTO_APPLY_SUCCESS_STATES
+    elif kwargs.get("plan_only"):
+        success_states = PLAN_ONLY_SUCCESS_STATES
+    elif kwargs.get("save_plan"):
+        success_states = SAVE_PLAN_SUCCESS_STATES
+    else:
+        success_states = SUCCESS_STATES
+    return handle_polling_and_result(
+        adapter,
+        response,
+        success_states=success_states,
+        failure_states=FAILURE_STATES,
+        **kwargs,
+    )
 
 
 @check_mode
@@ -714,7 +765,15 @@ def state_applied(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str,
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
     response = apply_run(adapter, run_id, comment=kwargs.get("run_message"))
-    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
+    return handle_polling_and_result(
+        adapter,
+        response,
+        poll,
+        run_id,
+        success_states={"applied"},
+        failure_states=(FINAL_RUN_STATES - {"applied"}) | {"policy_soft_failed"},
+        **kwargs,
+    )
 
 
 @check_mode
@@ -730,7 +789,15 @@ def state_discarded(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[st
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
     response = discard_run(adapter, run_id, comment=kwargs.get("run_message"))
-    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
+    return handle_polling_and_result(
+        adapter,
+        response,
+        poll,
+        run_id,
+        success_states={"discarded"},
+        failure_states=(FINAL_RUN_STATES - {"discarded"}) | {"policy_soft_failed"},
+        **kwargs,
+    )
 
 
 @check_mode
@@ -746,7 +813,15 @@ def state_canceled(adapter: TerraformClient, **kwargs: Any) -> Optional[dict[str
     run_id = kwargs.pop("run_id", None)
     poll = kwargs.pop("poll", True)
     response = cancel_run(adapter, run_id, comment=kwargs.get("run_message"))
-    return handle_polling_and_result(adapter, response, poll, run_id, **kwargs)
+    return handle_polling_and_result(
+        adapter,
+        response,
+        poll,
+        run_id,
+        success_states={"canceled", "force_canceled"},
+        failure_states=(FINAL_RUN_STATES - {"canceled", "force_canceled"}) | {"policy_soft_failed"},
+        **kwargs,
+    )
 
 
 def get_workspace_id(adapter: TerraformClient, workspace: str, organization: str) -> str:

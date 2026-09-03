@@ -58,10 +58,19 @@ from ansible_collections.hashicorp.terraform.plugins.module_utils.client import 
 from ansible_collections.hashicorp.terraform.plugins.module_utils.utils import format_response, safe_api_call
 
 
+def _format_variable_set(response: Any) -> Dict[str, Any]:
+    """Normalize pytfe's Python-safe name for the ``global`` API field."""
+    data = format_response(response)
+    for alias in ("global_", "Global"):
+        if alias in data:
+            data["global"] = data.pop(alias)
+    return data
+
+
 def list_variable_sets(adapter: TerraformClient, organization: str) -> List[Dict[str, Any]]:
     """List variable sets under an organization."""
     try:
-        return [format_response(vs) for vs in adapter.client.variable_sets.list(organization)]
+        return [_format_variable_set(vs) for vs in adapter.client.variable_sets.list(organization)]
     except NotFound:
         return []
 
@@ -81,7 +90,7 @@ def get_variable_set(
         if include_relations:
             options = VariableSetReadOptions(include=[VariableSetIncludeOpt.WORKSPACES, VariableSetIncludeOpt.PROJECTS])
         variable_set = adapter.client.variable_sets.read(variable_set_id, options=options)
-        return format_response(variable_set)
+        return _format_variable_set(variable_set)
     except NotFound:
         return None
 
@@ -111,7 +120,7 @@ def create_variable_set(
         options,
         error_context=f"Failed to create variable set {data.get('name')!r} in organization {organization!r}",
     )
-    return format_response(response)
+    return _format_variable_set(response)
 
 
 def update_variable_set(
@@ -127,7 +136,7 @@ def update_variable_set(
         options,
         error_context=f"Failed to update variable set {variable_set_id}",
     )
-    return format_response(response)
+    return _format_variable_set(response)
 
 
 def delete_variable_set(adapter: TerraformClient, variable_set_id: str) -> None:

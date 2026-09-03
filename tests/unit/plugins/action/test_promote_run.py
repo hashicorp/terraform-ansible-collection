@@ -60,6 +60,30 @@ class TestPromoteRun:
         result = action.run()
         assert result["changed"] is False
         assert "final state" in result["gates"]["skipped_reason"]
+        assert result["gates"]["run_status_after"] == "applied"
+
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.get_run")
+    def test_plan_only_policy_soft_failure_is_final(self, mock_get, mock_apply, patched_client):
+        mock_get.return_value = {"id": "run-1", "status": "policy_soft_failed", "plan_only": True}
+
+        result = _make_action({"run_id": "run-1", "wait": True}).run()
+
+        assert result["changed"] is False
+        assert result["gates"]["run_status_after"] == "policy_soft_failed"
+        assert "final state" in result["gates"]["skipped_reason"]
+        mock_apply.assert_not_called()
+
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.get_run")
+    def test_confirmed_is_not_appliable_without_capability_data(self, mock_get, mock_apply, patched_client):
+        mock_get.return_value = {"id": "run-1", "status": "confirmed"}
+
+        result = _make_action({"run_id": "run-1"}).run()
+
+        assert result["changed"] is False
+        assert "not appliable" in result["gates"]["skipped_reason"]
+        mock_apply.assert_not_called()
 
     @patch(f"{MOD}.get_run")
     def test_not_appliable_without_wait(self, mock_get, patched_client):
@@ -93,6 +117,92 @@ class TestPromoteRun:
         assert result["changed"] is True
         assert result["gates"]["applied"] is True
         assert result["gates"]["run_status_after"] == "applied"
+        mock_apply.assert_called_once()
+
+    @patch(f"{MOD}.time.sleep")
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.summarize_policy_checks")
+    @patch(f"{MOD}.list_policy_checks")
+    @patch(f"{MOD}.get_run")
+    def test_wait_covers_post_apply_completion(self, mock_get, mock_list, mock_summarize, mock_apply, _mock_sleep, patched_client):
+        mock_get.side_effect = [
+            {"id": "run-1", "status": "planned"},
+            {"id": "run-1", "status": "applying"},
+            {"id": "run-1", "status": "applied"},
+        ]
+        mock_list.return_value = []
+        mock_summarize.return_value = {"mandatory_failed": False, "advisory_failed": False}
+
+        result = _make_action({"run_id": "run-1", "wait": True, "poll_interval": 0}).run()
+
+        assert result["changed"] is True
+        assert result["gates"]["run_status_after"] == "applied"
+        assert mock_get.call_count == 3
+        mock_apply.assert_called_once()
+
+    @patch(f"{MOD}.time.sleep")
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.summarize_policy_checks")
+    @patch(f"{MOD}.list_policy_checks")
+    @patch(f"{MOD}.get_run")
+    def test_wait_does_not_treat_transient_planned_as_confirmable(
+        self,
+        mock_get,
+        mock_list,
+        mock_summarize,
+        mock_apply,
+        _mock_sleep,
+        patched_client,
+    ):
+        mock_get.side_effect = [
+            {"id": "run-1", "status": "planned", "actions": {"is_confirmable": False}},
+            {"id": "run-1", "status": "policy_checked", "actions": {"is_confirmable": True}},
+            {"id": "run-1", "status": "applied", "actions": {"is_confirmable": False}},
+        ]
+        mock_list.return_value = [{"id": "polchk-1", "status": "passed"}]
+        mock_summarize.return_value = {"mandatory_failed": False, "advisory_failed": False}
+
+        result = _make_action({"run_id": "run-1", "wait": True, "poll_interval": 0}).run()
+
+        assert result["gates"]["run_status_before"] == "policy_checked"
+        assert result["gates"]["run_status_after"] == "applied"
+        mock_apply.assert_called_once()
+
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.summarize_policy_checks")
+    @patch(f"{MOD}.list_policy_checks")
+    @patch(f"{MOD}.get_run")
+    def test_saved_plan_is_appliable(self, mock_get, mock_list, mock_summarize, mock_apply, patched_client):
+        mock_get.side_effect = [
+            {"id": "run-1", "status": "planned_and_saved"},
+            {"id": "run-1", "status": "applied"},
+        ]
+        mock_list.return_value = []
+        mock_summarize.return_value = {"mandatory_failed": False, "advisory_failed": False}
+
+        result = _make_action({"run_id": "run-1"}).run()
+
+        assert result["changed"] is True
+        mock_apply.assert_called_once()
+
+    @patch(f"{MOD}.apply_run")
+    @patch(f"{MOD}.summarize_policy_checks")
+    @patch(f"{MOD}.list_policy_checks")
+    @patch(f"{MOD}.get_run")
+    def test_wait_reports_failed_final_state_after_apply(self, mock_get, mock_list, mock_summarize, mock_apply, patched_client):
+        mock_get.side_effect = [
+            {"id": "run-1", "status": "planned"},
+            {"id": "run-1", "status": "errored"},
+        ]
+        mock_list.return_value = []
+        mock_summarize.return_value = {"mandatory_failed": False, "advisory_failed": False}
+
+        result = _make_action({"run_id": "run-1", "wait": True}).run()
+
+        assert result["failed"] is True
+        assert result["changed"] is True
+        assert result["gates"]["applied"] is True
+        assert result["gates"]["run_status_after"] == "errored"
         mock_apply.assert_called_once()
 
     @patch(f"{MOD}.summarize_policy_checks")

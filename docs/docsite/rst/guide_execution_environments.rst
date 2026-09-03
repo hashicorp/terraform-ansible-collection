@@ -198,8 +198,8 @@ Building from an unreleased branch (development only)
 .. note::
 
    The pattern below is for testing an **unreleased** branch and should not be used for production
-   images. Production EEs should pin a released collection version from Galaxy or Automation Hub as
-   shown above.
+   images. Use the released certified artifact from Automation Hub for the supported path. When
+   building the community source from Git, pin a release tag or commit SHA rather than a branch.
 
 To test changes from a Git branch before release, point ``requirements.yml`` at the branch:
 

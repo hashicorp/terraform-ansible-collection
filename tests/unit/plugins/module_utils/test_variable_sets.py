@@ -45,6 +45,12 @@ class TestListVariableSets:
             {"id": "varset-2", "name": "b"},
         ]
 
+    def test_normalizes_global_alias(self):
+        adapter = Mock()
+        adapter.client.variable_sets.list.return_value = iter([_make_model({"id": "varset-1", "name": "a", "global_": False})])
+
+        assert list_variable_sets(adapter, "my-org") == [{"id": "varset-1", "name": "a", "global": False}]
+
     def test_not_found_returns_empty(self):
         adapter = Mock()
         adapter.client.variable_sets.list.side_effect = NotFound("none")

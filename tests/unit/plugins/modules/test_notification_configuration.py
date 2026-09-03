@@ -131,6 +131,23 @@ class TestStatePresent:
         assert result["changed"] is False
         assert result["id"] == "nc-1"
 
+    def test_write_only_token_does_not_cause_perpetual_update(self, adapter):
+        current = {
+            "id": "nc-1",
+            "name": "ops",
+            "destination_type": "generic",
+            "url": "https://hooks.example.com/x",
+            "enabled": True,
+            "triggers": ["run:needs_attention"],
+            "token": None,
+        }
+        params = self._present_params(token="write-only-secret")
+        with patch(f"{MODULE_PATH}._fetch_notification", return_value=current), patch(f"{MODULE_PATH}.update_notification_configuration") as mock_update:
+            result = state_present(adapter, params, check_mode=False)
+
+        mock_update.assert_not_called()
+        assert result["changed"] is False
+
     def test_drift_triggers_update(self, adapter):
         current = {
             "id": "nc-1",
