@@ -4,6 +4,23 @@ Hashicorp Terraform Collection Release Notes
 
 .. contents:: Topics
 
+v2.2.1
+======
+
+Bugfixes
+--------
+
+- notification_configuration - Do not report perpetual drift for the write-only webhook token on an existing notification.
+- policy_set and variable_sets - Normalize pytfe's Python-safe aliases for the global field so global=false remains idempotent.
+- promote_run - Wait for post-apply completion, honor Terraform's is_confirmable capability, and support planned_and_saved runs.
+- run - Poll for completion states appropriate to auto-apply, speculative, saved-plan, apply, discard, and cancel operations instead of accepting an unrelated intermediate state.
+
+Documentation Changes
+---------------------
+
+- docs - Added five foundational and twelve advanced end-to-end cookbooks covering provisioning and configuration, application onboarding, governed drift, event-driven automation, ephemeral environments, immutable promotion, private agents, fleet upgrades, dynamic credentials, decommissioning, disaster recovery, compliance controls, private providers, Terraform Actions, HYOK rotation, and Stack observability. Added GitHub-readable navigation and aligned the getting-started dependency and installation guidance with Automation Hub and Git/source distribution.
+- docs - Corrected examples after validating them against collection behavior.
+
 v2.2.0
 ======
 
