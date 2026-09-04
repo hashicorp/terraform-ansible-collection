@@ -517,4 +517,4 @@ plugins:
       name: plan_safe
       version_added: 2.2.0
   vars: {}
-version: 2.2.0
+version: 2.2.1
